@@ -52,8 +52,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
-    public MultiTermVectorsIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MultiTermVectorsIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     public void testDuelESLucene() throws Exception {

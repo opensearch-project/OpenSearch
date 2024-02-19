@@ -1283,9 +1283,17 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 Level.TRACE,
                 notSeenReceived
             );
+            final String notSeenResponseSent = ".*\\[internal:testNotSeen].*sent response.*";
+            final MockLogAppender.LoggingExpectation notSeenResponseSentExpectation = new MockLogAppender.PatternSeenEventExpectation(
+                "sent response",
+                "org.opensearch.transport.TransportService.tracer",
+                Level.TRACE,
+                notSeenResponseSent
+            );
 
             appender.addExpectation(notSeenSentExpectation);
             appender.addExpectation(notSeenReceivedExpectation);
+            appender.addExpectation(notSeenResponseSentExpectation);
 
             PlainTransportFuture<StringMessageResponse> future = new PlainTransportFuture<>(noopResponseHandler);
             serviceA.sendRequest(nodeB, "internal:testNotSeen", new StringMessageRequest(""), future);

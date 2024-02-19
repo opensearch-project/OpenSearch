@@ -98,6 +98,7 @@ class OpenSearchUncaughtExceptionHandler implements Thread.UncaughtExceptionHand
         Terminal.DEFAULT.flush();
     }
 
+    @SuppressWarnings("removal")
     void halt(int status) {
         AccessController.doPrivileged(new PrivilegedHaltAction(status));
     }

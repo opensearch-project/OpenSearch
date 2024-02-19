@@ -97,13 +97,13 @@ public class RemoveProcessorFactoryTests extends OpenSearchTestCase {
             OpenSearchParseException.class,
             () -> factory.create(null, processorTag, null, config)
         );
-        assertThat(exception.getMessage(), equalTo("[field] ether field or exclude_field must be set"));
+        assertThat(exception.getMessage(), equalTo("[field] either field or exclude_field must be set"));
 
         Map<String, Object> config2 = new HashMap<>();
         config2.put("field", "field1");
         config2.put("exclude_field", "field2");
         exception = expectThrows(OpenSearchParseException.class, () -> factory.create(null, processorTag, null, config2));
-        assertThat(exception.getMessage(), equalTo("[field] ether field or exclude_field must be set"));
+        assertThat(exception.getMessage(), equalTo("[field] either field or exclude_field must be set"));
 
         Map<String, Object> config6 = new HashMap<>();
         config6.put("exclude_field", "exclude_field");

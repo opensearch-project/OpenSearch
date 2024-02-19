@@ -12,7 +12,6 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -30,11 +29,6 @@ import static org.hamcrest.Matchers.equalTo;
  * refer: https://github.com/opensearch-project/OpenSearch/issues/11413
  */
 public class SimpleNestedExplainIT extends OpenSearchIntegTestCase {
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
-    }
 
     /*
      * Tests the explain output for multiple docs. Concurrent search with multiple slices is tested

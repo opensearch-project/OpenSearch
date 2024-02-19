@@ -36,7 +36,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder;
@@ -47,7 +46,7 @@ import org.opensearch.script.ScoreAccessor;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.CoreMatchers;
 
 import java.util.Arrays;
@@ -76,10 +75,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RandomScoreFunctionIT extends ParameterizedOpenSearchIntegTestCase {
+public class RandomScoreFunctionIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public RandomScoreFunctionIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public RandomScoreFunctionIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -88,11 +87,6 @@ public class RandomScoreFunctionIT extends ParameterizedOpenSearchIntegTestCase 
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
