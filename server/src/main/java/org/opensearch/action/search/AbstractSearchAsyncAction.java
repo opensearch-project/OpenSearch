@@ -58,6 +58,10 @@ import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.pipeline.PipelinedRequest;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanCreationContext;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.Transport;
 
 import java.util.ArrayDeque;
@@ -116,6 +120,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
     private final boolean throttleConcurrentRequests;
     private final SearchRequestContext searchRequestContext;
+    private final Tracer tracer;
 
     private SearchPhase currentPhase;
     private boolean currentPhaseHasLifecycle;
@@ -140,7 +145,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchPhaseResults<Result> resultConsumer,
         int maxConcurrentRequestsPerNode,
         SearchResponse.Clusters clusters,
-        SearchRequestContext searchRequestContext
+        SearchRequestContext searchRequestContext,
+        Tracer tracer
     ) {
         super(name);
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
@@ -177,6 +183,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.results = resultConsumer;
         this.clusters = clusters;
         this.searchRequestContext = searchRequestContext;
+        this.tracer = tracer;
     }
 
     @Override
@@ -455,7 +462,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void executePhase(SearchPhase phase) {
-        try {
+        final Span phaseSpan = tracer.startSpan(SpanCreationContext.server().name("[phase/" + phase.getName() + "]"));
+        try (final SpanScope scope = tracer.withSpanInScope(phaseSpan)) {
             onPhaseStart(phase);
             phase.recordAndRun();
         } catch (Exception e) {

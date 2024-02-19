@@ -58,6 +58,7 @@ import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -122,7 +123,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             }
 
             @Override
-            protected void onPhaseFailure(SearchPhaseContext context) {
+            protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {
                 assertThat(phase, is(context.getCurrentPhase()));
                 phase = null;
             }
@@ -205,7 +206,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
                 request
-            )
+            ),
+            NoopTracer.INSTANCE
         ) {
             @Override
             protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -746,7 +748,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger),
                 searchRequest
-            )
+            ),
+            NoopTracer.INSTANCE
         );
     }
 
@@ -799,7 +802,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger),
                 searchRequest
-            )
+            ),
+            NoopTracer.INSTANCE
         ) {
             @Override
             ShardSearchFailure[] buildShardFailures() {

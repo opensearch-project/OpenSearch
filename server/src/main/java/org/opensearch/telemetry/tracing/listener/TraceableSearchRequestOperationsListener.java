@@ -13,12 +13,8 @@ import org.opensearch.action.search.SearchRequestContext;
 import org.opensearch.action.search.SearchRequestOperationsListener;
 import org.opensearch.telemetry.tracing.AttributeNames;
 import org.opensearch.telemetry.tracing.Span;
-import org.opensearch.telemetry.tracing.SpanBuilder;
 import org.opensearch.telemetry.tracing.SpanContext;
-import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
-
-import static org.opensearch.core.common.Strings.capitalize;
 
 /**
  * SearchRequestOperationsListener subscriber for search request tracing
@@ -28,14 +24,12 @@ import static org.opensearch.core.common.Strings.capitalize;
 public final class TraceableSearchRequestOperationsListener extends SearchRequestOperationsListener {
     private final Tracer tracer;
     private final Span requestSpan;
-    private Span phaseSpan;
-    private SpanScope phaseSpanScope;
+    private SpanContext phaseSpanContext;
 
     public TraceableSearchRequestOperationsListener(final Tracer tracer, final Span requestSpan) {
         this.tracer = tracer;
         this.requestSpan = requestSpan;
-        this.phaseSpan = null;
-        this.phaseSpanScope = null;
+        this.phaseSpanContext = null;
     }
 
     public static SearchRequestOperationsListener create(final Tracer tracer, final Span requestSpan) {
@@ -48,23 +42,23 @@ public final class TraceableSearchRequestOperationsListener extends SearchReques
 
     @Override
     protected void onPhaseStart(SearchPhaseContext context) {
-        assert phaseSpan == null : "There should be only one search phase active at a time";
-        phaseSpan = tracer.startSpan(SpanBuilder.from(capitalize(context.getCurrentPhase().getName()), new SpanContext(requestSpan)));
+        assert phaseSpanContext == null : "There should be only one search phase active at a time";
+        phaseSpanContext = tracer.getCurrentSpan();
     }
 
     @Override
     protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
-        assert phaseSpan != null : "There should be a search phase active at that time";
-        phaseSpan.endSpan();
-        phaseSpan = null;
+        assert phaseSpanContext != null : "There should be a search phase active at that time";
+        phaseSpanContext.endSpan();
+        phaseSpanContext = null;
     }
 
     @Override
     protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {
-        assert phaseSpan != null : "There should be a search phase active at that time";
-        phaseSpan.setError(new Exception(cause));
-        phaseSpan.endSpan();
-        phaseSpan = null;
+        assert phaseSpanContext != null : "There should be a search phase active at that time";
+        phaseSpanContext.setError((Exception) cause);
+        phaseSpanContext.endSpan();
+        phaseSpanContext = null;
     }
 
     @Override

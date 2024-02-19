@@ -59,6 +59,7 @@ import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.SortBuilders;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
@@ -220,7 +221,8 @@ public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
                 searchRequest
-            )
+            ),
+            NoopTracer.INSTANCE
         ) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {

@@ -55,6 +55,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
@@ -108,7 +109,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             }
 
             @Override
-            protected void onPhaseFailure(SearchPhaseContext context) {
+            protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {
                 assertThat(phases.contains(context.getCurrentPhase()), is(true));
                 phases.remove(context.getCurrentPhase());
             }
@@ -190,7 +191,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
                 searchRequest
-            )
+            ),
+            NoopTracer.INSTANCE
         );
 
         canMatchPhase.start();
@@ -286,7 +288,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
                 searchRequest
-            )
+            ),
+            NoopTracer.INSTANCE
         );
 
         canMatchPhase.start();
@@ -380,7 +383,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 new SearchRequestContext(
                     new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
                     searchRequest
-                )
+                ),
+                NoopTracer.INSTANCE
             ) {
 
                 @Override
@@ -411,7 +415,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
                 searchRequest
-            )
+            ),
+            NoopTracer.INSTANCE
         );
 
         canMatchPhase.start();
@@ -501,7 +506,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 new SearchRequestContext(
                     new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
                     searchRequest
-                )
+                ),
+                NoopTracer.INSTANCE
             );
 
             canMatchPhase.start();
@@ -606,7 +612,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 new SearchRequestContext(
                     new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
                     searchRequest
-                )
+                ),
+                NoopTracer.INSTANCE
             );
 
             canMatchPhase.start();
@@ -730,7 +737,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 };
             },
             SearchResponse.Clusters.EMPTY,
-            searchRequestContext
+            searchRequestContext,
+            NoopTracer.INSTANCE
         );
 
         canMatchPhase.start();
@@ -779,7 +787,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 new ArraySearchPhaseResults<>(shardsIts.size()),
                 request.getMaxConcurrentShardRequests(),
                 clusters,
-                searchRequestContext
+                searchRequestContext,
+                NoopTracer.INSTANCE
             );
             this.listener = searchRequestContext.getSearchRequestOperationsListener();
         }
