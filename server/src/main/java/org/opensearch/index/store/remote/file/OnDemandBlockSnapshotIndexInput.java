@@ -15,6 +15,8 @@ import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.TransferManager;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * This is an implementation of {@link OnDemandBlockIndexInput} where this class provides the main IndexInput using shard snapshot files.
@@ -139,15 +141,39 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
         // If the snapshot file is chunked, we must account for this by
         // choosing the appropriate file part and updating the position
         // accordingly.
+        int partNum = (int) (blockStart / partSize);
+        long pos = blockStart;
+        long diff = (blockEnd - blockStart);
 
-        BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder()
-            .position(blockStart)
-            .length(blockEnd)
-            .directory(directory)
-            .fileName(blockFileName)
-            .fileInfo(fileInfo)
-            .build();
-        return transferManager.fetchBlob(blobFetchRequest);
+        // Block may be present on multiple chunks of a file, so we need
+        // to make multiple blobFetchRequest to fetch an entire block.
+        // Each fetchBlobRequest can fetch only a single chunk of a file.
+        List<BlobFetchRequest> blobFetchRequestList = new ArrayList<>();
+        while (diff > 0) {
+            long partStart = pos % partSize;
+            long partEnd;
+            if ((partStart + diff) > partSize) {
+                partEnd = partSize;
+            } else {
+                partEnd = (partStart + diff);
+            }
+            long fetchBytes = partEnd - partStart;
+            BlobFetchRequest.Builder builder = BlobFetchRequest.builder();
+            builder.position(partStart)
+                .length(fetchBytes)
+                .blobName(fileInfo.partName(partNum))
+                .directory(directory)
+                .fileName(blockFileName);
+            BlobFetchRequest req = builder.build();
+            blobFetchRequestList.add(req);
+            partNum++;
+            pos = pos + fetchBytes;
+            diff = (blockEnd - pos);
+        }
+        if (blobFetchRequestList.isEmpty()) {
+            throw new IOException("block size cannot be zero");
+        }
+        return transferManager.fetchBlob(blobFetchRequestList);
     }
 
     @Override

@@ -75,10 +75,10 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         return settings;
     }
 
-    private Settings.Builder chunkedRepositorySettings() {
+    private Settings.Builder chunkedRepositorySettings(long chunkSize) {
         final Settings.Builder settings = Settings.builder();
         settings.put("location", randomRepoPath()).put("compress", randomBoolean());
-        settings.put("chunk_size", randomBoolean() ? (2 << 23) : 1000, ByteSizeUnit.BYTES);
+        settings.put("chunk_size", chunkSize, ByteSizeUnit.BYTES);
         return settings;
     }
 
@@ -184,10 +184,10 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * Tests a chunked repository scenario for searchable snapshots by creating an index,
+     * Tests a default 8mib chunked repository scenario for searchable snapshots by creating an index,
      * taking a snapshot, restoring it as a searchable snapshot index.
      */
-    public void testCreateSearchableSnapshotWithChunks() throws Exception {
+    public void testCreateSearchableSnapshotWithDefaultChunks() throws Exception {
         final int numReplicasIndex = randomIntBetween(1, 4);
         final String indexName = "test-idx";
         final String restoredIndexName = indexName + "-copy";
@@ -195,7 +195,33 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String snapshotName = "test-snap";
         final Client client = client();
 
-        Settings.Builder repositorySettings = chunkedRepositorySettings();
+        Settings.Builder repositorySettings = chunkedRepositorySettings(2 << 23);
+
+        internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex, 1000, indexName);
+        createRepositoryWithSettings(repositorySettings, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
+
+        deleteIndicesAndEnsureGreen(client, indexName);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+        assertRemoteSnapshotIndexSettings(client, restoredIndexName);
+
+        assertDocCount(restoredIndexName, 1000L);
+    }
+
+    /**
+     * Tests a small 1000 bytes chunked repository scenario for searchable snapshots by creating an index,
+     * taking a snapshot, restoring it as a searchable snapshot index.
+     */
+    public void testCreateSearchableSnapshotWithSmallChunks() throws Exception {
+        final int numReplicasIndex = randomIntBetween(1, 4);
+        final String indexName = "test-idx";
+        final String restoredIndexName = indexName + "-copy";
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
+        final Client client = client();
+
+        Settings.Builder repositorySettings = chunkedRepositorySettings(1000);
 
         internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
         createIndexWithDocsAndEnsureGreen(numReplicasIndex, 1000, indexName);

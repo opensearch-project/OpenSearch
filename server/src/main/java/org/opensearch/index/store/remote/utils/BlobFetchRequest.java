@@ -10,7 +10,6 @@ package org.opensearch.index.store.remote.utils;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 
 import java.nio.file.Path;
 
@@ -27,8 +26,6 @@ public class BlobFetchRequest {
 
     private final String blobName;
 
-    private final BlobStoreIndexShardSnapshot.FileInfo fileInfo;
-
     private final Path filePath;
 
     private final Directory directory;
@@ -39,7 +36,6 @@ public class BlobFetchRequest {
         this.position = builder.position;
         this.length = builder.length;
         this.blobName = builder.blobName;
-        this.fileInfo = builder.fileInfo;
         this.fileName = builder.fileName;
         this.filePath = builder.directory.getDirectory().resolve(fileName);
         this.directory = builder.directory;
@@ -55,10 +51,6 @@ public class BlobFetchRequest {
 
     public String getBlobName() {
         return blobName;
-    }
-
-    public BlobStoreIndexShardSnapshot.FileInfo getFileInfo() {
-        return fileInfo;
     }
 
     public Path getFilePath() {
@@ -104,8 +96,6 @@ public class BlobFetchRequest {
         private long position;
         private long length;
         private String blobName;
-
-        private BlobStoreIndexShardSnapshot.FileInfo fileInfo;
         private FSDirectory directory;
         private String fileName;
 
@@ -126,11 +116,6 @@ public class BlobFetchRequest {
 
         public Builder blobName(String blobName) {
             this.blobName = blobName;
-            return this;
-        }
-
-        public Builder fileInfo(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
-            this.fileInfo = fileInfo;
             return this;
         }
 

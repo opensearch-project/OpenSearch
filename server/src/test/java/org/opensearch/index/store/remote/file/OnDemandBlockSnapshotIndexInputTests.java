@@ -32,6 +32,7 @@ import org.junit.Before;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.any;
@@ -106,7 +107,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
             indexInput.seek(repositoryChunkSize);
         }
         // Verify the second chunk is requested (i.e. ".part1")
-        verify(transferManager).fetchBlob(argThat(request -> request.getBlobName().equals("File_Name.part1")));
+        verify(transferManager).fetchBlob(argThat(requestList -> requestList.get(0).getBlobName().equals("File_Name.part1")));
     }
 
     private void runAllTestsFor(int blockSizeShift) throws Exception {
@@ -147,8 +148,8 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
         int blockSize = 1 << blockSizeShift;
 
         doAnswer(invocation -> {
-            BlobFetchRequest blobFetchRequest = invocation.getArgument(0);
-            return blobFetchRequest.getDirectory().openInput(blobFetchRequest.getFileName(), IOContext.READ);
+            List<BlobFetchRequest> blobFetchRequestList = invocation.getArgument(0);
+            return blobFetchRequestList.get(0).getDirectory().openInput(blobFetchRequestList.get(0).getFileName(), IOContext.READ);
         }).when(transferManager).fetchBlob(any());
 
         FSDirectory directory = null;

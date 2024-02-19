@@ -163,18 +163,11 @@ public class TransferManagerTests extends OpenSearchTestCase {
 
     public void testDownloadFails() throws Exception {
         doThrow(new IOException("Expected test exception")).when(blobContainer).readBlob(eq("failure-blob"), anyLong(), anyLong());
-        expectThrows(
-            IOException.class,
-            () -> transferManager.fetchBlob(
-                BlobFetchRequest.builder()
-                    .blobName("failure-blob")
-                    .position(0)
-                    .fileName("file")
-                    .directory(directory)
-                    .length(EIGHT_MB)
-                    .build()
-            )
+        List<BlobFetchRequest> blobFetchRequestList = new ArrayList<>();
+        blobFetchRequestList.add(
+            BlobFetchRequest.builder().blobName("failure-blob").position(0).fileName("file").directory(directory).length(EIGHT_MB).build()
         );
+        expectThrows(IOException.class, () -> transferManager.fetchBlob(blobFetchRequestList));
         MatcherAssert.assertThat(fileCache.usage().activeUsage(), equalTo(0L));
         MatcherAssert.assertThat(fileCache.usage().usage(), equalTo(0L));
     }
@@ -187,17 +180,19 @@ public class TransferManagerTests extends OpenSearchTestCase {
             latch.await();
             return new ByteArrayInputStream(createData());
         }).when(blobContainer).readBlob(eq("blocking-blob"), anyLong(), anyLong());
+        List<BlobFetchRequest> blobFetchRequestList = new ArrayList<>();
+        blobFetchRequestList.add(
+            BlobFetchRequest.builder()
+                .blobName("blocking-blob")
+                .position(0)
+                .fileName("blocking-file")
+                .directory(directory)
+                .length(EIGHT_MB)
+                .build()
+        );
         final Thread blockingThread = new Thread(() -> {
             try {
-                transferManager.fetchBlob(
-                    BlobFetchRequest.builder()
-                        .blobName("blocking-blob")
-                        .position(0)
-                        .fileName("blocking-file")
-                        .directory(directory)
-                        .length(EIGHT_MB)
-                        .build()
-                );
+                transferManager.fetchBlob(blobFetchRequestList);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -216,9 +211,11 @@ public class TransferManagerTests extends OpenSearchTestCase {
     }
 
     private IndexInput fetchBlobWithName(String blobname) throws IOException {
-        return transferManager.fetchBlob(
+        List<BlobFetchRequest> blobFetchRequestList = new ArrayList<>();
+        blobFetchRequestList.add(
             BlobFetchRequest.builder().blobName("blob").position(0).fileName(blobname).directory(directory).length(EIGHT_MB).build()
         );
+        return transferManager.fetchBlob(blobFetchRequestList);
     }
 
     private static void assertIndexInputIsFunctional(IndexInput indexInput) throws IOException {

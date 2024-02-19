@@ -21,18 +21,17 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static java.nio.file.StandardOpenOption.APPEND;
 
 /**
  * This acts as entry point to fetch {@link BlobFetchRequest} and return actual {@link IndexInput}. Utilizes the BlobContainer interface to
@@ -52,17 +51,20 @@ public class TransferManager {
     }
 
     /**
-     * Given a blobFetchRequest, return it's corresponding IndexInput.
-     * @param blobFetchRequest to fetch
+     * Given a blobFetchRequestList, return it's corresponding IndexInput.
+     * @param blobFetchRequestList to fetch
      * @return future of IndexInput augmented with internal caching maintenance tasks
      */
-    public IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws IOException {
-        final Path key = blobFetchRequest.getFilePath();
+    public IndexInput fetchBlob(List<BlobFetchRequest> blobFetchRequestList) throws IOException {
+
+        assert blobFetchRequestList.isEmpty() == false;
+
+        final Path key = blobFetchRequestList.get(0).getFilePath();
 
         final CachedIndexInput cacheEntry = fileCache.compute(key, (path, cachedIndexInput) -> {
             if (cachedIndexInput == null || cachedIndexInput.isClosed()) {
                 // Doesn't exist or is closed, either way create a new one
-                return new DelayedCreationCachedIndexInput(fileCache, blobContainer, blobFetchRequest);
+                return new DelayedCreationCachedIndexInput(fileCache, blobContainer, blobFetchRequestList);
             } else {
                 // already in the cache and ready to be used (open)
                 return cachedIndexInput;
@@ -79,58 +81,41 @@ public class TransferManager {
         }
     }
 
-    private static FileCachedIndexInput createIndexInput(FileCache fileCache, BlobContainer blobContainer, BlobFetchRequest request) {
+    private static FileCachedIndexInput createIndexInput(
+        FileCache fileCache,
+        BlobContainer blobContainer,
+        List<BlobFetchRequest> requestList
+    ) {
         // We need to do a privileged action here in order to fetch from remote
         // and write to the local file cache in case this is invoked as a side
         // effect of a plugin (such as a scripted search) that doesn't have the
         // necessary permissions.
+        assert requestList.isEmpty() == false;
         return AccessController.doPrivileged((PrivilegedAction<FileCachedIndexInput>) () -> {
             try {
-                if (Files.exists(request.getFilePath()) == false) {
-                    List<InputStream> inputStreamList = new ArrayList<>();
-                    long partSize = request.getFileInfo().partSize().getBytes();
-                    long blockStart = request.getPosition();
-                    long blockEnd = request.getLength();
-                    int partNum = (int) (blockStart / partSize);
-                    long pos = blockStart;
-                    long diff = (blockEnd - pos);
-                    while (diff > 0) {
-                        long partStart = pos % partSize;
-                        long partEnd;
-                        if ((partStart + diff) > partSize) {
-                            partEnd = partSize;
-                        } else {
-                            partEnd = (partStart + diff);
+                boolean needsAppend = false;
+                if (Files.exists(requestList.get(0).getFilePath()) == false) {
+                    for (BlobFetchRequest request : requestList) {
+                        try (
+                            InputStream snapshotFileInputStream = blobContainer.readBlob(
+                                request.getBlobName(),
+                                request.getPosition(),
+                                request.getLength()
+                            );
+                            OutputStream fileOutputStream = needsAppend
+                                ? Files.newOutputStream(request.getFilePath(), APPEND)
+                                : Files.newOutputStream(request.getFilePath());
+                            OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream)
+                        ) {
+                            snapshotFileInputStream.transferTo(localFileOutputStream);
                         }
-                        long fetchBytes = partEnd - partStart;
-                        InputStream snapshotFileInputStream = blobContainer.readBlob(
-                            request.getFileInfo().partName(partNum),
-                            partStart,
-                            fetchBytes
-                        );
-                        inputStreamList.add(snapshotFileInputStream);
-                        partNum++;
-                        pos = pos + fetchBytes;
-                        diff = (blockEnd - pos);
-
+                        needsAppend = true;
                     }
-                    OutputStream fileOutputStream = Files.newOutputStream(request.getFilePath());
-                    OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream);
-                    SequenceInputStream sis = new SequenceInputStream(Collections.enumeration(inputStreamList));
-                    int ch;
-                    while (true) {
-                        try {
-                            if (!((ch = sis.read()) != -1)) break;
-                            localFileOutputStream.write(ch);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                    sis.close();
-                    localFileOutputStream.close();
                 }
-                final IndexInput luceneIndexInput = request.getDirectory().openInput(request.getFileName(), IOContext.READ);
-                return new FileCachedIndexInput(fileCache, request.getFilePath(), luceneIndexInput);
+                final IndexInput luceneIndexInput = requestList.get(0)
+                    .getDirectory()
+                    .openInput(requestList.get(0).getFileName(), IOContext.READ);
+                return new FileCachedIndexInput(fileCache, requestList.get(0).getFilePath(), luceneIndexInput);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -147,15 +132,15 @@ public class TransferManager {
     private static class DelayedCreationCachedIndexInput implements CachedIndexInput {
         private final FileCache fileCache;
         private final BlobContainer blobContainer;
-        private final BlobFetchRequest request;
+        private final List<BlobFetchRequest> requestList;
         private final CompletableFuture<IndexInput> result = new CompletableFuture<>();
         private final AtomicBoolean isStarted = new AtomicBoolean(false);
         private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
-        private DelayedCreationCachedIndexInput(FileCache fileCache, BlobContainer blobContainer, BlobFetchRequest request) {
+        private DelayedCreationCachedIndexInput(FileCache fileCache, BlobContainer blobContainer, List<BlobFetchRequest> requestList) {
             this.fileCache = fileCache;
             this.blobContainer = blobContainer;
-            this.request = request;
+            this.requestList = requestList;
         }
 
         @Override
@@ -166,10 +151,10 @@ public class TransferManager {
             if (isStarted.getAndSet(true) == false) {
                 // We're the first one here, need to download the block
                 try {
-                    result.complete(createIndexInput(fileCache, blobContainer, request));
+                    result.complete(createIndexInput(fileCache, blobContainer, requestList));
                 } catch (Exception e) {
                     result.completeExceptionally(e);
-                    fileCache.remove(request.getFilePath());
+                    fileCache.remove(requestList.get(0).getFilePath());
                 }
             }
             try {
@@ -186,7 +171,11 @@ public class TransferManager {
 
         @Override
         public long length() {
-            return request.getLength();
+            long length = 0;
+            for (BlobFetchRequest request : requestList) {
+                length += request.getLength();
+            }
+            return length;
         }
 
         @Override
