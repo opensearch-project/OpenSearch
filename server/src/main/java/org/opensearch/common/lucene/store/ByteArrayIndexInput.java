@@ -144,7 +144,7 @@ public class ByteArrayIndexInput extends IndexInput implements RandomAccessInput
     }
 
     private void validatePos(long pos, int len) throws EOFException {
-        if (pos < 0 || pos + len > length + offset) {
+        if (pos < 0 || pos + len > length) {
             throw new EOFException("seek past EOF");
         }
     }

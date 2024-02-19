@@ -23,6 +23,36 @@ body:
       placeholder: Ex. - [ ] https://github.com/opensearch-project/security/issues/3888 Add views to the cluster metadata schema
     validations:
       required: true
-
-
-
+  - type: dropdown
+    attributes:
+      label: Related component
+      description: Choose a specific OpenSearch component your project belongs to.  If you are unsure of which component to select or if the component is not present, select "Other".
+      multiple: false
+      options:
+        - # Empty first option to force selection
+        - Build
+        - Clients
+        - Cluster Manager
+        - Extensions
+        - Indexing:Performance
+        - Indexing:Replication
+        - Indexing
+        - Libraries
+        - Other
+        - Plugins
+        - Search:Aggregations
+        - Search:Performance
+        - Search:Query Capabilities
+        - Search:Query Insights
+        - Search:Relevance
+        - Search:Remote Search
+        - Search:Resiliency
+        - Search:Searchable Snapshots
+        - Search
+        - Storage:Durability
+        - Storage:Performance
+        - Storage:Remote
+        - Storage:Snapshots
+        - Storage
+    validations:
+      required: true

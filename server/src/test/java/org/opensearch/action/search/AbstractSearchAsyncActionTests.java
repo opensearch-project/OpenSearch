@@ -85,6 +85,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -95,6 +97,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
     private final List<Tuple<String, String>> resolvedNodes = new ArrayList<>();
     private final Set<ShardSearchContextId> releasedContexts = new CopyOnWriteArraySet<>();
     private ExecutorService executor;
+    private SearchRequestOperationsListener assertingListener;
     ThreadPool threadPool;
 
     @Before
@@ -103,6 +106,27 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         super.setUp();
         executor = Executors.newFixedThreadPool(1);
         threadPool = new TestThreadPool(getClass().getName());
+        assertingListener = new SearchRequestOperationsListener() {
+            private volatile SearchPhase phase;
+
+            @Override
+            protected void onPhaseStart(SearchPhaseContext context) {
+                assertThat(phase, is(nullValue()));
+                phase = context.getCurrentPhase();
+            }
+
+            @Override
+            protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+                assertThat(phase, is(context.getCurrentPhase()));
+                phase = null;
+            }
+
+            @Override
+            protected void onPhaseFailure(SearchPhaseContext context) {
+                assertThat(phase, is(context.getCurrentPhase()));
+                phase = null;
+            }
+        };
     }
 
     @After
@@ -178,7 +202,10 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             results,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            new SearchRequestContext(new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()), request)
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
+                request
+            )
         ) {
             @Override
             protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -334,18 +361,11 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         SearchRequestStats testListener = new SearchRequestStats(clusterSettings);
 
-        final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener));
+        final List<SearchRequestOperationsListener> requestOperationListeners = List.of(testListener);
         SearchQueryThenFetchAsyncAction action = createSearchQueryThenFetchAsyncAction(requestOperationListeners);
         action.start();
         assertEquals(1, testListener.getPhaseCurrent(action.getSearchPhaseName()));
-        action.onPhaseFailure(new SearchPhase("none") {
-            @Override
-            public void run() {
-
-            }
-        }, "message", null);
-        assertEquals(1, testListener.getPhaseCurrent(action.getSearchPhaseName()));
-        action.onPhaseFailure(new SearchPhase(action.getName()) {
+        action.onPhaseFailure(new SearchPhase("test") {
             @Override
             public void run() {
 
@@ -359,14 +379,14 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         );
         searchDfsQueryThenFetchAsyncAction.start();
         assertEquals(1, testListener.getPhaseCurrent(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()));
-        searchDfsQueryThenFetchAsyncAction.onPhaseFailure(new SearchPhase(searchDfsQueryThenFetchAsyncAction.getName()) {
+        searchDfsQueryThenFetchAsyncAction.onPhaseFailure(new SearchPhase("test") {
             @Override
             public void run() {
 
             }
         }, "message", null);
-        assertEquals(0, testListener.getPhaseCurrent(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()));
-        assertEquals(0, testListener.getPhaseTotal(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()));
+        assertEquals(0, testListener.getPhaseCurrent(action.getSearchPhaseName()));
+        assertEquals(0, testListener.getPhaseTotal(action.getSearchPhaseName()));
 
         FetchSearchPhase fetchPhase = createFetchSearchPhase();
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());
@@ -375,7 +395,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         action.skipShard(searchShardIterator);
         action.executeNextPhase(action, fetchPhase);
         assertEquals(1, testListener.getPhaseCurrent(fetchPhase.getSearchPhaseName()));
-        action.onPhaseFailure(new SearchPhase(fetchPhase.getName()) {
+        action.onPhaseFailure(new SearchPhase("test") {
             @Override
             public void run() {
 
@@ -408,30 +428,6 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
         assertEquals(nodeLookups, resolvedNodes);
         assertEquals(requestIds, releasedContexts);
-    }
-
-    public void testOnPhaseStart() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        SearchRequestStats testListener = new SearchRequestStats(clusterSettings);
-
-        final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener));
-        SearchQueryThenFetchAsyncAction action = createSearchQueryThenFetchAsyncAction(requestOperationListeners);
-
-        action.onPhaseStart(new SearchPhase("test") {
-            @Override
-            public void run() {}
-        });
-        action.onPhaseStart(new SearchPhase("none") {
-            @Override
-            public void run() {}
-        });
-        assertEquals(0, testListener.getPhaseCurrent(action.getSearchPhaseName()));
-
-        action.onPhaseStart(new SearchPhase(action.getName()) {
-            @Override
-            public void run() {}
-        });
-        assertEquals(1, testListener.getPhaseCurrent(action.getSearchPhaseName()));
     }
 
     public void testShardNotAvailableWithDisallowPartialFailures() {
