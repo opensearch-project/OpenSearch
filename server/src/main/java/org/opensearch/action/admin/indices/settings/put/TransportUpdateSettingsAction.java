@@ -123,7 +123,8 @@ public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAc
         if (request.settings().size() == 1 &&  // we have to allow resetting these settings otherwise users can't unblock an index
             IndexMetadata.INDEX_BLOCKS_METADATA_SETTING.exists(request.settings())
             || IndexMetadata.INDEX_READ_ONLY_SETTING.exists(request.settings())
-            || IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.settings())) {
+            || IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.settings())
+            || IndexMetadata.INDEX_BLOCKS_WRITE_ONLY_ALLOW_DELETE_SETTING.exists(request.settings())) {
             return null;
         }
 
