@@ -527,7 +527,11 @@ public class Node implements Closeable {
              */
             this.environment = new Environment(settings, initialEnvironment.configFile(), Node.NODE_LOCAL_STORAGE_SETTING.get(settings));
             Environment.assertEquivalent(initialEnvironment, this.environment);
-            nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
+            if (DiscoveryNode.isSearchNode(settings) == false) {
+                nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
+            } else {
+                nodeEnvironment = new NodeEnvironment(settings, environment, new FileCacheCleaner(this::fileCache));
+            }
             logger.info(
                 "node name [{}], node ID [{}], cluster name [{}], roles {}",
                 NODE_NAME_SETTING.get(tmpSettings),
@@ -678,7 +682,6 @@ public class Node implements Closeable {
             );
             // File cache will be initialized by the node once circuit breakers are in place.
             initializeFileCache(settings, circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
-            final FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnvironment, fileCache);
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool, fileCache);
 
             pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
@@ -812,7 +815,6 @@ public class Node implements Closeable {
                 recoveryStateFactories,
                 remoteDirectoryFactory,
                 repositoriesServiceReference::get,
-                fileCacheCleaner,
                 searchRequestStats,
                 remoteStoreStatsTrackerFactory,
                 recoverySettings
