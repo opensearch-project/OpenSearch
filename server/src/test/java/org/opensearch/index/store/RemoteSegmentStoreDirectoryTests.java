@@ -34,6 +34,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.shard.IndexShard;
@@ -918,6 +919,41 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         when(remoteMetadataDirectory.getBlobStream(metadataFilename)).thenReturn(inputStream);
 
         assertThrows(CorruptIndexException.class, () -> remoteSegmentStoreDirectory.init());
+    }
+
+    public void testDeleteIfEmpty_Rejected() throws Exception {
+        populateMetadata();
+        doThrow(new OpenSearchRejectedExecutionException()).when(threadPool).executor(any(String.class));
+        when(mdLockManager.fetchLockedMetadataFiles(any())).thenReturn(Set.of());
+
+        // deleteIfEmpty() should return false if threadpool rejects the new task.
+        assertFalse(remoteSegmentStoreDirectory.deleteIfEmpty());
+    }
+
+    public void testDeleteIfEmpty_NotEmpty() throws Exception {
+        populateMetadata();
+        when(mdLockManager.fetchLockedMetadataFiles(any())).thenReturn(Set.of(metadataFilename2));
+
+        // deleteIfEmpty() should return false if some md files are still locked.
+        assertFalse(remoteSegmentStoreDirectory.deleteIfEmpty());
+    }
+
+    public void testDeleteIfEmpty_FetchLockFailed() throws Exception {
+        populateMetadata();
+        when(mdLockManager.fetchLockedMetadataFiles(any())).thenThrow(new RuntimeException("Rate limit exceeded"));
+
+        // deleteIfEmpty() should return false if some md files are still locked.
+        assertFalse(remoteSegmentStoreDirectory.deleteIfEmpty());
+    }
+
+    public void testDeleteIfEmpty() throws Exception {
+        populateMetadata();
+        when(mdLockManager.fetchLockedMetadataFiles(any())).thenReturn(Set.of());
+        assertTrue(remoteSegmentStoreDirectory.deleteIfEmpty());
+        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.isDirectoryCleanupOngoing.get(), is(false)));
+        verify(remoteDataDirectory).delete();
+        verify(remoteMetadataDirectory).delete();
+        verify(mdLockManager).delete();
     }
 
     public void testDeleteStaleCommitsException() throws Exception {

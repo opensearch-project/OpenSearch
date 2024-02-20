@@ -116,6 +116,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      */
     protected final AtomicBoolean canDeleteStaleCommits = new AtomicBoolean(true);
 
+    protected final AtomicBoolean isDirectoryCleanupOngoing = new AtomicBoolean(false);
+
     private final AtomicLong metadataUploadCounter = new AtomicLong(0);
 
     public static final int METADATA_FILES_TO_FETCH = 10;
@@ -854,33 +856,39 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     Return true if shard is enqueued successfully for async cleanup.
      */
     public boolean deleteIfEmpty() {
-        Set<String> allLockedFiles;
-        try {
-            allLockedFiles = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLockedMetadataFiles(
-                MetadataFilenameUtils.METADATA_PREFIX
-            );
-        } catch (Exception e) {
-            logger.error("Exception while fetching segment metadata lock files, skipping deleteStaleSegments", e);
-            return false;
-        }
-        if (allLockedFiles.size() != 0) {
-            logger.info("Remote directory still has locked files, not deleting the path");
-            return false;
-        }
-
-        try {
-            threadPool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
-                try {
-                    remoteDataDirectory.delete();
-                    remoteMetadataDirectory.delete();
-                    mdLockManager.delete();
-                } catch (Exception e) {
-                    logger.error("Exception occurred while deleting directory, it will get retried during next call", e);
-                }
-            });
-        } catch (OpenSearchRejectedExecutionException e) {
-            logger.error("Exception occurred while enqueueing directory for cleanup", e);
-            return false;
+        if (isDirectoryCleanupOngoing.compareAndSet(false, true)) {
+            Set<String> allLockedFiles;
+            try {
+                allLockedFiles = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLockedMetadataFiles(
+                    MetadataFilenameUtils.METADATA_PREFIX
+                );
+            } catch (Exception e) {
+                logger.error("Exception while fetching segment metadata lock files, skipping deleteStaleSegments", e);
+                isDirectoryCleanupOngoing.set(false);
+                return false;
+            }
+            if (allLockedFiles.size() != 0) {
+                logger.info("Remote directory still has locked files, not deleting the path");
+                isDirectoryCleanupOngoing.set(false);
+                return false;
+            }
+            try {
+                threadPool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
+                    try {
+                        remoteDataDirectory.delete();
+                        remoteMetadataDirectory.delete();
+                        mdLockManager.delete();
+                    } catch (Exception e) {
+                        logger.error("Exception occurred while deleting directory, it will get retried during next call", e);
+                    } finally {
+                        isDirectoryCleanupOngoing.set(false);
+                    }
+                });
+            } catch (OpenSearchRejectedExecutionException e) {
+                logger.error("Exception occurred while enqueueing directory for cleanup", e);
+                isDirectoryCleanupOngoing.set(false);
+                return false;
+            }
         }
         return true;
     }

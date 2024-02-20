@@ -109,16 +109,9 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
     }
 
     @Override
-    public List<LockInfo> listLocks() throws IOException {
+    public Boolean isEmpty() throws IOException {
         Collection<String> lockFiles = lockDirectory.listFilesByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX);
-        return lockFiles.stream()
-            .map(
-                lock -> FileLockInfo.getLockInfoBuilder()
-                    .withFileToLock(FileLockInfo.LockFileUtils.getFileToLockNameFromLock(lock))
-                    .withAcquirerId(FileLockInfo.LockFileUtils.getAcquirerIdFromLock(lock))
-                    .build()
-            )
-            .collect(Collectors.toList());
+        return lockFiles.isEmpty();
     }
 
     /**

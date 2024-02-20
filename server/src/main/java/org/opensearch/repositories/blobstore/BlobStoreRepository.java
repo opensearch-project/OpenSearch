@@ -76,6 +76,8 @@ import org.opensearch.common.blobstore.EncryptedBlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.common.blobstore.transfer.stream.RateLimitingOffsetRangeInputStream;
+import org.opensearch.common.cache.Cache;
+import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.compress.DeflateCompressor;
 import org.opensearch.common.io.Streams;
@@ -153,7 +155,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -220,7 +221,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private static final String UPLOADED_DATA_BLOB_PREFIX = "__";
 
     /**
-     * Cache for remote store lock and cleanup which tracks shard level snapshot lock release and remote store cleanup.
+     * Local in-memory cache which tracks shard level snapshot lock release and remote store cleanup.
      */
     protected volatile RemoteStoreShardCleanupTracker remoteStoreShardCleanupTracker;
 
@@ -1106,7 +1107,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private boolean releaseRemoteStoreLockAndCleanup(
+    protected boolean releaseRemoteStoreLockAndCleanup(
         String shardId,
         String shallowSnapshotUUID,
         BlobContainer shardContainer,
@@ -1139,7 +1140,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             logger.debug("Successfully released lock for shard {} of index with uuid {}", shardId, indexUUID);
             if (!isIndexPresent(clusterService, indexUUID)
                 && !remoteStoreShardCleanupTracker.isShardEnqueued(indexUUID, shardId)
-                && remoteStoreMetadataLockManager.listLocks().size() == 0) {
+                && remoteStoreMetadataLockManager.isEmpty()) {
                 // Note: this is a temporary solution where snapshot deletion triggers remote store side cleanup if
                 // index is already deleted. We will add a poller in future to take care of remote store side cleanup.
                 // related issue: https://github.com/opensearch-project/OpenSearch/issues/8469
@@ -1179,12 +1180,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private static class RemoteStoreShardCleanupTracker {
-        private final Set<String> enqueuedRemoteStoreCleanup;
-        private final Set<String> releasedLocks;
+        private final Cache<String, Boolean> enqueuedRemoteStoreCleanup;
+        private final Cache<String, Boolean> releasedLocks;
+        // lock files will be per shard per snapshot
+        private static final int DEFAULT_RELEASED_LOCK_CACHE_SIZE = 10000;
+        // cleanup will be per shard
+        private static final int DEFAULT_ENQUEUED_CLEANUP_CACHE_SIZE = 1000;
 
         private RemoteStoreShardCleanupTracker() {
-            enqueuedRemoteStoreCleanup = new HashSet<>();
-            releasedLocks = new HashSet<>();
+            enqueuedRemoteStoreCleanup = CacheBuilder.<String, Boolean>builder()
+                .setMaximumWeight(DEFAULT_ENQUEUED_CLEANUP_CACHE_SIZE)
+                .build();
+            releasedLocks = CacheBuilder.<String, Boolean>builder().setMaximumWeight(DEFAULT_RELEASED_LOCK_CACHE_SIZE).build();
         }
 
         private String indexShardIdentifier(String indexUUID, String shardId) {
@@ -1196,19 +1203,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         public boolean isShardLockReleased(String indexUUID, String shardId, String snapshotUUID) {
-            return releasedLocks.contains(shardLockIdentifier(indexUUID, shardId, snapshotUUID));
+            return Boolean.TRUE == releasedLocks.get(shardLockIdentifier(indexUUID, shardId, snapshotUUID));
         }
 
         public void addReleasedShardLock(String indexUUID, String shardId, String snapshotUUID) {
-            releasedLocks.add(shardLockIdentifier(indexUUID, shardId, snapshotUUID));
+            releasedLocks.put(shardLockIdentifier(indexUUID, shardId, snapshotUUID), true);
         }
 
         public boolean isShardEnqueued(String indexUUID, String shardId) {
-            return enqueuedRemoteStoreCleanup.contains(indexShardIdentifier(indexUUID, shardId));
+            return Boolean.TRUE == enqueuedRemoteStoreCleanup.get(indexShardIdentifier(indexUUID, shardId));
         }
 
         public void addEnqueuedShardCleanup(String indexUUID, String shardId) {
-            enqueuedRemoteStoreCleanup.add(indexShardIdentifier(indexUUID, shardId));
+            enqueuedRemoteStoreCleanup.put(indexShardIdentifier(indexUUID, shardId), true);
         }
     }
 
