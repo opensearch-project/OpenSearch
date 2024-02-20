@@ -20,6 +20,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Metadata for legacy templates
+ *
+ * @opensearch.internal
+ */
 public class TemplatesMetadata extends AbstractDiffable<TemplatesMetadata> implements ToXContentFragment {
     public static TemplatesMetadata EMPTY_METADATA = builder().build();
     private final Map<String, IndexTemplateMetadata> templates;
@@ -73,6 +78,11 @@ public class TemplatesMetadata extends AbstractDiffable<TemplatesMetadata> imple
         return templates != null ? templates.hashCode() : 0;
     }
 
+    /**
+     * Builder for the templates metadata
+     *
+     * @opensearch.api
+     */
     public static class Builder {
         private final Map<String, IndexTemplateMetadata> templates;
 

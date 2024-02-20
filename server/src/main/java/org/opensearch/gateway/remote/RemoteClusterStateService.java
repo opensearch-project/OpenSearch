@@ -575,14 +575,14 @@ public class RemoteClusterStateService implements Closeable {
             throw exception;
         }
         UploadedMetadataResults response = new UploadedMetadataResults();
-        for (Map.Entry<String, ClusterMetadataManifest.UploadedMetadata> entry : results.entrySet()) {
-            final String name = entry.getKey();
-            final ClusterMetadataManifest.UploadedMetadata uploadedMetadata = entry.getValue();
+        results.forEach((name, uploadedMetadata) -> {
             if (uploadedMetadata.getClass().equals(UploadedIndexMetadata.class)) {
                 response.uploadedIndexMetadata.add((UploadedIndexMetadata) uploadedMetadata);
             } else if (uploadedMetadata.getComponent().contains(CUSTOM_METADATA)) {
                 // component name for custom metadata will look like custom__<metadata-attribute>
-                response.uploadedCustomMetadataMap.put(name.split(DELIMITER)[1], (UploadedMetadataAttribute) uploadedMetadata);
+                String custom = name.split(DELIMITER)[1];
+                response.uploadedCustomMetadataMap.put(custom,
+                    new UploadedMetadataAttribute(custom, uploadedMetadata.getUploadedFilename()));
             } else if (COORDINATION_METADATA.equals(uploadedMetadata.getComponent())) {
                 response.uploadedCoordinationMetadata = (UploadedMetadataAttribute) uploadedMetadata;
             } else if (SETTING_METADATA.equals(uploadedMetadata.getComponent())) {
@@ -592,7 +592,7 @@ public class RemoteClusterStateService implements Closeable {
             } else {
                 throw new IllegalStateException("Unexpected metadata component " + uploadedMetadata.getComponent());
             }
-        }
+        });
         return response;
     }
 
@@ -957,7 +957,7 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     private static String metadataAttributeFileName(String componentPrefix, Long metadataVersion) {
-        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/global-metadata/settings__<inverted_metadata_version>__<inverted__timestamp>__<codec_version>
+        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/global-metadata/<componentPrefix>__<inverted_metadata_version>__<inverted__timestamp>__<codec_version>
         return String.join(
             DELIMITER,
             componentPrefix,
@@ -1081,10 +1081,8 @@ public class RemoteClusterStateService implements Closeable {
                 builder.coordinationMetadata(coordinationMetadata);
                 builder.persistentSettings(settingsMetadata);
                 builder.templates(templatesMetadata);
-                clusterMetadataManifest.getCustomMetadataMap().forEach((key, value) -> {
-                    String custom = key.split(DELIMITER)[1];
-                    builder.putCustom(custom, getCustomsMetadata(clusterName, clusterUUID, value.getUploadedFilename(), custom));
-                });
+                clusterMetadataManifest.getCustomMetadataMap().forEach((key, value) ->
+                    builder.putCustom(key, getCustomsMetadata(clusterName, clusterUUID, value.getUploadedFilename(), key)));
                 return builder.build();
             } else {
                 return Metadata.EMPTY_METADATA;
@@ -1099,7 +1097,7 @@ public class RemoteClusterStateService implements Closeable {
 
     private CoordinationMetadata getCoordinationMetadata(String clusterName, String clusterUUID, String coordinationMetadataFileName) {
         try {
-            // Fetch Coordintaion metadata
+            // Fetch Coordination metadata
             if (coordinationMetadataFileName != null) {
                 String[] splitPath = coordinationMetadataFileName.split("/");
                 return COORDINATION_METADATA_FORMAT.read(

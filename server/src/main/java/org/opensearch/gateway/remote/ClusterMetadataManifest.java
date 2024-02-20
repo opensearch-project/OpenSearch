@@ -227,7 +227,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
                 UPLOADED_TEMPLATES_METADATA
             );
             parser.declareNamedObjects(
-                ConstructingObjectParser.constructorArg(),
+                ConstructingObjectParser.optionalConstructorArg(),
                 UploadedMetadataAttribute.PARSER,
                 UPLOADED_CUSTOM_METADATA
             );
@@ -732,9 +732,22 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
     }
 
-    public static interface UploadedMetadata {
+    /**
+     * Interface representing uploaded metadata
+     */
+    public interface UploadedMetadata {
+        /**
+         * Gets the component or part of the system this upload belongs to.
+         *
+         * @return A string identifying the component
+         */
         String getComponent();
 
+        /**
+         * Gets the name of the file that was uploaded
+         *
+         * @return The name of the uploaded file as a string
+         */
         String getUploadedFilename();
     }
 
@@ -855,6 +868,11 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Metadata for uploaded metadata attribute
+     *
+     * @opensearch.internal
+     */
     public static class UploadedMetadataAttribute implements UploadedMetadata, Writeable, ToXContentFragment {
         private static final ParseField UPLOADED_FILENAME_FIELD = new ParseField("uploaded_filename");
 
