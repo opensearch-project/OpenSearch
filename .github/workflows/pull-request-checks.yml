@@ -17,7 +17,7 @@ jobs:
     name: Verify Description Checklist
     runs-on: ubuntu-latest
     steps:
-      - uses: peternied/check-pull-request-description-checklist@v1
+      - uses: peternied/check-pull-request-description-checklist@v1.1
         with:
           checklist-items: |
             New functionality includes testing.
