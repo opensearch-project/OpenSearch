@@ -142,6 +142,7 @@
 - [Query Insights] Implement Top N Queries feature to collect and gather information about high latency queries in a window ([#11904](https://github.com/opensearch-project/OpenSearch/pull/11904))
 - Add override support for sampling based on action ([#9621](https://github.com/opensearch-project/OpenSearch/issues/9621))
 - Added custom sampler support based on transport action in request ([#9621](https://github.com/opensearch-project/OpenSearch/issues/9621))
+- Disable concurrent search for composite aggregation([#12375](https://github.com/opensearch-project/OpenSearch/pull/12375))
 
 ### Removed
 - Remove deprecated classes for Rounding ([#10956](https://github.com/opensearch-project/OpenSearch/issues/10956))
