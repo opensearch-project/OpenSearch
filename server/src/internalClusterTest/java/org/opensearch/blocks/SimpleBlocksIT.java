@@ -234,7 +234,12 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
                 }
             }
 
-            for (APIBlock block : Arrays.asList(APIBlock.READ_ONLY, APIBlock.METADATA, APIBlock.READ_ONLY_ALLOW_DELETE, APIBlock.WRITE_ONLY_ALLOW_DELETE)) {
+            for (APIBlock block : Arrays.asList(
+                APIBlock.READ_ONLY,
+                APIBlock.METADATA,
+                APIBlock.READ_ONLY_ALLOW_DELETE,
+                APIBlock.WRITE_ONLY_ALLOW_DELETE
+            )) {
                 boolean success = false;
                 try {
                     enableIndexBlock("test", block.settingName());

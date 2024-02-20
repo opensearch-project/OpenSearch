@@ -57,7 +57,10 @@ public class DeleteIndexBlocksIT extends OpenSearchIntegTestCase {
     }
 
     public void testDeleteIndexOnIndexReadOnlyAllowDeleteSetting() {
-        assertDeleteIndexOnAllowDeleteSetting(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+        assertDeleteIndexOnAllowDeleteSetting(
+            IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE,
+            IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
+        );
     }
 
     public void testClusterBlockMessageHasIndexName() {
@@ -112,10 +115,13 @@ public class DeleteIndexBlocksIT extends OpenSearchIntegTestCase {
     }
 
     public void testDeleteIndexOnIndexWriteOnlyAllowDeleteSetting() {
-        assertDeleteIndexOnAllowDeleteSetting(IndexMetadata.SETTING_WRITE_ONLY_ALLOW_DELETE, IndexMetadata.INDEX_WRITE_ONLY_ALLOW_DELETE_BLOCK);
+        assertDeleteIndexOnAllowDeleteSetting(
+            IndexMetadata.SETTING_WRITE_ONLY_ALLOW_DELETE,
+            IndexMetadata.INDEX_WRITE_ONLY_ALLOW_DELETE_BLOCK
+        );
     }
 
-    private void  assertDeleteIndexOnAllowDeleteSetting(String settingName, ClusterBlock blockToAssert){
+    private void assertDeleteIndexOnAllowDeleteSetting(String settingName, ClusterBlock blockToAssert) {
         createIndex("test");
         ensureGreen("test");
         client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar").get();
@@ -124,10 +130,7 @@ public class DeleteIndexBlocksIT extends OpenSearchIntegTestCase {
             Settings settings = Settings.builder().put(settingName, true).build();
             assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get());
             assertSearchHits(client().prepareSearch().get(), "1");
-            assertBlocked(
-                client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"),
-                blockToAssert
-            );
+            assertBlocked(client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"), blockToAssert);
             assertBlocked(
                 client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 2)),
                 blockToAssert

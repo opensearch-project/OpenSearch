@@ -74,7 +74,12 @@ public class ForceMergeBlocksIT extends OpenSearchIntegTestCase {
         }
 
         // Request is blocked
-        for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA, SETTING_READ_ONLY_ALLOW_DELETE, SETTING_WRITE_ONLY_ALLOW_DELETE)) {
+        for (String blockSetting : Arrays.asList(
+            SETTING_READ_ONLY,
+            SETTING_BLOCKS_METADATA,
+            SETTING_READ_ONLY_ALLOW_DELETE,
+            SETTING_WRITE_ONLY_ALLOW_DELETE
+        )) {
             try {
                 enableIndexBlock("test", blockSetting);
                 assertBlocked(client().admin().indices().prepareForceMerge("test"));

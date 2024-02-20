@@ -402,7 +402,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             if (IndexModule.Type.REMOTE_SNAPSHOT.match(indexMetadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()))) {
                 addIndexBlock(indexName, IndexMetadata.REMOTE_READ_ONLY_ALLOW_DELETE);
             }
-            if(IndexMetadata.INDEX_BLOCKS_WRITE_ONLY_ALLOW_DELETE_SETTING.get(indexMetadata.getSettings())) {
+            if (IndexMetadata.INDEX_BLOCKS_WRITE_ONLY_ALLOW_DELETE_SETTING.get(indexMetadata.getSettings())) {
                 addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_ONLY_ALLOW_DELETE_BLOCK);
             }
             return this;

@@ -376,7 +376,12 @@ public class OpenCloseIndexIT extends OpenSearchIntegTestCase {
         assertIndexIsClosed("test");
 
         // Opening an index is blocked
-        for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_READ_ONLY_ALLOW_DELETE, SETTING_BLOCKS_METADATA, SETTING_WRITE_ONLY_ALLOW_DELETE)) {
+        for (String blockSetting : Arrays.asList(
+            SETTING_READ_ONLY,
+            SETTING_READ_ONLY_ALLOW_DELETE,
+            SETTING_BLOCKS_METADATA,
+            SETTING_WRITE_ONLY_ALLOW_DELETE
+        )) {
             try {
                 enableIndexBlock("test", blockSetting);
                 assertBlocked(client().admin().indices().prepareOpen("test"));

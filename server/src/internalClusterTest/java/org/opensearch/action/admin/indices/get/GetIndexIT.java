@@ -214,7 +214,13 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
     }
 
     public void testGetIndexWithBlocks() {
-        for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY, SETTING_READ_ONLY_ALLOW_DELETE, SETTING_WRITE_ONLY_ALLOW_DELETE)) {
+        for (String block : Arrays.asList(
+            SETTING_BLOCKS_READ,
+            SETTING_BLOCKS_WRITE,
+            SETTING_READ_ONLY,
+            SETTING_READ_ONLY_ALLOW_DELETE,
+            SETTING_WRITE_ONLY_ALLOW_DELETE
+        )) {
             try {
                 enableIndexBlock("idx", block);
                 GetIndexResponse response = client().admin()
