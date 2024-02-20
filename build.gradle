@@ -508,7 +508,6 @@ subprojects {
         includeClasses.add("org.opensearch.remotestore.CreateRemoteIndexClusterDefaultDocRep")
         includeClasses.add("org.opensearch.remotestore.CreateRemoteIndexIT")
         includeClasses.add("org.opensearch.remotestore.CreateRemoteIndexTranslogDisabledIT")
-        includeClasses.add("org.opensearch.remotestore.RemoteIndexPrimaryRelocationIT")
         includeClasses.add("org.opensearch.remotestore.RemoteStoreBackpressureIT")
         includeClasses.add("org.opensearch.remotestore.RemoteStoreIT")
         includeClasses.add("org.opensearch.remotestore.RemoteStoreRefreshListenerIT")
