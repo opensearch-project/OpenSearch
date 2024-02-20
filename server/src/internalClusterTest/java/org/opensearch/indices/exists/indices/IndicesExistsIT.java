@@ -44,6 +44,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_WRITE_ONLY_ALLOW_DELETE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -88,7 +89,8 @@ public class IndicesExistsIT extends OpenSearchIntegTestCase {
             SETTING_BLOCKS_READ,
             SETTING_BLOCKS_WRITE,
             SETTING_READ_ONLY,
-            SETTING_READ_ONLY_ALLOW_DELETE
+            SETTING_READ_ONLY_ALLOW_DELETE,
+            SETTING_WRITE_ONLY_ALLOW_DELETE
         )) {
             try {
                 enableIndexBlock("ro", blockSetting);

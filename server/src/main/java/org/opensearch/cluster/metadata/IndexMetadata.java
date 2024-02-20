@@ -541,6 +541,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String SETTING_READ_ONLY_ALLOW_DELETE = APIBlock.READ_ONLY_ALLOW_DELETE.settingName();
     public static final Setting<Boolean> INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING = APIBlock.READ_ONLY_ALLOW_DELETE.setting();
     public static final Setting<Boolean> INDEX_BLOCKS_WRITE_ONLY_ALLOW_DELETE_SETTING = APIBlock.WRITE_ONLY_ALLOW_DELETE.setting();
+    public static final String SETTING_WRITE_ONLY_ALLOW_DELETE = APIBlock.WRITE_ONLY_ALLOW_DELETE.settingName();
 
     public static final String SETTING_VERSION_CREATED = "index.version.created";
 
