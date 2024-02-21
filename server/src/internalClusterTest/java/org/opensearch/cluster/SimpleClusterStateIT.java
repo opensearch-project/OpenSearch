@@ -97,12 +97,17 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
         return Collections.singletonList(PrivateCustomPlugin.class);
     }
 
+    @Override
+    protected boolean useRandomReplicationStrategy() {
+        return true;
+    }
+
     @Before
     public void indexData() throws Exception {
         index("foo", "bar", "1", XContentFactory.jsonBuilder().startObject().field("foo", "foo").endObject());
         index("fuu", "buu", "1", XContentFactory.jsonBuilder().startObject().field("fuu", "fuu").endObject());
         index("baz", "baz", "1", XContentFactory.jsonBuilder().startObject().field("baz", "baz").endObject());
-        refresh();
+        refreshAndWaitForReplication();
     }
 
     public void testRoutingTable() throws Exception {
