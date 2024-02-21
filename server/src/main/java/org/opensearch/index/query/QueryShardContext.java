@@ -256,7 +256,7 @@ public class QueryShardContext extends QueryRewriteContext {
         this.bitsetFilterCache = bitsetFilterCache;
         this.indexFieldDataService = indexFieldDataLookup;
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
-        this.nestedScope = new NestedScope();
+        this.nestedScope = new NestedScope(indexSettings);
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;
         this.searcher = searcher;
@@ -270,7 +270,7 @@ public class QueryShardContext extends QueryRewriteContext {
         allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.lookup = null;
         this.namedQueries.clear();
-        this.nestedScope = new NestedScope();
+        this.nestedScope = new NestedScope(indexSettings);
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
