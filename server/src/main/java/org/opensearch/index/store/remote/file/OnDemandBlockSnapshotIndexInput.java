@@ -148,7 +148,7 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
         // Block may be present on multiple chunks of a file, so we need
         // to make multiple blobFetchRequest to fetch an entire block.
         // Each fetchBlobRequest can fetch only a single chunk of a file.
-        List<BlobFetchRequest> blobFetchRequestList = new ArrayList<>();
+        List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
         while (diff > 0) {
             long partStart = pos % partSize;
             long partEnd;
@@ -158,22 +158,13 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
                 partEnd = (partStart + diff);
             }
             long fetchBytes = partEnd - partStart;
-            BlobFetchRequest.Builder builder = BlobFetchRequest.builder();
-            builder.position(partStart)
-                .length(fetchBytes)
-                .blobName(fileInfo.partName(partNum))
-                .directory(directory)
-                .fileName(blockFileName);
-            BlobFetchRequest req = builder.build();
-            blobFetchRequestList.add(req);
+            blobParts.add(new BlobFetchRequest.BlobPart(fileInfo.partName(partNum), partStart, fetchBytes));
             partNum++;
             pos = pos + fetchBytes;
             diff = (blockEnd - pos);
         }
-        if (blobFetchRequestList.isEmpty()) {
-            throw new IOException("block size cannot be zero");
-        }
-        return transferManager.fetchBlob(blobFetchRequestList);
+        BlobFetchRequest.Builder builder = BlobFetchRequest.builder().blobParts(blobParts).directory(directory).fileName(blockFileName);
+        return transferManager.fetchBlob(builder.build());
     }
 
     @Override

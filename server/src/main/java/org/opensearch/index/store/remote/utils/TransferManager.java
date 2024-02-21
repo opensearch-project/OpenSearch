@@ -17,7 +17,6 @@ import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCachedIndexInput;
 
-import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -26,7 +25,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,19 +50,17 @@ public class TransferManager {
 
     /**
      * Given a blobFetchRequestList, return it's corresponding IndexInput.
-     * @param blobFetchRequestList to fetch
+     * @param blobFetchRequest to fetch
      * @return future of IndexInput augmented with internal caching maintenance tasks
      */
-    public IndexInput fetchBlob(List<BlobFetchRequest> blobFetchRequestList) throws IOException {
+    public IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws IOException {
 
-        assert blobFetchRequestList.isEmpty() == false;
-
-        final Path key = blobFetchRequestList.get(0).getFilePath();
+        final Path key = blobFetchRequest.getFilePath();
 
         final CachedIndexInput cacheEntry = fileCache.compute(key, (path, cachedIndexInput) -> {
             if (cachedIndexInput == null || cachedIndexInput.isClosed()) {
                 // Doesn't exist or is closed, either way create a new one
-                return new DelayedCreationCachedIndexInput(fileCache, blobContainer, blobFetchRequestList);
+                return new DelayedCreationCachedIndexInput(fileCache, blobContainer, blobFetchRequest);
             } else {
                 // already in the cache and ready to be used (open)
                 return cachedIndexInput;
@@ -82,41 +78,36 @@ public class TransferManager {
     }
 
     @SuppressWarnings("removal")
-    private static FileCachedIndexInput createIndexInput(
-        FileCache fileCache,
-        BlobContainer blobContainer,
-        List<BlobFetchRequest> requestList
-    ) {
+    private static FileCachedIndexInput createIndexInput(FileCache fileCache, BlobContainer blobContainer, BlobFetchRequest request) {
         // We need to do a privileged action here in order to fetch from remote
         // and write to the local file cache in case this is invoked as a side
         // effect of a plugin (such as a scripted search) that doesn't have the
         // necessary permissions.
-        assert requestList.isEmpty() == false;
         return AccessController.doPrivileged((PrivilegedAction<FileCachedIndexInput>) () -> {
             try {
-                boolean needsAppend = false;
-                if (Files.exists(requestList.get(0).getFilePath()) == false) {
-                    for (BlobFetchRequest request : requestList) {
-                        try (
-                            InputStream snapshotFileInputStream = blobContainer.readBlob(
-                                request.getBlobName(),
-                                request.getPosition(),
-                                request.getLength()
-                            );
-                            OutputStream fileOutputStream = needsAppend
-                                ? Files.newOutputStream(request.getFilePath(), APPEND)
-                                : Files.newOutputStream(request.getFilePath());
-                            OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream)
-                        ) {
-                            snapshotFileInputStream.transferTo(localFileOutputStream);
+                if (Files.exists(request.getFilePath()) == false) {
+                    try (
+                        // Create a new empty file in the specified path
+                        OutputStream fileOutputStream = Files.newOutputStream(request.getFilePath());
+
+                        // All blob parts will be appended to file iteratively.
+                        OutputStream localFileOutputStream = Files.newOutputStream(request.getFilePath(), APPEND)
+                    ) {
+                        for (BlobFetchRequest.BlobPart blobPart : request.blobParts()) {
+                            try (
+                                InputStream snapshotFileInputStream = blobContainer.readBlob(
+                                    blobPart.getBlobName(),
+                                    blobPart.getPosition(),
+                                    blobPart.getLength()
+                                );
+                            ) {
+                                snapshotFileInputStream.transferTo(localFileOutputStream);
+                            }
                         }
-                        needsAppend = true;
                     }
                 }
-                final IndexInput luceneIndexInput = requestList.get(0)
-                    .getDirectory()
-                    .openInput(requestList.get(0).getFileName(), IOContext.READ);
-                return new FileCachedIndexInput(fileCache, requestList.get(0).getFilePath(), luceneIndexInput);
+                final IndexInput luceneIndexInput = request.getDirectory().openInput(request.getFileName(), IOContext.READ);
+                return new FileCachedIndexInput(fileCache, request.getFilePath(), luceneIndexInput);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -133,15 +124,15 @@ public class TransferManager {
     private static class DelayedCreationCachedIndexInput implements CachedIndexInput {
         private final FileCache fileCache;
         private final BlobContainer blobContainer;
-        private final List<BlobFetchRequest> requestList;
+        private final BlobFetchRequest request;
         private final CompletableFuture<IndexInput> result = new CompletableFuture<>();
         private final AtomicBoolean isStarted = new AtomicBoolean(false);
         private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
-        private DelayedCreationCachedIndexInput(FileCache fileCache, BlobContainer blobContainer, List<BlobFetchRequest> requestList) {
+        private DelayedCreationCachedIndexInput(FileCache fileCache, BlobContainer blobContainer, BlobFetchRequest request) {
             this.fileCache = fileCache;
             this.blobContainer = blobContainer;
-            this.requestList = requestList;
+            this.request = request;
         }
 
         @Override
@@ -152,10 +143,10 @@ public class TransferManager {
             if (isStarted.getAndSet(true) == false) {
                 // We're the first one here, need to download the block
                 try {
-                    result.complete(createIndexInput(fileCache, blobContainer, requestList));
+                    result.complete(createIndexInput(fileCache, blobContainer, request));
                 } catch (Exception e) {
                     result.completeExceptionally(e);
-                    fileCache.remove(requestList.get(0).getFilePath());
+                    fileCache.remove(request.getFilePath());
                 }
             }
             try {
@@ -173,8 +164,8 @@ public class TransferManager {
         @Override
         public long length() {
             long length = 0;
-            for (BlobFetchRequest request : requestList) {
-                length += request.getLength();
+            for (BlobFetchRequest.BlobPart blobPart : request.blobParts()) {
+                length += blobPart.getLength();
             }
             return length;
         }

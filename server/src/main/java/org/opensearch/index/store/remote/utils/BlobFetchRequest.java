@@ -12,6 +12,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 
 import java.nio.file.Path;
+import java.util.List;
 
 /**
  * The specification to fetch specific block from blob store
@@ -20,37 +21,19 @@ import java.nio.file.Path;
  */
 public class BlobFetchRequest {
 
-    private final long position;
-
-    private final long length;
-
-    private final String blobName;
-
     private final Path filePath;
 
     private final Directory directory;
 
     private final String fileName;
 
+    private final List<BlobPart> blobParts;
+
     private BlobFetchRequest(Builder builder) {
-        this.position = builder.position;
-        this.length = builder.length;
-        this.blobName = builder.blobName;
         this.fileName = builder.fileName;
         this.filePath = builder.directory.getDirectory().resolve(fileName);
         this.directory = builder.directory;
-    }
-
-    public long getPosition() {
-        return position;
-    }
-
-    public long getLength() {
-        return length;
-    }
-
-    public String getBlobName() {
-        return blobName;
+        this.blobParts = builder.blobParts;
     }
 
     public Path getFilePath() {
@@ -65,6 +48,10 @@ public class BlobFetchRequest {
         return fileName;
     }
 
+    public List<BlobPart> blobParts() {
+        return blobParts;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -72,12 +59,8 @@ public class BlobFetchRequest {
     @Override
     public String toString() {
         return "BlobFetchRequest{"
-            + "position="
-            + position
-            + ", length="
-            + length
-            + ", blobName='"
-            + blobName
+            + "blobParts="
+            + blobParts
             + '\''
             + ", filePath="
             + filePath
@@ -90,34 +73,44 @@ public class BlobFetchRequest {
     }
 
     /**
+     * BlobPart represents a single chunk of a file
+     */
+    public static class BlobPart {
+        private String blobName;
+        private long position;
+        private long length;
+
+        public BlobPart(String blobName, long position, long length) {
+            this.blobName = blobName;
+            if (length <= 0) {
+                throw new IllegalArgumentException("Length for blob part fetch request needs to be non-negative");
+            }
+            this.length = length;
+            this.position = position;
+        }
+
+        public String getBlobName() {
+            return blobName;
+        }
+
+        public long getPosition() {
+            return position;
+        }
+
+        public long getLength() {
+            return length;
+        }
+    }
+
+    /**
      * Builder for BlobFetchRequest
      */
     public static final class Builder {
-        private long position;
-        private long length;
-        private String blobName;
+        private List<BlobPart> blobParts;
         private FSDirectory directory;
         private String fileName;
 
         private Builder() {}
-
-        public Builder position(long position) {
-            this.position = position;
-            return this;
-        }
-
-        public Builder length(long length) {
-            if (length <= 0) {
-                throw new IllegalArgumentException("Length for blob fetch request needs to be non-negative");
-            }
-            this.length = length;
-            return this;
-        }
-
-        public Builder blobName(String blobName) {
-            this.blobName = blobName;
-            return this;
-        }
 
         public Builder directory(FSDirectory directory) {
             this.directory = directory;
@@ -126,6 +119,11 @@ public class BlobFetchRequest {
 
         public Builder fileName(String fileName) {
             this.fileName = fileName;
+            return this;
+        }
+
+        public Builder blobParts(List<BlobPart> blobParts) {
+            this.blobParts = blobParts;
             return this;
         }
 
