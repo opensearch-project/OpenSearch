@@ -462,7 +462,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void executePhase(SearchPhase phase) {
-        final Span phaseSpan = tracer.startSpan(SpanCreationContext.server().name("[phase/" + phase.getName() + "]"));
+        Span phaseSpan = tracer.startSpan(SpanCreationContext.server().name("[phase/" + phase.getName() + "]"));
         try (final SpanScope scope = tracer.withSpanInScope(phaseSpan)) {
             onPhaseStart(phase);
             phase.recordAndRun();
@@ -471,7 +471,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 logger.debug(new ParameterizedMessage("Failed to execute [{}] while moving to [{}] phase", request, phase.getName()), e);
             }
 
+            if (currentPhaseHasLifecycle == false) {
+                phaseSpan.setError(e);
+            }
+
             onPhaseFailure(phase, "", e);
+        } finally {
+            if (currentPhaseHasLifecycle == false) {
+                phaseSpan.endSpan();
+            }
         }
     }
 
