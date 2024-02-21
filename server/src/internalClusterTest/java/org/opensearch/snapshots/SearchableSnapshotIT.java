@@ -469,12 +469,9 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void createRepositoryWithSettings(Settings.Builder repositorySettings, String repoName) {
-        final Settings.Builder settings = Settings.builder();
-        settings.put("location", randomRepoPath()).put("compress", randomBoolean());
-        settings.put("chunk_size", 1000, ByteSizeUnit.BYTES);
         logger.info("--> Create a repository");
         if (repositorySettings == null) {
-            createRepository(repoName, FsRepository.TYPE, settings);
+            createRepository(repoName, FsRepository.TYPE);
         } else {
             createRepository(repoName, FsRepository.TYPE, repositorySettings);
         }
