@@ -31,7 +31,7 @@ import java.util.function.Supplier;
  *
  * @opensearch.api
  */
-@PublicApi(since = "1.0.0")
+@PublicApi(since = "2.13.0")
 public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "constant_keyword";
