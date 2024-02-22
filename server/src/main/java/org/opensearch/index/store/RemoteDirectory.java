@@ -107,6 +107,10 @@ public class RemoteDirectory extends Directory {
         return blobContainer.listBlobsByPrefix(filenamePrefix).keySet();
     }
 
+    public void deleteFiles(List<String> files) throws IOException {
+        blobContainer.deleteBlobsIgnoringIfNotExists(files);
+    }
+
     public List<String> listFilesByPrefixInLexicographicOrder(String filenamePrefix, int limit) throws IOException {
         List<String> sortedBlobList = new ArrayList<>();
         AtomicReference<Exception> exception = new AtomicReference<>();

@@ -1138,33 +1138,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 remoteStoreShardCleanupTracker.addReleasedShardLock(indexUUID, shardId, shallowSnapshotUUID);
             }
             logger.debug("Successfully released lock for shard {} of index with uuid {}", shardId, indexUUID);
-            if (!isIndexPresent(clusterService, indexUUID)
-                && !remoteStoreShardCleanupTracker.isShardEnqueued(indexUUID, shardId)
-                && remoteStoreMetadataLockManager.isEmpty()) {
+            if (!isIndexPresent(clusterService, indexUUID) && !remoteStoreShardCleanupTracker.isShardEnqueued(indexUUID, shardId)) {
                 // Note: this is a temporary solution where snapshot deletion triggers remote store side cleanup if
-                // index is already deleted. We will add a poller in future to take care of remote store side cleanup.
-                // related issue: https://github.com/opensearch-project/OpenSearch/issues/8469
-                try (
-                    RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
-                        (RemoteSegmentStoreDirectory) new RemoteSegmentStoreDirectoryFactory(
-                            remoteStoreLockManagerFactory.getRepositoriesService(),
-                            threadPool
-                        ).newDirectory(
-                            remoteStoreRepoForIndex,
-                            indexUUID,
-                            new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.valueOf(shardId))
-                        )
-                ) {
-                    // Note: shard cleanup will still happen asynchronously using REMOTE_PURGE threadpool. if it fails,
-                    // it could leave some stale files in remote directory. this issue could even happen in cases of
-                    // shard level remote store data cleanup which also happens asynchronously. in long term, we have
-                    // plans to implement remote store GC poller mechanism which will take care of such stale data.
-                    // related issue: https://github.com/opensearch-project/OpenSearch/issues/8469
-                    if (remoteSegmentStoreDirectory.deleteIfEmpty()) {
-                        remoteStoreShardCleanupTracker.addEnqueuedShardCleanup(indexUUID, shardId);
-                        return true;
-                    }
-                    return false;
+                // index is already deleted. shard cleanup will still happen asynchronously using REMOTE_PURGE
+                // threadpool. if it fails, it could leave some stale files in remote directory. this issue could
+                // even happen in cases of shard level remote store data cleanup which also happens asynchronously.
+                // in long term, we have plans to implement remote store GC poller mechanism which will take care of
+                // such stale data. related issue: https://github.com/opensearch-project/OpenSearch/issues/8469
+                RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
+                    remoteStoreLockManagerFactory.getRepositoriesService(),
+                    threadPool
+                );
+                if (RemoteSegmentStoreDirectory.cleanupAsync(
+                    remoteDirectoryFactory,
+                    threadPool,
+                    remoteStoreRepoForIndex,
+                    indexUUID,
+                    new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt(shardId))
+                )) {
+                    remoteStoreShardCleanupTracker.addEnqueuedShardCleanup(indexUUID, shardId);
+                    return true;
                 }
             }
         } catch (Exception e) {
@@ -1184,13 +1177,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         private final Cache<String, Boolean> releasedLocks;
         // lock files will be per shard per snapshot
         private static final int DEFAULT_RELEASED_LOCK_CACHE_SIZE = 10000;
-        // cleanup will be per shard
-        private static final int DEFAULT_ENQUEUED_CLEANUP_CACHE_SIZE = 1000;
 
         private RemoteStoreShardCleanupTracker() {
-            enqueuedRemoteStoreCleanup = CacheBuilder.<String, Boolean>builder()
-                .setMaximumWeight(DEFAULT_ENQUEUED_CLEANUP_CACHE_SIZE)
-                .build();
+            enqueuedRemoteStoreCleanup = CacheBuilder.<String, Boolean>builder().setExpireAfterWrite(TimeValue.timeValueHours(1)).build();
             releasedLocks = CacheBuilder.<String, Boolean>builder().setMaximumWeight(DEFAULT_RELEASED_LOCK_CACHE_SIZE).build();
         }
 

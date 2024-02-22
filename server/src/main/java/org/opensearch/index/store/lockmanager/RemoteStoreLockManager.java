@@ -46,7 +46,7 @@ public interface RemoteStoreLockManager {
     /**
      *
      * @return true if lock directory is empty.
-     * @throws IOException
+     * @throws IOException throws exception if list locks call fails.
      */
     Boolean isEmpty() throws IOException;
 
