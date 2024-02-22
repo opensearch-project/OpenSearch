@@ -218,7 +218,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         sortValues = new SearchSortValues(in);
 
         size = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_13_0)) {
             if (size > 0) {
                 Map<String, Float> tempMap = in.readMap(StreamInput::readString, StreamInput::readFloat);
                 matchedQueries = tempMap.entrySet()
@@ -246,6 +246,36 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             }
         } else {
             innerHits = null;
+        }
+    }
+
+    private Map<String, DocumentField> readFields(StreamInput in) throws IOException {
+        Map<String, DocumentField> fields;
+        int size = in.readVInt();
+        if (size == 0) {
+            fields = emptyMap();
+        } else if (size == 1) {
+            DocumentField hitField = new DocumentField(in);
+            fields = singletonMap(hitField.getName(), hitField);
+        } else {
+            fields = new HashMap<>(size);
+            for (int i = 0; i < size; i++) {
+                DocumentField field = new DocumentField(in);
+                fields.put(field.getName(), field);
+            }
+            fields = unmodifiableMap(fields);
+        }
+        return fields;
+    }
+
+    private void writeFields(StreamOutput out, Map<String, DocumentField> fields) throws IOException {
+        if (fields == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(fields.size());
+            for (DocumentField field : fields.values()) {
+                field.writeTo(out);
+            }
         }
     }
 
@@ -286,7 +316,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         sortValues.writeTo(out);
 
         out.writeVInt(matchedQueries.size());
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_13_0)) {
             if (!matchedQueries.isEmpty()) {
                 out.writeMap(matchedQueries, StreamOutput::writeString, StreamOutput::writeFloat);
             }
