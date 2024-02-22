@@ -17,6 +17,7 @@ import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCachedIndexInput;
 
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -28,8 +29,6 @@ import java.security.PrivilegedAction;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static java.nio.file.StandardOpenOption.APPEND;
 
 /**
  * This acts as entry point to fetch {@link BlobFetchRequest} and return actual {@link IndexInput}. Utilizes the BlobContainer interface to
@@ -87,11 +86,8 @@ public class TransferManager {
             try {
                 if (Files.exists(request.getFilePath()) == false) {
                     try (
-                        // Create a new empty file in the specified path
                         OutputStream fileOutputStream = Files.newOutputStream(request.getFilePath());
-
-                        // All blob parts will be appended to file iteratively.
-                        OutputStream localFileOutputStream = Files.newOutputStream(request.getFilePath(), APPEND)
+                        OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream)
                     ) {
                         for (BlobFetchRequest.BlobPart blobPart : request.blobParts()) {
                             try (
