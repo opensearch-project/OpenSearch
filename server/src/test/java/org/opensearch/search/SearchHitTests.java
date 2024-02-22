@@ -242,7 +242,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
 
     public void testSerializationDeserializationWithMatchedQueriesScores() throws IOException {
         SearchHit searchHit = createTestItemWithMatchedQueriesScores(true, true);
-        SearchHit deserializedSearchHit = copyWriteable(searchHit, getNamedWriteableRegistry(), SearchHit::new, Version.V_3_0_0);
+        SearchHit deserializedSearchHit = copyWriteable(searchHit, getNamedWriteableRegistry(), SearchHit::new, Version.V_2_13_0);
         assertEquals(searchHit, deserializedSearchHit);
         assertEquals(searchHit.getMatchedQueriesAndScores(), deserializedSearchHit.getMatchedQueriesAndScores());
     }
@@ -313,7 +313,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
 
         SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1f);
 
-        SearchHits results = copyWriteable(hits, getNamedWriteableRegistry(), SearchHits::new, Version.V_3_0_0);
+        SearchHits results = copyWriteable(hits, getNamedWriteableRegistry(), SearchHits::new, Version.V_2_13_0);
         SearchShardTarget deserializedTarget = results.getAt(0).getShard();
         assertThat(deserializedTarget, equalTo(target));
         assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
@@ -369,7 +369,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
 
         SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1f);
 
-        SearchHits results = copyWriteable(hits, getNamedWriteableRegistry(), SearchHits::new, Version.V_3_0_0);
+        SearchHits results = copyWriteable(hits, getNamedWriteableRegistry(), SearchHits::new, Version.V_2_13_0);
         SearchShardTarget deserializedTarget = results.getAt(0).getShard();
         assertThat(deserializedTarget, equalTo(target));
         assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
