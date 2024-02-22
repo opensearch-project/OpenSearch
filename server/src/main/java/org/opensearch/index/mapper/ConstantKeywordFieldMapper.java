@@ -126,7 +126,17 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't " + "support formats.");
+            }
+
+            return new SourceValueFetcher(name(), context) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    String keywordValue = value.toString();
+                    return Collections.singletonList(keywordValue);
+                }
+            };
         }
     }
 
