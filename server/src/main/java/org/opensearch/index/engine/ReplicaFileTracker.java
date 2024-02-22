@@ -17,7 +17,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * This class is heavily influenced by Lucene's ReplicaFileDeleter class used to keep track of
@@ -31,10 +31,10 @@ final class ReplicaFileTracker {
 
     public static final Logger logger = LogManager.getLogger(ReplicaFileTracker.class);
     private final Map<String, Integer> refCounts = new HashMap<>();
-    private final BiConsumer<String, String> fileDeleter;
+    private final Consumer<String> fileDeleter;
     private final Set<String> EXCLUDE_FILES = Set.of("write.lock");
 
-    public ReplicaFileTracker(BiConsumer<String, String> fileDeleter) {
+    public ReplicaFileTracker(Consumer<String> fileDeleter) {
         this.fileDeleter = fileDeleter;
     }
 
@@ -82,7 +82,7 @@ final class ReplicaFileTracker {
 
     private synchronized void delete(String fileName) {
         assert canDelete(fileName);
-        fileDeleter.accept("delete unreferenced", fileName);
+        fileDeleter.accept(fileName);
     }
 
     private synchronized boolean canDelete(String fileName) {
