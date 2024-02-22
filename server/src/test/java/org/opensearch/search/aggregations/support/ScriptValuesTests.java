@@ -60,7 +60,7 @@ public class ScriptValuesTests extends OpenSearchTestCase {
         int index;
 
         FakeAggregationScript(Object[][] values) {
-            super(Collections.emptyMap(), new SearchLookup(null, null) {
+            super(Collections.emptyMap(), new SearchLookup(null, null, SearchLookup.UNKNOWN_SHARD_ID) {
 
                 @Override
                 public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
