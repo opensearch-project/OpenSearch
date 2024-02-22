@@ -8,13 +8,11 @@
 
 package org.opensearch;
 
-import org.opensearch.core.index.snapshots.IndexShardSnapshotException;
-import org.opensearch.crypto.CryptoRegistryException;
-
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandle;
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
 import static org.opensearch.OpenSearchException.UNKNOWN_VERSION_ADDED;
 import static org.opensearch.Version.V_2_10_0;
+import static org.opensearch.Version.V_2_13_0;
 import static org.opensearch.Version.V_2_1_0;
 import static org.opensearch.Version.V_2_4_0;
 import static org.opensearch.Version.V_2_5_0;
@@ -678,7 +676,12 @@ public final class OpenSearchServerException {
             )
         );
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(IndexShardSnapshotException.class, IndexShardSnapshotException::new, 98, UNKNOWN_VERSION_ADDED)
+            new OpenSearchExceptionHandle(
+                org.opensearch.core.index.snapshots.IndexShardSnapshotException.class,
+                org.opensearch.core.index.snapshots.IndexShardSnapshotException::new,
+                98,
+                UNKNOWN_VERSION_ADDED
+            )
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
@@ -1174,7 +1177,30 @@ public final class OpenSearchServerException {
                 V_2_7_0
             )
         );
-        registerExceptionHandle(new OpenSearchExceptionHandle(CryptoRegistryException.class, CryptoRegistryException::new, 171, V_2_10_0));
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.crypto.CryptoRegistryException.class,
+                org.opensearch.crypto.CryptoRegistryException::new,
+                171,
+                V_2_10_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.action.admin.indices.view.ViewNotFoundException.class,
+                org.opensearch.action.admin.indices.view.ViewNotFoundException::new,
+                172,
+                V_2_13_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.action.admin.indices.view.ViewAlreadyExistsException.class,
+                org.opensearch.action.admin.indices.view.ViewAlreadyExistsException::new,
+                173,
+                V_2_13_0
+            )
+        );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
                 org.opensearch.cluster.block.IndexCreateBlockException.class,
