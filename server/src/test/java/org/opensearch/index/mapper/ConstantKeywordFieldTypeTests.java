@@ -40,7 +40,7 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
         );
 
         assertEquals(new MatchAllDocsQuery(), ft.termsQuery(Arrays.asList("default", "not_default"), createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.termQuery(Arrays.asList("no_default", "not_default"), createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.termsQuery(Arrays.asList("no_default", "not_default"), createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.termsQuery(List.of(), createContext()));
     }
 
