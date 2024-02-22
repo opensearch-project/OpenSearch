@@ -138,6 +138,20 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
         final long blockStart = getBlockStart(blockId);
         final long blockEnd = blockStart + getActualBlockSize(blockId);
 
+        // Block may be present on multiple chunks of a file, so we need
+        // to fetch each chunk/blob part separately to fetch an entire block.
+        BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder()
+            .blobParts(getBlobParts(blockStart, blockEnd))
+            .directory(directory)
+            .fileName(blockFileName)
+            .build();
+        return transferManager.fetchBlob(blobFetchRequest);
+    }
+
+    /**
+     * Returns list of blob parts/chunks in a file for a given block.
+     */
+    protected List<BlobFetchRequest.BlobPart> getBlobParts(long blockStart, long blockEnd) {
         // If the snapshot file is chunked, we must account for this by
         // choosing the appropriate file part and updating the position
         // accordingly.
@@ -145,9 +159,6 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
         long pos = blockStart;
         long diff = (blockEnd - blockStart);
 
-        // Block may be present on multiple chunks of a file, so we need
-        // to make multiple blobFetchRequest to fetch an entire block.
-        // Each fetchBlobRequest can fetch only a single chunk of a file.
         List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
         while (diff > 0) {
             long partStart = pos % partSize;
@@ -163,8 +174,7 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
             pos = pos + fetchBytes;
             diff = (blockEnd - pos);
         }
-        BlobFetchRequest.Builder builder = BlobFetchRequest.builder().blobParts(blobParts).directory(directory).fileName(blockFileName);
-        return transferManager.fetchBlob(builder.build());
+        return blobParts;
     }
 
     @Override

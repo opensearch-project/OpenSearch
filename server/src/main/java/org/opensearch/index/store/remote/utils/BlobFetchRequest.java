@@ -29,11 +29,14 @@ public class BlobFetchRequest {
 
     private final List<BlobPart> blobParts;
 
+    private final long blobLength;
+
     private BlobFetchRequest(Builder builder) {
         this.fileName = builder.fileName;
         this.filePath = builder.directory.getDirectory().resolve(fileName);
         this.directory = builder.directory;
         this.blobParts = builder.blobParts;
+        this.blobLength = builder.blobParts.stream().mapToLong(o -> o.getLength()).sum();
     }
 
     public Path getFilePath() {
@@ -50,6 +53,10 @@ public class BlobFetchRequest {
 
     public List<BlobPart> blobParts() {
         return blobParts;
+    }
+
+    public long getBlobLength() {
+        return blobLength;
     }
 
     public static Builder builder() {

@@ -115,6 +115,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
         TestGroup.testGetBlock(blockedSnapshotFile, blockSize, FILE_SIZE);
         TestGroup.testGetBlockOffset(blockedSnapshotFile, blockSize, FILE_SIZE);
         TestGroup.testGetBlockStart(blockedSnapshotFile, blockSize);
+        TestGroup.testGetBlobParts(blockedSnapshotFile);
         TestGroup.testCurrentBlockStart(blockedSnapshotFile, blockSize);
         TestGroup.testCurrentBlockPosition(blockedSnapshotFile, blockSize);
         TestGroup.testClone(blockedSnapshotFile, blockSize);
@@ -250,6 +251,35 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
 
             // block 2
             assertEquals(blockSize * 2, blockedSnapshotFile.getBlockStart(2));
+        }
+
+        public static void testGetBlobParts(OnDemandBlockSnapshotIndexInput blockedSnapshotFile) {
+            // block id 0
+            int blockId = 0;
+            long blockStart = blockedSnapshotFile.getBlockStart(blockId);
+            long blockEnd = blockStart + blockedSnapshotFile.getActualBlockSize(blockId);
+            assertEquals(
+                (blockEnd - blockStart),
+                blockedSnapshotFile.getBlobParts(blockStart, blockEnd).stream().mapToLong(o -> o.getLength()).sum()
+            );
+
+            // block 1
+            blockId = 1;
+            blockStart = blockedSnapshotFile.getBlockStart(blockId);
+            blockEnd = blockStart + blockedSnapshotFile.getActualBlockSize(blockId);
+            assertEquals(
+                (blockEnd - blockStart),
+                blockedSnapshotFile.getBlobParts(blockStart, blockEnd).stream().mapToLong(o -> o.getLength()).sum()
+            );
+
+            // block 2
+            blockId = 2;
+            blockStart = blockedSnapshotFile.getBlockStart(blockId);
+            blockEnd = blockStart + blockedSnapshotFile.getActualBlockSize(blockId);
+            assertEquals(
+                (blockEnd - blockStart),
+                blockedSnapshotFile.getBlobParts(blockStart, blockEnd).stream().mapToLong(o -> o.getLength()).sum()
+            );
         }
 
         public static void testCurrentBlockStart(OnDemandBlockSnapshotIndexInput blockedSnapshotFile, int blockSize) throws IOException {

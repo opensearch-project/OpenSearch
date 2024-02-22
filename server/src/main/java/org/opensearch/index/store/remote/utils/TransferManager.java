@@ -159,11 +159,7 @@ public class TransferManager {
 
         @Override
         public long length() {
-            long length = 0;
-            for (BlobFetchRequest.BlobPart blobPart : request.blobParts()) {
-                length += blobPart.getLength();
-            }
-            return length;
+            return request.getBlobLength();
         }
 
         @Override
