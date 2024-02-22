@@ -304,7 +304,7 @@ public abstract class MappedFieldType {
     }
 
     // Case sensitive form of wildcard query
-    public Query wildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+    public final Query wildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         return wildcardQuery(value, method, false, context);
     }
 
