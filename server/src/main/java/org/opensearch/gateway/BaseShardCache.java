@@ -19,7 +19,6 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.transport.ReceiveTimeoutTransportException;
-import reactor.util.annotation.NonNull;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -27,6 +26,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import reactor.util.annotation.NonNull;
 
 /**
  * Common functionalities of a cache for storing shard metadata. Cache maintains node level responses.
@@ -141,7 +142,7 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
      */
     public Map<DiscoveryNode, K> populateCache(DiscoveryNodes nodes, Set<String> failedNodes) {
         Map<DiscoveryNode, K> fetchData = new HashMap<>();
-        for (Iterator<? extends Map.Entry<String, ? extends BaseNodeEntry>> it = getCache().entrySet().iterator(); it.hasNext(); ) {
+        for (Iterator<? extends Map.Entry<String, ? extends BaseNodeEntry>> it = getCache().entrySet().iterator(); it.hasNext();) {
             Map.Entry<String, BaseNodeEntry> entry = (Map.Entry<String, BaseNodeEntry>) it.next();
             String nodeId = entry.getKey();
             BaseNodeEntry nodeEntry = entry.getValue();
@@ -170,8 +171,7 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
             if (nodeEntry != null) {
                 if (validateNodeResponse(nodeEntry, fetchingRound)) {
                     // if the entry is there, for the right fetching round and not marked as failed already, process it
-                    logger.trace("{} marking {} as done for [{}], result is [{}]", logKey, nodeEntry.getNodeId(), type,
-                        response);
+                    logger.trace("{} marking {} as done for [{}], result is [{}]", logKey, nodeEntry.getNodeId(), type, response);
                     putData(response.getNode(), response);
                 }
             }
@@ -191,13 +191,7 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
             );
             return false;
         } else if (nodeEntry.isFailed()) {
-            logger.trace(
-                "{} node {} has failed for [{}] (failure [{}])",
-                logKey,
-                nodeEntry.getNodeId(),
-                type,
-                nodeEntry.getFailure()
-            );
+            logger.trace("{} node {} has failed for [{}] (failure [{}])", logKey, nodeEntry.getNodeId(), type, nodeEntry.getFailure());
             return false;
         }
         return true;
@@ -224,12 +218,7 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
                 nodeEntry.restartFetching();
             } else {
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "{}: failed to list shard for {} on node [{}]",
-                        logKey,
-                        type,
-                        failure.nodeId()
-                    ),
+                    () -> new ParameterizedMessage("{}: failed to list shard for {} on node [{}]", logKey, type, failure.nodeId()),
                     failure
                 );
                 nodeEntry.doneFetching(failure.getCause());
@@ -256,7 +245,6 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
             getCache().get(nodeId).markAsFetching(fetchingRound);
         }
     }
-
 
     /**
      * A node entry, holding only node level fetching related information.
