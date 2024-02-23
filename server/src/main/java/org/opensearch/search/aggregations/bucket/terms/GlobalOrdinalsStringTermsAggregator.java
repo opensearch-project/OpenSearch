@@ -248,7 +248,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                             return;
                         }
                         int globalOrd = singleValues.ordValue();
-                        //Hello
                         collectionStrategy.collectGlobalOrd(owningBucketOrd, doc, globalOrd, sub);
                     }
                 });
