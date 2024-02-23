@@ -20,7 +20,6 @@ import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
-import org.opensearch.common.cache.stats.CacheStats;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.collect.Tuple;
@@ -96,13 +95,14 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     private final Class<K> keyType;
     private final Class<V> valueType;
     private final TimeValue expireAfterAccess;
-    private final DiskCacheStats stats = new DiskCacheStats();
     private final EhCacheEventListener<K, V> ehCacheEventListener;
     private final String threadPoolAlias;
     private final Settings settings;
     private final RemovalListener<K, V> removalListener;
     private final CacheType cacheType;
     private final String diskCacheAlias;
+    // TODO: Move count to stats once those changes are ready.
+    private final CounterMetric entries = new CounterMetric();
 
     /**
      * Used in computeIfAbsent to synchronize loading of a given key. This is needed as ehcache doesn't provide a
@@ -363,7 +363,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
      */
     @Override
     public long count() {
-        return stats.count();
+        return entries.count();
     }
 
     @Override
@@ -379,19 +379,6 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
             cacheManager.destroyCache(this.diskCacheAlias);
         } catch (CachePersistenceException e) {
             throw new OpenSearchException("Exception occurred while destroying ehcache and associated data", e);
-        }
-    }
-
-    /**
-     * Stats related to disk cache.
-     * TODO: Remove this once cache stats are integrated.
-     */
-    static class DiskCacheStats implements CacheStats {
-        private final CounterMetric count = new CounterMetric();
-
-        @Override
-        public long count() {
-            return count.count();
         }
     }
 
@@ -438,17 +425,17 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         public void onEvent(CacheEvent<? extends K, ? extends V> event) {
             switch (event.getType()) {
                 case CREATED:
-                    stats.count.inc();
+                    entries.inc();
                     // this.eventListener.onCached(event.getKey(), event.getNewValue(), CacheStoreType.DISK);
                     assert event.getOldValue() == null;
                     break;
                 case EVICTED:
                     this.removalListener.onRemoval(new RemovalNotification<>(event.getKey(), event.getOldValue(), RemovalReason.EVICTED));
-                    stats.count.dec();
+                    entries.dec();
                     assert event.getNewValue() == null;
                     break;
                 case REMOVED:
-                    stats.count.dec();
+                    entries.dec();
                     this.removalListener.onRemoval(new RemovalNotification<>(event.getKey(), event.getOldValue(), RemovalReason.EXPLICIT));
                     assert event.getNewValue() == null;
                     break;
@@ -456,7 +443,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), event.getOldValue(), RemovalReason.INVALIDATED)
                     );
-                    stats.count.dec();
+                    entries.dec();
                     assert event.getNewValue() == null;
                     break;
                 case UPDATED:
@@ -483,7 +470,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         public EhcacheDiskCacheFactory() {}
 
         @Override
-        public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType) {
+        public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
             Map<String, Setting<?>> settingList = EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType);
             Settings settings = config.getSettings();
             return new Builder<K, V>().setStoragePath((String) settingList.get(DISK_STORAGE_PATH_KEY).get(settings))

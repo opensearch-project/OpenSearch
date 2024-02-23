@@ -16,7 +16,6 @@ apply plugin: 'opensearch.internal-cluster-test'
 opensearchplugin {
   description 'Ehcache based cache implementation.'
   classname 'org.opensearch.cache.EhcacheCachePlugin'
-  hasClientJar = true
 }
 
 versions << [

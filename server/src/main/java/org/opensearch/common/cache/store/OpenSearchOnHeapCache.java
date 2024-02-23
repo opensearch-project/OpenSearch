@@ -108,7 +108,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         public static final String NAME = "opensearch_onheap";
 
         @Override
-        public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType) {
+        public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
             Map<String, Setting<?>> settingList = OpenSearchOnHeapCacheSettings.getSettingListForCacheType(cacheType);
             Settings settings = config.getSettings();
             return new Builder<K, V>().setMaximumWeightInBytes(
