@@ -234,7 +234,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         reroute(reroutingKey, "post_response");
     }
 
-    public int getNumberOfInFlightFetches() {
+    public synchronized int getNumberOfInFlightFetches() {
         return cache.getInflightFetches();
     }
 
