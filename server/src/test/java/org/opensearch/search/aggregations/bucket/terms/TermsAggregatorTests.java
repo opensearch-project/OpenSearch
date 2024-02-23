@@ -154,7 +154,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     // aggregator.postCollection() is not required when LeafBucketCollector#termDocFreqCollector optimization is used.
     // using NOOP_POST_COLLECTION_CONSUMER ensures that the bucket count in aggregation is completed before/without running postCollection()
-    private static final Consumer<TermsAggregator> NOOP_POST_COLLECTION_CONSUMER = termsAggregator -> {};
+    private static final Consumer<TermsAggregator> NOOP_POST_COLLECTION = termsAggregator -> {};
 
     @Override
     protected MapperService mapperServiceMock() {
