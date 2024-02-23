@@ -306,7 +306,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                                 } else {
                                     onShardFailure(shardIndex, shard, shardIt, t);
                                 }
-
                             } finally {
                                 executeNext(pendingExecutions, thread);
                             }
