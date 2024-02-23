@@ -29,7 +29,7 @@ message SearchHits {
   repeated SearchHit hits = 4;
   repeated SortField sortFields = 5;
   optional string collapseField = 6;
-  repeated bytes collapseValues = 7;
+  repeated CollapseValue collapseValues = 7;
 }
 
 message SearchHit {
@@ -102,5 +102,15 @@ message SortField {
     STRING_VAL = 8;
     REWRITEABLE = 9;
   }
+}
+
+message CollapseValue {
+  optional string collapseString = 1;
+  optional int32 collapseInt = 2;
+  optional int64 collapseLong = 3;
+  optional float collapseFloat = 4;
+  optional double collapseDouble = 5;
+  optional bytes collapseBytes = 6;
+  optional bool collapseBool = 7;
 }
 

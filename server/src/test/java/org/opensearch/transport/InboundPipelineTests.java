@@ -95,8 +95,6 @@ public class InboundPipelineTests extends OpenSearchTestCase {
                 throw new AssertionError(e);
             }
         };
-        final BiConsumer<TcpChannel, BytesReference> messageHandlerProtobuf = (c, m) -> {};
-
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
@@ -106,9 +104,7 @@ public class InboundPipelineTests extends OpenSearchTestCase {
         final TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
         circuitBreaker.startBreaking();
         final InboundAggregator aggregator = new InboundAggregator(() -> circuitBreaker, canTripBreaker);
-        final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler
-        // messageHandlerProtobuf
-        );
+        final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
         final FakeTcpChannel channel = new FakeTcpChannel();
 
         final int iterations = randomIntBetween(5, 10);
@@ -219,15 +215,12 @@ public class InboundPipelineTests extends OpenSearchTestCase {
 
     public void testDecodeExceptionIsPropagated() throws IOException {
         BiConsumer<TcpChannel, BaseInboundMessage> messageHandler = (c, m) -> {};
-        final BiConsumer<TcpChannel, BytesReference> messageHandlerProtobuf = (c, m) -> {};
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
-        final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler
-        // messageHandlerProtobuf
-        );
+        final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
 
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
             String actionName = "actionName";
@@ -276,15 +269,12 @@ public class InboundPipelineTests extends OpenSearchTestCase {
 
     public void testEnsureBodyIsNotPrematurelyReleased() throws IOException {
         BiConsumer<TcpChannel, BaseInboundMessage> messageHandler = (c, m) -> {};
-        final BiConsumer<TcpChannel, BytesReference> messageHandlerProtobuf = (c, m) -> {};
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
-        final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler
-        // messageHandlerProtobuf
-        );
+        final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
 
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
             String actionName = "actionName";

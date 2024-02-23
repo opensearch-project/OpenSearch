@@ -332,7 +332,8 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         transportChannel.sendResponse(response);
 
         BytesReference fullResponseBytes = channel.getMessageCaptor().get();
-        NodeToNodeMessage nodeToNodeMessage = new NodeToNodeMessage(fullResponseBytes.toBytesRef().bytes);
+        byte[] incomingBytes = BytesReference.toBytes(fullResponseBytes.slice(3, fullResponseBytes.length() - 3));
+        NodeToNodeMessage nodeToNodeMessage = new NodeToNodeMessage(incomingBytes);
         handler.inboundMessage(channel, nodeToNodeMessage);
         QueryFetchSearchResult result = responseCaptor.get();
         assertNotNull(result);
