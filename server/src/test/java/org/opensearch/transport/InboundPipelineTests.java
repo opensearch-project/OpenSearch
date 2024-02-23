@@ -95,8 +95,6 @@ public class InboundPipelineTests extends OpenSearchTestCase {
                 throw new AssertionError(e);
             }
         };
-        final BiConsumer<TcpChannel, BytesReference> messageHandlerProtobuf = (c, m) -> {};
-
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);

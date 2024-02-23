@@ -36,6 +36,7 @@ import com.google.protobuf.ByteString;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SuppressForbidden;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
@@ -52,13 +53,9 @@ import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.server.proto.FetchSearchResultProto;
 import org.opensearch.server.proto.QuerySearchResultProto;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.OutputStream;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -100,7 +97,6 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         this(hits, totalHits, maxScore, null, null, null);
     }
 
-    @SuppressForbidden(reason = "serialization of object to protobuf")
     public SearchHits(
         SearchHit[] hits,
         @Nullable TotalHits totalHits,
@@ -154,17 +150,55 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
             if (collapseField != null) {
                 searchHitsBuilder.setCollapseField(collapseField);
                 for (Object value : collapseValues) {
-                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                    try (ObjectOutputStream stream = new ObjectOutputStream(bos)) {
-                        stream.writeObject(value);
-                        searchHitsBuilder.addCollapseValues(ByteString.copyFrom(bos.toByteArray()));
+                    FetchSearchResultProto.CollapseValue.Builder collapseValueBuilder = FetchSearchResultProto.CollapseValue.newBuilder();
+                    try {
+                        collapseValueBuilder = readCollapseValueForProtobuf(value, collapseValueBuilder);
                     } catch (IOException e) {
                         throw new OpenSearchException(e);
                     }
+                    // ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    // try (ObjectOutputStream stream = new ObjectOutputStream(bos)) {
+                    // stream.writeObject(value);
+                    // searchHitsBuilder.addCollapseValues(ByteString.copyFrom(bos.toByteArray()));
+                    // } catch (IOException e) {
+                    // throw new OpenSearchException(e);
+                    // }
+                    searchHitsBuilder.addCollapseValues(collapseValueBuilder.build());
                 }
             }
             this.searchHitsProto = searchHitsBuilder.build();
         }
+    }
+
+    private FetchSearchResultProto.CollapseValue.Builder readCollapseValueForProtobuf(
+        Object collapseValue,
+        FetchSearchResultProto.CollapseValue.Builder collapseValueBuilder
+    ) throws IOException {
+        Class type = collapseValue.getClass();
+        if (type == String.class) {
+            collapseValueBuilder.setCollapseString((String) collapseValue);
+        } else if (type == Integer.class || type == Short.class) {
+            collapseValueBuilder.setCollapseInt((Integer) collapseValue);
+        } else if (type == Long.class) {
+            collapseValueBuilder.setCollapseLong((Long) collapseValue);
+        } else if (type == Float.class) {
+            collapseValueBuilder.setCollapseFloat((Float) collapseValue);
+        } else if (type == Double.class) {
+            collapseValueBuilder.setCollapseDouble((Double) collapseValue);
+        } else if (type == Byte.class) {
+            byte b = (Byte) collapseValue;
+            collapseValueBuilder.setCollapseBytes(ByteString.copyFrom(new byte[] { b }));
+        } else if (type == Boolean.class) {
+            collapseValueBuilder.setCollapseBool((Boolean) collapseValue);
+        } else if (type == BytesRef.class) {
+            collapseValueBuilder.setCollapseBytes(ByteString.copyFrom(((BytesRef) collapseValue).bytes));
+        } else if (type == BigInteger.class) {
+            BigInteger bigInt = (BigInteger) collapseValue;
+            collapseValueBuilder.setCollapseBytes(ByteString.copyFrom(bigInt.toByteArray()));
+        } else {
+            throw new IOException("Can't handle sort field value of type [" + type + "]");
+        }
+        return collapseValueBuilder;
     }
 
     public SearchHits(StreamInput in) throws IOException {
@@ -208,13 +242,34 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         this.collapseField = this.searchHitsProto.getCollapseField();
         this.collapseValues = new Object[this.searchHitsProto.getCollapseValuesCount()];
         for (int i = 0; i < this.searchHitsProto.getCollapseValuesCount(); i++) {
-            ByteString collapseValue = this.searchHitsProto.getCollapseValues(i);
-            InputStream is = new ByteArrayInputStream(collapseValue.toByteArray());
-            try (ObjectInputStream ois = new ObjectInputStream(is)) {
-                this.collapseValues[i] = ois.readObject();
-            } catch (ClassNotFoundException e) {
-                throw new OpenSearchException(e);
-            }
+            this.collapseValues[i] = readCollapseValueFromProtobuf(this.searchHitsProto.getCollapseValues(i));
+            // ByteString collapseValue = this.searchHitsProto.getCollapseValues(i);
+            // InputStream is = new ByteArrayInputStream(collapseValue.toByteArray());
+            // try (ObjectInputStream ois = new ObjectInputStream(is)) {
+            // this.collapseValues[i] = ois.readObject();
+            // } catch (ClassNotFoundException e) {
+            // throw new OpenSearchException(e);
+            // }
+        }
+    }
+
+    private Object readCollapseValueFromProtobuf(FetchSearchResultProto.CollapseValue collapseValue) throws IOException {
+        if (collapseValue.hasCollapseString()) {
+            return collapseValue.getCollapseString();
+        } else if (collapseValue.hasCollapseInt()) {
+            return collapseValue.getCollapseInt();
+        } else if (collapseValue.hasCollapseLong()) {
+            return collapseValue.getCollapseLong();
+        } else if (collapseValue.hasCollapseFloat()) {
+            return collapseValue.getCollapseFloat();
+        } else if (collapseValue.hasCollapseDouble()) {
+            return collapseValue.getCollapseDouble();
+        } else if (collapseValue.hasCollapseBytes()) {
+            return new BytesRef(collapseValue.getCollapseBytes().toByteArray());
+        } else if (collapseValue.hasCollapseBool()) {
+            return collapseValue.getCollapseBool();
+        } else {
+            throw new IOException("Can't handle sort field value of type [" + collapseValue + "]");
         }
     }
 
