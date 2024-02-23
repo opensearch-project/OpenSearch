@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.store.config.CacheConfig;
 
 import java.io.Closeable;
+import java.util.Map;
 
 /**
  * Represents a cache interface.
@@ -43,7 +44,7 @@ public interface ICache<K, V> extends Closeable {
      */
     @ExperimentalApi
     interface Factory {
-        <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType);
+        <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories);
 
         String getCacheName();
     }

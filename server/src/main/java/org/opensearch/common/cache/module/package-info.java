@@ -7,4 +7,4 @@
  */
 
 /** Base package for cache providers. */
-package org.opensearch.common.cache.provider;
+package org.opensearch.common.cache.module;

@@ -5,5 +5,5 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-/** Base package for stats related classes */
-package org.opensearch.common.cache.stats;
+/** Package related to cache service **/
+package org.opensearch.common.cache.service;

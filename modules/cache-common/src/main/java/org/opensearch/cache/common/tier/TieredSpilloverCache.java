@@ -14,7 +14,6 @@ import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
-import org.opensearch.common.cache.provider.CacheProvider;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -24,8 +23,8 @@ import org.opensearch.common.util.iterable.Iterables;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
@@ -49,7 +48,6 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     ReleasableLock readLock = new ReleasableLock(readWriteLock.readLock());
     ReleasableLock writeLock = new ReleasableLock(readWriteLock.writeLock());
-
     /**
      * Maintains caching tiers in ascending order of cache latency.
      */
@@ -75,9 +73,11 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 .setSettings(builder.cacheConfig.getSettings())
                 .setWeigher(builder.cacheConfig.getWeigher())
                 .build(),
-            builder.cacheType
+            builder.cacheType,
+            builder.cacheFactories
+
         );
-        this.diskCache = builder.diskCacheFactory.create(builder.cacheConfig, builder.cacheType);
+        this.diskCache = builder.diskCacheFactory.create(builder.cacheConfig, builder.cacheType, builder.cacheFactories);
         this.cacheList = Arrays.asList(onHeapCache, diskCache);
     }
 
@@ -105,6 +105,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
     @Override
     public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
+
         V cacheValue = getValueFromTieredCache().apply(key);
         if (cacheValue == null) {
             // Add the value to the onHeap cache. We are calling computeIfAbsent which does another get inside.
@@ -203,41 +204,36 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         public static final String TIERED_SPILLOVER_CACHE_NAME = "tiered_spillover";
 
         /**
-         * Cache provider which is needed to extract factories for desired cache store.
+         * Default constructor
          */
-        private final CacheProvider cacheProvider;
-
-        /**
-         * Parameterized constructor
-         * @param cacheProvider Contains info about various caches.
-         */
-        public TieredSpilloverCacheFactory(CacheProvider cacheProvider) {
-            this.cacheProvider = cacheProvider;
-        }
+        public TieredSpilloverCacheFactory() {}
 
         @Override
-        public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType) {
+        public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
             Settings settings = config.getSettings();
             Setting<String> onHeapSetting = TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_NAME.getConcreteSettingForNamespace(
                 cacheType.getSettingPrefix()
             );
-            Optional<ICache.Factory> onHeapCacheFactory = cacheProvider.getCacheFactoryForCacheStoreName(onHeapSetting.get(settings));
-            if (onHeapCacheFactory.isEmpty()) {
+            String onHeapCacheStoreName = onHeapSetting.get(settings);
+            if (!cacheFactories.containsKey(onHeapCacheStoreName)) {
                 throw new IllegalArgumentException(
                     "No associated onHeapCache found for tieredSpilloverCache for " + "cacheType:" + cacheType
                 );
             }
+            ICache.Factory onHeapCacheFactory = cacheFactories.get(onHeapCacheStoreName);
+
             Setting<String> onDiskSetting = TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_NAME.getConcreteSettingForNamespace(
                 cacheType.getSettingPrefix()
             );
-            Optional<ICache.Factory> diskCacheFactory = cacheProvider.getCacheFactoryForCacheStoreName(onDiskSetting.get(settings));
-            if (diskCacheFactory.isEmpty()) {
+            String diskCacheStoreName = onDiskSetting.get(settings);
+            if (!cacheFactories.containsKey(diskCacheStoreName)) {
                 throw new IllegalArgumentException(
                     "No associated diskCache found for tieredSpilloverCache for " + "cacheType:" + cacheType
                 );
             }
-            return new Builder<K, V>().setDiskCacheFactory(diskCacheFactory.get())
-                .setOnHeapCacheFactory(onHeapCacheFactory.get())
+            ICache.Factory diskCacheFactory = cacheFactories.get(diskCacheStoreName);
+            return new Builder<K, V>().setDiskCacheFactory(diskCacheFactory)
+                .setOnHeapCacheFactory(onHeapCacheFactory)
                 .setRemovalListener(config.getRemovalListener())
                 .setCacheConfig(config)
                 .setCacheType(cacheType)
@@ -261,6 +257,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         private RemovalListener<K, V> removalListener;
         private CacheConfig<K, V> cacheConfig;
         private CacheType cacheType;
+        private Map<String, ICache.Factory> cacheFactories;
 
         /**
          * Default constructor
@@ -314,6 +311,16 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
          */
         public Builder<K, V> setCacheType(CacheType cacheType) {
             this.cacheType = cacheType;
+            return this;
+        }
+
+        /**
+         * Set cache factories
+         * @param cacheFactories cache factories
+         * @return builder
+         */
+        public Builder<K, V> setCacheFactories(Map<String, ICache.Factory> cacheFactories) {
+            this.cacheFactories = cacheFactories;
             return this;
         }
 

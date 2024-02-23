@@ -11,7 +11,6 @@ package org.opensearch.cache;
 import org.opensearch.cache.store.disk.EhcacheDiskCache;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
-import org.opensearch.common.cache.provider.CacheProvider;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.plugins.CachePlugin;
 import org.opensearch.plugins.Plugin;
@@ -35,7 +34,7 @@ public class EhcacheCachePlugin extends Plugin implements CachePlugin {
     public EhcacheCachePlugin() {}
 
     @Override
-    public Map<String, ICache.Factory> getCacheFactoryMap(CacheProvider cacheProvider) {
+    public Map<String, ICache.Factory> getCacheFactoryMap() {
         return Map.of(EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME, new EhcacheDiskCache.EhcacheDiskCacheFactory());
     }
 

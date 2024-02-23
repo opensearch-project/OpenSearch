@@ -10,7 +10,6 @@ package org.opensearch.cache.common.tier;
 
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
-import org.opensearch.common.cache.provider.CacheProvider;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.plugins.CachePlugin;
 import org.opensearch.plugins.Plugin;
@@ -35,10 +34,10 @@ public class TieredSpilloverCachePlugin extends Plugin implements CachePlugin {
     TieredSpilloverCachePlugin() {}
 
     @Override
-    public Map<String, ICache.Factory> getCacheFactoryMap(CacheProvider cacheProvider) {
+    public Map<String, ICache.Factory> getCacheFactoryMap() {
         return Map.of(
             TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME,
-            new TieredSpilloverCache.TieredSpilloverCacheFactory(cacheProvider)
+            new TieredSpilloverCache.TieredSpilloverCacheFactory()
         );
     }
 

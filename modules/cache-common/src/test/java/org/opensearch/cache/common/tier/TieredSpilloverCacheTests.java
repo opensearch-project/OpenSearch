@@ -13,7 +13,6 @@ import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
-import org.opensearch.common.cache.provider.CacheProvider;
 import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
@@ -22,7 +21,6 @@ import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.plugins.CachePlugin;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -37,9 +35,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES_KEY;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
@@ -121,24 +116,21 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 onHeapCacheSize * keyValueSize + "b"
             )
             .build();
-        CachePlugin onHeapCachePlugin = mock(CachePlugin.class);
-        CachePlugin diskCachePlugin = mock(CachePlugin.class);
-        when(onHeapCachePlugin.getCacheFactoryMap(any(CacheProvider.class))).thenReturn(
-            Map.of(OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME, new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory())
-        );
-        when(diskCachePlugin.getCacheFactoryMap(any(CacheProvider.class))).thenReturn(
-            Map.of(MockOnDiskCache.MockDiskCacheFactory.NAME, new MockOnDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300)))
-        );
-        CacheProvider cacheProvider = new CacheProvider(List.of(onHeapCachePlugin, diskCachePlugin), settings);
 
-        ICache<String, String> tieredSpilloverICache = new TieredSpilloverCache.TieredSpilloverCacheFactory(cacheProvider).create(
+        ICache<String, String> tieredSpilloverICache = new TieredSpilloverCache.TieredSpilloverCacheFactory().create(
             new CacheConfig.Builder<String, String>().setKeyType(String.class)
                 .setKeyType(String.class)
                 .setWeigher((k, v) -> keyValueSize)
                 .setRemovalListener(removalListener)
                 .setSettings(settings)
                 .build(),
-            CacheType.INDICES_REQUEST_CACHE
+            CacheType.INDICES_REQUEST_CACHE,
+            Map.of(
+                OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME,
+                new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory(),
+                MockOnDiskCache.MockDiskCacheFactory.NAME,
+                new MockOnDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300))
+            )
         );
 
         TieredSpilloverCache<String, String> tieredSpilloverCache = (TieredSpilloverCache<String, String>) tieredSpilloverICache;
@@ -183,26 +175,23 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 onHeapCacheSize * keyValueSize + "b"
             )
             .build();
-        CachePlugin onHeapCachePlugin = mock(CachePlugin.class);
-        CachePlugin diskCachePlugin = mock(CachePlugin.class);
-        when(onHeapCachePlugin.getCacheFactoryMap(any(CacheProvider.class))).thenReturn(
-            Map.of(OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME, new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory())
-        );
-        when(diskCachePlugin.getCacheFactoryMap(any(CacheProvider.class))).thenReturn(
-            Map.of(MockOnDiskCache.MockDiskCacheFactory.NAME, new MockOnDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300)))
-        );
-        CacheProvider cacheProvider = new CacheProvider(List.of(onHeapCachePlugin, diskCachePlugin), settings);
 
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
-            () -> new TieredSpilloverCache.TieredSpilloverCacheFactory(cacheProvider).create(
+            () -> new TieredSpilloverCache.TieredSpilloverCacheFactory().create(
                 new CacheConfig.Builder<String, String>().setKeyType(String.class)
                     .setKeyType(String.class)
                     .setWeigher((k, v) -> keyValueSize)
                     .setRemovalListener(removalListener)
                     .setSettings(settings)
                     .build(),
-                CacheType.INDICES_REQUEST_CACHE
+                CacheType.INDICES_REQUEST_CACHE,
+                Map.of(
+                    OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME,
+                    new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory(),
+                    MockOnDiskCache.MockDiskCacheFactory.NAME,
+                    new MockOnDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300))
+                )
             )
         );
         assertEquals(
@@ -231,26 +220,23 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 onHeapCacheSize * keyValueSize + "b"
             )
             .build();
-        CachePlugin onHeapCachePlugin = mock(CachePlugin.class);
-        CachePlugin diskCachePlugin = mock(CachePlugin.class);
-        when(onHeapCachePlugin.getCacheFactoryMap(any(CacheProvider.class))).thenReturn(
-            Map.of(OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME, new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory())
-        );
-        when(diskCachePlugin.getCacheFactoryMap(any(CacheProvider.class))).thenReturn(
-            Map.of(MockOnDiskCache.MockDiskCacheFactory.NAME, new MockOnDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300)))
-        );
-        CacheProvider cacheProvider = new CacheProvider(List.of(onHeapCachePlugin, diskCachePlugin), settings);
 
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
-            () -> new TieredSpilloverCache.TieredSpilloverCacheFactory(cacheProvider).create(
+            () -> new TieredSpilloverCache.TieredSpilloverCacheFactory().create(
                 new CacheConfig.Builder<String, String>().setKeyType(String.class)
                     .setKeyType(String.class)
                     .setWeigher((k, v) -> keyValueSize)
                     .setRemovalListener(removalListener)
                     .setSettings(settings)
                     .build(),
-                CacheType.INDICES_REQUEST_CACHE
+                CacheType.INDICES_REQUEST_CACHE,
+                Map.of(
+                    OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME,
+                    new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory(),
+                    MockOnDiskCache.MockDiskCacheFactory.NAME,
+                    new MockOnDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300))
+                )
             )
         );
         assertEquals(
@@ -977,7 +963,7 @@ class OpenSearchOnHeapCacheWrapper<K, V> extends OpenSearchOnHeapCache<K, V> {
     static class OpenSearchOnHeapCacheWrapperFactory extends OpenSearchOnHeapCacheFactory {
 
         @Override
-        public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType) {
+        public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
             Map<String, Setting<?>> settingList = OpenSearchOnHeapCacheSettings.getSettingListForCacheType(cacheType);
             Settings settings = config.getSettings();
             return new OpenSearchOnHeapCacheWrapper<>(
@@ -1096,7 +1082,7 @@ class MockOnDiskCache<K, V> implements ICache<K, V> {
         }
 
         @Override
-        public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType) {
+        public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
             return new Builder<K, V>().setMaxSize(maxSize).setDeliberateDelay(delay).build();
         }
 

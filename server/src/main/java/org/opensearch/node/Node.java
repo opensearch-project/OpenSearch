@@ -83,7 +83,8 @@ import org.opensearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StopWatch;
-import org.opensearch.common.cache.provider.CacheProvider;
+import org.opensearch.common.cache.module.CacheModule;
+import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Module;
@@ -794,7 +795,8 @@ public class Node implements Closeable {
             final SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService);
 
             remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, settings);
-            CacheProvider cacheProvider = new CacheProvider(pluginsService.filterPlugins(CachePlugin.class), settings);
+            CacheModule cacheModule = new CacheModule(pluginsService.filterPlugins(CachePlugin.class), settings);
+            CacheService cacheService = cacheModule.getCacheService();
             final IndicesService indicesService = new IndicesService(
                 settings,
                 pluginsService,

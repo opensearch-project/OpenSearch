@@ -103,7 +103,8 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                             .build()
                     )
                     .build(),
-                CacheType.INDICES_REQUEST_CACHE
+                CacheType.INDICES_REQUEST_CACHE,
+                Map.of()
             );
             int randomKeys = randomIntBetween(10, 100);
             Map<String, String> keyValueMap = new HashMap<>();
