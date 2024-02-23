@@ -291,7 +291,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         testSimple((document, field, value) -> {
             document.add(new SortedSetDocValuesField(field, new BytesRef(value)));
             document.add(new StringField(field, value, Field.Store.NO));
-        }, NOOP_POST_COLLECTION_CONSUMER);
+        }, NOOP_POST_COLLECTION);
 
     }
 
@@ -371,7 +371,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         testStringIncludeExclude((document, field, value) -> {
             document.add(new SortedSetDocValuesField(field, new BytesRef(value)));
             document.add(new StringField(field, value, Field.Store.NO));
-        }, NOOP_POST_COLLECTION_CONSUMER);
+        }, NOOP_POST_COLLECTION);
     }
 
     private void testStringIncludeExclude(TriConsumer<Document, String, String> addField, Consumer<TermsAggregator> postCollectionConsumer)
