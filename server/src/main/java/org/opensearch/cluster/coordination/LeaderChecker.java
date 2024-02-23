@@ -50,6 +50,8 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
+import org.opensearch.telemetry.metrics.Counter;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.NodeDisconnectedException;
@@ -111,6 +113,8 @@ public class LeaderChecker {
         Setting.Property.NodeScope
     );
 
+    private static final String UNIT = "1";
+
     private final Settings settings;
 
     private final TimeValue leaderCheckInterval;
@@ -119,17 +123,17 @@ public class LeaderChecker {
     private final TransportService transportService;
     private final Consumer<Exception> onLeaderFailure;
     private final NodeHealthService nodeHealthService;
-
     private AtomicReference<CheckScheduler> currentChecker = new AtomicReference<>();
-
     private volatile DiscoveryNodes discoveryNodes;
+    private Counter leaderCheckFailureCounter;
 
     LeaderChecker(
         final Settings settings,
         final ClusterSettings clusterSettings,
         final TransportService transportService,
         final Consumer<Exception> onLeaderFailure,
-        NodeHealthService nodeHealthService
+        NodeHealthService nodeHealthService,
+        final MetricsRegistry metricsRegistry
     ) {
         this.settings = settings;
         leaderCheckInterval = LEADER_CHECK_INTERVAL_SETTING.get(settings);
@@ -158,6 +162,15 @@ public class LeaderChecker {
                 handleDisconnectedNode(node);
             }
         });
+        initializeMetrics(metricsRegistry);
+    }
+
+    private void initializeMetrics(MetricsRegistry metricsRegistry) {
+        this.leaderCheckFailureCounter = metricsRegistry.createCounter(
+            "leader.checker.failure.count",
+            "Counter for number of failed leader checks",
+            UNIT
+        );
     }
 
     private void setLeaderCheckTimeout(TimeValue leaderCheckTimeout) {
@@ -293,7 +306,6 @@ public class LeaderChecker {
                             logger.debug("closed check scheduler received a response, doing nothing");
                             return;
                         }
-
                         failureCountSinceLastSuccess.set(0);
                         scheduleNextWakeUp(); // logs trace message indicating success
                     }
@@ -304,14 +316,15 @@ public class LeaderChecker {
                             logger.debug("closed check scheduler received a response, doing nothing");
                             return;
                         }
-
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
                             logger.debug(new ParameterizedMessage("leader [{}] disconnected during check", leader), exp);
                             leaderFailed(new ConnectTransportException(leader, "disconnected during check", exp));
+                            leaderCheckFailureCounter.add(1);
                             return;
                         } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
                             logger.debug(new ParameterizedMessage("leader [{}] health check failed", leader), exp);
                             leaderFailed(new NodeHealthCheckFailureException("node [" + leader + "] failed health checks", exp));
+                            leaderCheckFailureCounter.add(1);
                             return;
                         }
                         long failureCount = failureCountSinceLastSuccess.incrementAndGet();
@@ -329,6 +342,7 @@ public class LeaderChecker {
                             leaderFailed(
                                 new OpenSearchException("node [" + leader + "] failed [" + failureCount + "] consecutive checks", exp)
                             );
+                            leaderCheckFailureCounter.add(1);
                             return;
                         }
 

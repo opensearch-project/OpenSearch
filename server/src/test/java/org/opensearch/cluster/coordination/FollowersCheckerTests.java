@@ -47,6 +47,8 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.EqualsHashCodeTestUtils.CopyFunction;
@@ -74,6 +76,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import org.mockito.Mockito;
 
 import static java.util.Collections.emptySet;
 import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_ACTION_NAME;
@@ -139,7 +143,8 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             (node, reason) -> {
                 assert false : node;
             },
-            () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info")
+            () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"),
+            Mockito.mock(MetricsRegistry.class)
         );
 
         followersChecker.setCurrentNodes(discoveryNodesHolder[0]);
@@ -307,7 +312,8 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
                 assertTrue(nodeFailed.compareAndSet(false, true));
                 assertThat(reason, equalTo("disconnected"));
             },
-            () -> new StatusInfo(HEALTHY, "healthy-info")
+            () -> new StatusInfo(HEALTHY, "healthy-info"),
+            Mockito.mock(MetricsRegistry.class)
         );
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build();
@@ -396,7 +402,8 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
                 assertTrue(nodeFailed.compareAndSet(false, true));
                 assertThat(reason, equalTo(failureReason));
             },
-            nodeHealthService
+            nodeHealthService,
+            NoopMetricsRegistry.INSTANCE
         );
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build();
@@ -501,7 +508,11 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             if (exception != null) {
                 throw exception;
             }
-        }, (node, reason) -> { assert false : node; }, () -> new StatusInfo(UNHEALTHY, "unhealthy-info"));
+        },
+            (node, reason) -> { assert false : node; },
+            () -> new StatusInfo(UNHEALTHY, "unhealthy-info"),
+            Mockito.mock(MetricsRegistry.class)
+        );
 
         final long leaderTerm = randomLongBetween(2, Long.MAX_VALUE);
         final long followerTerm = randomLongBetween(1, leaderTerm - 1);
@@ -574,7 +585,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             if (exception != null) {
                 throw exception;
             }
-        }, (node, reason) -> { assert false : node; }, () -> new StatusInfo(HEALTHY, "healthy-info"));
+        }, (node, reason) -> { assert false : node; }, () -> new StatusInfo(HEALTHY, "healthy-info"), Mockito.mock(MetricsRegistry.class));
 
         {
             // Does not call into the coordinator in the normal case
@@ -721,7 +732,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         );
         final FollowersChecker followersChecker = new FollowersChecker(Settings.EMPTY, clusterSettings, transportService, fcr -> {
             assert false : fcr;
-        }, (node, reason) -> { assert false : node; }, () -> new StatusInfo(HEALTHY, "healthy-info"));
+        }, (node, reason) -> { assert false : node; }, () -> new StatusInfo(HEALTHY, "healthy-info"), Mockito.mock(MetricsRegistry.class));
         followersChecker.setCurrentNodes(discoveryNodes);
         List<DiscoveryNode> followerTargets = Stream.of(capturingTransport.getCapturedRequestsAndClear())
             .map(cr -> cr.node)
