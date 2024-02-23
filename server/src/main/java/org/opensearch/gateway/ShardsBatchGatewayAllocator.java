@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 /**
- * Allocator for the gateway
+ * Allocator for the gateway to assign batch of shards.
  *
  * @opensearch.internal
  */
@@ -75,8 +75,8 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     private final RerouteService rerouteService;
 
-    private PrimaryShardBatchAllocator primaryBatchShardAllocator;
-    private ReplicaShardBatchAllocator replicaBatchShardAllocator;
+    private PrimaryShardBatchAllocator primaryShardBatchAllocator;
+    private ReplicaShardBatchAllocator replicaShardBatchAllocator;
 
     private Set<String> lastSeenEphemeralIds = Collections.emptySet();
 
@@ -97,8 +97,8 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         Settings settings
     ) {
         this.rerouteService = rerouteService;
-        this.primaryBatchShardAllocator = new InternalPrimaryBatchShardAllocator();
-        this.replicaBatchShardAllocator = new InternalReplicaBatchShardAllocator();
+        this.primaryShardBatchAllocator = new InternalPrimaryBatchShardAllocator();
+        this.replicaShardBatchAllocator = new InternalReplicaBatchShardAllocator();
         this.batchStartedAction = batchStartedAction;
         this.batchStoreAction = batchStoreAction;
         this.maxBatchSize = GATEWAY_ALLOCATOR_BATCH_SIZE.get(settings);
@@ -120,9 +120,9 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     protected ShardsBatchGatewayAllocator() {
         this.rerouteService = null;
         this.batchStartedAction = null;
-        this.primaryBatchShardAllocator = null;
+        this.primaryShardBatchAllocator = null;
         this.batchStoreAction = null;
-        this.replicaBatchShardAllocator = null;
+        this.replicaShardBatchAllocator = null;
         this.maxBatchSize = DEFAULT_SHARD_BATCH_SIZE;
     }
 
@@ -131,7 +131,6 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     @Override
     public int getNumberOfInFlightFetches() {
         int count = 0;
-        // If fetching is done in non batched-mode then maps to maintain batches will be empty and vice versa for batch-mode
         for (ShardsBatch batch : batchIdToStartedShardBatch.values()) {
             count += (batch.getNumberOfInFlightFetches() * batch.getBatchedShards().size());
         }
@@ -158,21 +157,21 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     @Override
     public void beforeAllocation(final RoutingAllocation allocation) {
-        assert primaryBatchShardAllocator != null;
-        assert replicaBatchShardAllocator != null;
+        assert primaryShardBatchAllocator != null;
+        assert replicaShardBatchAllocator != null;
         ensureAsyncFetchStorePrimaryRecency(allocation);
     }
 
     @Override
     public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
-        assert replicaBatchShardAllocator != null;
+        assert replicaShardBatchAllocator != null;
         List<Set<ShardRouting>> storedShardBatches = batchIdToStoreShardBatch.values()
             .stream()
             .map(ShardsBatch::getBatchedShardRoutings)
             .collect(Collectors.toList());
         if (allocation.routingNodes().hasInactiveShards()) {
             // cancel existing recoveries if we have a better match
-            replicaBatchShardAllocator.processExistingRecoveries(allocation, storedShardBatches);
+            replicaShardBatchAllocator.processExistingRecoveries(allocation, storedShardBatches);
         }
     }
 
@@ -188,9 +187,9 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     @Override
     public void allocateAllUnassignedShards(final RoutingAllocation allocation, boolean primary) {
 
-        assert primaryBatchShardAllocator != null;
-        assert replicaBatchShardAllocator != null;
-        innerAllocateUnassignedBatch(allocation, primaryBatchShardAllocator, replicaBatchShardAllocator, primary);
+        assert primaryShardBatchAllocator != null;
+        assert replicaShardBatchAllocator != null;
+        innerAllocateUnassignedBatch(allocation, primaryShardBatchAllocator, replicaShardBatchAllocator, primary);
     }
 
     protected void innerAllocateUnassignedBatch(
@@ -253,14 +252,14 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         while (iterator.hasNext()) {
             ShardRouting currentShard = iterator.next();
             if (batchSize > 0) {
-                ShardEntry sharEntry = new ShardEntry(
+                ShardEntry shardEntry = new ShardEntry(
                     new ShardAttributes(
                         currentShard.shardId(),
                         IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(currentShard.index()).getSettings())
                     ),
                     currentShard
                 );
-                shardsToAddToCurrentBatch.put(currentShard.shardId(), sharEntry);
+                shardsToAddToCurrentBatch.put(currentShard.shardId(), shardEntry);
                 batchSize--;
                 iterator.remove();
             }
@@ -361,11 +360,11 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         }
         assert getBatchId(unassignedShard, unassignedShard.primary()) != null;
         if (unassignedShard.primary()) {
-            assert primaryBatchShardAllocator != null;
-            return primaryBatchShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
+            assert primaryShardBatchAllocator != null;
+            return primaryShardBatchAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
         } else {
-            assert replicaBatchShardAllocator != null;
-            return replicaBatchShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
+            assert replicaShardBatchAllocator != null;
+            return replicaShardBatchAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
         }
     }
 

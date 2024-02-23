@@ -101,14 +101,6 @@ public interface ExistingShardsAllocator {
         UnassignedAllocationHandler unassignedAllocationHandler
     );
 
-    default void allocateUnassignedBatch(RoutingAllocation allocation, boolean primary) {
-        RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
-        while (iterator.hasNext()) {
-            ShardRouting shardRouting = iterator.next();
-            allocateUnassigned(shardRouting, allocation, iterator);
-        }
-    }
-
     /**
      * Allocate all unassigned shards in the given {@link RoutingAllocation} for which this {@link ExistingShardsAllocator} is responsible.
      * Default implementation calls {@link #allocateUnassigned(ShardRouting, RoutingAllocation, UnassignedAllocationHandler)} for each Unassigned shard
