@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 2.99.99"
-      reason: "implemented for versions 3.0.0 and above"
+      version: " - 2.12.99"
+      reason: "implemented for versions post 2.12.99"
 
 ---
 "matched queries":
