@@ -15,6 +15,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugin.insights.rules.model.Attribute;
 import org.opensearch.plugin.insights.rules.model.MetricType;
@@ -30,22 +31,15 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-public class TopQueriesResponse extends BaseNodesResponse<TopQueries> implements ToXContentFragment {
-
-    private static final String CLUSTER_LEVEL_RESULTS_KEY = "top_queries";
-    private final MetricType metricType;
-    private final int top_n_size;
-
+public class SearchMetadataResponse extends BaseNodesResponse<SearchMetadata> implements ToXContentObject {
     /**
      * Constructor for TopQueriesResponse.
      *
      * @param in A {@link StreamInput} object.
      * @throws IOException if the stream cannot be deserialized.
      */
-    public TopQueriesResponse(final StreamInput in) throws IOException {
+    public SearchMetadataResponse(final StreamInput in) throws IOException {
         super(in);
-        top_n_size = in.readInt();
-        metricType = in.readEnum(MetricType.class);
     }
 
     /**
@@ -54,38 +48,34 @@ public class TopQueriesResponse extends BaseNodesResponse<TopQueries> implements
      * @param clusterName The current cluster name
      * @param nodes A list that contains top queries results from all nodes
      * @param failures A list that contains FailedNodeException
-     * @param top_n_size The top N size to return to the user
-     * @param metricType the {@link MetricType} to be returned in this response
      */
-    public TopQueriesResponse(
+    public SearchMetadataResponse(
         final ClusterName clusterName,
-        final List<TopQueries> nodes,
-        final List<FailedNodeException> failures,
-        final int top_n_size,
-        final MetricType metricType
+        final List<SearchMetadata> nodes,
+        final List<FailedNodeException> failures
     ) {
         super(clusterName, nodes, failures);
-        this.top_n_size = top_n_size;
-        this.metricType = metricType;
     }
 
     @Override
-    protected List<TopQueries> readNodesFrom(final StreamInput in) throws IOException {
-        return in.readList(TopQueries::new);
+    protected List<SearchMetadata> readNodesFrom(final StreamInput in) throws IOException {
+        return in.readList(SearchMetadata::new);
     }
 
     @Override
-    protected void writeNodesTo(final StreamOutput out, final List<TopQueries> nodes) throws IOException {
+    protected void writeNodesTo(final StreamOutput out, final List<SearchMetadata> nodes) throws IOException {
         out.writeList(nodes);
-        out.writeLong(top_n_size);
-        out.writeEnum(metricType);
     }
 
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-        final List<TopQueries> results = getNodes();
+        final List<SearchMetadata> results = getNodes();
         builder.startObject();
-        toClusterLevelResult(builder, params, results);
+        builder.startArray();
+        for (SearchMetadata result : results) {
+            result.toXContent(builder, params);
+        }
+        builder.endArray();
         return builder.endObject();
     }
 
@@ -101,28 +91,4 @@ public class TopQueriesResponse extends BaseNodesResponse<TopQueries> implements
             return "{ \"error\" : \"" + e.getMessage() + "\"}";
         }
     }
-
-    /**
-     * Merge top n queries results from nodes into cluster level results in XContent format.
-     *
-     * @param builder XContent builder
-     * @param params serialization parameters
-     * @param results top queries results from all nodes
-     * @throws IOException if an error occurs
-     */
-    private void toClusterLevelResult(final XContentBuilder builder, final Params params, final List<TopQueries> results)
-        throws IOException {
-        final List<SearchQueryRecord> all_records = results.stream()
-            .map(TopQueries::getTopQueriesRecord)
-            .flatMap(Collection::stream)
-            .sorted((a, b) -> SearchQueryRecord.compare(a, b, metricType) * -1)
-            .limit(top_n_size)
-            .collect(Collectors.toList());
-        builder.startArray(CLUSTER_LEVEL_RESULTS_KEY);
-        for (SearchQueryRecord record : all_records) {
-            record.toXContent(builder, params);
-        }
-        builder.endArray();
-    }
-
 }

@@ -26,9 +26,12 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugin.insights.core.listener.QueryInsightsListener;
+import org.opensearch.plugin.insights.core.listener.ResourceTrackingListener;
 import org.opensearch.plugin.insights.core.service.QueryInsightsService;
+import org.opensearch.plugin.insights.rules.action.top_queries.SearchMetadataAction;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesAction;
 import org.opensearch.plugin.insights.rules.resthandler.top_queries.RestTopQueriesAction;
+import org.opensearch.plugin.insights.rules.transport.top_queries.TransportSearchMetadataAction;
 import org.opensearch.plugin.insights.rules.transport.top_queries.TransportTopQueriesAction;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.plugins.ActionPlugin;
@@ -37,6 +40,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
+import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ScalingExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
@@ -67,11 +71,16 @@ public class QueryInsightsPlugin extends Plugin implements ActionPlugin {
         final NodeEnvironment nodeEnvironment,
         final NamedWriteableRegistry namedWriteableRegistry,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier
+        final Supplier<RepositoriesService> repositoriesServiceSupplier,
+        final TaskResourceTrackingService taskResourceTrackingService
     ) {
         // create top n queries service
-        final QueryInsightsService queryInsightsService = new QueryInsightsService(threadPool);
-        return List.of(queryInsightsService, new QueryInsightsListener(clusterService, queryInsightsService));
+        final QueryInsightsService queryInsightsService = new QueryInsightsService(threadPool, client, clusterService);
+        return List.of(
+            queryInsightsService,
+            new QueryInsightsListener(clusterService, queryInsightsService),
+            new ResourceTrackingListener(queryInsightsService, taskResourceTrackingService)
+        );
     }
 
     @Override
@@ -96,12 +105,15 @@ public class QueryInsightsPlugin extends Plugin implements ActionPlugin {
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestTopQueriesAction());
+        return List.of(new RestTopQueriesAction(nodesInCluster));
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionPlugin.ActionHandler<>(TopQueriesAction.INSTANCE, TransportTopQueriesAction.class));
+        return List.of(
+            new ActionPlugin.ActionHandler<>(TopQueriesAction.INSTANCE, TransportTopQueriesAction.class),
+            new ActionPlugin.ActionHandler<>(SearchMetadataAction.INSTANCE, TransportSearchMetadataAction.class)
+        );
     }
 
     @Override

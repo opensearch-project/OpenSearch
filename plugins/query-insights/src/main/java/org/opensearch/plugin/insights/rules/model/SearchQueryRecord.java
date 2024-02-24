@@ -28,8 +28,9 @@ import java.util.Objects;
  */
 public class SearchQueryRecord implements ToXContentObject, Writeable {
     private final long timestamp;
-    private final Map<MetricType, Number> measurements;
-    private final Map<Attribute, Object> attributes;
+    public long taskId;
+    public Map<MetricType, Number> measurements;
+    public Map<Attribute, Object> attributes;
 
     /**
      * Constructor of SearchQueryRecord
@@ -40,6 +41,7 @@ public class SearchQueryRecord implements ToXContentObject, Writeable {
      */
     public SearchQueryRecord(final StreamInput in) throws IOException, ClassCastException {
         this.timestamp = in.readLong();
+        this.taskId = in.readLong();
         measurements = new HashMap<>();
         in.readMap(MetricType::readFromStream, StreamInput::readGenericValue)
             .forEach(((metricType, o) -> measurements.put(metricType, metricType.parseValue(o))));
@@ -53,13 +55,15 @@ public class SearchQueryRecord implements ToXContentObject, Writeable {
      * @param measurements A list of Measurement associated with this query
      * @param attributes A list of Attributes associated with this query
      */
-    public SearchQueryRecord(final long timestamp, Map<MetricType, Number> measurements, final Map<Attribute, Object> attributes) {
+    public SearchQueryRecord(final long timestamp, final long taskId, Map<MetricType, Number> measurements, final Map<Attribute, Object> attributes) {
+        this.timestamp = timestamp;
+        this.taskId = taskId;
         if (measurements == null) {
             throw new IllegalArgumentException("Measurements cannot be null");
         }
         this.measurements = measurements;
         this.attributes = attributes;
-        this.timestamp = timestamp;
+
     }
 
     /**
@@ -113,10 +117,11 @@ public class SearchQueryRecord implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field("timestamp", timestamp);
-        for (Map.Entry<Attribute, Object> entry : attributes.entrySet()) {
+        builder.field("taskId", taskId);
+        for (Map.Entry<MetricType, Number> entry : measurements.entrySet()) {
             builder.field(entry.getKey().toString(), entry.getValue());
         }
-        for (Map.Entry<MetricType, Number> entry : measurements.entrySet()) {
+        for (Map.Entry<Attribute, Object> entry : attributes.entrySet()) {
             builder.field(entry.getKey().toString(), entry.getValue());
         }
         return builder.endObject();
@@ -131,6 +136,7 @@ public class SearchQueryRecord implements ToXContentObject, Writeable {
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeLong(timestamp);
+        out.writeLong(taskId);
         out.writeMap(measurements, (stream, metricType) -> MetricType.writeTo(out, metricType), StreamOutput::writeGenericValue);
         out.writeMap(attributes, (stream, attribute) -> Attribute.writeTo(out, attribute), StreamOutput::writeGenericValue);
     }
@@ -171,6 +177,6 @@ public class SearchQueryRecord implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(timestamp, measurements, attributes);
+        return Objects.hash(timestamp, taskId, measurements, attributes);
     }
 }

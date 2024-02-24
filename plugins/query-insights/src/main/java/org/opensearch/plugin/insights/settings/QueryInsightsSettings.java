@@ -38,7 +38,8 @@ public class QueryInsightsSettings {
     /**
      * Time interval for record queue consumer to run
      */
-    public static final TimeValue QUERY_RECORD_QUEUE_DRAIN_INTERVAL = new TimeValue(5, TimeUnit.SECONDS);
+    // TODO revert after debugging
+    public static final TimeValue QUERY_RECORD_QUEUE_DRAIN_INTERVAL = new TimeValue(10, TimeUnit.SECONDS);
     /**
      * Default Values and Settings
      */

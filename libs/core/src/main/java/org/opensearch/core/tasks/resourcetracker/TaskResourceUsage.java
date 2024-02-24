@@ -90,7 +90,8 @@ public class TaskResourceUsage implements Writeable, ToXContentFragment {
 
     @Override
     public String toString() {
-        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
+        // TODO revert after debugging
+        return Strings.toString(MediaTypeRegistry.JSON, this, false, true);
     }
 
     // Implements equals and hashcode for testing

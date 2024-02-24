@@ -9,6 +9,8 @@
 package org.opensearch.plugin.insights.rules.resthandler.top_queries;
 
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.rest.RestStatus;
@@ -27,6 +29,7 @@ import org.opensearch.rest.action.RestResponseListener;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_QUERIES_BASE_URI;
@@ -40,11 +43,14 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 public class RestTopQueriesAction extends BaseRestHandler {
     /** The metric types that are allowed in top N queries */
     static final Set<String> ALLOWED_METRICS = MetricType.allMetricTypes().stream().map(MetricType::toString).collect(Collectors.toSet());
+    private Supplier<DiscoveryNodes> nodes;
 
     /**
      * Constructor for RestTopQueriesAction
      */
-    public RestTopQueriesAction() {}
+    public RestTopQueriesAction(Supplier<DiscoveryNodes> nodes) {
+        this.nodes = nodes;
+    }
 
     @Override
     public List<Route> routes() {
@@ -67,15 +73,16 @@ public class RestTopQueriesAction extends BaseRestHandler {
         return channel -> client.execute(TopQueriesAction.INSTANCE, topQueriesRequest, topQueriesResponse(channel));
     }
 
-    static TopQueriesRequest prepareRequest(final RestRequest request) {
-        final String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
+    private TopQueriesRequest prepareRequest(final RestRequest request) {
+//        final String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         final String metricType = request.param("type", MetricType.LATENCY.toString());
         if (!ALLOWED_METRICS.contains(metricType)) {
             throw new IllegalArgumentException(
                 String.format(Locale.ROOT, "request [%s] contains invalid metric type [%s]", request.path(), metricType)
             );
         }
-        return new TopQueriesRequest(MetricType.fromString(metricType), nodesIds);
+//        return new TopQueriesRequest(MetricType.fromString(metricType), nodesIds);
+        return new TopQueriesRequest(MetricType.fromString(metricType), nodes.get().getClusterManagerNodeId());
     }
 
     @Override

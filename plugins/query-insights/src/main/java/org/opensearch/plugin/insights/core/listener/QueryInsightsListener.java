@@ -123,6 +123,10 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
 
     @Override
     public void onRequestEnd(final SearchPhaseContext context, final SearchRequestContext searchRequestContext) {
+        long taskGroupId = context.getTask().getParentTaskId().getId();
+        if (taskGroupId == -1) {
+            taskGroupId = context.getTask().getId();
+        }
         final SearchRequest request = context.getRequest();
         try {
             Map<MetricType, Number> measurements = new HashMap<>();
@@ -138,7 +142,8 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
             attributes.put(Attribute.TOTAL_SHARDS, context.getNumShards());
             attributes.put(Attribute.INDICES, request.indices());
             attributes.put(Attribute.PHASE_LATENCY_MAP, searchRequestContext.phaseTookMap());
-            SearchQueryRecord record = new SearchQueryRecord(request.getOrCreateAbsoluteStartMillis(), measurements, attributes);
+            attributes.put(Attribute.NODE_ID, this.queryInsightsService.clusterService.localNode().getId());
+            SearchQueryRecord record = new SearchQueryRecord(request.getOrCreateAbsoluteStartMillis(), taskGroupId, measurements, attributes);
             queryInsightsService.addRecord(record);
         } catch (Exception e) {
             log.error(String.format(Locale.ROOT, "fail to ingest query insight data, error: %s", e));

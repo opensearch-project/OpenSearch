@@ -110,7 +110,6 @@ final class FetchSearchPhase extends SearchPhase {
         this.resultConsumer = resultConsumer;
         this.progressListener = context.getTask().getProgressListener();
     }
-
     @Override
     public void run() {
         context.execute(new AbstractRunnable() {

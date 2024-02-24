@@ -110,10 +110,9 @@ public enum MetricType implements Comparator<Number> {
     Number parseValue(final Object o) {
         switch (this) {
             case LATENCY:
-                return (Long) o;
             case JVM:
             case CPU:
-                return (Double) o;
+                return (Long) o;
             default:
                 return (Number) o;
         }
