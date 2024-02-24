@@ -28,8 +28,9 @@ import java.util.Objects;
  */
 public class SearchQueryRecord implements ToXContentObject, Writeable {
     private final long timestamp;
-    private final Map<MetricType, Number> measurements;
-    private final Map<Attribute, Object> attributes;
+    public long taskId;
+    public Map<MetricType, Number> measurements;
+    public Map<Attribute, Object> attributes;
 
     /**
      * Constructor of SearchQueryRecord

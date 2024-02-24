@@ -55,6 +55,7 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
         super(in);
         queryResult = new QuerySearchResult(in);
         fetchResult = new FetchSearchResult(in);
+        readResourceUsage(in);
     }
 
     public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
@@ -100,5 +101,6 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     public void writeTo(StreamOutput out) throws IOException {
         queryResult.writeTo(out);
         fetchResult.writeTo(out);
+        writeResourceUsage(out);
     }
 }

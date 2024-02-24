@@ -16,6 +16,7 @@ import org.opensearch.action.search.SearchRequestContext;
 import org.opensearch.action.search.SearchRequestOperationsListener;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.rules.model.Attribute;
@@ -24,6 +25,7 @@ import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -113,7 +115,10 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
     public void onPhaseStart(SearchPhaseContext context) {}
 
     @Override
-    public void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
+    public void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+        List<TaskResourceInfo> usages = context.getCurrentPhase().getPhaseResourceUsageFromResults();
+        this.queryInsightsService.taskRecordsQueue.addAll(usages);
+    }
 
     @Override
     public void onPhaseFailure(SearchPhaseContext context) {}
@@ -123,6 +128,10 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
 
     @Override
     public void onRequestEnd(final SearchPhaseContext context, final SearchRequestContext searchRequestContext) {
+        long parentId = context.getTask().getParentTaskId().getId();
+        if (parentId == -1) {
+            parentId = context.getTask().getId();
+        }
         final SearchRequest request = context.getRequest();
         try {
             Map<MetricType, Number> measurements = new HashMap<>();
@@ -139,6 +148,7 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
             attributes.put(Attribute.INDICES, request.indices());
             attributes.put(Attribute.PHASE_LATENCY_MAP, searchRequestContext.phaseTookMap());
             SearchQueryRecord record = new SearchQueryRecord(request.getOrCreateAbsoluteStartMillis(), measurements, attributes);
+            record.taskId = parentId;
             queryInsightsService.addRecord(record);
         } catch (Exception e) {
             log.error(String.format(Locale.ROOT, "fail to ingest query insight data, error: %s", e));

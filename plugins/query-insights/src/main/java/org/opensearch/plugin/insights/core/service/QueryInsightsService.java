@@ -10,6 +10,7 @@ package org.opensearch.plugin.insights.core.service;
 
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
@@ -21,7 +22,9 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Service responsible for gathering, analyzing, storing and exporting
@@ -49,6 +52,10 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
      * The internal thread-safe queue to ingest the search query data and subsequently forward to processors
      */
     private final LinkedBlockingQueue<SearchQueryRecord> queryRecordsQueue;
+
+    public final LinkedBlockingQueue<TaskResourceInfo> taskRecordsQueue = new LinkedBlockingQueue<>();
+
+    public final ConcurrentHashMap<Long, AtomicInteger> taskStatusMap = new ConcurrentHashMap<>();
 
     /**
      * Holds a reference to delayed operation {@link Scheduler.Cancellable} so it can be cancelled when
@@ -102,15 +109,48 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
      * Drain the queryRecordsQueue into internal stores and services
      */
     public void drainRecords() {
-        final List<SearchQueryRecord> records = new ArrayList<>();
-        queryRecordsQueue.drainTo(records);
-        records.sort(Comparator.comparingLong(SearchQueryRecord::getTimestamp));
+        final List<SearchQueryRecord> queryRecords = new ArrayList<>();
+        final List<TaskResourceInfo> taskRecords = new ArrayList<>();
+        queryRecordsQueue.drainTo(queryRecords);
+        taskRecordsQueue.drainTo(taskRecords);
+        final List<SearchQueryRecord> finishedQueryRecord = correlateTasks(queryRecords, taskRecords);
+        finishedQueryRecord.sort(Comparator.comparingLong(SearchQueryRecord::getTimestamp));
         for (MetricType metricType : MetricType.allMetricTypes()) {
             if (enableCollect.get(metricType)) {
                 // ingest the records into topQueriesService
-                topQueriesServices.get(metricType).consumeRecords(records);
+                topQueriesServices.get(metricType).consumeRecords(finishedQueryRecord);
             }
         }
+    }
+
+    public List<SearchQueryRecord> correlateTasks(List<SearchQueryRecord> queryRecords, List<TaskResourceInfo> taskRecords) {
+        List<SearchQueryRecord> finalResults = new ArrayList<>();
+        // group taskRecords by parent task
+        Map<Long, List<TaskResourceInfo>> taskIdToResources = new HashMap<>();
+        for (TaskResourceInfo info : taskRecords) {
+            taskIdToResources.putIfAbsent(info.parentTaskId, new ArrayList<>());
+            taskIdToResources.get(info.parentTaskId).add(info);
+        }
+        for (SearchQueryRecord record : queryRecords) {
+            if (!taskStatusMap.containsKey(record.taskId)) {
+                // write back since there's no task information.
+                queryRecordsQueue.offer(record);
+                continue;
+            }
+            // parent task has finished
+            if (taskStatusMap.get(record.taskId).get() == 0) {
+                long cpuUsage = taskIdToResources.get(record.taskId).stream().map(r -> r.taskResourceUsage.getCpuTimeInNanos()).reduce(0L, Long::sum);
+                long memUsage = taskIdToResources.get(record.taskId).stream().map(r -> r.taskResourceUsage.getMemoryInBytes()).reduce(0L, Long::sum);
+                record.measurements.put(MetricType.CPU, cpuUsage);
+                record.measurements.put(MetricType.JVM, memUsage);
+                finalResults.add(record);
+            } else {
+                // write back since the task information is not completed
+                queryRecordsQueue.offer(record);
+                taskRecordsQueue.addAll(taskIdToResources.get(record.taskId));
+            }
+        }
+        return finalResults;
     }
 
     /**

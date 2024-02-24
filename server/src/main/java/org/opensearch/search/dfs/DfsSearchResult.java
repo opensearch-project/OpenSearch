@@ -81,6 +81,7 @@ public class DfsSearchResult extends SearchPhaseResult {
 
         maxDoc = in.readVInt();
         setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+        readResourceUsage(in);
     }
 
     public DfsSearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
@@ -133,6 +134,7 @@ public class DfsSearchResult extends SearchPhaseResult {
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
         out.writeOptionalWriteable(getShardSearchRequest());
+        writeResourceUsage(out);
     }
 
     public static void writeFieldStats(StreamOutput out, final Map<String, CollectionStatistics> fieldStatistics) throws IOException {

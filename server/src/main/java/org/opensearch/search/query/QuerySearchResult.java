@@ -101,6 +101,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             ShardSearchContextId id = new ShardSearchContextId(in);
             readFromWithId(id, in);
         }
+        readResourceUsage(in);
     }
 
     public QuerySearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
@@ -375,6 +376,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             contextId.writeTo(out);
             writeToNoId(out);
         }
+        writeResourceUsage(out);
     }
 
     public void writeToNoId(StreamOutput out) throws IOException {

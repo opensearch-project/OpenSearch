@@ -56,6 +56,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
 
     private final ConcurrentMapLong<Task> resourceAwareTasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
     private final List<TaskCompletionListener> taskCompletionListeners = new ArrayList<>();
+    private final List<TaskStartListener> taskStartListeners = new ArrayList<>();
     private final ThreadPool threadPool;
     private volatile boolean taskResourceTrackingEnabled;
 
@@ -96,6 +97,17 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
 
         logger.debug("Starting resource tracking for task: {}", task.getId());
         resourceAwareTasks.put(task.getId(), task);
+
+        List<Exception> exceptions = new ArrayList<>();
+        for (TaskStartListener listener : taskStartListeners) {
+            try {
+                listener.onTaskStarts(task);
+            } catch (Exception e) {
+                exceptions.add(e);
+            }
+        }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
+
         return addTaskIdToThreadContext(task);
     }
 
@@ -211,7 +223,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         return Collections.unmodifiableMap(resourceAwareTasks);
     }
 
-    private ResourceUsageMetric[] getResourceUsageMetricsForThread(long threadId) {
+    public static ResourceUsageMetric[] getResourceUsageMetricsForThread(long threadId) {
         ResourceUsageMetric currentMemoryUsage = new ResourceUsageMetric(
             ResourceStats.MEMORY,
             threadMXBean.getThreadAllocatedBytes(threadId)
@@ -268,7 +280,17 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         void onTaskCompleted(Task task);
     }
 
+    /**
+     * Listener that gets invoked when a task execution starts.
+     */
+    public interface TaskStartListener {
+        void onTaskStarts(Task task);
+    }
+
     public void addTaskCompletionListener(TaskCompletionListener listener) {
         this.taskCompletionListeners.add(listener);
+    }
+    public void addTaskStartListener(TaskStartListener listener) {
+        this.taskStartListeners.add(listener);
     }
 }

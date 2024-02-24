@@ -36,13 +36,22 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.resourcetracker.ResourceStats;
+import org.opensearch.core.tasks.resourcetracker.ResourceUsageInfo;
+import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.tasks.TaskResourceTrackingService;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * This class is a base class for all search related results. It contains the shard target it
@@ -62,7 +71,8 @@ public abstract class SearchPhaseResult extends TransportResponse {
     protected ShardSearchContextId contextId;
     private ShardSearchRequest shardSearchRequest;
     private RescoreDocIds rescoreDocIds = RescoreDocIds.EMPTY;
-
+    public TaskResourceInfo resourceUsageInfo = new TaskResourceInfo();
+    public Map<ResourceStats, Long> resourceUsageStartValues = new HashMap<>();
     protected SearchPhaseResult() {
 
     }
@@ -136,5 +146,35 @@ public abstract class SearchPhaseResult extends TransportResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // TODO: this seems wrong, SearchPhaseResult should have a writeTo?
+    }
+
+    public void readResourceUsage(StreamInput in) throws IOException {
+        resourceUsageInfo = TaskResourceInfo.readFromStream(in);
+    }
+
+    public void writeResourceUsage(StreamOutput out) throws IOException {
+        // write cpu usage
+        ResourceUsageMetric[] usages = TaskResourceTrackingService.getResourceUsageMetricsForThread(Thread.currentThread().getId());
+        // TODO we should probably refactor `getResourceUsageMetricsForThread` to return an object.
+        assert usages.length == 2;
+        long mem = usages[0].getValue() - resourceUsageStartValues.get(ResourceStats.MEMORY);
+        long cpu = usages[1].getValue() - resourceUsageStartValues.get(ResourceStats.CPU);
+        resourceUsageInfo.taskResourceUsage = new TaskResourceUsage(cpu, mem);
+        resourceUsageInfo.writeTo(out);
+    }
+
+    public void injectInitialResourceUsage(SearchContext context) {
+        Map<ResourceStats, ResourceUsageInfo.ResourceStatsInfo> usageInfo = context.usageInfo;
+        // initial resource usage when the task starts
+        for (Map.Entry<ResourceStats, ResourceUsageInfo.ResourceStatsInfo> entry : usageInfo.entrySet()) {
+            resourceUsageStartValues.put(
+                entry.getKey(),
+                entry.getValue().getStartValue()
+            );
+        }
+        // inject information related to the task, used to correlated to a request on coordinator node
+        resourceUsageInfo.action = context.getTask().getAction();
+        resourceUsageInfo.taskId = context.getTask().getId();
+        resourceUsageInfo.parentTaskId = context.getTask().getParentTaskId().getId();
     }
 }
