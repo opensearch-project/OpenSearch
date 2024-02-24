@@ -62,6 +62,7 @@ import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
+import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -373,7 +374,8 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
-            final Supplier<RepositoriesService> repositoriesServiceSupplier
+            final Supplier<RepositoriesService> repositoriesServiceSupplier,
+            final TaskResourceTrackingService taskResourceTrackingService
         ) {
             return Collections.emptyList();
         }

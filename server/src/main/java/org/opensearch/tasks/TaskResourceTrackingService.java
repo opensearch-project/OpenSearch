@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -39,6 +40,7 @@ import static org.opensearch.core.tasks.resourcetracker.ResourceStatsType.WORKER
 /**
  * Service that helps track resource usage of tasks running on a node.
  */
+@PublicApi(since = "2.2.0")
 @SuppressForbidden(reason = "ThreadMXBean#getThreadAllocatedBytes")
 public class TaskResourceTrackingService implements RunnableTaskExecutionListener {
 
@@ -56,6 +58,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
 
     private final ConcurrentMapLong<Task> resourceAwareTasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
     private final List<TaskCompletionListener> taskCompletionListeners = new ArrayList<>();
+    private final List<TaskStartListener> taskStartListeners = new ArrayList<>();
     private final ThreadPool threadPool;
     private volatile boolean taskResourceTrackingEnabled;
 
@@ -96,6 +99,17 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
 
         logger.debug("Starting resource tracking for task: {}", task.getId());
         resourceAwareTasks.put(task.getId(), task);
+
+        List<Exception> exceptions = new ArrayList<>();
+        for (TaskStartListener listener : taskStartListeners) {
+            try {
+                listener.onTaskStarts(task);
+            } catch (Exception e) {
+                exceptions.add(e);
+            }
+        }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
+
         return addTaskIdToThreadContext(task);
     }
 
@@ -211,7 +225,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         return Collections.unmodifiableMap(resourceAwareTasks);
     }
 
-    private ResourceUsageMetric[] getResourceUsageMetricsForThread(long threadId) {
+    public static ResourceUsageMetric[] getResourceUsageMetricsForThread(long threadId) {
         ResourceUsageMetric currentMemoryUsage = new ResourceUsageMetric(
             ResourceStats.MEMORY,
             threadMXBean.getThreadAllocatedBytes(threadId)
@@ -264,11 +278,24 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     /**
      * Listener that gets invoked when a task execution completes.
      */
+    @PublicApi(since = "2.2.0")
     public interface TaskCompletionListener {
         void onTaskCompleted(Task task);
     }
 
+    /**
+     * Listener that gets invoked when a task execution starts.
+     */
+    @PublicApi(since = "2.2.0")
+    public interface TaskStartListener {
+        void onTaskStarts(Task task);
+    }
+
     public void addTaskCompletionListener(TaskCompletionListener listener) {
         this.taskCompletionListeners.add(listener);
+    }
+
+    public void addTaskStartListener(TaskStartListener listener) {
+        this.taskStartListeners.add(listener);
     }
 }

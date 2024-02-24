@@ -73,6 +73,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -553,6 +554,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             SearchContext context = createContext(readerContext, request, task, true)
         ) {
             dfsPhase.execute(context);
+            context.dfsResult().injectInitialResourceUsage(context);
             return context.dfsResult();
         } catch (Exception e) {
             logger.trace("Dfs phase failed", e);
@@ -648,6 +650,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
                 context.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
+                context.queryResult().injectInitialResourceUsage(context);
                 return context.queryResult();
             }
         } catch (Exception e) {
@@ -672,7 +675,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             executor.success();
         }
-        return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
+        QueryFetchSearchResult result = new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
+        result.injectInitialResourceUsage(context);
+        return result;
     }
 
     public void executeQueryPhase(
@@ -700,7 +705,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 queryPhase.execute(searchContext);
                 executor.success();
                 readerContext.setRescoreDocIds(searchContext.rescoreDocIds());
-                return new ScrollQuerySearchResult(searchContext.queryResult(), searchContext.shardTarget());
+                ScrollQuerySearchResult scrollQuerySearchResult = new ScrollQuerySearchResult(
+                    searchContext.queryResult(),
+                    searchContext.shardTarget()
+                );
+                scrollQuerySearchResult.injectInitialResourceUsage(searchContext);
+                return scrollQuerySearchResult;
             } catch (Exception e) {
                 logger.trace("Query phase failed", e);
                 // we handle the failure in the failure listener below
@@ -731,6 +741,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
                 searchContext.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
+                searchContext.queryResult().injectInitialResourceUsage(searchContext);
                 return searchContext.queryResult();
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
@@ -780,7 +791,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 queryPhase.execute(searchContext);
                 final long afterQueryTime = executor.success();
                 QueryFetchSearchResult fetchSearchResult = executeFetchPhase(readerContext, searchContext, afterQueryTime);
-                return new ScrollQueryFetchSearchResult(fetchSearchResult, searchContext.shardTarget());
+                ScrollQueryFetchSearchResult scrollQueryFetchSearchResult = new ScrollQueryFetchSearchResult(
+                    fetchSearchResult,
+                    searchContext.shardTarget()
+                );
+                scrollQueryFetchSearchResult.injectInitialResourceUsage(searchContext);
+                return scrollQueryFetchSearchResult;
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                 logger.trace("Fetch phase failed", e);
@@ -811,6 +827,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                     executor.success();
                 }
+                searchContext.fetchResult().injectInitialResourceUsage(searchContext);
                 return searchContext.fetchResult();
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
@@ -1032,9 +1049,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context.size(DEFAULT_SIZE);
             }
             context.setTask(task);
-
             // pre process
             queryPhase.preProcess(context);
+            context.usageInfo = task.getActiveThreadResourceInfo(Thread.currentThread().getId(), ResourceStatsType.WORKER_STATS)
+                .getResourceUsageInfo()
+                .getStatsInfo();
         } catch (Exception e) {
             context.close();
             throw e;
@@ -1740,6 +1759,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             super(in);
             this.canMatch = in.readBoolean();
             this.estimatedMinAndMax = in.readOptionalWriteable(MinAndMax::new);
+            readResourceUsage(in);
         }
 
         public CanMatchResponse(boolean canMatch, MinAndMax<?> estimatedMinAndMax) {
@@ -1749,8 +1769,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeBoolean(canMatch);
             out.writeOptionalWriteable(estimatedMinAndMax);
+
+            writeResourceUsage(out);
         }
 
         public boolean canMatch() {

@@ -64,7 +64,7 @@ final public class QueryInsightsTestUtils {
                 randomLongBetween(1000, 10000),
                 MetricType.CPU,
                 randomDouble(),
-                MetricType.JVM,
+                MetricType.MEMORY,
                 randomDouble()
             );
 

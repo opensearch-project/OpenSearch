@@ -79,6 +79,7 @@ public class QueryInsightsPluginTests extends OpenSearchTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         assertEquals(2, components.size());

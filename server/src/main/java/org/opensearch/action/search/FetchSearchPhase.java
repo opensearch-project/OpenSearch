@@ -37,6 +37,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
@@ -51,6 +52,7 @@ import org.opensearch.transport.Transport;
 
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 /**
  * This search phase merges the query results from the previous phase together and calculates the topN hits for this search.
@@ -109,6 +111,16 @@ final class FetchSearchPhase extends SearchPhase {
         this.logger = context.getLogger();
         this.resultConsumer = resultConsumer;
         this.progressListener = context.getTask().getProgressListener();
+    }
+
+    @Override
+    public List<TaskResourceInfo> getPhaseResourceUsageFromResults() {
+        return fetchResults.getAtomicArray()
+            .asList()
+            .stream()
+            .filter(a -> a.remoteAddress() != null)
+            .map(SearchPhaseResult::getTaskResourceInfo)
+            .collect(Collectors.toList());
     }
 
     @Override

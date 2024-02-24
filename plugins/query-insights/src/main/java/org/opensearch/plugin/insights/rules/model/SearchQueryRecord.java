@@ -111,6 +111,16 @@ public class SearchQueryRecord implements ToXContentObject, Writeable {
         attributes.put(attribute, value);
     }
 
+    /**
+     * Add a measurement to this record
+     *
+     * @param metricType Type of measurement to add
+     * @param value the value associated with the measurement
+     */
+    public void addMeasurement(final MetricType metricType, final Number value) {
+        measurements.put(metricType, value);
+    }
+
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
         builder.startObject();

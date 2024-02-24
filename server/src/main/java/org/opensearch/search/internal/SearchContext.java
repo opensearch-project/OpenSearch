@@ -43,6 +43,8 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.tasks.resourcetracker.ResourceStats;
+import org.opensearch.core.tasks.resourcetracker.ResourceUsageInfo;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -79,6 +81,7 @@ import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -126,6 +129,8 @@ public abstract class SearchContext implements Releasable {
     private InnerHitsContext innerHitsContext;
 
     private volatile boolean searchTimedOut;
+
+    public Map<ResourceStats, ResourceUsageInfo.ResourceStatsInfo> usageInfo = new EnumMap<>(ResourceStats.class);
 
     protected SearchContext() {}
 

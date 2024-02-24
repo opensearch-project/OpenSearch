@@ -33,8 +33,10 @@ package org.opensearch.action.search;
 
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -47,6 +49,10 @@ import java.util.Objects;
 public abstract class SearchPhase implements CheckedRunnable<IOException> {
     private final String name;
     private long startTimeInNanos;
+
+    public List<TaskResourceInfo> getPhaseResourceUsageFromResults() {
+        return List.of();
+    }
 
     protected SearchPhase(String name) {
         this.name = Objects.requireNonNull(name, "name must not be null");

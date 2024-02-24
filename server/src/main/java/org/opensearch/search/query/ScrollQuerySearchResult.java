@@ -53,6 +53,7 @@ public final class ScrollQuerySearchResult extends SearchPhaseResult {
         SearchShardTarget shardTarget = new SearchShardTarget(in);
         result = new QuerySearchResult(in);
         setSearchShardTarget(shardTarget);
+        readResourceUsage(in);
     }
 
     public ScrollQuerySearchResult(QuerySearchResult result, SearchShardTarget shardTarget) {
@@ -81,5 +82,6 @@ public final class ScrollQuerySearchResult extends SearchPhaseResult {
     public void writeTo(StreamOutput out) throws IOException {
         getSearchShardTarget().writeTo(out);
         result.writeTo(out);
+        writeResourceUsage(out);
     }
 }

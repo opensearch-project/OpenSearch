@@ -34,6 +34,7 @@ package org.opensearch.action.search;
 
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.index.query.QueryBuilder;
@@ -48,6 +49,7 @@ import org.opensearch.search.internal.InternalSearchResponse;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * This search phase is an optional phase that will be executed once all hits are fetched from the shards that executes
@@ -76,6 +78,15 @@ final class ExpandSearchPhase extends SearchPhase {
         return searchRequest.source() != null
             && searchRequest.source().collapse() != null
             && searchRequest.source().collapse().getInnerHits().isEmpty() == false;
+    }
+
+    @Override
+    public List<TaskResourceInfo> getPhaseResourceUsageFromResults() {
+        return queryResults.asList()
+            .stream()
+            .filter(a -> a.remoteAddress() != null)
+            .map(SearchPhaseResult::getTaskResourceInfo)
+            .collect(Collectors.toList());
     }
 
     @Override

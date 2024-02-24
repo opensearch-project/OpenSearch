@@ -51,6 +51,7 @@ import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
@@ -842,6 +843,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // Note that, we have to disable this shortcut for queries that create a context (scroll and search context).
         shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get() && shardRequest.scroll() == null);
         return shardRequest;
+    }
+
+    @Override
+    public List<TaskResourceInfo> getPhaseResourceUsageFromResults() {
+        return results.getAtomicArray()
+            .asList()
+            .stream()
+            .filter(a -> a.remoteAddress() != null)
+            .map(SearchPhaseResult::getTaskResourceInfo)
+            .collect(Collectors.toList());
     }
 
     /**
