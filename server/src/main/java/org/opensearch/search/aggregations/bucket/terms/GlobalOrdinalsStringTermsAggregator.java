@@ -158,7 +158,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     /**
-     Collects term frequencies for a given field from a LeafReaderContext.
+     Collects term frequencies for a given field from a LeafReaderContext directly from stored segment terms
      @param ctx The LeafReaderContext to collect terms from
      @param globalOrds The SortedSetDocValues for the field's ordinals
      @param ordCountConsumer A consumer to accept collected term frequencies
@@ -170,15 +170,18 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         SortedSetDocValues globalOrds,
         BiConsumer<Long, Integer> ordCountConsumer
     ) throws IOException {
-        if (weight == null || weight.count(ctx) != ctx.reader().maxDoc()) {
-            // weight.count(ctx) == ctx.reader().maxDoc() implies there are no deleted documents and
-            // top-level query matches all docs in the segment
+        if (weight == null) {
+            // Weight not assigned - cannot use this optimization
             return null;
-        }
-
-        if (weight.count(ctx) == 0) {
-            // No documents matches top level query on this segment, we can skip the segment
-            return LeafBucketCollector.NO_OP_COLLECTOR;
+        } else {
+            if (weight.count(ctx) == 0) {
+                // No documents matches top level query on this segment, we can skip the segment entirely
+                return LeafBucketCollector.NO_OP_COLLECTOR;
+            } else if (weight.count(ctx) != ctx.reader().maxDoc()) {
+                // weight.count(ctx) == ctx.reader().maxDoc() implies there are no deleted documents and
+                // top-level query matches all docs in the segment
+                return null;
+            }
         }
 
         Terms segmentTerms = ctx.reader().terms(this.fieldName);
@@ -198,6 +201,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         TermsEnum globalOrdinalTermsEnum = globalOrds.termsEnum();
         BytesRef ordinalTerm = globalOrdinalTermsEnum.next();
 
+        // Iterate over the terms in the segment, look for matches in the global ordinal terms,
+        // and increment bucket count when segment terms match global ordinal terms.
         while (indexTerm != null && ordinalTerm != null) {
             int compare = indexTerm.compareTo(ordinalTerm);
             if (compare == 0) {

@@ -144,18 +144,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     private static final String STRING_SCRIPT_NAME = "string_script";
     private static final String STRING_SCRIPT_OUTPUT = "Orange";
 
-    private static final Consumer<TermsAggregator> DEFAULT_POST_COLLECTION = termsAggregator -> {
-        try {
-            termsAggregator.postCollection();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    };
-
-    // aggregator.postCollection() is not required when LeafBucketCollector#termDocFreqCollector optimization is used.
-    // using NOOP_POST_COLLECTION_CONSUMER ensures that the bucket count in aggregation is completed before/without running postCollection()
-    private static final Consumer<TermsAggregator> NOOP_POST_COLLECTION = termsAggregator -> {};
-
     @Override
     protected MapperService mapperServiceMock() {
         MapperService mapperService = mock(MapperService.class);
@@ -275,10 +263,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
      * In this case, the segment terms will not get initialized and will run without LeafBucketCollector#termDocFreqCollector optimization
      */
     public void testSimpleAggregation() throws Exception {
-        testSimple(
-            (document, field, value) -> document.add(new SortedSetDocValuesField(field, new BytesRef(value))),
-            DEFAULT_POST_COLLECTION
-        );
+        testSimple(ADD_SORTED_FIELD_NO_STORE, DEFAULT_POST_COLLECTION);
     }
 
     /**
@@ -286,20 +271,17 @@ public class TermsAggregatorTests extends AggregatorTestCase {
      * In this case, the segment terms will get initialized and will use LeafBucketCollector#termDocFreqCollector optimization
      */
     public void testSimpleAggregationWithStoredValues() throws Exception {
-        // aggregator.postCollection() is not required when LeafBucketCollector#termDocFreqCollector optimization is used.
+        // aggregator.postCollection() is not required when LeafBucketCollector#termDocFreqCollector optimization is used,
+        // therefore using NOOP_POST_COLLECTION
         // This also verifies that the bucket count is completed without running postCollection()
-        testSimple((document, field, value) -> {
-            document.add(new SortedSetDocValuesField(field, new BytesRef(value)));
-            document.add(new StringField(field, value, Field.Store.NO));
-        }, NOOP_POST_COLLECTION);
-
+        testSimple(ADD_SORTED_FIELD_STORE, NOOP_POST_COLLECTION);
     }
 
     /**
      * This is a utility method to test out string terms aggregation
      * @param addFieldConsumer a function that determines how a field is added to the document
      */
-    private void testSimple(TriConsumer<Document, String, String> addFieldConsumer, Consumer<TermsAggregator> postCollectionConsumer)
+    private void testSimple(TriConsumer<Document, String, String> addFieldConsumer, Consumer<Aggregator> postCollectionConsumer)
         throws Exception {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -374,7 +356,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }, NOOP_POST_COLLECTION);
     }
 
-    private void testStringIncludeExclude(TriConsumer<Document, String, String> addField, Consumer<TermsAggregator> postCollectionConsumer)
+    private void testStringIncludeExclude(TriConsumer<Document, String, String> addField, Consumer<Aggregator> postCollectionConsumer)
         throws Exception {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {

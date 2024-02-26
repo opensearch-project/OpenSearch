@@ -42,8 +42,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.TriConsumer;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.support.ValueType;
 
@@ -68,61 +70,103 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         dataset = d;
     }
 
+    private static Consumer<InternalMappedTerms> VERIFY_MATCH_ALL_DOCS = agg -> {
+        assertEquals(9, agg.getBuckets().size());
+        for (int i = 0; i < 9; i++) {
+            StringTerms.Bucket bucket = (StringTerms.Bucket) agg.getBuckets().get(i);
+            assertThat(bucket.getKey(), equalTo(String.valueOf(9L - i)));
+            assertThat(bucket.getDocCount(), equalTo(9L - i));
+        }
+    };
+
+    private static Query MATCH_ALL_DOCS_QUERY = new MatchAllDocsQuery();
+
+    private static Query MATCH_NO_DOCS_QUERY = new MatchNoDocsQuery();
+
     public void testMatchNoDocs() throws IOException {
         testSearchCase(
-            new MatchNoDocsQuery(),
+            ADD_SORTED_FIELD_NO_STORE,
+            MATCH_NO_DOCS_QUERY,
             dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD),
             agg -> assertEquals(0, agg.getBuckets().size()),
-            null // without type hint
+            null,        // without type hint
+            DEFAULT_POST_COLLECTION
         );
 
         testSearchCase(
-            new MatchNoDocsQuery(),
+            ADD_SORTED_FIELD_NO_STORE,
+            MATCH_NO_DOCS_QUERY,
             dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD),
             agg -> assertEquals(0, agg.getBuckets().size()),
-            ValueType.STRING // with type hint
+            ValueType.STRING,        // with type hint
+            DEFAULT_POST_COLLECTION
         );
     }
 
     public void testMatchAllDocs() throws IOException {
-        Query query = new MatchAllDocsQuery();
-
-        testSearchCase(query, dataset, aggregation -> aggregation.field(KEYWORD_FIELD), agg -> {
-            assertEquals(9, agg.getBuckets().size());
-            for (int i = 0; i < 9; i++) {
-                StringTerms.Bucket bucket = (StringTerms.Bucket) agg.getBuckets().get(i);
-                assertThat(bucket.getKey(), equalTo(String.valueOf(9L - i)));
-                assertThat(bucket.getDocCount(), equalTo(9L - i));
-            }
-        },
-            null // without type hint
+        testSearchCase(
+            ADD_SORTED_FIELD_NO_STORE,
+            MATCH_ALL_DOCS_QUERY,
+            dataset,
+            aggregation -> aggregation.field(KEYWORD_FIELD),
+            VERIFY_MATCH_ALL_DOCS,
+            null,        // without type hint
+            DEFAULT_POST_COLLECTION
         );
 
-        testSearchCase(query, dataset, aggregation -> aggregation.field(KEYWORD_FIELD), agg -> {
-            assertEquals(9, agg.getBuckets().size());
-            for (int i = 0; i < 9; i++) {
-                StringTerms.Bucket bucket = (StringTerms.Bucket) agg.getBuckets().get(i);
-                assertThat(bucket.getKey(), equalTo(String.valueOf(9L - i)));
-                assertThat(bucket.getDocCount(), equalTo(9L - i));
-            }
-        },
-            ValueType.STRING // with type hint
+        testSearchCase(
+            ADD_SORTED_FIELD_NO_STORE,
+            MATCH_ALL_DOCS_QUERY,
+            dataset,
+            aggregation -> aggregation.field(KEYWORD_FIELD),
+            VERIFY_MATCH_ALL_DOCS,
+            ValueType.STRING,        // with type hint
+            DEFAULT_POST_COLLECTION
+        );
+    }
+
+    public void testMatchAllDocsWithStoredValues() throws IOException {
+        // aggregator.postCollection() is not required when LeafBucketCollector#termDocFreqCollector optimization is used,
+        // therefore using NOOP_POST_COLLECTION
+        // This also verifies that the bucket count is completed without running postCollection()
+
+        testSearchCase(
+            ADD_SORTED_FIELD_STORE,
+            MATCH_ALL_DOCS_QUERY,
+            dataset,
+            aggregation -> aggregation.field(KEYWORD_FIELD),
+            VERIFY_MATCH_ALL_DOCS,
+            null,            // without type hint
+            NOOP_POST_COLLECTION
+        );
+
+        testSearchCase(
+            ADD_SORTED_FIELD_STORE,
+            MATCH_ALL_DOCS_QUERY,
+            dataset,
+            aggregation -> aggregation.field(KEYWORD_FIELD),
+            VERIFY_MATCH_ALL_DOCS,
+            ValueType.STRING,        // with type hint
+            NOOP_POST_COLLECTION
         );
     }
 
     private void testSearchCase(
+        TriConsumer<Document, String, String> addField,
         Query query,
         List<String> dataset,
         Consumer<TermsAggregationBuilder> configure,
         Consumer<InternalMappedTerms> verify,
-        ValueType valueType
+        ValueType valueType,
+        Consumer<Aggregator> postCollectionConsumer
     ) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
                 for (String value : dataset) {
+                    addField.apply(document, KEYWORD_FIELD, value);
                     document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(value)));
                     indexWriter.addDocument(document);
                     document.clear();
@@ -147,5 +191,4 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
             }
         }
     }
-
 }
