@@ -40,14 +40,13 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -60,7 +59,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DuelScrollIT extends ParameterizedOpenSearchIntegTestCase {
+public class DuelScrollIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public DuelScrollIT(Settings settings) {
         super(settings);
     }
@@ -71,11 +70,6 @@ public class DuelScrollIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     public void testDuelQueryThenFetch() throws Exception {

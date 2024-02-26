@@ -135,7 +135,6 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats;
-import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
@@ -302,6 +301,19 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
+     * If enabled, this setting enforces that indexes will be created with a replication type matching the cluster setting
+     * defined in cluster.indices.replication.strategy by rejecting any request that specifies a replication type that
+     * does not match the cluster setting. If disabled, a user can choose a replication type on a per-index basis using
+     * the index.replication.type setting.
+     */
+    public static final Setting<Boolean> CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING = Setting.boolSetting(
+        "cluster.index.restrict.replication.type",
+        false,
+        Property.NodeScope,
+        Property.Final
+    );
+
+    /**
      * The node's settings.
      */
     private final Settings settings;
@@ -349,7 +361,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private volatile TimeValue clusterDefaultRefreshInterval;
     private volatile TimeValue clusterRemoteTranslogBufferInterval;
-    private final FileCacheCleaner fileCacheCleaner;
 
     private final SearchRequestStats searchRequestStats;
 
@@ -382,7 +393,6 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        FileCacheCleaner fileCacheCleaner,
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         RecoverySettings recoverySettings
@@ -396,7 +406,13 @@ public class IndicesService extends AbstractLifecycleComponent
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
         this.analysisRegistry = analysisRegistry;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.indicesRequestCache = new IndicesRequestCache(settings);
+        this.indicesRequestCache = new IndicesRequestCache(settings, (shardId -> {
+            IndexService indexService = this.indices.get(shardId.getIndex().getUUID());
+            if (indexService == null) {
+                return Optional.empty();
+            }
+            return Optional.of(new IndexShardCacheEntity(indexService.getShard(shardId.id())));
+        }));
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -431,7 +447,6 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
-        this.fileCacheCleaner = fileCacheCleaner;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -747,7 +762,6 @@ public class IndicesService extends AbstractLifecycleComponent
         };
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
-        finalListeners.add(fileCacheCleaner);
         final IndexService indexService = createIndexService(
             CREATE_INDEX,
             indexMetadata,
@@ -1731,7 +1745,6 @@ public class IndicesService extends AbstractLifecycleComponent
         BytesReference cacheKey,
         CheckedConsumer<StreamOutput, IOException> loader
     ) throws Exception {
-        IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
         CheckedSupplier<BytesReference, IOException> supplier = () -> {
             /* BytesStreamOutput allows to pass the expected size but by default uses
              * BigArrays.PAGE_SIZE_IN_BYTES which is 16k. A common cached result ie.
@@ -1748,7 +1761,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 return out.bytes();
             }
         };
-        return indicesRequestCache.getOrCompute(cacheEntity, supplier, reader, cacheKey);
+        return indicesRequestCache.getOrCompute(new IndexShardCacheEntity(shard), supplier, reader, cacheKey);
     }
 
     /**
@@ -1756,11 +1769,12 @@ public class IndicesService extends AbstractLifecycleComponent
      *
      * @opensearch.internal
      */
-    static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
+    public static class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
+
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexShardCacheEntity.class);
         private final IndexShard indexShard;
 
-        protected IndexShardCacheEntity(IndexShard indexShard) {
+        public IndexShardCacheEntity(IndexShard indexShard) {
             this.indexShard = indexShard;
         }
 

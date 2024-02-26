@@ -17,6 +17,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 
 import io.opentelemetry.api.metrics.DoubleCounter;
+import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.DoubleUpDownCounter;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.MeterProvider;
@@ -42,6 +43,7 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
         this.otelMeter = meterProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
     }
 
+    @SuppressWarnings("removal")
     @Override
     public Counter createCounter(String name, String description, String unit) {
         DoubleCounter doubleCounter = AccessController.doPrivileged(
@@ -54,6 +56,7 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
         return new OTelCounter(doubleCounter);
     }
 
+    @SuppressWarnings("removal")
     @Override
     public Counter createUpDownCounter(String name, String description, String unit) {
         DoubleUpDownCounter doubleUpDownCounter = AccessController.doPrivileged(
@@ -64,6 +67,23 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
                 .build()
         );
         return new OTelUpDownCounter(doubleUpDownCounter);
+    }
+
+    /**
+     * Creates the Otel Histogram. In {@link org.opensearch.telemetry.tracing.OTelResourceProvider}
+     * we can configure the bucketing/aggregation strategy through view. Default startegy configured
+     * is the {@link io.opentelemetry.sdk.metrics.internal.view.Base2ExponentialHistogramAggregation}.
+     * @param name        name of the histogram.
+     * @param description any description about the metric.
+     * @param unit        unit of the metric.
+     * @return histogram
+     */
+    @Override
+    public Histogram createHistogram(String name, String description, String unit) {
+        DoubleHistogram doubleHistogram = AccessController.doPrivileged(
+            (PrivilegedAction<DoubleHistogram>) () -> otelMeter.histogramBuilder(name).setUnit(unit).setDescription(description).build()
+        );
+        return new OTelHistogram(doubleHistogram);
     }
 
     @Override

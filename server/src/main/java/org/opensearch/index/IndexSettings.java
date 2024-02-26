@@ -65,7 +65,9 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static org.opensearch.Version.V_2_7_0;
+import static org.opensearch.common.util.FeatureFlags.DOC_ID_FUZZY_SET_SETTING;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
+import static org.opensearch.index.codec.fuzzy.FuzzySetParameters.DEFAULT_FALSE_POSITIVE_PROBABILITY;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
@@ -269,6 +271,17 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    /**
+     * Index setting describing the maximum number of nested scopes in queries.
+     * The default maximum of 20. 1 means once nesting.
+     */
+    public static final Setting<Integer> MAX_NESTED_QUERY_DEPTH_SETTING = Setting.intSetting(
+        "index.query.max_nested_depth",
+        20,
+        1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
     /**
      * Index setting describing for NGramTokenizer and NGramTokenFilter
      * the maximum difference between
@@ -658,6 +671,22 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    public static final Setting<Boolean> INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING = Setting.boolSetting(
+        "index.optimize_doc_id_lookup.fuzzy_set.enabled",
+        false,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    public static final Setting<Double> INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING = Setting.doubleSetting(
+        "index.optimize_doc_id_lookup.fuzzy_set.false_positive_probability",
+        DEFAULT_FALSE_POSITIVE_PROBABILITY,
+        0.01,
+        0.50,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     public static final TimeValue DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL = new TimeValue(650, TimeUnit.MILLISECONDS);
     public static final TimeValue MINIMUM_REMOTE_TRANSLOG_BUFFER_INTERVAL = TimeValue.ZERO;
     public static final Setting<TimeValue> INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING = Setting.timeSetting(
@@ -747,6 +776,8 @@ public final class IndexSettings {
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
     private volatile int maxTermsCount;
+
+    private volatile int maxNestedQueryDepth;
     private volatile String defaultPipeline;
     private volatile String requiredPipeline;
     private volatile boolean searchThrottled;
@@ -786,6 +817,16 @@ public final class IndexSettings {
      * Specialized merge-on-flush policy if provided
      */
     private volatile UnaryOperator<MergePolicy> mergeOnFlushPolicy;
+
+    /**
+     * Is fuzzy set enabled for doc id
+     */
+    private volatile boolean enableFuzzySetForDocId;
+
+    /**
+     * False positive probability to use while creating fuzzy set.
+     */
+    private volatile double docIdFuzzySetFalsePositiveProbability;
 
     /**
      * Returns the default search fields for this index.
@@ -902,6 +943,7 @@ public final class IndexSettings {
         maxSlicesPerPit = scopedSettings.get(MAX_SLICES_PER_PIT);
         maxAnalyzedOffset = scopedSettings.get(MAX_ANALYZED_OFFSET_SETTING);
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
+        maxNestedQueryDepth = scopedSettings.get(MAX_NESTED_QUERY_DEPTH_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.tieredMergePolicyProvider = new TieredMergePolicyProvider(logger, this);
         this.logByteSizeMergePolicyProvider = new LogByteSizeMergePolicyProvider(logger, this);
@@ -926,6 +968,13 @@ public final class IndexSettings {
          * Now this sortField (IndexSort) is stored in SegmentInfo and we need to maintain backward compatibility for them.
          */
         widenIndexSortType = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).before(V_2_7_0);
+
+        boolean isOptimizeDocIdLookupUsingFuzzySetFeatureEnabled = FeatureFlags.isEnabled(DOC_ID_FUZZY_SET_SETTING);
+        if (isOptimizeDocIdLookupUsingFuzzySetFeatureEnabled) {
+            enableFuzzySetForDocId = scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING);
+            docIdFuzzySetFalsePositiveProbability = scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING);
+        }
+
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING,
             tieredMergePolicyProvider::setNoCFSRatio
@@ -1007,6 +1056,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setHighlightMaxAnalyzedOffset);
         scopedSettings.addSettingsUpdateConsumer(MAX_TERMS_COUNT_SETTING, this::setMaxTermsCount);
+        scopedSettings.addSettingsUpdateConsumer(MAX_NESTED_QUERY_DEPTH_SETTING, this::setMaxNestedQueryDepth);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_PIT, this::setMaxSlicesPerPit);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
@@ -1032,6 +1082,11 @@ public final class IndexSettings {
             this::setRemoteTranslogUploadBufferInterval
         );
         scopedSettings.addSettingsUpdateConsumer(INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING, this::setRemoteTranslogKeepExtraGen);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING, this::setEnableFuzzySetForDocId);
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,
+            this::setDocIdFuzzySetFalsePositiveProbability
+        );
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1518,6 +1573,17 @@ public final class IndexSettings {
     }
 
     /**
+     * @return max level of nested queries and documents
+     */
+    public int getMaxNestedQueryDepth() {
+        return this.maxNestedQueryDepth;
+    }
+
+    private void setMaxNestedQueryDepth(int maxNestedQueryDepth) {
+        this.maxNestedQueryDepth = maxNestedQueryDepth;
+    }
+
+    /**
      * Returns the maximum number of allowed script_fields to retrieve in a search request
      */
     public int getMaxScriptFields() {
@@ -1800,5 +1866,37 @@ public final class IndexSettings {
      */
     public boolean shouldWidenIndexSortType() {
         return this.widenIndexSortType;
+    }
+
+    public boolean isEnableFuzzySetForDocId() {
+        return enableFuzzySetForDocId;
+    }
+
+    public void setEnableFuzzySetForDocId(boolean enableFuzzySetForDocId) {
+        verifyFeatureToSetDocIdFuzzySetSetting(enabled -> this.enableFuzzySetForDocId = enabled, enableFuzzySetForDocId);
+    }
+
+    public double getDocIdFuzzySetFalsePositiveProbability() {
+        return docIdFuzzySetFalsePositiveProbability;
+    }
+
+    public void setDocIdFuzzySetFalsePositiveProbability(double docIdFuzzySetFalsePositiveProbability) {
+        verifyFeatureToSetDocIdFuzzySetSetting(
+            fpp -> this.docIdFuzzySetFalsePositiveProbability = fpp,
+            docIdFuzzySetFalsePositiveProbability
+        );
+    }
+
+    private static <T> void verifyFeatureToSetDocIdFuzzySetSetting(Consumer<T> settingUpdater, T val) {
+        if (FeatureFlags.isEnabled(DOC_ID_FUZZY_SET_SETTING)) {
+            settingUpdater.accept(val);
+        } else {
+            throw new IllegalArgumentException(
+                "Fuzzy set for optimizing doc id lookup "
+                    + "cannot be enabled with feature flag ["
+                    + FeatureFlags.DOC_ID_FUZZY_SET
+                    + "] set to false"
+            );
+        }
     }
 }

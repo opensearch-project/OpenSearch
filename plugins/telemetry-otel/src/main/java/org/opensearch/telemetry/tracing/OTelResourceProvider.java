@@ -12,7 +12,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.exporter.OTelMetricsExporterFactory;
 import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
-import org.opensearch.telemetry.tracing.sampler.ProbabilisticSampler;
+import org.opensearch.telemetry.tracing.sampler.OTelSamplerFactory;
 import org.opensearch.telemetry.tracing.sampler.RequestSampler;
 
 import java.security.AccessController;
@@ -23,8 +23,12 @@ import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.metrics.InstrumentSelector;
+import io.opentelemetry.sdk.metrics.InstrumentType;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.View;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
+import io.opentelemetry.sdk.metrics.internal.view.Base2ExponentialHistogramAggregation;
 import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
@@ -40,6 +44,7 @@ import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_MAX
  * This class encapsulates all OpenTelemetry related resources
  */
 public final class OTelResourceProvider {
+
     private OTelResourceProvider() {}
 
     /**
@@ -48,13 +53,14 @@ public final class OTelResourceProvider {
      * @param settings cluster settings
      * @return OpenTelemetrySdk instance
      */
+    @SuppressWarnings("removal")
     public static OpenTelemetrySdk get(TelemetrySettings telemetrySettings, Settings settings) {
         return AccessController.doPrivileged(
             (PrivilegedAction<OpenTelemetrySdk>) () -> get(
                 settings,
                 OTelSpanExporterFactory.create(settings),
                 ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
-                Sampler.parentBased(new RequestSampler(new ProbabilisticSampler(telemetrySettings)))
+                Sampler.parentBased(new RequestSampler(OTelSamplerFactory.create(telemetrySettings, settings)))
             )
         );
     }
@@ -90,6 +96,10 @@ public final class OTelResourceProvider {
                 PeriodicMetricReader.builder(OTelMetricsExporterFactory.create(settings))
                     .setInterval(TelemetrySettings.METRICS_PUBLISH_INTERVAL_SETTING.get(settings).getSeconds(), TimeUnit.SECONDS)
                     .build()
+            )
+            .registerView(
+                InstrumentSelector.builder().setType(InstrumentType.HISTOGRAM).build(),
+                View.builder().setAggregation(Base2ExponentialHistogramAggregation.getDefault()).build()
             )
             .build();
     }

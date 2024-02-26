@@ -11,6 +11,7 @@ package org.opensearch.index.search.comparators;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.comparators.NumericComparator;
 import org.opensearch.common.Numbers;
 
@@ -23,8 +24,8 @@ public class UnsignedLongComparator extends NumericComparator<BigInteger> {
     protected BigInteger topValue;
     protected BigInteger bottom;
 
-    public UnsignedLongComparator(int numHits, String field, BigInteger missingValue, boolean reverse, boolean enableSkipping) {
-        super(field, missingValue != null ? missingValue : Numbers.MIN_UNSIGNED_LONG_VALUE, reverse, enableSkipping, BigIntegerPoint.BYTES);
+    public UnsignedLongComparator(int numHits, String field, BigInteger missingValue, boolean reverse, Pruning pruning) {
+        super(field, missingValue != null ? missingValue : Numbers.MIN_UNSIGNED_LONG_VALUE, reverse, pruning, BigIntegerPoint.BYTES);
         values = new BigInteger[numHits];
     }
 

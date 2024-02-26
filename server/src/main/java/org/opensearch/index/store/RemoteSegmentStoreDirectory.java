@@ -45,6 +45,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -164,7 +165,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      */
     public RemoteSegmentMetadata initializeToSpecificCommit(long primaryTerm, long commitGeneration, String acquirerId) throws IOException {
         String metadataFilePrefix = MetadataFilenameUtils.getMetadataFilePrefixForCommit(primaryTerm, commitGeneration);
-        String metadataFile = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLock(metadataFilePrefix, acquirerId);
+        String metadataFile = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLockedMetadataFile(metadataFilePrefix, acquirerId);
         RemoteSegmentMetadata remoteSegmentMetadata = readMetadataFile(metadataFile);
         if (remoteSegmentMetadata != null) {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(remoteSegmentMetadata.getMetadata());
@@ -745,30 +746,25 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             return;
         }
 
-        List<String> metadataFilesEligibleToDelete = sortedMetadataFileList.subList(
-            lastNMetadataFilesToKeep,
-            sortedMetadataFileList.size()
+        List<String> metadataFilesEligibleToDelete = new ArrayList<>(
+            sortedMetadataFileList.subList(lastNMetadataFilesToKeep, sortedMetadataFileList.size())
         );
-        List<String> metadataFilesToBeDeleted = metadataFilesEligibleToDelete.stream().filter(metadataFile -> {
-            try {
-                return !isLockAcquired(metadataFile);
-            } catch (IOException e) {
-                logger.error(
-                    "skipping metadata file ("
-                        + metadataFile
-                        + ") deletion for this run,"
-                        + " as checking lock for metadata is failing with error: "
-                        + e
-                );
-                return false;
-            }
-        }).collect(Collectors.toList());
+        Set<String> allLockFiles;
+        try {
+            allLockFiles = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLockedMetadataFiles(MetadataFilenameUtils.METADATA_PREFIX);
+        } catch (Exception e) {
+            logger.error("Exception while fetching segment metadata lock files, skipping deleteStaleSegments", e);
+            return;
+        }
+        List<String> metadataFilesToBeDeleted = metadataFilesEligibleToDelete.stream()
+            .filter(metadataFile -> allLockFiles.contains(metadataFile) == false)
+            .collect(Collectors.toList());
 
         sortedMetadataFileList.removeAll(metadataFilesToBeDeleted);
         logger.debug(
             "metadataFilesEligibleToDelete={} metadataFilesToBeDeleted={}",
             metadataFilesEligibleToDelete,
-            metadataFilesEligibleToDelete
+            metadataFilesToBeDeleted
         );
 
         Map<String, UploadedSegmentMetadata> activeSegmentFilesMetadataMap = new HashMap<>();

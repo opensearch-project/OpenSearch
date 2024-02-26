@@ -83,6 +83,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.time.FormatNames;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -144,6 +145,8 @@ import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -169,6 +172,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -638,7 +642,32 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
             try {
                 // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
                 // StatusData instances to Strings as otherwise their toString output is useless
+
+                final Function<StatusData, String> statusToString = (statusData) -> {
+                    try (final StringWriter sw = new StringWriter(); final PrintWriter pw = new PrintWriter(sw)) {
+
+                        pw.print(statusData.getLevel());
+                        pw.print(":");
+                        pw.print(statusData.getMessage().getFormattedMessage());
+
+                        if (statusData.getStackTraceElement() != null) {
+                            final var messageSource = statusData.getStackTraceElement();
+                            pw.println("Source:");
+                            pw.println(messageSource.getFileName() + "@" + messageSource.getLineNumber());
+                        }
+
+                        if (statusData.getThrowable() != null) {
+                            pw.println("Throwable:");
+                            statusData.getThrowable().printStackTrace(pw);
+                        }
+                        return sw.toString();
+                    } catch (IOException ioe) {
+                        throw new RuntimeException(ioe);
+                    }
+                };
+
                 assertThat(
+                    statusData.stream().map(statusToString::apply).collect(Collectors.joining("\r\n")),
                     statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
                     empty()
                 );
@@ -1085,6 +1114,38 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         }
         timeInMillis = maxTimeInMillis - sum;
         Thread.sleep(Math.max(timeInMillis, 0));
+        try {
+            codeBlock.run();
+        } catch (AssertionError e) {
+            for (AssertionError failure : failures) {
+                e.addSuppressed(failure);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Runs the code block for the provided max wait time and sleeping for fixed sleep time, waiting for no assertions to trip.
+     */
+    public static void assertBusyWithFixedSleepTime(CheckedRunnable<Exception> codeBlock, TimeValue maxWaitTime, TimeValue sleepTime)
+        throws Exception {
+        long maxTimeInMillis = maxWaitTime.millis();
+        long sleepTimeInMillis = sleepTime.millis();
+        if (sleepTimeInMillis > maxTimeInMillis) {
+            throw new IllegalArgumentException("sleepTime is more than the maxWaitTime");
+        }
+        long sum = 0;
+        List<AssertionError> failures = new ArrayList<>();
+        while (sum <= maxTimeInMillis) {
+            try {
+                codeBlock.run();
+                return;
+            } catch (AssertionError e) {
+                failures.add(e);
+            }
+            sum += sleepTimeInMillis;
+            Thread.sleep(sleepTimeInMillis);
+        }
         try {
             codeBlock.run();
         } catch (AssertionError e) {

@@ -41,7 +41,6 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.action.update.UpdateRequestBuilder;
 import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -57,7 +56,7 @@ import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.aggregations.pipeline.SimpleValue;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.util.Arrays;
@@ -80,10 +79,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 // TODO: please convert to unit tests!
-public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
+public class MoreExpressionIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public MoreExpressionIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MoreExpressionIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -92,11 +91,6 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override

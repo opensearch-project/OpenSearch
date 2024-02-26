@@ -36,8 +36,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -49,7 +48,7 @@ import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEA
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class SimilarityIT extends ParameterizedOpenSearchIntegTestCase {
+public class SimilarityIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public SimilarityIT(Settings settings) {
         super(settings);
     }
@@ -60,11 +59,6 @@ public class SimilarityIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     public void testCustomBM25Similarity() throws Exception {

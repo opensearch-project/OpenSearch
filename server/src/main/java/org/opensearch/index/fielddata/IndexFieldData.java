@@ -38,6 +38,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -148,6 +149,13 @@ public interface IndexFieldData<FD extends LeafFieldData> {
 
         public void disableSkipping() {
             this.enableSkipping = false;
+        }
+
+        protected Pruning filterPruning(Pruning pruning) {
+            if (this.enableSkipping) {
+                return pruning;
+            }
+            return Pruning.NONE;
         }
 
         /**

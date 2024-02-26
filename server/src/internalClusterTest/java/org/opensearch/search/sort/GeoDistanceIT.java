@@ -39,13 +39,12 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.geo.GeoDistance;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -66,10 +65,10 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class GeoDistanceIT extends ParameterizedOpenSearchIntegTestCase {
+public class GeoDistanceIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public GeoDistanceIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public GeoDistanceIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -78,11 +77,6 @@ public class GeoDistanceIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
