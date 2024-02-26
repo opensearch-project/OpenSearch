@@ -113,6 +113,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `netty` from 4.1.106.Final to 4.1.107.Final ([#12372](https://github.com/opensearch-project/OpenSearch/pull/12372))
 - Bump `opentelemetry` from 1.34.1 to 1.35.0 ([#12388](https://github.com/opensearch-project/OpenSearch/pull/12388))
 - Bump Apache Lucene from 9.9.2 to 9.10.0 ([#12392](https://github.com/opensearch-project/OpenSearch/pull/12392))
+- Bump `com.azure:azure-storage-common` from 12.21.2 to 12.24.2 ([#12465](https://github.com/opensearch-project/OpenSearch/pull/12465))
 
 ### Changed
 - Allow composite aggregation to run under a parent filter aggregation ([#11499](https://github.com/opensearch-project/OpenSearch/pull/11499))
