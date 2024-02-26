@@ -78,11 +78,31 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
         runAllTestsFor(22);
     }
 
-    public void testChunkedRepository() throws IOException {
-        final long blockSize = new ByteSizeValue(1, ByteSizeUnit.KB).getBytes();
-        final long repositoryChunkSize = new ByteSizeValue(2, ByteSizeUnit.KB).getBytes();
-        final long fileSize = new ByteSizeValue(3, ByteSizeUnit.KB).getBytes();
+    public void testChunkedRepositoryWithBlockSizeGreaterThanChunkSize() throws IOException {
+        verifyChunkedRepository(
+            new ByteSizeValue(8, ByteSizeUnit.KB).getBytes(), // block Size
+            new ByteSizeValue(2, ByteSizeUnit.KB).getBytes(), // repository chunk size
+            new ByteSizeValue(15, ByteSizeUnit.KB).getBytes() // file size
+        );
+    }
 
+    public void testChunkedRepositoryWithBlockSizeLessThanChunkSize() throws IOException {
+        verifyChunkedRepository(
+            new ByteSizeValue(1, ByteSizeUnit.KB).getBytes(), // block Size
+            new ByteSizeValue(2, ByteSizeUnit.KB).getBytes(), // repository chunk size
+            new ByteSizeValue(3, ByteSizeUnit.KB).getBytes() // file size
+        );
+    }
+
+    public void testChunkedRepositoryWithBlockSizeEqualToChunkSize() throws IOException {
+        verifyChunkedRepository(
+            new ByteSizeValue(2, ByteSizeUnit.KB).getBytes(), // block Size
+            new ByteSizeValue(2, ByteSizeUnit.KB).getBytes(), // repository chunk size
+            new ByteSizeValue(15, ByteSizeUnit.KB).getBytes() // file size
+        );
+    }
+
+    private void verifyChunkedRepository(long blockSize, long repositoryChunkSize, long fileSize) throws IOException {
         when(transferManager.fetchBlob(any())).thenReturn(new ByteArrayIndexInput("test", new byte[(int) blockSize]));
         try (
             FSDirectory directory = new MMapDirectory(path, lockFactory);
@@ -105,8 +125,9 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
             // Seek to the position past the first repository chunk
             indexInput.seek(repositoryChunkSize);
         }
-        // Verify the second chunk is requested (i.e. ".part1")
-        verify(transferManager).fetchBlob(argThat(request -> request.blobParts().get(0).getBlobName().equals("File_Name.part1")));
+
+        // Verify all the chunks related to block are added to the fetchBlob request
+        verify(transferManager).fetchBlob(argThat(request -> request.getBlobLength() == blockSize));
     }
 
     private void runAllTestsFor(int blockSizeShift) throws Exception {
