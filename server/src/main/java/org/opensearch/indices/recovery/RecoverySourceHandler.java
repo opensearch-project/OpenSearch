@@ -842,8 +842,11 @@ public abstract class RecoverySourceHandler {
             if (request.isPrimaryRelocation()) {
                 logger.trace("performing relocation hand-off");
                 final Runnable forceSegRepRunnable = shard.indexSettings().isSegRepEnabled()
-                    ? recoveryTarget::forceSegmentFileSync
-                    : () -> {};
+                    || (request.sourceNode().isRemoteStoreNode() && request.targetNode().isRemoteStoreNode())
+                        ? recoveryTarget::forceSegmentFileSync
+                        : () -> {};
+                // ToDo : Do we need a new action to replay translog here ?
+
                 // TODO: make relocated async
                 // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
                 cancellableThreads.execute(

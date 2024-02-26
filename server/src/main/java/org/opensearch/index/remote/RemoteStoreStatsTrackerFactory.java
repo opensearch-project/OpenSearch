@@ -68,7 +68,7 @@ public class RemoteStoreStatsTrackerFactory implements IndexEventListener {
 
     @Override
     public void afterIndexShardCreated(IndexShard indexShard) {
-        if (indexShard.indexSettings().isRemoteStoreEnabled() == false) {
+        if (indexShard.indexSettings().isRemoteStoreEnabled() == false && indexShard.isMigratingToRemote() == false) {
             return;
         }
         ShardId shardId = indexShard.shardId();

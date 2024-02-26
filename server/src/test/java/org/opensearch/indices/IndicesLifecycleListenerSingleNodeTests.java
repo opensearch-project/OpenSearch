@@ -149,15 +149,6 @@ public class IndicesLifecycleListenerSingleNodeTests extends OpenSearchSingleNod
             newRouting = newRouting.moveToUnassigned(unassignedInfo)
                 .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
-            IndexShard shard = index.createShard(
-                newRouting,
-                s -> {},
-                RetentionLeaseSyncer.EMPTY,
-                SegmentReplicationCheckpointPublisher.EMPTY,
-                null
-            );
-            IndexShardTestCase.updateRoutingEntry(shard, newRouting);
-            assertEquals(5, counter.get());
             final DiscoveryNode localNode = new DiscoveryNode(
                 "foo",
                 buildNewFakeTransportAddress(),
@@ -165,6 +156,19 @@ public class IndicesLifecycleListenerSingleNodeTests extends OpenSearchSingleNod
                 emptySet(),
                 Version.CURRENT
             );
+            IndexShard shard = index.createShard(
+                newRouting,
+                s -> {},
+                RetentionLeaseSyncer.EMPTY,
+                SegmentReplicationCheckpointPublisher.EMPTY,
+                null,
+                null,
+                localNode,
+                null
+            );
+            IndexShardTestCase.updateRoutingEntry(shard, newRouting);
+            assertEquals(5, counter.get());
+
             shard.markAsRecovering("store", new RecoveryState(newRouting, localNode, null));
             IndexShardTestCase.recoverFromStore(shard);
             newRouting = ShardRoutingHelper.moveToStarted(newRouting);
