@@ -132,7 +132,7 @@ public class RemoteStoreNodeAttribute {
     }
 
     private RepositoriesMetadata buildRepositoriesMetadata(DiscoveryNode node) {
-        validateSegmentAttributes(node);
+        validateDataRepositoryAttributes(node);
         List<RepositoryMetadata> repositoryMetadataList = new ArrayList<>();
         Set<String> repositoryNames = Stream.of(
             REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
@@ -150,7 +150,7 @@ public class RemoteStoreNodeAttribute {
         return new RepositoriesMetadata(repositoryMetadataList);
     }
 
-    private void validateSegmentAttributes(DiscoveryNode node) {
+    private void validateDataRepositoryAttributes(DiscoveryNode node) {
         if (node.getAttributes().containsKey(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY)
             || node.getAttributes().containsKey(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY)) {
             validateAttributeNonNull(node, REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY);
@@ -162,7 +162,7 @@ public class RemoteStoreNodeAttribute {
         return settings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX).isEmpty() == false;
     }
 
-    public static boolean isRemoteStoreSegmentOrTranslogAttributePresent(Settings settings) {
+    public static boolean isRemoteDataAttributePresent(Settings settings) {
         return settings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY).isEmpty() == false
             || settings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY).isEmpty() == false;
     }
@@ -199,12 +199,8 @@ public class RemoteStoreNodeAttribute {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
 
         RemoteStoreNodeAttribute that = (RemoteStoreNodeAttribute) o;
 
