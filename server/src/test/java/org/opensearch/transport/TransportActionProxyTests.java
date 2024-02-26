@@ -48,6 +48,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.concurrent.CountDownLatch;
 
 public class TransportActionProxyTests extends OpenSearchTestCase {
@@ -151,7 +152,7 @@ public class TransportActionProxyTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public SimpleTestResponse read(byte[] in) throws IOException {
+                public SimpleTestResponse read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
@@ -217,7 +218,7 @@ public class TransportActionProxyTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public SimpleTestResponse read(byte[] in) throws IOException {
+                public SimpleTestResponse read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }

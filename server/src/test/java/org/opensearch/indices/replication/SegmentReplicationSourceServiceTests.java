@@ -40,6 +40,7 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -222,7 +223,7 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public CheckpointInfoResponse read(byte[] in) throws IOException {
+                public CheckpointInfoResponse read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
@@ -257,7 +258,7 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public GetSegmentFilesResponse read(byte[] in) throws IOException {
+                public GetSegmentFilesResponse read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
@@ -303,7 +304,7 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public TransportResponse read(byte[] in) throws IOException {
+                public TransportResponse read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }

@@ -39,6 +39,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.function.Function;
 
 /**
@@ -86,7 +87,7 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
             }
 
             @Override
-            public Q read(byte[] in) throws IOException {
+            public Q read(InputStream in) throws IOException {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'read'");
             }

@@ -37,6 +37,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.transport.TransportAddress;
 
+import java.io.InputStream;
+
 /**
  * Message over the transport interface
  *
@@ -75,5 +77,5 @@ public abstract class TransportMessage implements Writeable, ProtobufWriteable {
     * Constructs a new transport message with the data from the byte array. This is
     * currently a no-op
     */
-    public TransportMessage(byte[] in) {}
+    public TransportMessage(InputStream in) {}
 }

@@ -48,6 +48,7 @@ import org.opensearch.server.proto.FetchSearchResultProto;
 import org.opensearch.server.proto.QuerySearchResultProto;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
@@ -72,7 +73,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
         hits = new SearchHits(in);
     }
 
-    public FetchSearchResult(byte[] in) throws IOException {
+    public FetchSearchResult(InputStream in) throws IOException {
         super(in);
         this.fetchSearchResultProto = FetchSearchResultProto.FetchSearchResult.parseFrom(in);
         contextId = new ShardSearchContextId(

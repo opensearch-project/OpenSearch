@@ -17,6 +17,7 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Objects;
 
 /**
@@ -72,7 +73,7 @@ public class ProtobufActionListenerResponseHandler<Response extends TransportRes
     }
 
     @Override
-    public Response read(byte[] in) throws IOException {
+    public Response read(InputStream in) throws IOException {
         return reader.read(in);
     }
 }

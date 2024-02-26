@@ -47,6 +47,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.function.Function;
 
 /**
@@ -172,7 +173,7 @@ final class RemoteClusterConnection implements Closeable {
                         }
 
                         @Override
-                        public ClusterStateResponse read(byte[] in) throws IOException {
+                        public ClusterStateResponse read(InputStream in) throws IOException {
                             // TODO Auto-generated method stub
                             throw new UnsupportedOperationException("Unimplemented method 'read'");
                         }

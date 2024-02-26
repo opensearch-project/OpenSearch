@@ -42,6 +42,7 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.server.proto.QueryFetchSearchResultProto;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * Query fetch result
@@ -61,7 +62,7 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
         fetchResult = new FetchSearchResult(in);
     }
 
-    public QueryFetchSearchResult(byte[] in) throws IOException {
+    public QueryFetchSearchResult(InputStream in) throws IOException {
         super(in);
         this.queryFetchSearchResultProto = QueryFetchSearchResultProto.QueryFetchSearchResult.parseFrom(in);
         queryResult = new QuerySearchResult(in);

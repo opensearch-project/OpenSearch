@@ -55,6 +55,7 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -288,7 +289,7 @@ public abstract class TransportNodesAction<
                             }
 
                             @Override
-                            public NodeResponse read(byte[] in) throws IOException {
+                            public NodeResponse read(InputStream in) throws IOException {
                                 // TODO Auto-generated method stub
                                 throw new UnsupportedOperationException("Unimplemented method 'read'");
                             }

@@ -76,6 +76,7 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -341,7 +342,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
                         }
 
                         @Override
-                        public FieldCapabilitiesIndexResponse read(byte[] in) throws IOException {
+                        public FieldCapabilitiesIndexResponse read(InputStream in) throws IOException {
                             // TODO Auto-generated method stub
                             throw new UnsupportedOperationException("Unimplemented method 'read'");
                         }

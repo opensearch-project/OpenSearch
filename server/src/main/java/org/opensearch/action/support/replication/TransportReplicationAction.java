@@ -94,6 +94,7 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1171,7 +1172,7 @@ public abstract class TransportReplicationAction<
                 }
 
                 @Override
-                public Response read(byte[] in) throws IOException {
+                public Response read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }

@@ -81,6 +81,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
@@ -330,7 +331,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 }
 
                 @Override
-                public StringMessageResponse read(byte[] in) throws IOException {
+                public StringMessageResponse read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
@@ -372,7 +373,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 }
 
                 @Override
-                public StringMessageResponse read(byte[] in) throws IOException {
+                public StringMessageResponse read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
@@ -435,7 +436,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             }
 
             @Override
-            public StringMessageResponse read(byte[] in) throws IOException {
+            public StringMessageResponse read(InputStream in) throws IOException {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
@@ -500,7 +501,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 }
 
                 @Override
-                public StringMessageResponse read(byte[] in) throws IOException {
+                public StringMessageResponse read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
@@ -689,7 +690,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                     }
 
                     @Override
-                    public Empty read(byte[] in) throws IOException {
+                    public Empty read(InputStream in) throws IOException {
                         // TODO Auto-generated method stub
                         throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }
@@ -757,7 +758,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                     }
 
                     @Override
-                    public StringMessageResponse read(byte[] in) throws IOException {
+                    public StringMessageResponse read(InputStream in) throws IOException {
                         // TODO Auto-generated method stub
                         throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }
@@ -810,7 +811,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 }
 
                 @Override
-                public StringMessageResponse read(byte[] in) throws IOException {
+                public StringMessageResponse read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
@@ -1065,7 +1066,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 }
 
                 @Override
-                public StringMessageResponse read(byte[] in) throws IOException {
+                public StringMessageResponse read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
@@ -1145,7 +1146,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 }
 
                 @Override
-                public StringMessageResponse read(byte[] in) throws IOException {
+                public StringMessageResponse read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
@@ -1192,7 +1193,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                     }
 
                     @Override
-                    public StringMessageResponse read(byte[] in) throws IOException {
+                    public StringMessageResponse read(InputStream in) throws IOException {
                         // TODO Auto-generated method stub
                         throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }
@@ -1242,7 +1243,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             }
 
             @Override
-            public StringMessageResponse read(byte[] in) throws IOException {
+            public StringMessageResponse read(InputStream in) throws IOException {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
@@ -1551,7 +1552,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 }
 
                 @Override
-                public Version0Response read(byte[] in) throws IOException {
+                public Version0Response read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
@@ -1608,7 +1609,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 }
 
                 @Override
-                public Version1Response read(byte[] in) throws IOException {
+                public Version1Response read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
@@ -1659,7 +1660,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 }
 
                 @Override
-                public Version1Response read(byte[] in) throws IOException {
+                public Version1Response read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
@@ -1707,7 +1708,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 }
 
                 @Override
-                public Version0Response read(byte[] in) throws IOException {
+                public Version0Response read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
@@ -1758,7 +1759,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 }
 
                 @Override
-                public StringMessageResponse read(byte[] in) throws IOException {
+                public StringMessageResponse read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
@@ -1828,7 +1829,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 }
 
                 @Override
-                public StringMessageResponse read(byte[] in) throws IOException {
+                public StringMessageResponse read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
@@ -1885,7 +1886,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             }
 
             @Override
-            public TestResponse read(byte[] in) throws IOException {
+            public TestResponse read(InputStream in) throws IOException {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
@@ -1939,7 +1940,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                         }
 
                         @Override
-                        public TestResponse read(byte[] in) throws IOException {
+                        public TestResponse read(InputStream in) throws IOException {
                             // TODO Auto-generated method stub
                             throw new UnsupportedOperationException("Unimplemented method 'read'");
                         }
@@ -1980,7 +1981,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                         }
 
                         @Override
-                        public TestResponse read(byte[] in) throws IOException {
+                        public TestResponse read(InputStream in) throws IOException {
                             // TODO Auto-generated method stub
                             throw new UnsupportedOperationException("Unimplemented method 'read'");
                         }
@@ -2144,7 +2145,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                             }
 
                             @Override
-                            public TestResponse read(byte[] in) throws IOException {
+                            public TestResponse read(InputStream in) throws IOException {
                                 // TODO Auto-generated method stub
                                 throw new UnsupportedOperationException("Unimplemented method 'read'");
                             }
@@ -2212,7 +2213,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             }
 
             @Override
-            public TestResponse read(byte[] in) throws IOException {
+            public TestResponse read(InputStream in) throws IOException {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
@@ -2553,7 +2554,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             }
 
             @Override
-            public TransportResponse read(byte[] in) throws IOException {
+            public TransportResponse read(InputStream in) throws IOException {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
@@ -2609,7 +2610,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             }
 
             @Override
-            public TransportResponse read(byte[] in) throws IOException {
+            public TransportResponse read(InputStream in) throws IOException {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
@@ -2685,7 +2686,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             }
 
             @Override
-            public TransportResponse read(byte[] in) throws IOException {
+            public TransportResponse read(InputStream in) throws IOException {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
@@ -2765,7 +2766,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             }
 
             @Override
-            public TransportResponse read(byte[] in) throws IOException {
+            public TransportResponse read(InputStream in) throws IOException {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
@@ -2892,7 +2893,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             }
 
             @Override
-            public TransportResponse read(byte[] in) throws IOException {
+            public TransportResponse read(InputStream in) throws IOException {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
@@ -3285,7 +3286,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                     }
 
                     @Override
-                    public TransportResponse read(byte[] in) throws IOException {
+                    public TransportResponse read(InputStream in) throws IOException {
                         // TODO Auto-generated method stub
                         throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }

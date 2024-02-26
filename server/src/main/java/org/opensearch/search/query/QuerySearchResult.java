@@ -57,6 +57,7 @@ import org.opensearch.search.suggest.Suggest;
 import org.opensearch.server.proto.QuerySearchResultProto;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -113,8 +114,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
     }
 
-    public QuerySearchResult(byte[] in) throws IOException {
-        super(in);
+    public QuerySearchResult(InputStream in) throws IOException {
+        // super(in);
         this.querySearchResultProto = QuerySearchResultProto.QuerySearchResult.parseFrom(in);
         isNull = false;
     }

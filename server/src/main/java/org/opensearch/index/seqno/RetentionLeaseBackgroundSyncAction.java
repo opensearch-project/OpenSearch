@@ -65,6 +65,7 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map;
 import java.util.Objects;
 
@@ -169,7 +170,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
                     }
 
                     @Override
-                    public ReplicationResponse read(byte[] in) throws IOException {
+                    public ReplicationResponse read(InputStream in) throws IOException {
                         // TODO Auto-generated method stub
                         throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }
