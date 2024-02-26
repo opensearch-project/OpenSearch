@@ -59,19 +59,19 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("idx").get());
+        expected.clear();
 
-        final int segmentCount = randomIntBetween(2, 10);
-        final Set<Long> longTerms = new HashSet();
+        final int repeat = randomIntBetween(2, 10);
+        final Set<Long> longTerms = new HashSet<>();
 
-        final Map<String, Integer> dateTerms = new HashMap<>();
-        for (int i = 0; i < segmentCount; i++) {
+        for (int i = 0; i < repeat; i++) {
             final List<IndexRequestBuilder> indexRequests = new ArrayList<>();
 
             long longTerm;
             do {
-                longTerm = randomInt(segmentCount * 2);
+                longTerm = randomInt(repeat * 2);
             } while (!longTerms.add(longTerm));
-            ZonedDateTime time = ZonedDateTime.of(2024, 1, ((int) longTerm % 20) + 1, 0, 0, 0, 0, ZoneOffset.UTC);
+            ZonedDateTime time = ZonedDateTime.of(2024, 1, ((int) longTerm) + 1, 0, 0, 0, 0, ZoneOffset.UTC);
             String dateTerm = DateFormatter.forPattern("yyyy-MM-dd").format(time);
 
             final int frequency = randomBoolean() ? 1 : randomIntBetween(2, 20);
