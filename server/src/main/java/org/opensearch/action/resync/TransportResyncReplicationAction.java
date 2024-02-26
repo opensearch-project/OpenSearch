@@ -62,6 +62,7 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -255,7 +256,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
                 }
 
                 @Override
-                public ResyncReplicationResponse read(byte[] in) throws IOException {
+                public ResyncReplicationResponse read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }

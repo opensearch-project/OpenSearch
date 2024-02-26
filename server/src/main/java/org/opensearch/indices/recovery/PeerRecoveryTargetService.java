@@ -80,6 +80,7 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -764,7 +765,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
 
         @Override
-        public RecoveryResponse read(byte[] in) throws IOException {
+        public RecoveryResponse read(InputStream in) throws IOException {
             // TODO Auto-generated method stub
             throw new UnsupportedOperationException("Unimplemented method 'read'");
         }

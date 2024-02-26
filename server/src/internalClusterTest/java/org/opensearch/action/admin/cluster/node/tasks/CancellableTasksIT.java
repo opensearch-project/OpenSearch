@@ -76,6 +76,7 @@ import org.opensearch.transport.TransportService;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -562,7 +563,7 @@ public class CancellableTasksIT extends ParameterizedStaticSettingsOpenSearchInt
                                 }
 
                                 @Override
-                                public TestResponse read(byte[] in) throws IOException {
+                                public TestResponse read(InputStream in) throws IOException {
                                     // TODO Auto-generated method stub
                                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                                 }

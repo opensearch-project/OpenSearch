@@ -16,6 +16,7 @@ package org.opensearch.core.common.io.stream;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
@@ -64,6 +65,6 @@ public interface ProtobufWriteable {
          *
          * @param in byte array to read the value from
          */
-        V read(final byte[] in) throws IOException;
+        V read(final InputStream in) throws IOException;
     }
 }

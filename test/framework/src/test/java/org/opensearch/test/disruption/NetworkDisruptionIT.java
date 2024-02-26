@@ -51,6 +51,7 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -216,7 +217,7 @@ public class NetworkDisruptionIT extends OpenSearchIntegTestCase {
                 }
 
                 @Override
-                public TransportResponse read(byte[] in) throws IOException {
+                public TransportResponse read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }

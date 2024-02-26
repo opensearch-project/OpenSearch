@@ -57,7 +57,9 @@ import org.opensearch.search.suggest.SuggestTests;
 import org.opensearch.server.proto.QuerySearchResultProto;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 
 import static java.util.Collections.emptyList;
 
@@ -133,7 +135,9 @@ public class QuerySearchResultTests extends OpenSearchTestCase {
         QuerySearchResult querySearchResult = createTestInstance();
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         querySearchResult.writeTo(stream);
-        QuerySearchResult deserialized = new QuerySearchResult(stream.toByteArray());
+
+        InputStream inputStream = new ByteArrayInputStream(stream.toByteArray());
+        QuerySearchResult deserialized = new QuerySearchResult(inputStream);
         QuerySearchResultProto.QuerySearchResult querySearchResultProto = deserialized.response();
         assertNotNull(querySearchResultProto);
         assertEquals(querySearchResult.getContextId().getId(), querySearchResultProto.getContextId().getId());

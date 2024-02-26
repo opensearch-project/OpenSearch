@@ -27,6 +27,7 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -221,7 +222,7 @@ public class ExtensionTransportActionsHandler {
                 }
 
                 @Override
-                public ExtensionActionResponse read(byte[] in) throws IOException {
+                public ExtensionActionResponse read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
@@ -291,7 +292,7 @@ public class ExtensionTransportActionsHandler {
                 }
 
                 @Override
-                public RemoteExtensionActionResponse read(byte[] in) throws IOException {
+                public RemoteExtensionActionResponse read(InputStream in) throws IOException {
                     // TODO Auto-generated method stub
                     throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }

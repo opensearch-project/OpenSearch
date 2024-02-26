@@ -17,6 +17,7 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Objects;
 
 /**
@@ -106,7 +107,7 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
     }
 
     @Override
-    public T read(byte[] in) throws IOException {
+    public T read(InputStream in) throws IOException {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'read'");
     }

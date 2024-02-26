@@ -58,6 +58,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collections;
@@ -473,7 +474,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         }
 
         @Override
-        public ClusterStateResponse read(byte[] in) throws IOException {
+        public ClusterStateResponse read(InputStream in) throws IOException {
             // TODO Auto-generated method stub
             throw new UnsupportedOperationException("Unimplemented method 'read'");
         }

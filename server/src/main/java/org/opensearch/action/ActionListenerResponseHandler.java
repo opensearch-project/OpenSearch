@@ -41,6 +41,7 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Objects;
 
 /**
@@ -91,7 +92,7 @@ public class ActionListenerResponseHandler<Response extends TransportResponse> i
     }
 
     @Override
-    public Response read(byte[] in) throws IOException {
+    public Response read(InputStream in) throws IOException {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'read'");
     }

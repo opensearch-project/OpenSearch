@@ -37,6 +37,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
@@ -66,7 +67,7 @@ public abstract class TransportResponse extends TransportMessage {
      * currently a no-op. However, this exists to allow extenders to call <code>super(in)</code>
      * so that reading can mirror writing where we often call <code>super.writeTo(out)</code>.
      */
-    public TransportResponse(byte[] in) throws IOException {
+    public TransportResponse(InputStream in) throws IOException {
         super(in);
     }
 

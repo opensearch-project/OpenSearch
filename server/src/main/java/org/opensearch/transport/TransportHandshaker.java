@@ -45,6 +45,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -189,7 +190,7 @@ final class TransportHandshaker {
         }
 
         @Override
-        public HandshakeResponse read(byte[] in) throws IOException {
+        public HandshakeResponse read(InputStream in) throws IOException {
             // TODO Auto-generated method stub
             throw new UnsupportedOperationException("Unimplemented method 'read'");
         }

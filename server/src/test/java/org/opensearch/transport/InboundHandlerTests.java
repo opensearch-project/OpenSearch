@@ -186,7 +186,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public TestResponse read(byte[] in) throws IOException {
+            public TestResponse read(InputStream in) throws IOException {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
@@ -284,7 +284,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public QueryFetchSearchResult read(byte[] in) throws IOException {
+            public QueryFetchSearchResult read(InputStream in) throws IOException {
                 return new QueryFetchSearchResult(in);
             }
         }, null, action));
@@ -466,7 +466,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public TestResponse read(byte[] in) throws IOException {
+            public TestResponse read(InputStream in) throws IOException {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
@@ -544,7 +544,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public TestResponse read(byte[] in) throws IOException {
+            public TestResponse read(InputStream in) throws IOException {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
@@ -623,7 +623,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public TestResponse read(byte[] in) throws IOException {
+            public TestResponse read(InputStream in) throws IOException {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
@@ -717,7 +717,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public TestResponse read(byte[] in) throws IOException {
+            public TestResponse read(InputStream in) throws IOException {
                 // TODO Auto-generated method stub
                 throw new UnsupportedOperationException("Unimplemented method 'read'");
             }

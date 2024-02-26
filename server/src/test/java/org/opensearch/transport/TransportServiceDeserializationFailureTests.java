@@ -50,6 +50,7 @@ import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
 
@@ -138,7 +139,7 @@ public class TransportServiceDeserializationFailureTests extends OpenSearchTestC
                     }
 
                     @Override
-                    public Empty read(byte[] in) throws IOException {
+                    public Empty read(InputStream in) throws IOException {
                         // TODO Auto-generated method stub
                         throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }
@@ -200,7 +201,7 @@ public class TransportServiceDeserializationFailureTests extends OpenSearchTestC
                     }
 
                     @Override
-                    public Empty read(byte[] in) throws IOException {
+                    public Empty read(InputStream in) throws IOException {
                         // TODO Auto-generated method stub
                         throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }

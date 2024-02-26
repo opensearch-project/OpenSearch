@@ -40,6 +40,7 @@ import org.opensearch.core.transport.TransportMessage;
 import org.opensearch.tasks.TaskAwareRequest;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
@@ -63,7 +64,7 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
             super(in);
         }
 
-        public Empty(byte[] in) throws IOException {
+        public Empty(InputStream in) throws IOException {
             super(in);
         }
     }
@@ -82,7 +83,7 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
     /**
      * This is added here so that classes don't have to implement since it is an experimental feature and only being added for search apis incrementally.
      */
-    public TransportRequest(byte[] in) throws IOException {}
+    public TransportRequest(InputStream in) throws IOException {}
 
     /**
      * Set a reference to task that created this request.
