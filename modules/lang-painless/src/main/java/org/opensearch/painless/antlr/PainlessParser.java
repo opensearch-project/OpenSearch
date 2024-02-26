@@ -56,7 +56,7 @@ import java.util.List;
 @SuppressWarnings({ "all", "warnings", "unchecked", "unused", "cast", "CheckReturnValue" })
 class PainlessParser extends Parser {
     static {
-        RuntimeMetaData.checkVersion("4.11.1", RuntimeMetaData.VERSION);
+        RuntimeMetaData.checkVersion("4.13.1", RuntimeMetaData.VERSION);
     }
 
     protected static final DFA[] _decisionToDFA;
@@ -337,7 +337,7 @@ class PainlessParser extends Parser {
 
     @Override
     public String getGrammarFileName() {
-        return "java-escape";
+        return "PainlessParser.g4";
     }
 
     @Override
@@ -425,8 +425,8 @@ class PainlessParser extends Parser {
                 setState(87);
                 _errHandler.sync(this);
                 _la = _input.LA(1);
-                while (((_la) & ~0x3f) == 0 && ((1L << _la) & 864691155080519840L) != 0
-                    || (((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 4095L) != 0) {
+                while ((((_la) & ~0x3f) == 0 && ((1L << _la) & 864691155080519840L) != 0)
+                    || ((((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 4095L) != 0)) {
                     {
                         {
                             setState(84);
@@ -571,7 +571,7 @@ class PainlessParser extends Parser {
                 setState(109);
                 _errHandler.sync(this);
                 _la = _input.LA(1);
-                if ((((_la - 81)) & ~0x3f) == 0 && ((1L << (_la - 81)) & 7L) != 0) {
+                if (((((_la - 81)) & ~0x3f) == 0 && ((1L << (_la - 81)) & 7L) != 0)) {
                     {
                         setState(98);
                         decltype();
@@ -1088,8 +1088,8 @@ class PainlessParser extends Parser {
                     setState(140);
                     _errHandler.sync(this);
                     _la = _input.LA(1);
-                    if (((_la) & ~0x3f) == 0 && ((1L << _la) & 864691155034439840L) != 0
-                        || (((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 4095L) != 0) {
+                    if ((((_la) & ~0x3f) == 0 && ((1L << _la) & 864691155034439840L) != 0)
+                        || ((((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 4095L) != 0)) {
                         {
                             setState(139);
                             initializer();
@@ -1101,8 +1101,8 @@ class PainlessParser extends Parser {
                     setState(144);
                     _errHandler.sync(this);
                     _la = _input.LA(1);
-                    if (((_la) & ~0x3f) == 0 && ((1L << _la) & 864691155034439840L) != 0
-                        || (((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 2559L) != 0) {
+                    if ((((_la) & ~0x3f) == 0 && ((1L << _la) & 864691155034439840L) != 0)
+                        || ((((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 2559L) != 0)) {
                         {
                             setState(143);
                             expression();
@@ -1114,8 +1114,8 @@ class PainlessParser extends Parser {
                     setState(148);
                     _errHandler.sync(this);
                     _la = _input.LA(1);
-                    if (((_la) & ~0x3f) == 0 && ((1L << _la) & 864691155034439840L) != 0
-                        || (((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 2559L) != 0) {
+                    if ((((_la) & ~0x3f) == 0 && ((1L << _la) & 864691155034439840L) != 0)
+                        || ((((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 2559L) != 0)) {
                         {
                             setState(147);
                             afterthought();
@@ -1470,8 +1470,8 @@ class PainlessParser extends Parser {
                     setState(193);
                     _errHandler.sync(this);
                     _la = _input.LA(1);
-                    if (((_la) & ~0x3f) == 0 && ((1L << _la) & 864691155034439840L) != 0
-                        || (((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 2559L) != 0) {
+                    if ((((_la) & ~0x3f) == 0 && ((1L << _la) & 864691155034439840L) != 0)
+                        || ((((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 2559L) != 0)) {
                         {
                             setState(192);
                             expression();
@@ -1661,8 +1661,8 @@ class PainlessParser extends Parser {
                 setState(212);
                 _errHandler.sync(this);
                 _la = _input.LA(1);
-                if (((_la) & ~0x3f) == 0 && ((1L << _la) & 864691155071795360L) != 0
-                    || (((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 4095L) != 0) {
+                if ((((_la) & ~0x3f) == 0 && ((1L << _la) & 864691155071795360L) != 0)
+                    || ((((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 4095L) != 0)) {
                     {
                         setState(211);
                         dstatement();
@@ -2491,7 +2491,7 @@ class PainlessParser extends Parser {
                                     if (!(precpred(_ctx, 13))) throw new FailedPredicateException(this, "precpred(_ctx, 13)");
                                     setState(269);
                                     _la = _input.LA(1);
-                                    if (!(((_la) & ~0x3f) == 0 && ((1L << _la) & 7516192768L) != 0)) {
+                                    if (!((((_la) & ~0x3f) == 0 && ((1L << _la) & 7516192768L) != 0))) {
                                         _errHandler.recoverInline(this);
                                     } else {
                                         if (_input.LA(1) == Token.EOF) matchedEOF = true;
@@ -2545,7 +2545,7 @@ class PainlessParser extends Parser {
                                     if (!(precpred(_ctx, 10))) throw new FailedPredicateException(this, "precpred(_ctx, 10)");
                                     setState(278);
                                     _la = _input.LA(1);
-                                    if (!(((_la) & ~0x3f) == 0 && ((1L << _la) & 240518168576L) != 0)) {
+                                    if (!((((_la) & ~0x3f) == 0 && ((1L << _la) & 240518168576L) != 0))) {
                                         _errHandler.recoverInline(this);
                                     } else {
                                         if (_input.LA(1) == Token.EOF) matchedEOF = true;
@@ -2563,7 +2563,7 @@ class PainlessParser extends Parser {
                                     if (!(precpred(_ctx, 9))) throw new FailedPredicateException(this, "precpred(_ctx, 9)");
                                     setState(281);
                                     _la = _input.LA(1);
-                                    if (!(((_la) & ~0x3f) == 0 && ((1L << _la) & 4123168604160L) != 0)) {
+                                    if (!((((_la) & ~0x3f) == 0 && ((1L << _la) & 4123168604160L) != 0))) {
                                         _errHandler.recoverInline(this);
                                     } else {
                                         if (_input.LA(1) == Token.EOF) matchedEOF = true;
@@ -2581,7 +2581,7 @@ class PainlessParser extends Parser {
                                     if (!(precpred(_ctx, 7))) throw new FailedPredicateException(this, "precpred(_ctx, 7)");
                                     setState(284);
                                     _la = _input.LA(1);
-                                    if (!(((_la) & ~0x3f) == 0 && ((1L << _la) & 65970697666560L) != 0)) {
+                                    if (!((((_la) & ~0x3f) == 0 && ((1L << _la) & 65970697666560L) != 0))) {
                                         _errHandler.recoverInline(this);
                                     } else {
                                         if (_input.LA(1) == Token.EOF) matchedEOF = true;
@@ -2861,7 +2861,7 @@ class PainlessParser extends Parser {
                     noncondexpression(0);
                     setState(320);
                     _la = _input.LA(1);
-                    if (!((((_la - 60)) & ~0x3f) == 0 && ((1L << (_la - 60)) & 4095L) != 0)) {
+                    if (!(((((_la - 60)) & ~0x3f) == 0 && ((1L << (_la - 60)) & 4095L) != 0))) {
                         _errHandler.recoverInline(this);
                     } else {
                         if (_input.LA(1) == Token.EOF) matchedEOF = true;
@@ -3938,7 +3938,7 @@ class PainlessParser extends Parser {
                     enterOuterAlt(_localctx, 2); {
                     setState(400);
                     _la = _input.LA(1);
-                    if (!((((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 15L) != 0)) {
+                    if (!(((((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 15L) != 0))) {
                         _errHandler.recoverInline(this);
                     } else {
                         if (_input.LA(1) == Token.EOF) matchedEOF = true;
@@ -4564,8 +4564,8 @@ class PainlessParser extends Parser {
                     setState(469);
                     _errHandler.sync(this);
                     _la = _input.LA(1);
-                    if (((_la) & ~0x3f) == 0 && ((1L << _la) & 864691155034439840L) != 0
-                        || (((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 2559L) != 0) {
+                    if ((((_la) & ~0x3f) == 0 && ((1L << _la) & 864691155034439840L) != 0)
+                        || ((((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 2559L) != 0)) {
                         {
                             setState(461);
                             expression();
@@ -4923,8 +4923,8 @@ class PainlessParser extends Parser {
                     setState(524);
                     _errHandler.sync(this);
                     _la = _input.LA(1);
-                    if (((_la) & ~0x3f) == 0 && ((1L << _la) & 864691155101548704L) != 0
-                        || (((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 4095L) != 0) {
+                    if ((((_la) & ~0x3f) == 0 && ((1L << _la) & 864691155101548704L) != 0)
+                        || ((((_la - 72)) & ~0x3f) == 0 && ((1L << (_la - 72)) & 4095L) != 0)) {
                         {
                             setState(516);
                             argument();
@@ -5104,7 +5104,7 @@ class PainlessParser extends Parser {
                         setState(543);
                         _errHandler.sync(this);
                         _la = _input.LA(1);
-                        if ((((_la - 81)) & ~0x3f) == 0 && ((1L << (_la - 81)) & 7L) != 0) {
+                        if (((((_la - 81)) & ~0x3f) == 0 && ((1L << (_la - 81)) & 7L) != 0)) {
                             {
                                 setState(535);
                                 lamtype();
