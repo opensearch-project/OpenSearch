@@ -32,6 +32,8 @@
 
 package org.opensearch.search.query;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
@@ -55,6 +57,7 @@ import org.opensearch.search.profile.NetworkTime;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.server.proto.QuerySearchResultProto;
+import org.opensearch.server.proto.ShardSearchRequestProto;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -72,6 +75,8 @@ import static org.opensearch.common.lucene.Lucene.writeTopDocs;
  */
 @PublicApi(since = "1.0.0")
 public final class QuerySearchResult extends SearchPhaseResult {
+
+    private static final Logger logger = LogManager.getLogger(QuerySearchResult.class);
 
     private int from;
     private int size;
@@ -115,9 +120,16 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public QuerySearchResult(InputStream in) throws IOException {
-        // super(in);
+        super(in);
         this.querySearchResultProto = QuerySearchResultProto.QuerySearchResult.parseFrom(in);
         isNull = false;
+        ShardSearchRequest shardSearchRequest;
+        try {
+            shardSearchRequest = new ShardSearchRequest(this.querySearchResultProto.getSearchShardRequest().toByteArray());
+            setShardSearchRequest(shardSearchRequest);
+        } catch (IOException e) {
+            logger.error("Error while setting shard search request", e);
+        }
     }
 
     public QuerySearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
@@ -126,7 +138,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         isNull = false;
         setShardSearchRequest(shardSearchRequest);
 
-        QuerySearchResultProto.ShardId shardIdProto = QuerySearchResultProto.ShardId.newBuilder()
+        ShardSearchRequestProto.ShardId shardIdProto = ShardSearchRequestProto.ShardId.newBuilder()
             .setShardId(shardTarget.getShardId().getId())
             .setHashCode(shardTarget.getShardId().hashCode())
             .setIndexName(shardTarget.getShardId().getIndexName())
@@ -135,17 +147,33 @@ public final class QuerySearchResult extends SearchPhaseResult {
         QuerySearchResultProto.SearchShardTarget.Builder searchShardTarget = QuerySearchResultProto.SearchShardTarget.newBuilder()
             .setNodeId(shardTarget.getNodeId())
             .setShardId(shardIdProto);
+        ShardSearchRequestProto.ShardSearchContextId shardSearchContextId = ShardSearchRequestProto.ShardSearchContextId.newBuilder()
+            .setSessionId(contextId.getSessionId())
+            .setId(contextId.getId())
+            .build();
+        ShardSearchRequestProto.ShardSearchRequest.Builder shardSearchRequestProto = ShardSearchRequestProto.ShardSearchRequest
+            .newBuilder();
+        if (shardSearchRequest != null) {
+            shardSearchRequestProto.setInboundNetworkTime(shardSearchRequest.getInboundNetworkTime())
+                .setOutboundNetworkTime(shardSearchRequest.getOutboundNetworkTime())
+                .setShardId(shardIdProto)
+                .setAllowPartialSearchResults(shardSearchRequest.allowPartialSearchResults())
+                .setNumberOfShards(shardSearchRequest.numberOfShards())
+                .setReaderId(shardSearchContextId);
+
+            if (shardSearchRequest.keepAlive() != null) {
+                shardSearchRequestProto.setTimeValue(shardSearchRequest.keepAlive().getStringRep());
+            }
+        }
+
         if (shardTarget.getClusterAlias() != null) {
             searchShardTarget.setClusterAlias(shardTarget.getClusterAlias());
         }
+
         this.querySearchResultProto = QuerySearchResultProto.QuerySearchResult.newBuilder()
-            .setContextId(
-                QuerySearchResultProto.ShardSearchContextId.newBuilder()
-                    .setSessionId(contextId.getSessionId())
-                    .setId(contextId.getId())
-                    .build()
-            )
+            .setContextId(shardSearchContextId)
             .setSearchShardTarget(searchShardTarget.build())
+            .setSearchShardRequest(shardSearchRequestProto.build())
             .build();
     }
 
@@ -542,5 +570,12 @@ public final class QuerySearchResult extends SearchPhaseResult {
     public QuerySearchResult(QuerySearchResultProto.QuerySearchResult querySearchResult) {
         this.querySearchResultProto = querySearchResult;
         this.isNull = false;
+        ShardSearchRequest shardSearchRequest;
+        try {
+            shardSearchRequest = new ShardSearchRequest(this.querySearchResultProto.getSearchShardRequest().toByteArray());
+            setShardSearchRequest(shardSearchRequest);
+        } catch (IOException e) {
+            logger.error("Error while setting shard search request", e);
+        }
     }
 }

@@ -12,6 +12,8 @@
 syntax = "proto3";
 package org.opensearch.server.proto;
 
+import "server/search/ShardSearchRequestProto.proto";
+
 option java_outer_classname = "QuerySearchResultProto";
 
 message QuerySearchResult {
@@ -31,7 +33,7 @@ message QuerySearchResult {
   optional int64 serviceTimeEWMA = 14;
   optional int32 nodeQueueSize = 15;
   SearchShardTarget searchShardTarget = 17;
-  
+  ShardSearchRequest searchShardRequest = 18;
 
   message TopDocsAndMaxScore {
     TopDocs topDocs = 1;
@@ -73,16 +75,4 @@ message TotalHits {
       EQUAL_TO = 0;
       GREATER_THAN_OR_EQUAL_TO = 1;
   }
-}
-
-message ShardSearchContextId {
-  string sessionId = 1;
-  int64 id = 2;
-}
-
-message ShardId {
-  int32 shardId = 1;
-  int32 hashCode = 2;
-  string indexName = 3;
-  string indexUUID = 4;
 }
