@@ -87,7 +87,7 @@ public abstract class BaseGatewayShardAllocator {
      * @param shardRoutings the shards to allocate
      * @param allocation the allocation state container object
      */
-    public void allocateUnassignedBatch(Set<ShardRouting> shardRoutings, RoutingAllocation allocation) {
+    public void allocateUnassignedBatch(List<ShardRouting> shardRoutings, RoutingAllocation allocation) {
         // make Allocation Decisions for all shards
         HashMap<ShardRouting, AllocateUnassignedDecision> decisionMap = makeAllocationDecision(shardRoutings, allocation, logger);
         assert shardRoutings.size() == decisionMap.size() : "make allocation decision didn't return allocation decision for "
@@ -164,7 +164,7 @@ public abstract class BaseGatewayShardAllocator {
     );
 
     public HashMap<ShardRouting, AllocateUnassignedDecision> makeAllocationDecision(
-        Set<ShardRouting> unassignedShardBatch,
+        List<ShardRouting> unassignedShardBatch,
         RoutingAllocation allocation,
         Logger logger
     ) {
