@@ -151,7 +151,7 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
                     clusterService
                 );
                 shardStoreMetadataMap.put(shardId, new NodeStoreFilesMetadata(storeFilesMetadata, null));
-            } catch (IOException e) {
+            } catch (IOException | OpenSearchException e) {
                 shardStoreMetadataMap.put(
                     shardId,
                     new NodeStoreFilesMetadata(new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList()), e)
