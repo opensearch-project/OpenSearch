@@ -15,16 +15,14 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.gateway.AsyncShardFetch.FetchResult;
-import org.opensearch.gateway.TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShard;
-import org.opensearch.gateway.TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShardsBatch;
+import org.opensearch.gateway.TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard;
+import org.opensearch.gateway.TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * PrimaryShardBatchAllocator is similar to {@link org.opensearch.gateway.PrimaryShardAllocator} only difference is
@@ -47,8 +45,8 @@ import java.util.Set;
 public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
 
     abstract protected FetchResult<NodeGatewayStartedShardsBatch> fetchData(
-        Set<ShardRouting> shardsEligibleForFetch,
-        Set<ShardRouting> inEligibleShards,
+        List<ShardRouting> eligibleShards,
+        List<ShardRouting> inEligibleShards,
         RoutingAllocation allocation
     );
 
@@ -62,7 +60,7 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
 
     @Override
     public AllocateUnassignedDecision makeAllocationDecision(ShardRouting unassignedShard, RoutingAllocation allocation, Logger logger) {
-        return makeAllocationDecision(new HashSet<>(Collections.singletonList(unassignedShard)), allocation, logger).get(unassignedShard);
+        return makeAllocationDecision(Collections.singletonList(unassignedShard), allocation, logger).get(unassignedShard);
     }
 
     /**
@@ -75,13 +73,13 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
      */
     @Override
     public HashMap<ShardRouting, AllocateUnassignedDecision> makeAllocationDecision(
-        Set<ShardRouting> shards,
+        List<ShardRouting> shards,
         RoutingAllocation allocation,
         Logger logger
     ) {
         HashMap<ShardRouting, AllocateUnassignedDecision> shardAllocationDecisions = new HashMap<>();
-        Set<ShardRouting> eligibleShards = new HashSet<>();
-        Set<ShardRouting> inEligibleShards = new HashSet<>();
+        List<ShardRouting> eligibleShards = new ArrayList<>();
+        List<ShardRouting> inEligibleShards = new ArrayList<>();
         // identify ineligible shards
         for (ShardRouting shard : shards) {
             AllocateUnassignedDecision decision = getInEligibleShardDecision(shard, allocation);
