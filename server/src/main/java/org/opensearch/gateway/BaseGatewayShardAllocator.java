@@ -102,9 +102,12 @@ public abstract class BaseGatewayShardAllocator {
                     if (decisionMap.containsKey(shard)) {
                         executeDecision(shard, decisionMap.remove(shard), allocation, iterator);
                     }
+                } else {
+                    // no need to keep iterating the unassigned shards, if we don't have anything in decision map
+                    break;
                 }
             } catch (Exception e) {
-                logger.error("Failed to execute decision for shard {} ", shard, e);
+                logger.error("Failed to execute decision for shard {} while initializing", shard, e);
             }
         }
     }
