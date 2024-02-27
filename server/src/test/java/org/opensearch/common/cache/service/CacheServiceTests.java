@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 
 import static junit.framework.TestCase.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -42,7 +44,7 @@ public class CacheServiceTests extends OpenSearchTestCase {
         );
         CacheConfig<String, String> config = mock(CacheConfig.class);
         ICache<String, String> onHeapCache = mock(OpenSearchOnHeapCache.class);
-        when(factory1.create(config, CacheType.INDICES_REQUEST_CACHE, factoryMap)).thenReturn(onHeapCache);
+        when(factory1.create(eq(config), eq(CacheType.INDICES_REQUEST_CACHE), any(Map.class))).thenReturn(onHeapCache);
 
         CacheService cacheService = cacheModule.getCacheService();
         ICache<String, String> ircCache = cacheService.createCache(config, CacheType.INDICES_REQUEST_CACHE);
