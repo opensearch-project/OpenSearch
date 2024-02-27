@@ -70,10 +70,8 @@ public final class SearchExecutionStatsCollector implements ActionListener<Searc
     @Override
     public void onResponse(SearchPhaseResult response) {
         if (response instanceof QueryFetchSearchResult) {
-            if (response.queryResult().getShardSearchRequest() != null) {
-                response.queryResult().getShardSearchRequest().setOutboundNetworkTime(0);
-                response.queryResult().getShardSearchRequest().setInboundNetworkTime(0);
-            }
+            response.queryResult().getShardSearchRequest().setOutboundNetworkTime(0);
+            response.queryResult().getShardSearchRequest().setInboundNetworkTime(0);
         }
         QuerySearchResult queryResult = response.queryResult();
         if (response.getShardSearchRequest() != null) {

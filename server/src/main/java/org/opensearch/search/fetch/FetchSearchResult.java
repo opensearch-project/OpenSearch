@@ -46,6 +46,7 @@ import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.server.proto.FetchSearchResultProto;
 import org.opensearch.server.proto.QuerySearchResultProto;
+import org.opensearch.server.proto.ShardSearchRequestProto;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -88,7 +89,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
         setSearchShardTarget(shardTarget);
         this.fetchSearchResultProto = FetchSearchResultProto.FetchSearchResult.newBuilder()
             .setContextId(
-                QuerySearchResultProto.ShardSearchContextId.newBuilder().setSessionId(id.getSessionId()).setId(id.getId()).build()
+                ShardSearchRequestProto.ShardSearchContextId.newBuilder().setSessionId(id.getSessionId()).setId(id.getId()).build()
             )
             .build();
     }

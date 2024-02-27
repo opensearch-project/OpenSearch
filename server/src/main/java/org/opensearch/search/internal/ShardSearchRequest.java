@@ -67,6 +67,7 @@ import org.opensearch.search.SearchSortValuesAndFormats;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.server.proto.ShardSearchRequestProto;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportRequest;
 
@@ -267,6 +268,51 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         keepAlive = in.readOptionalTimeValue();
         originalIndices = OriginalIndices.readOriginalIndices(in);
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+    }
+
+    public ShardSearchRequest(byte[] in) throws IOException {
+        ShardSearchRequestProto.ShardSearchRequest searchRequestProto = ShardSearchRequestProto.ShardSearchRequest.parseFrom(in);
+        this.clusterAlias = searchRequestProto.getClusterAlias();
+        shardId = new ShardId(
+            searchRequestProto.getShardId().getIndexName(),
+            searchRequestProto.getShardId().getIndexUUID(),
+            searchRequestProto.getShardId().getShardId()
+        );
+        this.numberOfShards = searchRequestProto.getNumberOfShards();
+        // Since protobuf is currently done only for Query then Fetch types
+        searchType = SearchType.QUERY_THEN_FETCH;
+        this.scroll = searchRequestProto.hasScroll()
+            ? new Scroll(TimeValue.parseTimeValue(searchRequestProto.getScroll().getKeepAlive(), "keepAlive"))
+            : null;
+        this.indexBoost = searchRequestProto.getIndexBoost();
+        this.requestCache = searchRequestProto.getRequestCache();
+        this.nowInMillis = searchRequestProto.getNowInMillis();
+        this.allowPartialSearchResults = searchRequestProto.getAllowPartialSearchResults();
+        this.indexRoutings = searchRequestProto.getIndexRoutingsList().toArray(Strings.EMPTY_ARRAY);
+        this.preference = searchRequestProto.getPreference();
+        ShardSearchRequestProto.OriginalIndices.IndicesOptions indicesOptionsFromProtobuf = searchRequestProto.getOriginalIndices()
+            .getIndicesOptions();
+        IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+            indicesOptionsFromProtobuf.getIgnoreUnavailable(),
+            indicesOptionsFromProtobuf.getAllowNoIndices(),
+            indicesOptionsFromProtobuf.getExpandWildcardsOpen(),
+            indicesOptionsFromProtobuf.getExpandWildcardsClosed(),
+            indicesOptionsFromProtobuf.getExpandWildcardsHidden(),
+            indicesOptionsFromProtobuf.getAllowAliasesToMultipleIndices(),
+            indicesOptionsFromProtobuf.getForbidClosedIndices(),
+            indicesOptionsFromProtobuf.getIgnoreAliases(),
+            indicesOptionsFromProtobuf.getIgnoreThrottled()
+        );
+        this.originalIndices = new OriginalIndices(
+            searchRequestProto.getOriginalIndices().getIndicesList().toArray(Strings.EMPTY_ARRAY),
+            indicesOptions
+        );
+        this.readerId = searchRequestProto.hasReaderId()
+            ? new ShardSearchContextId(searchRequestProto.getReaderId().getSessionId(), searchRequestProto.getReaderId().getId())
+            : null;
+        this.keepAlive = searchRequestProto.hasTimeValue()
+            ? TimeValue.parseTimeValue(searchRequestProto.getTimeValue(), "keepAlive")
+            : null;
     }
 
     public ShardSearchRequest(ShardSearchRequest clone) {
