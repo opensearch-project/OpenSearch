@@ -31,7 +31,7 @@ public class TieredSpilloverCachePlugin extends Plugin implements CachePlugin {
     /**
      * Default constructor
      */
-    TieredSpilloverCachePlugin() {}
+    public TieredSpilloverCachePlugin() {}
 
     @Override
     public Map<String, ICache.Factory> getCacheFactoryMap() {
