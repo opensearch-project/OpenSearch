@@ -304,6 +304,22 @@ public class OpenSearchAssertions {
         }
     }
 
+    public static void assertHitCount(SearchResponse countResponse, long minHitCount, long maxHitCount) {
+        final TotalHits totalHits = countResponse.getHits().getTotalHits();
+        if (!(totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value >= minHitCount && totalHits.value <= maxHitCount)) {
+            fail(
+                "Count is "
+                    + totalHits
+                    + " not between "
+                    + minHitCount
+                    + " and "
+                    + maxHitCount
+                    + " inclusive. "
+                    + formatShardStatus(countResponse)
+            );
+        }
+    }
+
     public static void assertExists(GetResponse response) {
         String message = String.format(Locale.ROOT, "Expected %s/%s to exist, but does not", response.getIndex(), response.getId());
         assertThat(message, response.isExists(), is(true));
@@ -526,6 +542,10 @@ public class OpenSearchAssertions {
 
     public static Matcher<SearchHit> hasScore(final float score) {
         return new OpenSearchMatchers.SearchHitHasScoreMatcher(score);
+    }
+
+    public static Matcher<SearchHit> hasMatchedQueries(final String[] matchedQueries) {
+        return new OpenSearchMatchers.SearchHitMatchedQueriesMatcher(matchedQueries);
     }
 
     public static <T, V> CombinableMatcher<T> hasProperty(Function<? super T, ? extends V> property, Matcher<V> valueMatcher) {

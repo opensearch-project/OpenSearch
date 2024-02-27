@@ -22,7 +22,7 @@ import java.util.Map;
  * @opensearch.internal
  */
 @InternalApi
-class SearchRequestContext {
+public class SearchRequestContext {
     private final SearchRequestOperationsListener searchRequestOperationsListener;
     private long absoluteStartNanos;
     private final Map<String, Long> phaseTookMap;
@@ -47,7 +47,7 @@ class SearchRequestContext {
         this.phaseTookMap.put(phaseName, tookTime);
     }
 
-    Map<String, Long> phaseTookMap() {
+    public Map<String, Long> phaseTookMap() {
         return phaseTookMap;
     }
 
@@ -70,7 +70,7 @@ class SearchRequestContext {
     /**
      * Request start time in nanos
      */
-    long getAbsoluteStartNanos() {
+    public long getAbsoluteStartNanos() {
         return absoluteStartNanos;
     }
 

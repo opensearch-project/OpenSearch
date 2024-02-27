@@ -53,7 +53,7 @@ jobs:
           name: results.txt
 
       - name: Find Comment
-        uses: peter-evans/find-comment@v2
+        uses: peter-evans/find-comment@v3
         id: fc
         with:
           issue-number: ${{ github.event.number }}
@@ -61,7 +61,7 @@ jobs:
           body-includes: 'Compatibility status:'
 
       - name: Add comment on the PR
-        uses: peter-evans/create-or-update-comment@v3
+        uses: peter-evans/create-or-update-comment@v4
         with:
           comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ github.event.number }}

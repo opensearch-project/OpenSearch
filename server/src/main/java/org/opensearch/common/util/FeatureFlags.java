@@ -21,6 +21,11 @@ import org.opensearch.common.settings.Settings;
  */
 public class FeatureFlags {
     /**
+     * Gates the visibility of the remote store migration support from docrep .
+     */
+    public static final String REMOTE_STORE_MIGRATION_EXPERIMENTAL = "opensearch.experimental.feature.remote_store.migration.enabled";
+
+    /**
      * Gates the ability for Searchable Snapshots to read snapshots that are older than the
      * guaranteed backward compatibility for OpenSearch (one prior major version) on a best effort basis.
      */
@@ -53,6 +58,11 @@ public class FeatureFlags {
      * Once the feature is ready for release, this feature flag can be removed.
      */
     public static final String WRITEABLE_REMOTE_INDEX = "opensearch.experimental.feature.writeable_remote_index.enabled";
+
+    /**
+     * Gates the optimization to enable bloom filters for doc id lookup.
+     */
+    public static final String DOC_ID_FUZZY_SET = "opensearch.experimental.optimize_doc_id_lookup.fuzzy_set.enabled";
 
     /**
      * Should store the settings from opensearch.yml.
@@ -93,6 +103,12 @@ public class FeatureFlags {
         }
     }
 
+    public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
+        REMOTE_STORE_MIGRATION_EXPERIMENTAL,
+        false,
+        Property.NodeScope
+    );
+
     public static final Setting<Boolean> EXTENSIONS_SETTING = Setting.boolSetting(EXTENSIONS, false, Property.NodeScope);
 
     public static final Setting<Boolean> IDENTITY_SETTING = Setting.boolSetting(IDENTITY, false, Property.NodeScope);
@@ -110,4 +126,6 @@ public class FeatureFlags {
         false,
         Property.NodeScope
     );
+
+    public static final Setting<Boolean> DOC_ID_FUZZY_SET_SETTING = Setting.boolSetting(DOC_ID_FUZZY_SET, false, Property.NodeScope);
 }

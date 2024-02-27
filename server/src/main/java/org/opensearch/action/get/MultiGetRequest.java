@@ -583,4 +583,19 @@ public class MultiGetRequest extends ActionRequest
         return builder;
     }
 
+    @Override
+    public String toString() {
+        return "MultiGetRequest{"
+            + "preference='"
+            + preference
+            + '\''
+            + ", realtime="
+            + realtime
+            + ", refresh="
+            + refresh
+            + ", items="
+            + items
+            + '}';
+    }
+
 }

@@ -149,6 +149,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
                 IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
                 IndexSettings.MAX_TERMS_COUNT_SETTING,
+                IndexSettings.MAX_NESTED_QUERY_DEPTH_SETTING,
                 IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
                 IndexSettings.DEFAULT_FIELD_SETTING,
                 IndexSettings.QUERY_STRING_LENIENT_SETTING,
@@ -228,6 +229,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING,
                 IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
                 IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
+
+                IndexSettings.INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING,
+                IndexSettings.INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,
 
                 // Settings for concurrent segment search
                 IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING,
