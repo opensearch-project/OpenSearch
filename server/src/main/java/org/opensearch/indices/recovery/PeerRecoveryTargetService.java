@@ -246,7 +246,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
                     final boolean hasRemoteSegmentStore = indexShard.indexSettings().isRemoteStoreEnabled();
-                    boolean shouldDownload = indexShard.shouldDownloadFromRemote();
+                    boolean shouldDownload = indexShard.isRemoteSeeded();
                     if (hasRemoteSegmentStore || shouldDownload) {
                         // ToDo: This is a temporary mitigation to not fail the peer recovery flow in case there is
                         // an exception while downloading segments from remote store. For remote backed indexes, we
@@ -261,7 +261,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                             );
                         }
                     }
-                    final boolean hasRemoteTranslog = (indexShard.isRemoteTranslogEnabled() || indexShard.isMigratingToRemote());
+                    final boolean hasRemoteTranslog = indexShard.indexSettings().isRemoteNode();
                     final boolean hasNoTranslog = indexShard.indexSettings().isRemoteSnapshot();
                     final boolean verifyTranslog = (hasRemoteTranslog || hasNoTranslog || hasRemoteSegmentStore) == false;
                     final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(!hasRemoteTranslog);

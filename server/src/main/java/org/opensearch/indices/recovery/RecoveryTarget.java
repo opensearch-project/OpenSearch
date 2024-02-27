@@ -214,12 +214,12 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
             state().getTranslog().totalOperations(totalTranslogOps);
             indexShard().openEngineAndSkipTranslogRecovery();
             // upload to remote store in migration for primary shard
-            if (indexShard.shouldUploadToRemote() && indexShard.routingEntry().primary()) {
+            if (indexShard.shouldSeedRemoteStore() && indexShard.routingEntry().primary()) {
                 logger.info("Time to upload all data to remote and also sleep 10 sec");
                 indexShard.refresh("Migration");
                 waitForRemoteStoreSync(indexShard);
                 logger.info("Done uploade");
-            } else if (indexShard.isMigratingToRemote() && indexShard.shouldDownloadFromRemote()) {
+            } else if (indexShard.isMigratingToRemote() && indexShard.isRemoteSeeded()) {
                 logger.info("Not uploading here, but downloading");
             }
             return null;

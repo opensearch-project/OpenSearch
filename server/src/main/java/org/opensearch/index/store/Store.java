@@ -385,7 +385,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @return {@link Map} map file name to {@link StoreFileMetadata}.
      */
     public Map<String, StoreFileMetadata> getSegmentMetadataMap(SegmentInfos segmentInfos) throws IOException {
-        // assert indexSettings.isSegRepEnabled();
+        assert indexSettings.isSegRepEnabled() || indexSettings.isRemoteNode();
         failIfCorrupted();
         try {
             return loadMetadata(segmentInfos, directory, logger, true).fileMetadata;

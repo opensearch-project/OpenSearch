@@ -44,7 +44,8 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         return 0;
     }
 
-    @TestLogging(reason = "Getting trace logs from replication package", value = "org.opensearch.index.translog.RemoteFsTranslog:TRACE,org.opensearch.index.shard.RemoteStoreRefreshListener:TRACE,org.opensearch.indices.recovery:TRACE")
+    @TestLogging(reason = "Getting trace logs from replication package", value = "org.opensearch.index.translog.RemoteFsTranslog:TRACE,org.opensearch.index.shard.RemoteStoreRefreshListener:TRACE," +
+        "org.opensearch.indices.recovery:TRACE," + "org.opensearch.index.shard.IndexShard:TRACE")
     public void testMixedModeRelocation() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
         List<String> cmNodes = internalCluster().startNodes(1);

@@ -150,6 +150,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
@@ -195,8 +196,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
-import static org.opensearch.cluster.metadata.MetadataCreateIndexService.updateRemoteStoreSettings;
 import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
 import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
@@ -545,7 +544,7 @@ public class IndicesService extends AbstractLifecycleComponent
         Settings settings
     ) {
         return (indexSettings, shardRouting) -> {
-            if ((indexSettings.isRemoteTranslogStoreEnabled()) && shardRouting.primary()) {
+            if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
                 return new RemoteBlobStoreInternalTranslogFactory(
                     repositoriesServiceSupplier,
                     threadPool,
@@ -554,12 +553,10 @@ public class IndicesService extends AbstractLifecycleComponent
                 );
             } else if (isRemoteStoreAttributePresent(settings) && shardRouting.primary()) {
                 logger.info("Hitting the migration case for translogs ");
-                final Settings.Builder indexSettingsBuilder = Settings.builder();
-                updateRemoteStoreSettings(indexSettingsBuilder, indexSettings.getNodeSettings());
                 return new RemoteBlobStoreInternalTranslogFactory(
                     repositoriesServiceSupplier,
                     threadPool,
-                    indexSettingsBuilder.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY),
+                    RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(indexSettings.getNodeSettings()),
                     remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId())
                 );
             }
