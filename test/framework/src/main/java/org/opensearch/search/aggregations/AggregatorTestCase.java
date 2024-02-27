@@ -124,7 +124,6 @@ import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregatorFactories.Builder;
 import org.opensearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.opensearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
-import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.metrics.MetricsAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
@@ -194,8 +193,9 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     // using NOOP_POST_COLLECTION_CONSUMER ensures that the bucket count in aggregation is completed before/without running postCollection()
     protected static final Consumer<Aggregator> NOOP_POST_COLLECTION = termsAggregator -> {};
 
-    protected static final TriConsumer<Document, String, String> ADD_SORTED_FIELD_NO_STORE = (document, field, value) ->
-        document.add(new SortedSetDocValuesField(field, new BytesRef(value)));
+    protected static final TriConsumer<Document, String, String> ADD_SORTED_FIELD_NO_STORE = (document, field, value) -> document.add(
+        new SortedSetDocValuesField(field, new BytesRef(value))
+    );
 
     protected static final TriConsumer<Document, String, String> ADD_SORTED_FIELD_STORE = (document, field, value) -> {
         document.add(new SortedSetDocValuesField(field, new BytesRef(value)));
