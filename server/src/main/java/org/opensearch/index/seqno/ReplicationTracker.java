@@ -1294,7 +1294,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * V2 - Set of {@link SegmentReplicationShardStats} per shard in this primary's replication group.
      */
     public synchronized Set<SegmentReplicationShardStats> getSegmentReplicationStats() {
-        assert indexSettings.isSegRepEnabled();
+        assert indexSettings.isSegRepEnabled() || indexSettings.isRemoteNode();
         if (primaryMode) {
             return this.checkpoints.entrySet()
                 .stream()

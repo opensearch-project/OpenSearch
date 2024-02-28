@@ -3465,7 +3465,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             + "] does not contain relocation target ["
             + routingEntry()
             + "]";
-        assert getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint()
+        String allocationId = routingEntry().allocationId().getId();
+        if (isRemoteStoreEnabled() || isMigratingToRemote()) {
+            // For remote backed indexes, old primary may not have updated value of local checkpoint of new primary.
+            // But the new primary is always updated with data in remote sore and is at par with old primary.
+            // So, we can use a stricter check where local checkpoint of new primary is checked against that of old primary.
+            allocationId = primaryContext.getRoutingTable().primaryShard().allocationId().getId();
+        }
+        assert getLocalCheckpoint() == primaryContext.getCheckpointStates().get(allocationId).getLocalCheckpoint()
             || indexSettings().getTranslogDurability() == Durability.ASYNC : "local checkpoint ["
                 + getLocalCheckpoint()
                 + "] does not match checkpoint from primary context ["
@@ -3873,7 +3880,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
         }
 
-        if (isRemoteStoreEnabled()) {
+        if (isRemoteStoreEnabled() || isMigratingToRemote()) {
             internalRefreshListener.add(
                 new RemoteStoreRefreshListener(
                     this,
