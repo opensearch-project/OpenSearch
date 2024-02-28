@@ -141,6 +141,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
@@ -208,6 +209,7 @@ import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_ENABLED_
 import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.test.XContentTestUtils.convertToMap;
 import static org.opensearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -1887,7 +1889,23 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             builder.put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true);
             builder.put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true);
         }
+
+        // Randomly set a replication strategy for the node. Replication Strategy can still be manually overridden by subclass if needed.
+        if (useRandomReplicationStrategy()) {
+            ReplicationType replicationType = randomBoolean() ? ReplicationType.DOCUMENT : ReplicationType.SEGMENT;
+            logger.info("Randomly using Replication Strategy as {}.", replicationType.toString());
+            builder.put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), replicationType);
+        }
         return builder.build();
+    }
+
+    /**
+     * Used for selecting random replication strategy, either DOCUMENT or SEGMENT.
+     * This method must be overridden by subclass to use random replication strategy.
+     * Should be used only on test classes where replication strategy is not critical for tests.
+     */
+    protected boolean useRandomReplicationStrategy() {
+        return false;
     }
 
     protected Path nodeConfigPath(int nodeOrdinal) {

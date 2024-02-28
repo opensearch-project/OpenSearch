@@ -91,6 +91,8 @@ import static org.mockito.Mockito.when;
 
 public class QueryShardContextTests extends OpenSearchTestCase {
 
+    private static final int SHARD_ID = 0;
+
     public void testFailIfFieldMappingNotFound() {
         QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         context.setAllowUnmappedFields(false);
@@ -307,6 +309,11 @@ public class QueryShardContextTests extends OpenSearchTestCase {
         assertEquals(Arrays.asList(expectedFirstDoc.toString(), expectedSecondDoc.toString()), collect("field", queryShardContext));
     }
 
+    public void testSearchLookupShardId() {
+        SearchLookup searchLookup = createQueryShardContext("uuid", null, null).lookup();
+        assertEquals(SHARD_ID, searchLookup.shardId());
+    }
+
     public static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias) {
         return createQueryShardContext(indexUuid, clusterAlias, null);
     }
@@ -343,7 +350,7 @@ public class QueryShardContextTests extends OpenSearchTestCase {
         }
         final long nowInMillis = randomNonNegativeLong();
         return new QueryShardContext(
-            0,
+            SHARD_ID,
             indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE,
             null,
