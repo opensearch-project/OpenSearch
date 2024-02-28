@@ -23,7 +23,6 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.gateway.AsyncShardFetch.FetchResult;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
-import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
@@ -31,11 +30,8 @@ import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.S
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Allocates replica shards in a batch mode
@@ -57,8 +53,8 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
         List<Runnable> shardCancellationActions = new ArrayList<>();
         // iterate through the batches, each batch needs to be processed together as fetch call should be made for shards from same batch
         for (List<ShardRouting> shardBatch : shardBatches) {
-            Set<ShardRouting> eligibleShards = new HashSet<>();
-            Set<ShardRouting> ineligibleShards = new HashSet<>();
+            List<ShardRouting> eligibleShards = new ArrayList<>();
+            List<ShardRouting> ineligibleShards = new ArrayList<>();
             boolean shardMatched;
             // iterate over shards to check for match for each of those
             for (ShardRouting shard : shardBatch) {
@@ -103,8 +99,8 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
     }
 
     abstract protected FetchResult<NodeStoreFilesMetadataBatch> fetchData(
-        Set<ShardRouting> eligibleShards,
-        Set<ShardRouting> ineligibleShards,
+        List<ShardRouting> eligibleShards,
+        List<ShardRouting> ineligibleShards,
         RoutingAllocation allocation
     );
 
@@ -130,8 +126,8 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
     ) {
         HashMap<ShardRouting, AllocateUnassignedDecision> shardAllocationDecisions = new HashMap<>();
         final boolean explain = allocation.debugDecision();
-        Set<ShardRouting> eligibleShards = new HashSet<>();
-        Set<ShardRouting> ineligibleShards = new HashSet<>();
+        List<ShardRouting> eligibleShards = new ArrayList<>();
+        List<ShardRouting> ineligibleShards = new ArrayList<>();
         HashMap<ShardRouting, Tuple<Decision, Map<String, NodeAllocationResult>>> nodeAllocationDecisions = new HashMap<>();
         for (ShardRouting shard : shards) {
             if (!isResponsibleFor(shard)) {

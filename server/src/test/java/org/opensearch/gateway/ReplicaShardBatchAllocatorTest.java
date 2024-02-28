@@ -814,8 +814,8 @@ public class ReplicaShardBatchAllocatorTest extends OpenSearchAllocationTestCase
 
         @Override
         protected AsyncShardFetch.FetchResult<NodeStoreFilesMetadataBatch> fetchData(
-            Set<ShardRouting> eligibleShards,
-            Set<ShardRouting> ineligibleShards,
+            List<ShardRouting> eligibleShards,
+            List<ShardRouting> ineligibleShards,
             RoutingAllocation allocation
         ) {
             fetchDataCalled.set(true);
