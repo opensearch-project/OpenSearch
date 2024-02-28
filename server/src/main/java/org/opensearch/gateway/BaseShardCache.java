@@ -79,7 +79,6 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
      */
     public abstract List<ShardId> getFailedShards();
 
-
     @NonNull
     public abstract Map<String, ? extends BaseNodeEntry> getCache();
 

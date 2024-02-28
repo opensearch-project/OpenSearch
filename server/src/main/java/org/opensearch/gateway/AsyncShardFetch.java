@@ -209,7 +209,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             } else if (failedShards.isEmpty() == false) {
                 // trigger a reroute if there are any shards failed, to make sure they're picked up in next run
                 logger.trace("triggering another reroute for failed shards in {}", reroutingKey);
-                reroute("shards-failed", "shards failed in "+ reroutingKey);
+                reroute("shards-failed", "shards failed in " + reroutingKey);
             }
 
             return new FetchResult<>(fetchData, allIgnoreNodesMap);
@@ -219,7 +219,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     private List<ShardId> clearFailedShards() {
         // get failed shards from previous fetch and remove them
         List<ShardId> failedShards = cache.getFailedShards();
-        if (failedShards !=null && failedShards.isEmpty() == false ) {
+        if (failedShards != null && failedShards.isEmpty() == false) {
             shardAttributesMap.keySet().removeIf(failedShards::contains);
         }
         return failedShards;
