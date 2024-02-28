@@ -64,6 +64,7 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     public QueryFetchSearchResult(InputStream in) throws IOException {
         super(in);
+        assert FeatureFlags.isEnabled(FeatureFlags.PROTOBUF) : "protobuf feature flag is not enabled";
         this.queryFetchSearchResultProto = QueryFetchSearchResultProto.QueryFetchSearchResult.parseFrom(in);
         queryResult = new QuerySearchResult(in);
         fetchResult = new FetchSearchResult(in);

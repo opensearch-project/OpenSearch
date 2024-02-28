@@ -33,6 +33,7 @@
 package org.opensearch.search.fetch.subphase.highlight;
 
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -79,6 +80,7 @@ public class HighlightField implements ToXContentFragment, Writeable {
     }
 
     public HighlightField(byte[] in) throws IOException {
+        assert FeatureFlags.isEnabled(FeatureFlags.PROTOBUF) : "protobuf feature flag is not enabled";
         FetchSearchResultProto.SearchHit.HighlightField highlightField = FetchSearchResultProto.SearchHit.HighlightField.parseFrom(in);
         name = highlightField.getName();
         if (highlightField.getFragmentsCount() == 0) {
