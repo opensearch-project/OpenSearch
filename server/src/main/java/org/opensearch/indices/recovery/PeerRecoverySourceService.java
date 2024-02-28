@@ -165,7 +165,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         if (routingEntry.primary() == false || routingEntry.active() == false) {
             throw new DelayRecoveryException("source shard [" + routingEntry + "] is not an active primary");
         }
-
         if (request.isPrimaryRelocation()
             && (routingEntry.relocating() == false || routingEntry.relocatingNodeId().equals(request.targetNode().getId()) == false)) {
             logger.debug(

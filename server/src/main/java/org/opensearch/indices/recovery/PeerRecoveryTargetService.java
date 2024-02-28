@@ -66,9 +66,9 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogCorruptedException;
-import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationCollection.ReplicationRef;
 import org.opensearch.indices.replication.common.ReplicationTimer;
+import org.opensearch.indices.replication.common.StatsAwareReplicationCollection;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
@@ -121,7 +121,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     private final RecoverySettings recoverySettings;
     private final ClusterService clusterService;
 
-    private final ReplicationCollection<RecoveryTarget> onGoingRecoveries;
+    private final StatsAwareReplicationCollection<RecoveryTarget> onGoingRecoveries;
 
     public PeerRecoveryTargetService(
         ThreadPool threadPool,
@@ -133,8 +133,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         this.transportService = transportService;
         this.recoverySettings = recoverySettings;
         this.clusterService = clusterService;
-        this.onGoingRecoveries = new ReplicationCollection<>(logger, threadPool);
-
+        this.onGoingRecoveries = new StatsAwareReplicationCollection<>(logger, threadPool);
         transportService.registerRequestHandler(
             Actions.FILES_INFO,
             ThreadPool.Names.GENERIC,
@@ -761,5 +760,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public RecoveryResponse read(StreamInput in) throws IOException {
             return new RecoveryResponse(in);
         }
+    }
+
+    public PeerRecoveryStats stats() {
+        return onGoingRecoveries.stats();
     }
 }

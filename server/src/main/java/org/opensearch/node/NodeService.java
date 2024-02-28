@@ -51,6 +51,8 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.PeerRecoveryStatsTracker;
+import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.plugins.PluginsService;
@@ -99,6 +101,7 @@ public class NodeService implements Closeable {
     private final RepositoriesService repositoriesService;
     private final AdmissionControlService admissionControlService;
     private final SegmentReplicationStatsTracker segmentReplicationStatsTracker;
+    private final PeerRecoveryTargetService peerRecoveryTargetService;
 
     NodeService(
         Settings settings,
@@ -125,7 +128,8 @@ public class NodeService implements Closeable {
         ResourceUsageCollectorService resourceUsageCollectorService,
         SegmentReplicationStatsTracker segmentReplicationStatsTracker,
         RepositoriesService repositoriesService,
-        AdmissionControlService admissionControlService
+        AdmissionControlService admissionControlService,
+        PeerRecoveryTargetService peerRecoveryTargetService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -154,6 +158,7 @@ public class NodeService implements Closeable {
         clusterService.addStateApplier(ingestService);
         clusterService.addStateApplier(searchPipelineService);
         this.segmentReplicationStatsTracker = segmentReplicationStatsTracker;
+        this.peerRecoveryTargetService = peerRecoveryTargetService;
     }
 
     public NodeInfo info(
@@ -236,7 +241,8 @@ public class NodeService implements Closeable {
         boolean resourceUsageStats,
         boolean segmentReplicationTrackerStats,
         boolean repositoriesStats,
-        boolean admissionControl
+        boolean admissionControl,
+        boolean peerRecoveryStats
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -268,7 +274,8 @@ public class NodeService implements Closeable {
             searchPipelineStats ? this.searchPipelineService.stats() : null,
             segmentReplicationTrackerStats ? this.segmentReplicationStatsTracker.getTotalRejectionStats() : null,
             repositoriesStats ? this.repositoriesService.getRepositoriesStats() : null,
-            admissionControl ? this.admissionControlService.stats() : null
+            admissionControl ? this.admissionControlService.stats() : null,
+            peerRecoveryStats? this.peerRecoveryTargetService.stats() : null
         );
     }
 
