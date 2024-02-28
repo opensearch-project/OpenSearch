@@ -15,6 +15,12 @@ import org.opensearch.indices.recovery.PeerRecoveryStats;
 import org.opensearch.indices.recovery.PeerRecoveryStatsTracker;
 import org.opensearch.threadpool.ThreadPool;
 
+/**
+ * Wrapper of {@link ReplicationRef} which attaches {@link PeerRecoveryStatsTracker} to track stats of
+ * ongoing relocation.
+ *
+ * @opensearch.internal
+ */
 public class StatsAwareReplicationCollection<T extends ReplicationTarget> extends ReplicationCollection<T> {
 
     private final PeerRecoveryStatsTracker tracker;

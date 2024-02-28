@@ -18,6 +18,11 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Peer recovery stats.
+ *
+ * @opensearch.internal
+ */
 public class PeerRecoveryStats implements Writeable, ToXContentFragment {
 
     private final long total_started_recoveries;

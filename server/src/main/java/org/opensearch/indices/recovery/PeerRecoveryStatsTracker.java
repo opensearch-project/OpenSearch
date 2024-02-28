@@ -10,6 +10,11 @@ package org.opensearch.indices.recovery;
 
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Tracker responsible for computing PeerRecoveryStats.
+ *
+ * @opensearch.internal
+ */
 public class PeerRecoveryStatsTracker {
     private final AtomicLong total_started_recoveries;
     private final AtomicLong total_failed_recoveries;
