@@ -708,16 +708,19 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING,
                 IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
                 IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING,
+                IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING,
+
                 AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE,
                 CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                 CpuBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT,
                 CpuBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT,
+                CpuBasedAdmissionControllerSettings.CLUSTER_INFO_CPU_USAGE_LIMIT,
+
                 IoBasedAdmissionControllerSettings.IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                 IoBasedAdmissionControllerSettings.SEARCH_IO_USAGE_LIMIT,
                 IoBasedAdmissionControllerSettings.INDEXING_IO_USAGE_LIMIT,
                 IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING,
                 IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING,
-
                 // Concurrent segment search settings
                 SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING,
                 SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING
