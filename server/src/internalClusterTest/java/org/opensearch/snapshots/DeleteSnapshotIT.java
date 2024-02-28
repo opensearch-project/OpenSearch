@@ -92,6 +92,7 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     // Deleting multiple shallow copy snapshots as part of single delete call with repo having only shallow copy snapshots.
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9208")
     public void testDeleteMultipleShallowCopySnapshotsCase1() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         final Path remoteStoreRepoPath = randomRepoPath();
