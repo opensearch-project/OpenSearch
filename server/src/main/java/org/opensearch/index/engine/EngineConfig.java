@@ -244,9 +244,7 @@ public final class EngineConfig {
      * Creates a new {@link org.opensearch.index.engine.EngineConfig}
      */
     private EngineConfig(Builder builder) {
-        if (builder.isReadOnlyReplica
-            && builder.indexSettings.isSegRepEnabled() == false
-            && builder.indexSettings.isRemoteNode() == false) {
+        if (builder.isReadOnlyReplica && builder.indexSettings.isSegRepEnabled() == false) {
             throw new IllegalArgumentException("Shard can only be wired as a read only replica with Segment Replication enabled");
         }
         this.shardId = builder.shardId;
@@ -493,7 +491,7 @@ public final class EngineConfig {
      * @return true if this engine should be wired as read only.
      */
     public boolean isReadOnlyReplica() {
-        return (indexSettings.isSegRepEnabled() || indexSettings.isRemoteNode()) && isReadOnlyReplica;
+        return indexSettings.isSegRepEnabled() && isReadOnlyReplica;
     }
 
     /**

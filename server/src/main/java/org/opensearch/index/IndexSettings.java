@@ -1222,9 +1222,12 @@ public final class IndexSettings {
 
     /**
      * Returns true if segment replication is enabled on the index.
+     *
+     * Every shard on a remote node would also have SegRep enabled even without
+     * proper index setting during the migration.
      */
     public boolean isSegRepEnabled() {
-        return ReplicationType.SEGMENT.equals(replicationType);
+        return ReplicationType.SEGMENT.equals(replicationType) || isRemoteNode();
     }
 
     public boolean isSegRepLocalEnabled() {
