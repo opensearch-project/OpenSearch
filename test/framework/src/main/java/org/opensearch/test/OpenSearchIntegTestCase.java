@@ -371,6 +371,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      */
     public static final String TESTS_CLUSTER_NAME = "tests.clustername";
 
+    protected static final String REMOTE_BACKED_STORAGE_REPOSITORY_NAME = "test-remote-store-repo";
+
+    private Path remoteStoreRepositoryPath;
+
     @BeforeClass
     public static void beforeClass() throws Exception {
         testClusterRule.beforeClass();
@@ -1896,6 +1900,17 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             logger.info("Randomly using Replication Strategy as {}.", replicationType.toString());
             builder.put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), replicationType);
         }
+
+        if (useRemoteBackedStorageRandomly()) {
+            boolean remoteBackedStorageEnabled = randomBoolean();
+            logger.info("Remote Backed Storage (Remote Store) is set to {}.", remoteBackedStorageEnabled);
+            if (remoteBackedStorageEnabled) {
+                if (remoteStoreRepositoryPath == null) {
+                    remoteStoreRepositoryPath = randomRepoPath().toAbsolutePath();
+                }
+                 builder.put(remoteStoreClusterSettings(REMOTE_BACKED_STORAGE_REPOSITORY_NAME, remoteStoreRepositoryPath));
+            }
+        }
         return builder.build();
     }
 
@@ -1905,6 +1920,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Should be used only on test classes where replication strategy is not critical for tests.
      */
     protected boolean useRandomReplicationStrategy() {
+        return false;
+    }
+
+    protected boolean useRemoteBackedStorageRandomly() {
         return false;
     }
 
