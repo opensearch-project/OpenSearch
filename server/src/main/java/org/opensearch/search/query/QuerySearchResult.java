@@ -121,6 +121,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public QuerySearchResult(InputStream in) throws IOException {
         super(in);
+        assert FeatureFlags.isEnabled(FeatureFlags.PROTOBUF) : "protobuf feature flag is not enabled";
         this.querySearchResultProto = QuerySearchResultProto.QuerySearchResult.parseFrom(in);
         isNull = false;
         ShardSearchRequest shardSearchRequest;

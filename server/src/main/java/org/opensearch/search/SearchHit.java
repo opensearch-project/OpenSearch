@@ -32,6 +32,7 @@
 
 package org.opensearch.search;
 
+import com.google.protobuf.ByteString;
 import org.apache.lucene.search.Explanation;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
@@ -39,6 +40,7 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.document.DocumentField;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
@@ -242,6 +244,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     }
 
     public SearchHit(byte[] in) throws IOException {
+        assert FeatureFlags.isEnabled(FeatureFlags.PROTOBUF) : "protobuf feature flag is not enabled";
         this.searchHitProto = FetchSearchResultProto.SearchHit.parseFrom(in);
         this.docId = -1;
         this.score = this.searchHitProto.getScore();
@@ -326,6 +329,22 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             this.innerHits = null;
         }
 
+    }
+
+    public static FetchSearchResultProto.SearchHit convertHitToProto(SearchHit hit) {
+        FetchSearchResultProto.SearchHit.Builder searchHitBuilder = FetchSearchResultProto.SearchHit.newBuilder();
+        if (hit.getIndex() != null) {
+            searchHitBuilder.setIndex(hit.getIndex());
+        }
+        searchHitBuilder.setId(hit.getId());
+        searchHitBuilder.setScore(hit.getScore());
+        searchHitBuilder.setSeqNo(hit.getSeqNo());
+        searchHitBuilder.setPrimaryTerm(hit.getPrimaryTerm());
+        searchHitBuilder.setVersion(hit.getVersion());
+        if (hit.getSourceRef() != null) {
+            searchHitBuilder.setSource(ByteString.copyFrom(hit.getSourceRef().toBytesRef().bytes));
+        }
+        return searchHitBuilder.build();
     }
 
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
@@ -1160,6 +1179,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
 
         NestedIdentity(byte[] in) throws IOException {
+            assert FeatureFlags.isEnabled(FeatureFlags.PROTOBUF) : "protobuf feature flag is not enabled";
             FetchSearchResultProto.SearchHit.NestedIdentity proto = FetchSearchResultProto.SearchHit.NestedIdentity.parseFrom(in);
             if (proto.hasField()) {
                 field = new Text(proto.getField());

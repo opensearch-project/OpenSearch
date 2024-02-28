@@ -39,9 +39,11 @@ import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.OriginalIndicesTests;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.index.shard.ShardId;
@@ -131,7 +133,9 @@ public class QuerySearchResultTests extends OpenSearchTestCase {
         assertEquals(querySearchResult.isNull(), deserialized.isNull());
     }
 
+    @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testProtobufSerialization() throws Exception {
+        System.setProperty(FeatureFlags.PROTOBUF, "true");
         QuerySearchResult querySearchResult = createTestInstance();
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         querySearchResult.writeTo(stream);

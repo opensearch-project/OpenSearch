@@ -112,65 +112,50 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         this.collapseField = collapseField;
         this.collapseValues = collapseValues;
         if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
-            List<FetchSearchResultProto.SearchHit> searchHitList = new ArrayList<>();
-            for (SearchHit hit : hits) {
-                FetchSearchResultProto.SearchHit.Builder searchHitBuilder = FetchSearchResultProto.SearchHit.newBuilder();
-                if (hit.getIndex() != null) {
-                    searchHitBuilder.setIndex(hit.getIndex());
-                }
-                searchHitBuilder.setId(hit.getId());
-                searchHitBuilder.setScore(hit.getScore());
-                searchHitBuilder.setSeqNo(hit.getSeqNo());
-                searchHitBuilder.setPrimaryTerm(hit.getPrimaryTerm());
-                searchHitBuilder.setVersion(hit.getVersion());
-                if (hit.getSourceRef() != null) {
-                    searchHitBuilder.setSource(ByteString.copyFrom(hit.getSourceRef().toBytesRef().bytes));
-                }
-                searchHitList.add(searchHitBuilder.build());
-            }
-            QuerySearchResultProto.TotalHits.Builder totalHitsBuilder = QuerySearchResultProto.TotalHits.newBuilder();
-            totalHitsBuilder.setValue(totalHits.value);
-            totalHitsBuilder.setRelation(
-                totalHits.relation == Relation.EQUAL_TO
-                    ? QuerySearchResultProto.TotalHits.Relation.EQUAL_TO
-                    : QuerySearchResultProto.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
-            );
-            FetchSearchResultProto.SearchHits.Builder searchHitsBuilder = FetchSearchResultProto.SearchHits.newBuilder();
-            searchHitsBuilder.setMaxScore(maxScore);
-            searchHitsBuilder.addAllHits(searchHitList);
-            searchHitsBuilder.setTotalHits(totalHitsBuilder.build());
-            if (sortFields != null && sortFields.length > 0) {
-                for (SortField sortField : sortFields) {
-                    FetchSearchResultProto.SortField.Builder sortFieldBuilder = FetchSearchResultProto.SortField.newBuilder();
-                    sortFieldBuilder.setField(sortField.getField());
-                    sortFieldBuilder.setType(FetchSearchResultProto.SortField.Type.valueOf(sortField.getType().name()));
-                    searchHitsBuilder.addSortFields(sortFieldBuilder.build());
-                }
-            }
-            if (collapseField != null) {
-                searchHitsBuilder.setCollapseField(collapseField);
-                for (Object value : collapseValues) {
-                    FetchSearchResultProto.CollapseValue.Builder collapseValueBuilder = FetchSearchResultProto.CollapseValue.newBuilder();
-                    try {
-                        collapseValueBuilder = readCollapseValueForProtobuf(value, collapseValueBuilder);
-                    } catch (IOException e) {
-                        throw new OpenSearchException(e);
-                    }
-                    // ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                    // try (ObjectOutputStream stream = new ObjectOutputStream(bos)) {
-                    // stream.writeObject(value);
-                    // searchHitsBuilder.addCollapseValues(ByteString.copyFrom(bos.toByteArray()));
-                    // } catch (IOException e) {
-                    // throw new OpenSearchException(e);
-                    // }
-                    searchHitsBuilder.addCollapseValues(collapseValueBuilder.build());
-                }
-            }
-            this.searchHitsProto = searchHitsBuilder.build();
+            this.searchHitsProto = convertHitsToProto(this);
         }
     }
 
-    private FetchSearchResultProto.CollapseValue.Builder readCollapseValueForProtobuf(
+    public static FetchSearchResultProto.SearchHits convertHitsToProto(SearchHits hits) {
+        List<FetchSearchResultProto.SearchHit> searchHitList = new ArrayList<>();
+        for (SearchHit hit : hits) {
+            searchHitList.add(SearchHit.convertHitToProto(hit));
+        }
+        QuerySearchResultProto.TotalHits.Builder totalHitsBuilder = QuerySearchResultProto.TotalHits.newBuilder();
+        totalHitsBuilder.setValue(hits.getTotalHits().value);
+        totalHitsBuilder.setRelation(
+            hits.getTotalHits().relation == Relation.EQUAL_TO
+                ? QuerySearchResultProto.TotalHits.Relation.EQUAL_TO
+                : QuerySearchResultProto.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+        );
+        FetchSearchResultProto.SearchHits.Builder searchHitsBuilder = FetchSearchResultProto.SearchHits.newBuilder();
+        searchHitsBuilder.setMaxScore(hits.getMaxScore());
+        searchHitsBuilder.addAllHits(searchHitList);
+        searchHitsBuilder.setTotalHits(totalHitsBuilder.build());
+        if (hits.getSortFields() != null && hits.getSortFields().length > 0) {
+            for (SortField sortField : hits.getSortFields()) {
+                FetchSearchResultProto.SortField.Builder sortFieldBuilder = FetchSearchResultProto.SortField.newBuilder();
+                sortFieldBuilder.setField(sortField.getField());
+                sortFieldBuilder.setType(FetchSearchResultProto.SortField.Type.valueOf(sortField.getType().name()));
+                searchHitsBuilder.addSortFields(sortFieldBuilder.build());
+            }
+        }
+        if (hits.getCollapseField() != null) {
+            searchHitsBuilder.setCollapseField(hits.getCollapseField());
+            for (Object value : hits.getCollapseValues()) {
+                FetchSearchResultProto.CollapseValue.Builder collapseValueBuilder = FetchSearchResultProto.CollapseValue.newBuilder();
+                try {
+                    collapseValueBuilder = readCollapseValueForProtobuf(value, collapseValueBuilder);
+                } catch (IOException e) {
+                    throw new OpenSearchException(e);
+                }
+                searchHitsBuilder.addCollapseValues(collapseValueBuilder.build());
+            }
+        }
+        return searchHitsBuilder.build();
+    }
+
+    private static FetchSearchResultProto.CollapseValue.Builder readCollapseValueForProtobuf(
         Object collapseValue,
         FetchSearchResultProto.CollapseValue.Builder collapseValueBuilder
     ) throws IOException {
@@ -225,6 +210,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
 
     @SuppressForbidden(reason = "serialization of object to protobuf")
     public SearchHits(byte[] in) throws IOException {
+        assert FeatureFlags.isEnabled(FeatureFlags.PROTOBUF) : "protobuf feature flag is not enabled";
         this.searchHitsProto = org.opensearch.server.proto.FetchSearchResultProto.SearchHits.parseFrom(in);
         this.hits = new SearchHit[this.searchHitsProto.getHitsCount()];
         for (int i = 0; i < this.searchHitsProto.getHitsCount(); i++) {
@@ -243,13 +229,6 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         this.collapseValues = new Object[this.searchHitsProto.getCollapseValuesCount()];
         for (int i = 0; i < this.searchHitsProto.getCollapseValuesCount(); i++) {
             this.collapseValues[i] = readCollapseValueFromProtobuf(this.searchHitsProto.getCollapseValues(i));
-            // ByteString collapseValue = this.searchHitsProto.getCollapseValues(i);
-            // InputStream is = new ByteArrayInputStream(collapseValue.toByteArray());
-            // try (ObjectInputStream ois = new ObjectInputStream(is)) {
-            // this.collapseValues[i] = ois.readObject();
-            // } catch (ClassNotFoundException e) {
-            // throw new OpenSearchException(e);
-            // }
         }
     }
 

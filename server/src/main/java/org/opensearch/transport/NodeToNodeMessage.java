@@ -77,8 +77,8 @@ public class NodeToNodeMessage implements BaseInboundMessage {
 
     }
 
-    public NodeToNodeMessage(byte[] data) throws InvalidProtocolBufferException {
-        this.message = NodeToNodeMessageProto.NodeToNodeMessage.parseFrom(data);
+    public NodeToNodeMessage(byte[] in) throws InvalidProtocolBufferException {
+        this.message = NodeToNodeMessageProto.NodeToNodeMessage.parseFrom(in);
     }
 
     public void writeTo(OutputStream out) throws IOException {

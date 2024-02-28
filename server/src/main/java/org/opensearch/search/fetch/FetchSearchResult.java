@@ -32,8 +32,6 @@
 
 package org.opensearch.search.fetch;
 
-import com.google.protobuf.ByteString;
-import org.apache.lucene.search.TotalHits.Relation;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -45,7 +43,6 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.server.proto.FetchSearchResultProto;
-import org.opensearch.server.proto.QuerySearchResultProto;
 import org.opensearch.server.proto.ShardSearchRequestProto;
 
 import java.io.IOException;
@@ -76,6 +73,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     public FetchSearchResult(InputStream in) throws IOException {
         super(in);
+        assert FeatureFlags.isEnabled(FeatureFlags.PROTOBUF) : "protobuf feature flag is not enabled";
         this.fetchSearchResultProto = FetchSearchResultProto.FetchSearchResult.parseFrom(in);
         contextId = new ShardSearchContextId(
             this.fetchSearchResultProto.getContextId().getSessionId(),
@@ -108,26 +106,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
         assert assertNoSearchTarget(hits);
         this.hits = hits;
         if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING) && this.fetchSearchResultProto != null) {
-            QuerySearchResultProto.TotalHits.Builder totalHitsBuilder = QuerySearchResultProto.TotalHits.newBuilder();
-            totalHitsBuilder.setValue(hits.getTotalHits().value);
-            totalHitsBuilder.setRelation(
-                hits.getTotalHits().relation == Relation.EQUAL_TO
-                    ? QuerySearchResultProto.TotalHits.Relation.EQUAL_TO
-                    : QuerySearchResultProto.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
-            );
-            FetchSearchResultProto.SearchHits.Builder searchHitsBuilder = FetchSearchResultProto.SearchHits.newBuilder();
-            searchHitsBuilder.setMaxScore(hits.getMaxScore());
-            searchHitsBuilder.setTotalHits(totalHitsBuilder.build());
-            for (SearchHit hit : hits.getHits()) {
-                FetchSearchResultProto.SearchHit.Builder searchHitBuilder = FetchSearchResultProto.SearchHit.newBuilder();
-                searchHitBuilder.setId(hit.getId());
-                searchHitBuilder.setSource(ByteString.copyFrom(hit.getSourceRef().toBytesRef().bytes));
-                searchHitBuilder.setVersion(hit.getVersion());
-                searchHitBuilder.setSeqNo(hit.getSeqNo());
-                searchHitBuilder.setPrimaryTerm(hit.getPrimaryTerm());
-                searchHitsBuilder.addHits(searchHitBuilder.build());
-            }
-            this.fetchSearchResultProto = this.fetchSearchResultProto.toBuilder().setHits(searchHitsBuilder.build()).build();
+            this.fetchSearchResultProto = this.fetchSearchResultProto.toBuilder().setHits(SearchHits.convertHitsToProto(hits)).build();
         }
     }
 

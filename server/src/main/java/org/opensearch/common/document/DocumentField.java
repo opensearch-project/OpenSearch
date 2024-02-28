@@ -36,6 +36,7 @@ import com.google.protobuf.ByteString;
 import org.apache.lucene.util.SuppressForbidden;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -85,6 +86,7 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
 
     @SuppressForbidden(reason = "We need to read from a byte array")
     public DocumentField(byte[] in) throws IOException {
+        assert FeatureFlags.isEnabled(FeatureFlags.PROTOBUF) : "protobuf feature flag is not enabled";
         documentField = FetchSearchResultProto.SearchHit.DocumentField.parseFrom(in);
         name = documentField.getName();
         values = new ArrayList<>();
