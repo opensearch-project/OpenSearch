@@ -1133,7 +1133,11 @@ public class Node implements Closeable {
                 taskCancellationMonitoringSettings
             );
             final PeerRecoveryTargetService peerRecoveryTargetService = new PeerRecoveryTargetService(
-                threadPool, transportService, recoverySettings, clusterService);
+                threadPool,
+                transportService,
+                recoverySettings,
+                clusterService
+            );
 
             this.nodeService = new NodeService(
                 settings,
@@ -1253,8 +1257,7 @@ public class Node implements Closeable {
                     processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
                     b.bind(PeerRecoverySourceService.class)
                         .toInstance(new PeerRecoverySourceService(transportService, indicesService, recoverySettings));
-                    b.bind(PeerRecoveryTargetService.class)
-                        .toInstance(peerRecoveryTargetService);
+                    b.bind(PeerRecoveryTargetService.class).toInstance(peerRecoveryTargetService);
                     b.bind(SegmentReplicationTargetService.class)
                         .toInstance(
                             new SegmentReplicationTargetService(

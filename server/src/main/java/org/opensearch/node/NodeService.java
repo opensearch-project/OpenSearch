@@ -51,7 +51,6 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.recovery.PeerRecoveryStatsTracker;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
@@ -275,7 +274,7 @@ public class NodeService implements Closeable {
             segmentReplicationTrackerStats ? this.segmentReplicationStatsTracker.getTotalRejectionStats() : null,
             repositoriesStats ? this.repositoriesService.getRepositoriesStats() : null,
             admissionControl ? this.admissionControlService.stats() : null,
-            peerRecoveryStats? this.peerRecoveryTargetService.stats() : null
+            peerRecoveryStats ? this.peerRecoveryTargetService.stats() : null
         );
     }
 

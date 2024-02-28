@@ -8,9 +8,8 @@
 
 package org.opensearch.indices.recovery;
 
-
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -31,7 +30,6 @@ public class PeerRecoveryStats implements Writeable, ToXContentFragment {
     private final long total_retried_recoveries;
     private final long total_cancelled_recoveries;
 
-
     public PeerRecoveryStats(StreamInput in) throws IOException {
         total_started_recoveries = in.readVLong();
         total_failed_recoveries = in.readVLong();
@@ -40,7 +38,13 @@ public class PeerRecoveryStats implements Writeable, ToXContentFragment {
         total_cancelled_recoveries = in.readVLong();
     }
 
-    public PeerRecoveryStats(long total_started_recoveries, long total_failed_recoveries,long total_completed_recoveries,long total_retried_recoveries,long total_cancelled_recoveries) {
+    public PeerRecoveryStats(
+        long total_started_recoveries,
+        long total_failed_recoveries,
+        long total_completed_recoveries,
+        long total_retried_recoveries,
+        long total_cancelled_recoveries
+    ) {
         this.total_started_recoveries = total_started_recoveries;
         this.total_failed_recoveries = total_failed_recoveries;
         this.total_completed_recoveries = total_completed_recoveries;
@@ -59,6 +63,7 @@ public class PeerRecoveryStats implements Writeable, ToXContentFragment {
     public long getTotalStartedRecoveries() {
         return total_started_recoveries;
     }
+
     public long getTotalFailedRecoveries() {
         return total_failed_recoveries;
     }
@@ -74,7 +79,6 @@ public class PeerRecoveryStats implements Writeable, ToXContentFragment {
     public long getTotalCancelledRecoveries() {
         return total_cancelled_recoveries;
     }
-
 
     private static final String TotalStartedRecoveries = "total_started_recoveries";
     private static final String TotalFailedRecoveries = "total_failed_recoveries";
