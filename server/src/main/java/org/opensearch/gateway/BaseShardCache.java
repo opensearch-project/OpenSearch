@@ -73,6 +73,13 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
      */
     public abstract K getData(DiscoveryNode node);
 
+    /**
+     * Provide the list of shards which got failures, these shards should be removed
+     * @return list of failed shards
+     */
+    public abstract List<ShardId> getFailedShards();
+
+
     @NonNull
     public abstract Map<String, ? extends BaseNodeEntry> getCache();
 

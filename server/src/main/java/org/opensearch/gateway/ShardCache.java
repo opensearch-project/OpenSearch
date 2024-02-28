@@ -14,7 +14,9 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.index.shard.ShardId;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -53,6 +55,12 @@ public class ShardCache<K extends BaseNodeResponse> extends BaseShardCache<K> {
     @Override
     public void clearShardCache(ShardId shardId) {
         cache.clear();
+    }
+
+    @Override
+    public List<ShardId> getFailedShards() {
+        // Single shard cache does not need to return that shard itself because handleFailure will take care of retries
+        return Collections.emptyList();
     }
 
     /**
