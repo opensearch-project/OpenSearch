@@ -32,8 +32,8 @@ import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SET
  */
 public abstract class ParameterizedStaticSettingsOpenSearchIntegTestCase extends ParameterizedOpenSearchIntegTestCase {
 
-    protected static final String REPOSITORY_NAME = "test-remote-store-repo";
-    private Path repositoryPath;
+    protected static final String REMOTE_STORE_REPOSITORY_NAME = "test-remote-store-repo";
+    private Path remoteStoreRepositoryPath;
     public static final List<Object[]> replicationSettings = Arrays.asList(
         new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build() },
         new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build() }
@@ -52,10 +52,10 @@ public abstract class ParameterizedStaticSettingsOpenSearchIntegTestCase extends
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder();
         if (REMOTE_CLUSTER_STATE_ENABLED_SETTING.get(settings)) {
-            if (repositoryPath == null) {
-                repositoryPath = randomRepoPath().toAbsolutePath();
+            if (remoteStoreRepositoryPath == null) {
+                remoteStoreRepositoryPath = randomRepoPath().toAbsolutePath();
             }
-            builder.put(remoteStoreClusterSettings(REPOSITORY_NAME, repositoryPath));
+            builder.put(remoteStoreClusterSettings(REMOTE_STORE_REPOSITORY_NAME, remoteStoreRepositoryPath));
         }
         return builder.put(super.nodeSettings(nodeOrdinal)).put(settings).build();
     }
