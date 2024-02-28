@@ -67,7 +67,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -76,7 +75,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.stream.IntStream;
@@ -84,42 +82,22 @@ import java.util.stream.IntStream;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.collection.IsEmptyCollection.empty;
 
 public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
-    private SearchRequestOperationsListener assertingListener;
-    private Set<SearchPhase> phases;
+    private SearchRequestOperationsListenerAssertingListener assertingListener;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
 
-        phases = Collections.newSetFromMap(new IdentityHashMap<>());
-        assertingListener = new SearchRequestOperationsListener() {
-            @Override
-            protected void onPhaseStart(SearchPhaseContext context) {
-                assertThat(phases.contains(context.getCurrentPhase()), is(false));
-                phases.add(context.getCurrentPhase());
-            }
-
-            @Override
-            protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
-                assertThat(phases.contains(context.getCurrentPhase()), is(true));
-                phases.remove(context.getCurrentPhase());
-            }
-
-            @Override
-            protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {
-                assertThat(phases.contains(context.getCurrentPhase()), is(true));
-                phases.remove(context.getCurrentPhase());
-            }
-        };
+        assertingListener = new SearchRequestOperationsListenerAssertingListener();
     }
 
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        assertBusy(() -> assertThat(phases, empty()), 5, TimeUnit.SECONDS);
+
+        assertingListener.assertFinished();
     }
 
     public void testFilterShards() throws InterruptedException {
@@ -183,8 +161,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 @Override
                 public void run() throws IOException {
                     result.set(iter);
-                    latch.countDown();
                     assertingListener.onPhaseEnd(new MockSearchPhaseContext(1, searchRequest, this), null);
+                    latch.countDown();
                 }
             },
             SearchResponse.Clusters.EMPTY,
@@ -280,8 +258,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 @Override
                 public void run() throws IOException {
                     result.set(iter);
-                    latch.countDown();
                     assertingListener.onPhaseEnd(new MockSearchPhaseContext(1, searchRequest, this), null);
+                    latch.countDown();
                 }
             },
             SearchResponse.Clusters.EMPTY,
@@ -381,7 +359,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 randomIntBetween(1, 32),
                 SearchResponse.Clusters.EMPTY,
                 new SearchRequestContext(
-                    new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                    new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
                     searchRequest
                 ),
                 NoopTracer.INSTANCE
@@ -389,7 +367,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
 
                 @Override
                 protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
-                    return new SearchPhase("test") {
+                    return new WrappingSearchAsyncActionPhase(this) {
                         @Override
                         public void run() {
                             latch.countDown();
@@ -413,7 +391,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             },
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(
-                new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
                 searchRequest
             ),
             NoopTracer.INSTANCE
@@ -421,7 +399,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
 
         canMatchPhase.start();
         latch.await();
-
+        assertingListener.onPhaseEnd(canMatchPhase, null);
         executor.shutdown();
     }
 
@@ -498,8 +476,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                     @Override
                     public void run() {
                         result.set(iter);
-                        latch.countDown();
                         assertingListener.onPhaseEnd(new MockSearchPhaseContext(1, searchRequest, this), null);
+                        latch.countDown();
                     }
                 },
                 SearchResponse.Clusters.EMPTY,
@@ -604,8 +582,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                     @Override
                     public void run() {
                         result.set(iter);
-                        latch.countDown();
                         assertingListener.onPhaseEnd(new MockSearchPhaseContext(1, searchRequest, this), null);
+                        latch.countDown();
                     }
                 },
                 SearchResponse.Clusters.EMPTY,

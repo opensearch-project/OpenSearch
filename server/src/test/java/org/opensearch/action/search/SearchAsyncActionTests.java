@@ -57,6 +57,8 @@ import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -80,6 +82,23 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class SearchAsyncActionTests extends OpenSearchTestCase {
+    private SearchRequestOperationsListenerAssertingListener assertingListener;
+
+    @Before
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+
+        assertingListener = new SearchRequestOperationsListenerAssertingListener();
+    }
+
+    @After
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+
+        assertingListener.assertFinished();
+    }
 
     public void testSkipSearchShards() throws InterruptedException {
         SearchRequest request = new SearchRequest();
@@ -139,7 +158,10 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            new SearchRequestContext(new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()), request),
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
+                request
+            ),
             NoopTracer.INSTANCE
         ) {
 
@@ -171,6 +193,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
                     @Override
                     public void run() {
                         assertTrue(searchPhaseDidRun.compareAndSet(false, true));
+                        assertingListener.onPhaseEnd(new MockSearchPhaseContext(1, request, this), null);
                     }
                 };
             }
@@ -259,7 +282,10 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            new SearchRequestContext(new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()), request),
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
+                request
+            ),
             NoopTracer.INSTANCE
         ) {
 
@@ -298,6 +324,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
                 return new SearchPhase("test") {
                     @Override
                     public void run() {
+                        assertingListener.onPhaseEnd(new MockSearchPhaseContext(1, request, this), null);
                         assertTrue(searchPhaseDidRun.compareAndSet(false, true));
                     }
                 };
@@ -378,7 +405,10 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            new SearchRequestContext(new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()), request),
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
+                request
+            ),
             NoopTracer.INSTANCE
         ) {
             TestSearchResponse response = new TestSearchResponse();
@@ -415,6 +445,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
                             sendReleaseSearchContext(result.getContextId(), new MockConnection(result.node), OriginalIndices.NONE);
                         }
                         responseListener.onResponse(response);
+                        assertingListener.onPhaseEnd(new MockSearchPhaseContext(1, request, this), null);
                     }
                 };
             }
@@ -502,7 +533,10 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            new SearchRequestContext(new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()), request),
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
+                request
+            ),
             NoopTracer.INSTANCE
         ) {
             TestSearchResponse response = new TestSearchResponse();
@@ -617,7 +651,10 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            new SearchRequestContext(new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()), request),
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
+                request
+            ),
             NoopTracer.INSTANCE
         ) {
             @Override
@@ -651,6 +688,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
                     @Override
                     public void run() {
                         assertTrue(searchPhaseDidRun.compareAndSet(false, true));
+                        assertingListener.onPhaseEnd(new MockSearchPhaseContext(1, request, this), null);
                     }
                 };
             }

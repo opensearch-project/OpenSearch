@@ -86,8 +86,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.stream.IntStream;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -98,7 +96,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
     private final List<Tuple<String, String>> resolvedNodes = new ArrayList<>();
     private final Set<ShardSearchContextId> releasedContexts = new CopyOnWriteArraySet<>();
     private ExecutorService executor;
-    private SearchRequestOperationsListener assertingListener;
+    private SearchRequestOperationsListenerAssertingListener assertingListener;
     ThreadPool threadPool;
 
     @Before
@@ -107,27 +105,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         super.setUp();
         executor = Executors.newFixedThreadPool(1);
         threadPool = new TestThreadPool(getClass().getName());
-        assertingListener = new SearchRequestOperationsListener() {
-            private volatile SearchPhase phase;
-
-            @Override
-            protected void onPhaseStart(SearchPhaseContext context) {
-                assertThat(phase, is(nullValue()));
-                phase = context.getCurrentPhase();
-            }
-
-            @Override
-            protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
-                assertThat(phase, is(context.getCurrentPhase()));
-                phase = null;
-            }
-
-            @Override
-            protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {
-                assertThat(phase, is(context.getCurrentPhase()));
-                phase = null;
-            }
-        };
+        assertingListener = new SearchRequestOperationsListenerAssertingListener();
     }
 
     @After
@@ -137,6 +115,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         executor.shutdown();
         assertTrue(executor.awaitTermination(1, TimeUnit.SECONDS));
         ThreadPool.terminate(threadPool, 5, TimeUnit.SECONDS);
+        assertingListener.assertFinished();
     }
 
     private AbstractSearchAsyncAction<SearchPhaseResult> createAction(
@@ -363,7 +342,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         SearchRequestStats testListener = new SearchRequestStats(clusterSettings);
 
-        final List<SearchRequestOperationsListener> requestOperationListeners = List.of(testListener);
+        final List<SearchRequestOperationsListener> requestOperationListeners = List.of(testListener, assertingListener);
         SearchQueryThenFetchAsyncAction action = createSearchQueryThenFetchAsyncAction(requestOperationListeners);
         action.start();
         assertEquals(1, testListener.getPhaseCurrent(action.getSearchPhaseName()));
@@ -395,6 +374,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         SearchShardIterator searchShardIterator = new SearchShardIterator(null, shardId, Collections.emptyList(), OriginalIndices.NONE);
         searchShardIterator.resetAndSkip();
         action.skipShard(searchShardIterator);
+        action.start();
         action.executeNextPhase(action, fetchPhase);
         assertEquals(1, testListener.getPhaseCurrent(fetchPhase.getSearchPhaseName()));
         action.onPhaseFailure(new SearchPhase("test") {
@@ -626,7 +606,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
     public void testOnPhaseListenersWithQueryAndThenFetchType() throws InterruptedException {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         SearchRequestStats testListener = new SearchRequestStats(clusterSettings);
-        final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener));
+        final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener, assertingListener));
 
         long delay = (randomIntBetween(1, 5));
         delay = delay * 10;
@@ -676,7 +656,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
     public void testOnPhaseListenersWithDfsType() throws InterruptedException {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         SearchRequestStats testListener = new SearchRequestStats(clusterSettings);
-        final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener));
+        final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener, assertingListener));
 
         SearchDfsQueryThenFetchAsyncAction searchDfsQueryThenFetchAsyncAction = createSearchDfsQueryThenFetchAsyncAction(
             requestOperationListeners
@@ -697,6 +677,10 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertThat(testListener.getPhaseMetric(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()), greaterThanOrEqualTo(delay));
         assertEquals(1, testListener.getPhaseTotal(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()));
         assertEquals(0, testListener.getPhaseCurrent(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()));
+        searchDfsQueryThenFetchAsyncAction.sendSearchResponse(
+            mock(InternalSearchResponse.class),
+            mock(String.valueOf(QuerySearchResult.class))
+        );
     }
 
     private SearchDfsQueryThenFetchAsyncAction createSearchDfsQueryThenFetchAsyncAction(
@@ -750,7 +734,18 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
                 searchRequest
             ),
             NoopTracer.INSTANCE
-        );
+        ) {
+            @Override
+            public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+                new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger).onPhaseEnd(
+                    this,
+                    new SearchRequestContext(
+                        new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger),
+                        searchRequest
+                    )
+                );
+            }
+        };
     }
 
     private SearchQueryThenFetchAsyncAction createSearchQueryThenFetchAsyncAction(
@@ -812,7 +807,13 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
 
             @Override
             public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-                start();
+                new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger).onPhaseEnd(
+                    this,
+                    new SearchRequestContext(
+                        new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger),
+                        searchRequest
+                    )
+                );
             }
         };
     }
