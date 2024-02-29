@@ -638,7 +638,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         innerTestExecutePhaseOnShardFailure(false);
     }
 
-    public void testExecutePhaseOnShardFailureAndThrowException()  throws InterruptedException {
+    public void testExecutePhaseOnShardFailureAndThrowException() throws InterruptedException {
         innerTestExecutePhaseOnShardFailure(true);
     }
 
