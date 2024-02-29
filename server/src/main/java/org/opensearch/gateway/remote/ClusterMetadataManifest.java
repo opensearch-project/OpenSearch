@@ -209,7 +209,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         if (codec_version == CODEC_V1) {
             parser.declareInt(ConstructingObjectParser.constructorArg(), CODEC_VERSION_FIELD);
             parser.declareString(ConstructingObjectParser.constructorArg(), GLOBAL_METADATA_FIELD);
-        } else if (codec_version == CODEC_V2) {
+        } else if (codec_version >= CODEC_V2) {
             parser.declareInt(ConstructingObjectParser.constructorArg(), CODEC_VERSION_FIELD);
             parser.declareNamedObject(
                 ConstructingObjectParser.optionalConstructorArg(),
