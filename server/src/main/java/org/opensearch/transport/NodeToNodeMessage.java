@@ -37,7 +37,7 @@ public class NodeToNodeMessage implements BaseInboundMessage {
 
     private final NodeToNodeMessageProto.NodeToNodeMessage message;
     private static final byte[] PREFIX = { (byte) 'E', (byte) 'S' };
-    private Protocol protocol;
+    private String protocol;
 
     public NodeToNodeMessage(
         long requestId,
@@ -122,12 +122,12 @@ public class NodeToNodeMessage implements BaseInboundMessage {
     }
 
     @Override
-    public Protocol getProtocol() {
-        return Protocol.PROTOBUF;
+    public String getProtocol() {
+        return PROTOBUF_PROTOCOL;
     }
 
     @Override
     public void setProtocol() {
-        this.protocol = Protocol.PROTOBUF;
+        this.protocol = PROTOBUF_PROTOCOL;
     }
 }

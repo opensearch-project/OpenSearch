@@ -19,15 +19,13 @@ public interface BaseInboundMessage {
     /**
      * The protocol used to encode this message
      */
-    enum Protocol {
-        DEFAULT,
-        PROTOBUF,
-    }
+    static String NATIVE_PROTOCOL = "native";
+    static String PROTOBUF_PROTOCOL = "protobuf";
 
     /**
      * @return the protocol used to encode this message
      */
-    public Protocol getProtocol();
+    public String getProtocol();
 
     /**
      * Set the protocol used to encode this message

@@ -40,6 +40,7 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.server.proto.QueryFetchSearchResultProto;
+import org.opensearch.transport.BaseInboundMessage;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -122,11 +123,11 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     }
 
     @Override
-    public boolean isMessageProtobuf() {
+    public String getProtocol() {
         if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
-            return true;
+            return BaseInboundMessage.PROTOBUF_PROTOCOL;
         }
-        return false;
+        return BaseInboundMessage.NATIVE_PROTOCOL;
     }
 
     public QueryFetchSearchResultProto.QueryFetchSearchResult response() {

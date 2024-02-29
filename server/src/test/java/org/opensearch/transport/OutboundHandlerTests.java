@@ -293,7 +293,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
         FetchSearchResult fetchResult = createFetchSearchResult();
         QueryFetchSearchResult response = new QueryFetchSearchResult(queryResult, fetchResult);
         System.setProperty(FeatureFlags.PROTOBUF, "true");
-        assertTrue(response.isMessageProtobuf());
+        assertTrue((response.getProtocol()).equals(BaseInboundMessage.PROTOBUF_PROTOCOL));
 
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
