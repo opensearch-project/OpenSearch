@@ -137,6 +137,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
                 .setThreadPoolAlias("ehcacheTest")
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setIsEventListenerModeSync(true) // For accurate count
                 .setKeyType(String.class)
                 .setValueType(String.class)
                 .setCacheType(CacheType.INDICES_REQUEST_CACHE)
