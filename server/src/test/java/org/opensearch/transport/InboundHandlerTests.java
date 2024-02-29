@@ -373,11 +373,11 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         // response so we must just close the connection on an error. To avoid the failure disappearing into a black hole we at least log
         // it.
 
-        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(InboundHandler.class))) {
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(NativeMessageHandler.class))) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "expected message",
-                    InboundHandler.class.getCanonicalName(),
+                    NativeMessageHandler.class.getCanonicalName(),
                     Level.WARN,
                     "could not send error response to handshake"
                 )
@@ -406,11 +406,11 @@ public class InboundHandlerTests extends OpenSearchTestCase {
     }
 
     public void testLogsSlowInboundProcessing() throws Exception {
-        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(InboundHandler.class))) {
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(NativeMessageHandler.class))) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "expected message",
-                    InboundHandler.class.getCanonicalName(),
+                    NativeMessageHandler.class.getCanonicalName(),
                     Level.WARN,
                     "handling inbound transport message "
                 )
