@@ -83,6 +83,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
     private final RemoteStoreNodeService remoteStoreNodeService;
 
+    private static Settings currentNodeSettings = Settings.EMPTY;
+
     /**
      * Task for the join task executor.
      *
@@ -145,12 +147,16 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         this.logger = logger;
         this.rerouteService = rerouteService;
         this.remoteStoreNodeService = remoteStoreNodeService;
+        currentNodeSettings = settings;
+    }
+
+    public static Settings getCurrentNodeSettings() {
+        return currentNodeSettings;
     }
 
     @Override
     public ClusterTasksResult<Task> execute(ClusterState currentState, List<Task> joiningNodes) throws Exception {
         final ClusterTasksResult.Builder<Task> results = ClusterTasksResult.builder();
-
         final DiscoveryNodes currentNodes = currentState.nodes();
         boolean nodesChanged = false;
         ClusterState.Builder newState;
@@ -507,9 +513,12 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         assert existingNodes.isEmpty() == false;
 
-        CompatibilityMode remoteStoreCompatibilityMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(metadata.settings());
-        if (STRICT.equals(remoteStoreCompatibilityMode)) {
+        CompatibilityMode remoteStoreCompatibilityMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(getCurrentNodeSettings());
+        if (REMOTE_STORE_COMPATIBILITY_MODE_SETTING.exists(metadata.settings())) {
+            remoteStoreCompatibilityMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(metadata.settings());
+        }
 
+        if (STRICT.equals(remoteStoreCompatibilityMode)) {
             DiscoveryNode existingNode = existingNodes.get(0);
             if (joiningNode.isRemoteStoreNode()) {
                 ensureRemoteStoreNodesCompatibility(joiningNode, existingNode);
