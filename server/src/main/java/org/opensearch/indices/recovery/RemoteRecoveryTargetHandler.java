@@ -204,7 +204,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
      */
     @Override
     public void forceSegmentFileSync() {
-        logger.info("sending force segment sync");
         final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
         transportService.submitRequest(
             targetNode,

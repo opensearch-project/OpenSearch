@@ -35,15 +35,12 @@ package org.opensearch.indices.recovery;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.action.ActionListener;
@@ -71,7 +68,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
-import static java.lang.Thread.sleep;
 import static org.opensearch.index.translog.Translog.TRANSLOG_UUID_KEY;
 
 /**
@@ -217,33 +213,13 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
             if (indexShard.shouldSeedRemoteStore() && indexShard.routingEntry().primary()) {
                 logger.info("Time to upload all data to remote and also sleep 10 sec");
                 indexShard.refresh("Migration");
-                waitForRemoteStoreSync(indexShard);
+                indexShard.waitForRemoteStoreSync();
                 logger.info("Done uploade");
             } else if (indexShard.isMigratingToRemote() && indexShard.isRemoteSeeded()) {
                 logger.info("Not uploading here, but downloading");
             }
             return null;
         });
-    }
-
-    private void waitForRemoteStoreSync(IndexShard indexShard) {
-        long startNanos = System.nanoTime();
-        while (System.nanoTime() - startNanos < indexShard.getRecoverySettings().internalRemoteUploadTimeout().nanos()) {
-            try {
-                if (indexShard.isRemoteSegmentStoreInSync()) {
-                    break;
-                } else {
-                    try {
-                        sleep(TimeValue.timeValueMinutes(1).seconds());
-                    } catch (InterruptedException ie) {
-                        throw new OpenSearchException("Interrupted waiting for completion of [{}]", ie);
-                    }
-                }
-            } catch (AlreadyClosedException e) {
-                // There is no point in waiting as shard is now closed .
-                return;
-            }
-        }
     }
 
     @Override

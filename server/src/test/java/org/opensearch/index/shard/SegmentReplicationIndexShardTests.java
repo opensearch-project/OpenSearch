@@ -586,7 +586,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         Thread recoveryThread = new Thread(() -> {
             latch.countDown();
             try {
-                shard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}, () -> {});
+                shard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}, () -> {}, null);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -623,7 +623,8 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 shard.relocated(
                     routing.getTargetRelocatingShard().allocationId().getId(),
                     primaryContext -> relocationStarted.countDown(),
-                    () -> {}
+                    () -> {},
+                    null
                 );
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);

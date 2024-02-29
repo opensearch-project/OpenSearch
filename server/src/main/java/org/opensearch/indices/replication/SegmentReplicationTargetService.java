@@ -648,13 +648,11 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     }
 
     private void forceReplication(ForceSyncRequest request, ActionListener<TransportResponse> listener) {
-        logger.info("forcing segment sync");
         final ShardId shardId = request.getShardId();
         assert indicesService != null;
         final IndexShard indexShard = indicesService.getShardOrNull(shardId);
         // Proceed with round of segment replication only when it is allowed
         if (indexShard == null || indexShard.getReplicationEngine().isEmpty()) {
-
             listener.onResponse(TransportResponse.Empty.INSTANCE);
         } else {
             // We are skipping any validation for an incoming checkpoint, use the shard's latest checkpoint in the target.

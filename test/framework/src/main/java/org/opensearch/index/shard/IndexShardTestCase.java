@@ -37,8 +37,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.junit.Assert;
-import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
@@ -159,6 +157,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -181,6 +180,10 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.mockito.Mockito;
+
+import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -189,8 +192,6 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
-import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 
 /**
  * A base class for unit tests that need to create and shutdown {@link IndexShard} instances easily,
@@ -616,7 +617,11 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         @Nullable Path remotePath,
         IndexingOperationListener... listeners
     ) throws IOException {
-        final Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
+        Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
+        // To simulate that the node is remote backed
+        if (indexMetadata.getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_ENABLED) == "true") {
+            nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).put("node.attr.remote_store", "").build();
+        }
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, nodeSettings);
         final IndexShard indexShard;
         if (storeProvider == null) {
@@ -645,7 +650,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory = null;
             RepositoriesService mockRepoSvc = mock(RepositoriesService.class);
 
-            if (indexSettings.isRemoteStoreEnabled()) {
+            if (indexSettings.isRemoteStoreEnabled() || indexSettings.isRemoteNode()) {
                 String remoteStoreRepository = indexSettings.getRemoteStoreRepository();
                 // remote path via setting a repository . This is a hack used for shards are created using reset .
                 // since we can't get remote path from IndexShard directly, we are using repository to store it .
@@ -1001,7 +1006,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     protected void recoveryEmptyReplica(IndexShard replica, boolean startReplica) throws IOException {
         IndexShard primary = null;
         try {
-            primary = newStartedShard(true);
+            primary = newStartedShard(true, replica.indexSettings.getSettings());
             recoverReplica(replica, primary, startReplica);
         } finally {
             closeShards(primary);
@@ -1489,7 +1494,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
 
         SegmentReplicationSourceFactory sourceFactory = null;
         SegmentReplicationTargetService targetService;
-        if (primaryShard.indexSettings.isRemoteStoreEnabled()) {
+        if (primaryShard.indexSettings.isRemoteStoreEnabled() || primaryShard.indexSettings.isRemoteNode()) {
             RecoverySettings recoverySettings = new RecoverySettings(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)

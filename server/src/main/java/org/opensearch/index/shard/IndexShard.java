@@ -67,6 +67,7 @@ import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -858,8 +859,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * relocated. After all operations are successfully blocked, performSegRep is executed followed by target relocation
      * handoff.
      *
+     * @param consumer      a {@link Runnable} that is executed after performSegRep
      * @param performSegRep a {@link Runnable} that is executed after operations are blocked
-     * @param consumer a {@link Runnable} that is executed after performSegRep
+     * @param targetNode the node where the shard is relocating
      * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
      * @throws IllegalStateException           if the relocation target is no longer part of the replication group
      * @throws InterruptedException            if blocking operations is interrupted
@@ -867,7 +869,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void relocated(
         final String targetAllocationId,
         final Consumer<ReplicationTracker.PrimaryContext> consumer,
-        final Runnable performSegRep
+        final Runnable performSegRep,
+        DiscoveryNode targetNode
     ) throws IllegalIndexShardStateException, IllegalStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         // The below list of releasable ensures that if the relocation does not happen, we undo the activity of close and
@@ -901,6 +904,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     : "in-flight operations in progress while moving shard state to relocated";
 
                 performSegRep.run();
+
                 /*
                  * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context via a
                  * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
@@ -935,6 +939,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // failed. The existing primary will continue to be the primary, so we need to allow the segments and translog
             // upload to resume.
             Releasables.close(releasablesOnHandoffFailures);
+            if (indexSettings.isRemoteNode() == false && targetNode != null && targetNode.isRemoteStoreNode()) {
+                // We open RemoteTranslog on target node. In case of relocation failure, we might end up with
+                // dual writers writing to same primary term . Hence, we need to fail relocation to bump up primary term
+                // for the new relocated remote shard.
+                failShard("relocation hand-off failed in remote migration", null);
+            }
             throw ex;
         }
     }
@@ -2077,6 +2087,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.error("Exception while reading latest metadata", e);
         }
         return false;
+    }
+
+    /*
+    Blocks the calling thread,  waiting for the remote store to get synced till internal Remote Upload Timeout
+    */
+    public void waitForRemoteStoreSync() {
+        if (shardRouting.primary() == false) {
+            return;
+        }
+        long startNanos = System.nanoTime();
+
+        while (System.nanoTime() - startNanos < getRecoverySettings().internalRemoteUploadTimeout().nanos()) {
+            try {
+                if (isRemoteSegmentStoreInSync()) {
+                    break;
+                } else {
+                    try {
+                        Thread.sleep(TimeValue.timeValueMinutes(1).seconds());
+                    } catch (InterruptedException ie) {
+                        throw new OpenSearchException("Interrupted waiting for completion of [{}]", ie);
+                    }
+                }
+            } catch (AlreadyClosedException e) {
+                // There is no point in waiting as shard is now closed .
+                return;
+            }
+        }
     }
 
     public void preRecovery() {
