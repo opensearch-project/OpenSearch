@@ -38,7 +38,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.BaseInboundMessage.Protocol;
 
 import java.io.IOException;
 
@@ -104,7 +103,7 @@ public class InboundHandler {
     }
 
     private void messageReceivedFromPipeline(TcpChannel channel, BaseInboundMessage message, long startTime) throws IOException {
-        if (message.getProtocol() == Protocol.PROTOBUF) {
+        if ((message.getProtocol()).equals(BaseInboundMessage.PROTOBUF_PROTOCOL)) {
             ProtobufMessageHandler protobufMessageHandler = new ProtobufMessageHandler(threadPool, responseHandlers);
             NodeToNodeMessage nodeToNodeMessage = (NodeToNodeMessage) message;
             protobufMessageHandler.messageReceivedProtobuf(channel, nodeToNodeMessage, startTime);

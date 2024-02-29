@@ -148,7 +148,7 @@ final class OutboundHandler {
     ) throws IOException {
         Version version = Version.min(this.version, nodeVersion);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
-        if (response.isMessageProtobuf()) {
+        if ((response.getProtocol()).equals(BaseInboundMessage.PROTOBUF_PROTOCOL)) {
             QueryFetchSearchResult queryFetchSearchResult = (QueryFetchSearchResult) response;
             if (queryFetchSearchResult.response() != null) {
                 byte[] bytes = new byte[1];

@@ -48,7 +48,7 @@ public abstract class TransportMessage implements Writeable, ProtobufWriteable {
 
     private TransportAddress remoteAddress;
 
-    private boolean isProtobuf;
+    private String protocol;
 
     public void remoteAddress(TransportAddress remoteAddress) {
         this.remoteAddress = remoteAddress;
@@ -58,8 +58,11 @@ public abstract class TransportMessage implements Writeable, ProtobufWriteable {
         return remoteAddress;
     }
 
-    public boolean isMessageProtobuf() {
-        return isProtobuf;
+    public String getProtocol() {
+        if (protocol != null) {
+            return protocol;
+        }
+        return "native";
     }
 
     /**

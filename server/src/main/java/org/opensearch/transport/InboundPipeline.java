@@ -125,8 +125,8 @@ public class InboundPipeline implements Releasable {
         statsTracker.markBytesRead(reference.length());
         pending.add(reference.retain());
 
-        BaseInboundMessage.Protocol incomingMessageProtocol = TcpTransport.determineTransportProtocol(reference);
-        if (incomingMessageProtocol == BaseInboundMessage.Protocol.PROTOBUF) {
+        String incomingMessageProtocol = TcpTransport.determineTransportProtocol(reference);
+        if (incomingMessageProtocol.equals(BaseInboundMessage.PROTOBUF_PROTOCOL)) {
             // removing the first byte we added for protobuf message
             byte[] incomingBytes = BytesReference.toBytes(reference.slice(3, reference.length() - 3));
             NodeToNodeMessage protobufMessage = new NodeToNodeMessage(incomingBytes);
