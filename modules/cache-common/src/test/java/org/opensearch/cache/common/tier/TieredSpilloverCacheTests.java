@@ -18,9 +18,7 @@ import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
 import org.opensearch.common.metrics.CounterMetric;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -353,8 +351,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             tieredSpilloverCache.computeIfAbsent(UUID.randomUUID().toString(), tieredCacheLoader);
         }
         assertTrue(removalListener.evictionsMetric.count() > 0);
-        // assertTrue(eventListener.enumMap.get(CacheStoreType.ON_HEAP).evictionsMetric.count() > 0);
-        // assertTrue(eventListener.enumMap.get(CacheStoreType.DISK).evictionsMetric.count() > 0);
     }
 
     public void testGetAndCount() throws Exception {
@@ -433,7 +429,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         String key = UUID.randomUUID().toString();
         String value = UUID.randomUUID().toString();
         tieredSpilloverCache.put(key, value);
-        // assertEquals(1, eventListener.enumMap.get(CacheStoreType.ON_HEAP).cachedCount.count());
         assertEquals(1, tieredSpilloverCache.count());
     }
 
@@ -532,12 +527,10 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         String value = UUID.randomUUID().toString();
         // First try to invalidate without the key present in cache.
         tieredSpilloverCache.invalidate(key);
-        // assertEquals(0, eventListener.enumMap.get(CacheStoreType.ON_HEAP).invalidationMetric.count());
 
         // Now try to invalidate with the key present in onHeap cache.
         tieredSpilloverCache.put(key, value);
         tieredSpilloverCache.invalidate(key);
-        // assertEquals(1, eventListener.enumMap.get(CacheStoreType.ON_HEAP).invalidationMetric.count());
         assertEquals(0, tieredSpilloverCache.count());
 
         tieredSpilloverCache.put(key, value);
@@ -547,7 +540,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         assertEquals(2, tieredSpilloverCache.count());
         // Again invalidate older key
         tieredSpilloverCache.invalidate(key);
-        // assertEquals(1, eventListener.enumMap.get(CacheStoreType.DISK).invalidationMetric.count());
         assertEquals(1, tieredSpilloverCache.count());
     }
 
@@ -823,7 +815,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         assertNotNull(actualValue.get());
         countDownLatch1.await();
         assertEquals(1, removalListener.evictionsMetric.count());
-        // assertEquals(1, eventListener.enumMap.get(CacheStoreType.ON_HEAP).evictionsMetric.count());
         assertEquals(1, tieredSpilloverCache.getOnHeapCache().count());
         assertEquals(1, onDiskCache.count());
         assertNotNull(onDiskCache.get(keyToBeEvicted));
@@ -862,7 +853,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         Settings settings,
         long diskDeliberateDelay
     ) {
-        // ICache.Factory onHeapCacheFactory = new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory();
         ICache.Factory onHeapCacheFactory = new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory();
         CacheConfig<String, String> cacheConfig = new CacheConfig.Builder<String, String>().setKeyType(String.class)
             .setKeyType(String.class)
@@ -879,111 +869,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             .setDiskCacheFactory(mockDiskCacheFactory)
             .setCacheConfig(cacheConfig)
             .build();
-    }
-}
-
-/**
- * Wrapper OpenSearchOnHeap cache which tracks its own stats.
- * @param <K> Type of key
- * @param <V> Type of value
- */
-class OpenSearchOnHeapCacheWrapper<K, V> extends OpenSearchOnHeapCache<K, V> {
-
-    StatsHolder statsHolder = new StatsHolder();
-
-    public OpenSearchOnHeapCacheWrapper(Builder<K, V> builder) {
-        super(builder);
-    }
-
-    @Override
-    public V get(K key) {
-        V value = super.get(key);
-        if (value != null) {
-            statsHolder.hitCount.inc();
-        } else {
-            statsHolder.missCount.inc();
-        }
-        return value;
-    }
-
-    @Override
-    public void put(K key, V value) {
-        super.put(key, value);
-        statsHolder.onCachedMetric.inc();
-    }
-
-    @Override
-    public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
-        V value = super.computeIfAbsent(key, loader);
-        if (loader.isLoaded()) {
-            statsHolder.missCount.inc();
-            statsHolder.onCachedMetric.inc();
-        } else {
-            statsHolder.hitCount.inc();
-        }
-        return value;
-    }
-
-    @Override
-    public void invalidate(K key) {
-        super.invalidate(key);
-    }
-
-    @Override
-    public void invalidateAll() {
-        super.invalidateAll();
-    }
-
-    @Override
-    public Iterable<K> keys() {
-        return super.keys();
-    }
-
-    @Override
-    public long count() {
-        return super.count();
-    }
-
-    @Override
-    public void refresh() {
-        super.refresh();
-    }
-
-    @Override
-    public void close() {}
-
-    @Override
-    public void onRemoval(RemovalNotification<K, V> notification) {
-        super.onRemoval(notification);
-    }
-
-    /**
-     * Factory for the wrapper cache class
-     */
-    static class OpenSearchOnHeapCacheWrapperFactory extends OpenSearchOnHeapCacheFactory {
-
-        @Override
-        public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
-            Map<String, Setting<?>> settingList = OpenSearchOnHeapCacheSettings.getSettingListForCacheType(cacheType);
-            Settings settings = config.getSettings();
-            return new OpenSearchOnHeapCacheWrapper<>(
-                (Builder<K, V>) new OpenSearchOnHeapCache.Builder<K, V>().setMaximumWeightInBytes(
-                    ((ByteSizeValue) settingList.get(MAXIMUM_SIZE_IN_BYTES_KEY).get(settings)).getBytes()
-                ).setWeigher(config.getWeigher())
-            );
-        }
-
-        @Override
-        public String getCacheName() {
-            return super.getCacheName();
-        }
-    }
-
-    class StatsHolder {
-        CounterMetric hitCount = new CounterMetric();
-        CounterMetric missCount = new CounterMetric();
-        CounterMetric evictionMetric = new CounterMetric();
-        CounterMetric onCachedMetric = new CounterMetric();
     }
 }
 
@@ -1008,8 +893,6 @@ class MockOnDiskCache<K, V> implements ICache<K, V> {
     @Override
     public void put(K key, V value) {
         if (this.cache.size() >= maxSize) { // For simplification
-            // eventListener.onRemoval(new StoreAwareCacheRemovalNotification<>(key, value, RemovalReason.EVICTED,
-            // CacheStoreType.DISK));
             return;
         }
         try {
@@ -1018,11 +901,10 @@ class MockOnDiskCache<K, V> implements ICache<K, V> {
             throw new RuntimeException(e);
         }
         this.cache.put(key, value);
-        // eventListener.onCached(key, value, CacheStoreType.DISK);
     }
 
     @Override
-    public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
+    public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) {
         V value = cache.computeIfAbsent(key, key1 -> {
             try {
                 return loader.load(key);
@@ -1030,20 +912,11 @@ class MockOnDiskCache<K, V> implements ICache<K, V> {
                 throw new RuntimeException(e);
             }
         });
-        // if (!loader.isLoaded()) {
-        // eventListener.onHit(key, value, CacheStoreType.DISK);
-        // } else {
-        // eventListener.onMiss(key, CacheStoreType.DISK);
-        // eventListener.onCached(key, value, CacheStoreType.DISK);
-        // }
         return value;
     }
 
     @Override
     public void invalidate(K key) {
-        if (this.cache.containsKey(key)) {
-            // eventListener.onRemoval(new StoreAwareCacheRemovalNotification<>(key, null, RemovalReason.INVALIDATED, CacheStoreType.DISK));
-        }
         this.cache.remove(key);
     }
 
