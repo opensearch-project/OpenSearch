@@ -156,5 +156,6 @@ public class QuerySearchResultTests extends OpenSearchTestCase {
         );
         assertEquals(querySearchResult.from(), querySearchResultProto.getFrom());
         assertEquals(querySearchResult.size(), querySearchResultProto.getSize());
+        System.setProperty(FeatureFlags.PROTOBUF, "false");
     }
 }
