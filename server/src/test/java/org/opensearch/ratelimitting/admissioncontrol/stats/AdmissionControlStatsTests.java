@@ -20,8 +20,7 @@ import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissi
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
-import org.opensearch.telemetry.metrics.MetricsRegistryFactory;
-import org.opensearch.telemetry.metrics.NoopMetricsRegistryFactory;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -37,7 +36,6 @@ public class AdmissionControlStatsTests extends OpenSearchTestCase {
     AdmissionControllerStats admissionControllerStats;
     AdmissionControlStats admissionControlStats;
     private ThreadPool threadPool;
-    private MetricsRegistryFactory metricsRegistryFactory;
 
     @Override
     public void setUp() throws Exception {
@@ -49,12 +47,10 @@ public class AdmissionControlStatsTests extends OpenSearchTestCase {
             )
             .build();
         threadPool = new TestThreadPool("admission_controller_settings_test");
-        metricsRegistryFactory = new NoopMetricsRegistryFactory();
-        ClusterService clusterService = new ClusterService(
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool,
-            metricsRegistryFactory.getMetricsRegistry()
+            threadPool
         );
         admissionController = new CpuBasedAdmissionController(
             CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
@@ -71,7 +67,6 @@ public class AdmissionControlStatsTests extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         threadPool.shutdownNow();
-        metricsRegistryFactory.close();
     }
 
     public void testDefaults() throws IOException {

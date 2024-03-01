@@ -24,8 +24,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.stats.IndexingPressurePerShardStats;
 import org.opensearch.index.stats.IndexingPressureStats;
-import org.opensearch.telemetry.metrics.MetricsRegistryFactory;
-import org.opensearch.telemetry.metrics.NoopMetricsRegistryFactory;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -46,8 +45,7 @@ public class IndexingPressureServiceTests extends OpenSearchTestCase {
     @Before
     public void beforeTest() {
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        MetricsRegistryFactory metricsRegistryFactory = new NoopMetricsRegistryFactory();
-        clusterService = new ClusterService(settings, clusterSettings, null, metricsRegistryFactory.getMetricsRegistry());
+        clusterService = ClusterServiceUtils.createClusterService(settings, clusterSettings, null);
     }
 
     public void testCoordinatingOperationForShardIndexingPressure() {

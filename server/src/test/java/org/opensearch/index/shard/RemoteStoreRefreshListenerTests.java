@@ -37,7 +37,7 @@ import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.telemetry.metrics.NoopMetricsRegistryFactory;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 
@@ -83,11 +83,10 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             indexShard.refresh("test");
         }
 
-        clusterService = new ClusterService(
+        clusterService = ClusterServiceUtils.createClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool,
-            new NoopMetricsRegistryFactory().getMetricsRegistry()
+            threadPool
         );
         remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, Settings.EMPTY);
         remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
@@ -629,11 +628,10 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             return null;
         }).when(emptyCheckpointPublisher).publish(any(), any());
 
-        clusterService = new ClusterService(
+        clusterService = ClusterServiceUtils.createClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool,
-            new NoopMetricsRegistryFactory().getMetricsRegistry()
+            threadPool
         );
         RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory = indexShard.getRemoteStoreStatsTrackerFactory();
         when(shard.indexSettings()).thenReturn(indexShard.indexSettings());
