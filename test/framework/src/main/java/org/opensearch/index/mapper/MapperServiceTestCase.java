@@ -239,7 +239,7 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         });
     }
 
-    QueryShardContext createQueryShardContext(MapperService mapperService) {
+    protected QueryShardContext createQueryShardContext(MapperService mapperService) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.getMapperService()).thenReturn(mapperService);
         when(queryShardContext.fieldMapper(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
@@ -253,7 +253,9 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
         when(queryShardContext.lookup()).thenReturn(new SearchLookup(mapperService, (ft, s) -> {
             throw new UnsupportedOperationException("search lookup not available");
-        }));
+        }, SearchLookup.UNKNOWN_SHARD_ID));
+        when(queryShardContext.getFieldType(any())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
+        when(queryShardContext.documentMapper(anyString())).thenReturn(mapperService.documentMapper());
         return queryShardContext;
     }
 }

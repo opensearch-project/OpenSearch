@@ -38,9 +38,8 @@ import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.SearchHit;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -61,10 +60,10 @@ import static org.hamcrest.Matchers.containsString;
 /**
  * Tests for the {@code field_value_factor} function in a function_score query.
  */
-public class FunctionScoreFieldValueIT extends ParameterizedOpenSearchIntegTestCase {
+public class FunctionScoreFieldValueIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public FunctionScoreFieldValueIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public FunctionScoreFieldValueIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -73,11 +72,6 @@ public class FunctionScoreFieldValueIT extends ParameterizedOpenSearchIntegTestC
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     public void testFieldValueFactor() throws IOException, InterruptedException {

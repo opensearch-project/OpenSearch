@@ -165,7 +165,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      */
     public RemoteSegmentMetadata initializeToSpecificCommit(long primaryTerm, long commitGeneration, String acquirerId) throws IOException {
         String metadataFilePrefix = MetadataFilenameUtils.getMetadataFilePrefixForCommit(primaryTerm, commitGeneration);
-        String metadataFile = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLock(metadataFilePrefix, acquirerId);
+        String metadataFile = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLockedMetadataFile(metadataFilePrefix, acquirerId);
         RemoteSegmentMetadata remoteSegmentMetadata = readMetadataFile(metadataFile);
         if (remoteSegmentMetadata != null) {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(remoteSegmentMetadata.getMetadata());
@@ -746,30 +746,25 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             return;
         }
 
-        List<String> metadataFilesEligibleToDelete = sortedMetadataFileList.subList(
-            lastNMetadataFilesToKeep,
-            sortedMetadataFileList.size()
+        List<String> metadataFilesEligibleToDelete = new ArrayList<>(
+            sortedMetadataFileList.subList(lastNMetadataFilesToKeep, sortedMetadataFileList.size())
         );
-        List<String> metadataFilesToBeDeleted = metadataFilesEligibleToDelete.stream().filter(metadataFile -> {
-            try {
-                return !isLockAcquired(metadataFile);
-            } catch (IOException e) {
-                logger.error(
-                    "skipping metadata file ("
-                        + metadataFile
-                        + ") deletion for this run,"
-                        + " as checking lock for metadata is failing with error: "
-                        + e
-                );
-                return false;
-            }
-        }).collect(Collectors.toList());
+        Set<String> allLockFiles;
+        try {
+            allLockFiles = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLockedMetadataFiles(MetadataFilenameUtils.METADATA_PREFIX);
+        } catch (Exception e) {
+            logger.error("Exception while fetching segment metadata lock files, skipping deleteStaleSegments", e);
+            return;
+        }
+        List<String> metadataFilesToBeDeleted = metadataFilesEligibleToDelete.stream()
+            .filter(metadataFile -> allLockFiles.contains(metadataFile) == false)
+            .collect(Collectors.toList());
 
         sortedMetadataFileList.removeAll(metadataFilesToBeDeleted);
         logger.debug(
             "metadataFilesEligibleToDelete={} metadataFilesToBeDeleted={}",
             metadataFilesEligibleToDelete,
-            metadataFilesEligibleToDelete
+            metadataFilesToBeDeleted
         );
 
         Map<String, UploadedSegmentMetadata> activeSegmentFilesMetadataMap = new HashMap<>();
@@ -781,6 +776,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 segmentMetadataMap.values().stream().map(metadata -> metadata.uploadedFilename).collect(Collectors.toSet())
             );
         }
+        Set<String> deletedSegmentFiles = new HashSet<>();
         for (String metadataFile : metadataFilesToBeDeleted) {
             Map<String, UploadedSegmentMetadata> staleSegmentFilesMetadataMap = readMetadataFile(metadataFile).getMetadata();
             Set<String> staleSegmentRemoteFilenames = staleSegmentFilesMetadataMap.values()
@@ -788,31 +784,33 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 .map(metadata -> metadata.uploadedFilename)
                 .collect(Collectors.toSet());
             AtomicBoolean deletionSuccessful = new AtomicBoolean(true);
-            List<String> nonActiveDeletedSegmentFiles = new ArrayList<>();
-            staleSegmentRemoteFilenames.stream().filter(file -> !activeSegmentRemoteFilenames.contains(file)).forEach(file -> {
-                try {
-                    remoteDataDirectory.deleteFile(file);
-                    nonActiveDeletedSegmentFiles.add(file);
-                    if (!activeSegmentFilesMetadataMap.containsKey(getLocalSegmentFilename(file))) {
-                        segmentsUploadedToRemoteStore.remove(getLocalSegmentFilename(file));
+            staleSegmentRemoteFilenames.stream()
+                .filter(file -> activeSegmentRemoteFilenames.contains(file) == false)
+                .filter(file -> deletedSegmentFiles.contains(file) == false)
+                .forEach(file -> {
+                    try {
+                        remoteDataDirectory.deleteFile(file);
+                        deletedSegmentFiles.add(file);
+                        if (!activeSegmentFilesMetadataMap.containsKey(getLocalSegmentFilename(file))) {
+                            segmentsUploadedToRemoteStore.remove(getLocalSegmentFilename(file));
+                        }
+                    } catch (NoSuchFileException e) {
+                        logger.info("Segment file {} corresponding to metadata file {} does not exist in remote", file, metadataFile);
+                    } catch (IOException e) {
+                        deletionSuccessful.set(false);
+                        logger.warn(
+                            "Exception while deleting segment file {} corresponding to metadata file {}. Deletion will be re-tried",
+                            file,
+                            metadataFile
+                        );
                     }
-                } catch (NoSuchFileException e) {
-                    logger.info("Segment file {} corresponding to metadata file {} does not exist in remote", file, metadataFile);
-                } catch (IOException e) {
-                    deletionSuccessful.set(false);
-                    logger.info(
-                        "Exception while deleting segment file {} corresponding to metadata file {}. Deletion will be re-tried",
-                        file,
-                        metadataFile
-                    );
-                }
-            });
-            logger.debug("nonActiveDeletedSegmentFiles={}", nonActiveDeletedSegmentFiles);
+                });
             if (deletionSuccessful.get()) {
                 logger.debug("Deleting stale metadata file {} from remote segment store", metadataFile);
                 remoteMetadataDirectory.deleteFile(metadataFile);
             }
         }
+        logger.debug("deletedSegmentFiles={}", deletedSegmentFiles);
     }
 
     public void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep) {

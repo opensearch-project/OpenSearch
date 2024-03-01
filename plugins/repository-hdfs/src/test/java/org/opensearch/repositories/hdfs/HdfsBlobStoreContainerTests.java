@@ -64,6 +64,7 @@ import static org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositor
 @ThreadLeakFilters(filters = { HdfsClientThreadLeakFilter.class })
 public class HdfsBlobStoreContainerTests extends OpenSearchTestCase {
 
+    @SuppressWarnings("removal")
     private FileContext createTestContext() {
         FileContext fileContext;
         try {

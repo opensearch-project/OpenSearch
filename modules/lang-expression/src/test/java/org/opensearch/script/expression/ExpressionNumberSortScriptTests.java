@@ -77,7 +77,7 @@ public class ExpressionNumberSortScriptTests extends OpenSearchTestCase {
         when(fieldData.load(any())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(mapperService, (ignored, lookup) -> fieldData);
+        lookup = new SearchLookup(mapperService, (ignored, lookup) -> fieldData, SearchLookup.UNKNOWN_SHARD_ID);
     }
 
     private NumberSortScript.LeafFactory compile(String expression) {

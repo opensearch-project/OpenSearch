@@ -41,7 +41,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateFormatters;
 import org.opensearch.common.time.DateMathParser;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -59,7 +58,7 @@ import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
 import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
@@ -98,7 +97,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class DateHistogramIT extends ParameterizedOpenSearchIntegTestCase {
+public class DateHistogramIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     static Map<ZonedDateTime, Map<String, Object>> expectedMultiSortBuckets;
 
@@ -106,8 +105,8 @@ public class DateHistogramIT extends ParameterizedOpenSearchIntegTestCase {
         return ZonedDateTime.of(2012, month, day, 0, 0, 0, 0, ZoneOffset.UTC);
     }
 
-    public DateHistogramIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public DateHistogramIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -116,11 +115,6 @@ public class DateHistogramIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     private ZonedDateTime date(String date) {
@@ -183,9 +177,9 @@ public class DateHistogramIT extends ParameterizedOpenSearchIntegTestCase {
                 indexDoc(2, 15, 3), // date: Feb 15, dates: Feb 15, Mar 16
                 indexDoc(3, 2, 4),  // date: Mar 2, dates: Mar 2, Apr 3
                 indexDoc(3, 15, 5), // date: Mar 15, dates: Mar 15, Apr 16
-                indexDoc(3, 23, 6)
+                indexDoc(3, 23, 6)  // date: Mar 23, dates: Mar 23, Apr 24
             )
-        ); // date: Mar 23, dates: Mar 23, Apr 24
+        );
         indexRandom(true, builders);
         ensureSearchable();
     }

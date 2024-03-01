@@ -39,7 +39,6 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateFormatters;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -48,7 +47,7 @@ import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.support.AggregationPath;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -76,15 +75,15 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class DateDerivativeIT extends ParameterizedOpenSearchIntegTestCase {
+public class DateDerivativeIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     // some index names used during these tests
     private static final String IDX_DST_START = "idx_dst_start";
     private static final String IDX_DST_END = "idx_dst_end";
     private static final String IDX_DST_KATHMANDU = "idx_dst_kathmandu";
 
-    public DateDerivativeIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public DateDerivativeIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -93,11 +92,6 @@ public class DateDerivativeIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     private ZonedDateTime date(int month, int day) {

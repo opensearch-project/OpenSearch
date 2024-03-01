@@ -49,7 +49,6 @@ import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.common.time.DateFormatter;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -75,7 +74,7 @@ import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.MockKeywordPlugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -128,13 +127,13 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
+public class HighlighterSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     // TODO as we move analyzers out of the core we need to move some of these into HighlighterWithAnalyzersTests
     private static final String[] ALL_TYPES = new String[] { "plain", "fvh", "unified" };
 
-    public HighlighterSearchIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public HighlighterSearchIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -143,11 +142,6 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override

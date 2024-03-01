@@ -32,6 +32,8 @@
 
 package org.opensearch.common.lucene.store;
 
+import org.apache.lucene.store.IndexInput;
+
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -152,5 +154,35 @@ public class ByteArrayIndexInputTests extends OpenSearchIndexInputTestCase {
         assertEquals(2704746820523863637L, indexInput.readLong(0));
         // 10001001 00100101 10001001 00110000 11100111 00100100 10110001 00101110
         assertEquals(-8564288273245753042L, indexInput.readLong(1));
+    }
+
+    public void testReadBytesWithSlice() throws IOException {
+        int inputLength = randomIntBetween(100, 1000);
+
+        byte[] input = randomUnicodeOfLength(inputLength).getBytes(StandardCharsets.UTF_8);
+        ByteArrayIndexInput indexInput = new ByteArrayIndexInput("test", input);
+
+        int sliceOffset = randomIntBetween(1, inputLength - 10);
+        int sliceLength = randomIntBetween(2, inputLength - sliceOffset);
+        IndexInput slice = indexInput.slice("slice", sliceOffset, sliceLength);
+
+        // read a byte from sliced index input and verify if the read value is correct
+        assertEquals(input[sliceOffset], slice.readByte());
+
+        // read few more bytes into a byte array
+        int bytesToRead = randomIntBetween(1, sliceLength - 1);
+        slice.readBytes(new byte[bytesToRead], 0, bytesToRead);
+
+        // now try to read beyond the boundary of the slice, but within the
+        // boundary of the original IndexInput. We've already read few bytes
+        // so this is expected to fail
+        assertThrows(EOFException.class, () -> slice.readBytes(new byte[sliceLength], 0, sliceLength));
+
+        // seek to EOF and then try to read
+        slice.seek(sliceLength);
+        assertThrows(EOFException.class, () -> slice.readBytes(new byte[1], 0, 1));
+
+        slice.close();
+        indexInput.close();
     }
 }

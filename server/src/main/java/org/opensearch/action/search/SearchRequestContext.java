@@ -8,13 +8,11 @@
 
 package org.opensearch.action.search;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.annotation.InternalApi;
 
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -24,25 +22,21 @@ import java.util.Map;
  * @opensearch.internal
  */
 @InternalApi
-class SearchRequestContext {
+public class SearchRequestContext {
     private final SearchRequestOperationsListener searchRequestOperationsListener;
     private long absoluteStartNanos;
     private final Map<String, Long> phaseTookMap;
     private TotalHits totalHits;
     private final EnumMap<ShardStatsFieldNames, Integer> shardStats;
 
-    /**
-     * This constructor is for testing only
-     */
-    SearchRequestContext() {
-        this(new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()));
-    }
+    private final SearchRequest searchRequest;
 
-    SearchRequestContext(SearchRequestOperationsListener searchRequestOperationsListener) {
+    SearchRequestContext(final SearchRequestOperationsListener searchRequestOperationsListener, final SearchRequest searchRequest) {
         this.searchRequestOperationsListener = searchRequestOperationsListener;
         this.absoluteStartNanos = System.nanoTime();
         this.phaseTookMap = new HashMap<>();
         this.shardStats = new EnumMap<>(ShardStatsFieldNames.class);
+        this.searchRequest = searchRequest;
     }
 
     SearchRequestOperationsListener getSearchRequestOperationsListener() {
@@ -53,8 +47,16 @@ class SearchRequestContext {
         this.phaseTookMap.put(phaseName, tookTime);
     }
 
-    Map<String, Long> phaseTookMap() {
+    public Map<String, Long> phaseTookMap() {
         return phaseTookMap;
+    }
+
+    SearchResponse.PhaseTook getPhaseTook() {
+        if (searchRequest != null && searchRequest.isPhaseTook() != null && searchRequest.isPhaseTook()) {
+            return new SearchResponse.PhaseTook(phaseTookMap);
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -68,7 +70,7 @@ class SearchRequestContext {
     /**
      * Request start time in nanos
      */
-    long getAbsoluteStartNanos() {
+    public long getAbsoluteStartNanos() {
         return absoluteStartNanos;
     }
 

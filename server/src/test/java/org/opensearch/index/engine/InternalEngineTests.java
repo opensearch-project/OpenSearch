@@ -78,6 +78,7 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
+import org.apache.lucene.tests.index.ForceMergePolicy;
 import org.apache.lucene.tests.mockfile.ExtrasFS;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
@@ -152,6 +153,7 @@ import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.listener.TranslogEventListener;
+import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.VersionUtils;
@@ -3278,12 +3280,15 @@ public class InternalEngineTests extends EngineTestCase {
             final AtomicReference<RetentionLeases> retentionLeasesHolder = new AtomicReference<>(
                 new RetentionLeases(primaryTerm, retentionLeasesVersion.get(), Collections.emptyList())
             );
+
+            // Just allow force merge so that regular merge does not close the shard first before any any other operation
+            //
             InternalEngine engine = createEngine(
                 config(
                     defaultSettings,
                     store,
                     createTempDir(),
-                    newMergePolicy(),
+                    newForceMergePolicy(),
                     null,
                     null,
                     null,
@@ -3377,7 +3382,7 @@ public class InternalEngineTests extends EngineTestCase {
                     defaultSettings,
                     store,
                     createTempDir(),
-                    newMergePolicy(),
+                    newForceMergePolicy(),
                     null,
                     null,
                     null,
@@ -3446,7 +3451,8 @@ public class InternalEngineTests extends EngineTestCase {
         wrapper.failOn(fail);
         MockLogAppender mockAppender = MockLogAppender.createForLoggers(Loggers.getLogger(Engine.class, shardId));
         try {
-            Store store = createStore(wrapper);
+            // Create a store where directory is closed during unreferenced file cleanup.
+            Store store = createFailingDirectoryStore(wrapper);
             final Engine.EventListener eventListener = new Engine.EventListener() {
                 @Override
                 public void onFailedEngine(String reason, Exception e) {
@@ -3473,7 +3479,7 @@ public class InternalEngineTests extends EngineTestCase {
                     defaultSettings,
                     store,
                     createTempDir(),
-                    newMergePolicy(),
+                    newForceMergePolicy(),
                     null,
                     null,
                     null,
@@ -3532,6 +3538,33 @@ public class InternalEngineTests extends EngineTestCase {
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
         assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
+    }
+
+    /**
+     * Creates a merge policy which only supports force merge.
+     * @return returns a merge policy which only supports force merge.
+     */
+    private MergePolicy newForceMergePolicy() {
+        return new ForceMergePolicy(new TieredMergePolicy());
+    }
+
+    /**
+     * Create a store where directory is closed when referenced while unreferenced file cleanup.
+     *
+     * @param directory directory used for creating the store.
+     * @return a store where directory is closed when referenced while unreferenced file cleanup.
+     */
+    private Store createFailingDirectoryStore(final Directory directory) {
+        return new Store(shardId, INDEX_SETTINGS, directory, new DummyShardLock(shardId)) {
+            @Override
+            public Directory directory() {
+                if (callStackContainsAnyOf("cleanUpUnreferencedFiles")) {
+                    throw new AlreadyClosedException("store is already closed");
+                }
+
+                return super.directory();
+            }
+        };
     }
 
     public void testCurrentTranslogUUIIDIsCommitted() throws IOException {

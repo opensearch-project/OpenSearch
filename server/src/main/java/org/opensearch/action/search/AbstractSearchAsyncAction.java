@@ -118,6 +118,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final SearchRequestContext searchRequestContext;
 
     private SearchPhase currentPhase;
+    private boolean currentPhaseHasLifecycle;
 
     private final List<Releasable> releasables = new ArrayList<>();
 
@@ -214,7 +215,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     0,
                     0,
                     buildTookInMillis(),
-                    timeProvider.getPhaseTook(),
+                    searchRequestContext.getPhaseTook(),
                     ShardSearchFailure.EMPTY_ARRAY,
                     clusters,
                     null
@@ -436,12 +437,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             long tookInNanos = System.nanoTime() - getCurrentPhase().getStartTimeInNanos();
             searchRequestContext.updatePhaseTookMap(getCurrentPhase().getName(), TimeUnit.NANOSECONDS.toMillis(tookInNanos));
         }
-        this.searchRequestContext.getSearchRequestOperationsListener().onPhaseEnd(this, searchRequestContext);
+        if (currentPhaseHasLifecycle) {
+            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseEnd(this, searchRequestContext);
+        }
     }
 
     private void onPhaseStart(SearchPhase phase) {
         setCurrentPhase(phase);
-        this.searchRequestContext.getSearchRequestOperationsListener().onPhaseStart(this);
+        if (currentPhaseHasLifecycle) {
+            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseStart(this);
+        }
     }
 
     private void onRequestEnd(SearchRequestContext searchRequestContext) {
@@ -456,6 +461,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (logger.isDebugEnabled()) {
                 logger.debug(new ParameterizedMessage("Failed to execute [{}] while moving to [{}] phase", request, phase.getName()), e);
             }
+
             onPhaseFailure(phase, "", e);
         }
     }
@@ -635,6 +641,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private void setCurrentPhase(SearchPhase phase) {
         currentPhase = phase;
+        // The WrappingSearchAsyncActionPhase (see please CanMatchPreFilterSearchPhase as one example) is a special case
+        // of search phase that wraps SearchAsyncActionPhase as SearchPhase. The AbstractSearchAsyncAction manages own
+        // onPhaseStart / onPhaseFailure / OnPhaseDone callbacks and the wrapping SearchPhase is being abandoned
+        // (fe, has no onPhaseEnd callbacks called ever). To fix that, we would not send any notifications for this
+        // phase.
+        currentPhaseHasLifecycle = ((phase instanceof WrappingSearchAsyncActionPhase) == false);
     }
 
     @Override
@@ -670,7 +682,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             successfulOps.get(),
             skippedOps.get(),
             buildTookInMillis(),
-            timeProvider.getPhaseTook(),
+            searchRequestContext.getPhaseTook(),
             failures,
             clusters,
             searchContextId
@@ -714,7 +726,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
-        this.searchRequestContext.getSearchRequestOperationsListener().onPhaseFailure(this);
+        if (currentPhaseHasLifecycle) {
+            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseFailure(this);
+        }
         raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
     }
 

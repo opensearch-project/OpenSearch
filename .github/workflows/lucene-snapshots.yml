@@ -35,7 +35,7 @@ jobs:
           echo "REVISION=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       - name: Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'

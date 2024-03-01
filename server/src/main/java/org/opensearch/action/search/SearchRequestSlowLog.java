@@ -116,11 +116,11 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
         this.logger = logger;
         Loggers.setLevel(this.logger, SlowLogLevel.TRACE.name());
 
-        this.warnThreshold = clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_WARN_SETTING).nanos();
-        this.infoThreshold = clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_INFO_SETTING).nanos();
-        this.debugThreshold = clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_DEBUG_SETTING).nanos();
-        this.traceThreshold = clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_TRACE_SETTING).nanos();
-        this.level = clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_LEVEL);
+        this.setWarnThreshold(clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_WARN_SETTING));
+        this.setInfoThreshold(clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_INFO_SETTING));
+        this.setDebugThreshold(clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_DEBUG_SETTING));
+        this.setTraceThreshold(clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_TRACE_SETTING));
+        this.setLevel(clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_LEVEL));
 
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_WARN_SETTING, this::setWarnThreshold);
@@ -134,19 +134,19 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
     }
 
     @Override
-    void onPhaseStart(SearchPhaseContext context) {}
+    protected void onPhaseStart(SearchPhaseContext context) {}
 
     @Override
-    void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
+    protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
     @Override
-    void onPhaseFailure(SearchPhaseContext context) {}
+    protected void onPhaseFailure(SearchPhaseContext context) {}
 
     @Override
-    void onRequestStart(SearchRequestContext searchRequestContext) {}
+    protected void onRequestStart(SearchRequestContext searchRequestContext) {}
 
     @Override
-    void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+    protected void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
         long tookInNanos = System.nanoTime() - searchRequestContext.getAbsoluteStartNanos();
 
         if (warnThreshold >= 0 && tookInNanos > warnThreshold && level.isLevelEnabledFor(SlowLogLevel.WARN)) {
@@ -233,18 +233,22 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
 
     void setWarnThreshold(TimeValue warnThreshold) {
         this.warnThreshold = warnThreshold.nanos();
+        setEnabledIfThresholdExceed();
     }
 
     void setInfoThreshold(TimeValue infoThreshold) {
         this.infoThreshold = infoThreshold.nanos();
+        setEnabledIfThresholdExceed();
     }
 
     void setDebugThreshold(TimeValue debugThreshold) {
         this.debugThreshold = debugThreshold.nanos();
+        setEnabledIfThresholdExceed();
     }
 
     void setTraceThreshold(TimeValue traceThreshold) {
         this.traceThreshold = traceThreshold.nanos();
+        setEnabledIfThresholdExceed();
     }
 
     void setLevel(SlowLogLevel level) {
@@ -269,5 +273,9 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
 
     SlowLogLevel getLevel() {
         return level;
+    }
+
+    private void setEnabledIfThresholdExceed() {
+        super.setEnabled(this.warnThreshold >= 0 || this.debugThreshold >= 0 || this.infoThreshold >= 0 || this.traceThreshold >= 0);
     }
 }

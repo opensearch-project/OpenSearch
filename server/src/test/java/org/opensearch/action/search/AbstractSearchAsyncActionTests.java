@@ -32,12 +32,15 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.set.Sets;
@@ -82,6 +85,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -92,6 +97,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
     private final List<Tuple<String, String>> resolvedNodes = new ArrayList<>();
     private final Set<ShardSearchContextId> releasedContexts = new CopyOnWriteArraySet<>();
     private ExecutorService executor;
+    private SearchRequestOperationsListener assertingListener;
     ThreadPool threadPool;
 
     @Before
@@ -100,6 +106,27 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         super.setUp();
         executor = Executors.newFixedThreadPool(1);
         threadPool = new TestThreadPool(getClass().getName());
+        assertingListener = new SearchRequestOperationsListener() {
+            private volatile SearchPhase phase;
+
+            @Override
+            protected void onPhaseStart(SearchPhaseContext context) {
+                assertThat(phase, is(nullValue()));
+                phase = context.getCurrentPhase();
+            }
+
+            @Override
+            protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+                assertThat(phase, is(context.getCurrentPhase()));
+                phase = null;
+            }
+
+            @Override
+            protected void onPhaseFailure(SearchPhaseContext context) {
+                assertThat(phase, is(context.getCurrentPhase()));
+                phase = null;
+            }
+        };
     }
 
     @After
@@ -175,7 +202,10 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             results,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            new SearchRequestContext()
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
+                request
+            )
         ) {
             @Override
             protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -328,9 +358,10 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
     }
 
     public void testOnPhaseFailureAndVerifyListeners() {
-        SearchRequestStats testListener = new SearchRequestStats();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testListener = new SearchRequestStats(clusterSettings);
 
-        final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener));
+        final List<SearchRequestOperationsListener> requestOperationListeners = List.of(testListener);
         SearchQueryThenFetchAsyncAction action = createSearchQueryThenFetchAsyncAction(requestOperationListeners);
         action.start();
         assertEquals(1, testListener.getPhaseCurrent(action.getSearchPhaseName()));
@@ -591,7 +622,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
     }
 
     public void testOnPhaseListenersWithQueryAndThenFetchType() throws InterruptedException {
-        SearchRequestStats testListener = new SearchRequestStats();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testListener = new SearchRequestStats(clusterSettings);
         final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener));
 
         long delay = (randomIntBetween(1, 5));
@@ -640,7 +672,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
     }
 
     public void testOnPhaseListenersWithDfsType() throws InterruptedException {
-        SearchRequestStats testListener = new SearchRequestStats();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testListener = new SearchRequestStats(clusterSettings);
         final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener));
 
         SearchDfsQueryThenFetchAsyncAction searchDfsQueryThenFetchAsyncAction = createSearchDfsQueryThenFetchAsyncAction(
@@ -710,7 +743,10 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             null,
             task,
             SearchResponse.Clusters.EMPTY,
-            new SearchRequestContext(new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger))
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger),
+                searchRequest
+            )
         );
     }
 
@@ -760,7 +796,10 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             null,
             task,
             SearchResponse.Clusters.EMPTY,
-            new SearchRequestContext(new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger))
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger),
+                searchRequest
+            )
         ) {
             @Override
             ShardSearchFailure[] buildShardFailures() {
