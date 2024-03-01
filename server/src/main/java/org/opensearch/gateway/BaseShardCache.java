@@ -74,7 +74,7 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
     public abstract K getData(DiscoveryNode node);
 
     /**
-     * Provide the list of shards which got failures, these shards should be removed
+     * Provide the list of shards which got failures, these shards should be retried
      * @return list of failed shards
      */
     public abstract List<ShardId> getFailedShards();
@@ -184,7 +184,7 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
         }
     }
 
-    public boolean validateNodeResponse(BaseNodeEntry nodeEntry, long fetchingRound) {
+    private boolean validateNodeResponse(BaseNodeEntry nodeEntry, long fetchingRound) {
         if (nodeEntry.getFetchingRound() != fetchingRound) {
             assert nodeEntry.getFetchingRound() > fetchingRound : "node entries only replaced by newer rounds";
             logger.trace(
@@ -203,7 +203,7 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
         return true;
     }
 
-    public void handleNodeFailure(BaseNodeEntry nodeEntry, FailedNodeException failure, long fetchingRound) {
+    private void handleNodeFailure(BaseNodeEntry nodeEntry, FailedNodeException failure, long fetchingRound) {
         if (nodeEntry.getFetchingRound() != fetchingRound) {
             assert nodeEntry.getFetchingRound() > fetchingRound : "node entries only replaced by newer rounds";
             logger.trace(

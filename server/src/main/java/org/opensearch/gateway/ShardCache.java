@@ -26,10 +26,11 @@ import java.util.Map;
  */
 public class ShardCache<K extends BaseNodeResponse> extends BaseShardCache<K> {
 
-    private final Map<String, NodeEntry<K>> cache = new HashMap<>();
+    private final Map<String, NodeEntry<K>> cache;
 
     public ShardCache(Logger logger, String logKey, String type) {
         super(logger, logKey, type);
+        cache = new HashMap<>();
     }
 
     @Override
