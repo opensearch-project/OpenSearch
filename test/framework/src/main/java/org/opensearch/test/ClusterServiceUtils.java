@@ -53,7 +53,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
-import org.opensearch.telemetry.metrics.NoopMetricsRegistryFactory;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -171,8 +171,7 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode, ClusterSettings clusterSettings) {
-        MetricsRegistry metricsRegistry = new NoopMetricsRegistryFactory().getMetricsRegistry();
-        return createClusterService(threadPool, localNode, clusterSettings, metricsRegistry);
+        return createClusterService(threadPool, localNode, clusterSettings, NoopMetricsRegistry.INSTANCE);
     }
 
     public static ClusterService createClusterService(
@@ -194,6 +193,10 @@ public class ClusterServiceUtils {
         clusterService.getClusterManagerService().setClusterStateSupplier(clusterService.getClusterApplierService()::state);
         clusterService.start();
         return clusterService;
+    }
+
+    public static ClusterService createClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+        return new ClusterService(settings, clusterSettings, threadPool, NoopMetricsRegistry.INSTANCE);
     }
 
     public static NodeConnectionsService createNoOpNodeConnectionsService() {

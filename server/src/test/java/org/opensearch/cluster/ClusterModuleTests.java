@@ -70,7 +70,7 @@ import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.plugins.ClusterPlugin;
-import org.opensearch.telemetry.metrics.NoopMetricsRegistryFactory;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
@@ -90,11 +90,10 @@ public class ClusterModuleTests extends ModuleTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadContext = new ThreadContext(Settings.EMPTY);
-        clusterService = new ClusterService(
+        clusterService = ClusterServiceUtils.createClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            null,
-            new NoopMetricsRegistryFactory().getMetricsRegistry()
+            null
         );
     }
 

@@ -633,9 +633,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         for (ClusterStateApplier applier : clusterStateAppliers) {
             logger.trace("calling [{}] with change to version [{}]", applier, clusterChangedEvent.state().version());
             try (TimingHandle ignored = stopWatch.timing("running applier [" + applier + "]")) {
-                long applierStartTimeMS = currentTimeInMillis();
+                long applierStartTimeMS = System.currentTimeMillis();
                 applier.applyClusterState(clusterChangedEvent);
-                double applierExecutionTimeMS = (double) Math.max(0, currentTimeInMillis() - applierStartTimeMS);
+                double applierExecutionTimeMS = (double) Math.max(0, System.currentTimeMillis() - applierStartTimeMS);
                 clusterStateAppliersHistogram.record(
                     applierExecutionTimeMS,
                     Tags.create().addTag(LATENCY_METRIC_OPERATION_TAG_KEY, applier.getClass().getSimpleName())
@@ -658,9 +658,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             try {
                 logger.trace("calling [{}] with change to version [{}]", listener, clusterChangedEvent.state().version());
                 try (TimingHandle ignored = stopWatch.timing("notifying listener [" + listener + "]")) {
-                    long listenerStartTimeMS = currentTimeInMillis();
+                    long listenerStartTimeMS = System.currentTimeMillis();
                     listener.clusterChanged(clusterChangedEvent);
-                    double listenerExecutionTimeMS = (double) Math.max(0, currentTimeInMillis() - listenerStartTimeMS);
+                    double listenerExecutionTimeMS = (double) Math.max(0, System.currentTimeMillis() - listenerStartTimeMS);
                     clusterStateListenersHistogram.record(
                         listenerExecutionTimeMS,
                         Tags.create().addTag(LATENCY_METRIC_OPERATION_TAG_KEY, listener.getClass().getSimpleName())
