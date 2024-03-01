@@ -331,6 +331,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                                 0,
                                 VectorEncoding.FLOAT32,
                                 VectorSimilarityFunction.EUCLIDEAN,
+                                false,
                                 false
                             );
                             StoredFieldVisitor.Status status = fieldVisitor.needsField(fieldInfo);
