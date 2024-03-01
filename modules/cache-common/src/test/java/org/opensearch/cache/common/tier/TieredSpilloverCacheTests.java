@@ -843,6 +843,14 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             onHeapCacheSize,
             100,
             removalListener,
+            Settings.builder()
+                .put(
+                    OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                        .get(MAXIMUM_SIZE_IN_BYTES_KEY)
+                        .getKey(),
+                    onHeapCacheSize * 50 + "b"
+                )
+                .build(),
             0,
             policies
         );
@@ -860,7 +868,19 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         keyValuePairs.put("key5", "");
         expectedOutputs.put("key5", false);
 
-        LoadAwareCacheLoader<String, String> loader = getLoadAwareCacheLoaderWithKeyValueMap(keyValuePairs);
+        LoadAwareCacheLoader<String, String> loader = new LoadAwareCacheLoader<String, String>() {
+            boolean isLoaded = false;
+            @Override
+            public boolean isLoaded() {
+                return isLoaded;
+            }
+
+            @Override
+            public String load(String key) throws Exception {
+                isLoaded = true;
+                return keyValuePairs.get(key);
+            }
+        };
 
         for (String key : keyValuePairs.keySet()) {
             Boolean expectedOutput = expectedOutputs.get(key);
@@ -918,6 +938,18 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         RemovalListener<String, String> removalListener,
         Settings settings,
         long diskDeliberateDelay
+
+    ) {
+        return intializeTieredSpilloverCache(keyValueSize, diskCacheSize, removalListener, settings, diskDeliberateDelay, null);
+    }
+
+    private TieredSpilloverCache<String, String> intializeTieredSpilloverCache(
+        int keyValueSize,
+        int diskCacheSize,
+        RemovalListener<String, String> removalListener,
+        Settings settings,
+        long diskDeliberateDelay,
+        List<CacheTierPolicy<String>> policies
     ) {
         ICache.Factory onHeapCacheFactory = new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory();
         CacheConfig<String, String> cacheConfig = new CacheConfig.Builder<String, String>().setKeyType(String.class)
@@ -929,12 +961,16 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         ICache.Factory mockDiskCacheFactory = new MockOnDiskCache.MockDiskCacheFactory(diskDeliberateDelay, diskCacheSize);
 
-        return new TieredSpilloverCache.Builder<String, String>().setCacheType(CacheType.INDICES_REQUEST_CACHE)
+        TieredSpilloverCache.Builder<String, String> builder = new TieredSpilloverCache.Builder<String, String>()
+            .setCacheType(CacheType.INDICES_REQUEST_CACHE)
             .setRemovalListener(removalListener)
             .setOnHeapCacheFactory(onHeapCacheFactory)
             .setDiskCacheFactory(mockDiskCacheFactory)
-            .setCacheConfig(cacheConfig)
-            .build();
+            .setCacheConfig(cacheConfig);
+        if (policies != null) {
+            builder.setPolicies(policies);
+        }
+        return builder.build();
     }
 }
 

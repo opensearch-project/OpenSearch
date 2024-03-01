@@ -9,7 +9,9 @@
 package org.opensearch.cache.common.tier;
 
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.unit.TimeValue;
 
+import static org.opensearch.common.settings.Setting.Property.Dynamic;
 import static org.opensearch.common.settings.Setting.Property.NodeScope;
 
 /**
@@ -34,6 +36,11 @@ public class TieredSpilloverCacheSettings {
     public static final Setting.AffixSetting<String> TIERED_SPILLOVER_DISK_STORE_NAME = Setting.suffixKeySetting(
         TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".disk.store.name",
         (key) -> Setting.simpleString(key, "", NodeScope)
+    );
+
+    public static final Setting.AffixSetting<TimeValue> TIERED_SPILLOVER_DISK_TOOKTIME_THRESHOLD = Setting.suffixKeySetting(
+        TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".disk.took_time.threshold",
+        (key) -> Setting.timeSetting(key, TimeValue.ZERO, NodeScope, Dynamic)
     );
 
     /**

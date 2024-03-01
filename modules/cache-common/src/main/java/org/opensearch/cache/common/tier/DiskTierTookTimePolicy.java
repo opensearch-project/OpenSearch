@@ -30,23 +30,21 @@ import java.util.function.Function;
  * The policy expects to be able to read a CachePolicyInfoWrapper from the start of the BytesReference.
  */
 public class DiskTierTookTimePolicy implements CacheTierPolicy<BytesReference> {
-    public static final Setting<TimeValue> DISK_TOOKTIME_THRESHOLD_SETTING = Setting.positiveTimeSetting(
+    /*public static final Setting<TimeValue> DISK_TOOKTIME_THRESHOLD_SETTING = Setting.positiveTimeSetting(
         "indices.requests.cache.disk.tooktime.threshold",
         TimeValue.ZERO,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
-    ); // Set this to TimeValue.ZERO to let all data through
+    );*/ // Set this to TimeValue.ZERO to let all data through
 
     private TimeValue threshold;
     private final Function<BytesReference, CachePolicyInfoWrapper> getPolicyInfoFn;
 
     public DiskTierTookTimePolicy(
         Settings settings,
-        ClusterSettings clusterSettings,
         Function<BytesReference, CachePolicyInfoWrapper> getPolicyInfoFn
     ) {
-        this.threshold = DISK_TOOKTIME_THRESHOLD_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(DISK_TOOKTIME_THRESHOLD_SETTING, this::setThreshold);
+        this.threshold = TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_TOOKTIME_THRESHOLD.get(settings);
         this.getPolicyInfoFn = getPolicyInfoFn;
     }
 
