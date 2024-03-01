@@ -29,39 +29,48 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * Cache implementation of transport actions returning batch of shards related data in the response.
+ * Cache implementation of transport actions returning batch of shards data in the response. Cache uses a specific
+ * NodeEntry class that stores the data in array format. To keep the class generic for primary or replica, all
+ * functions are stored during object creation.
  *
  * @param <T> Response type of transport action.
  * @param <V> Data type of shard level response.
  */
 public class ShardBatchCache<T extends BaseNodeResponse, V extends BaseShardResponse> extends BaseShardCache<T> {
-    private final Map<String, NodeEntry<V>> cache = new HashMap<>();
-    private final Map<ShardId, Integer> shardIdToArray = new HashMap<>(); // used for mapping array index for a shard
-    private final AtomicInteger shardIdIndex = new AtomicInteger();
+    private final Map<String, NodeEntry<V>> cache;
+    private final Map<ShardId, Integer> shardIdToArray; // used for mapping array index for a shard
+    private final AtomicInteger shardIdIndex;
     private final int batchSize;
     private final Class<V> shardResponseClass;
     private final BiFunction<DiscoveryNode, Map<ShardId, V>, T> responseConstructor;
-    private final Map<Integer, ShardId> arrayToShardId = new HashMap<>();
+    private final Map<Integer, ShardId> arrayToShardId;
     private final Function<T, Map<ShardId, V>> shardsBatchDataGetter;
     private final Supplier<V> emptyResponseBuilder;
     private final Set<ShardId> failedShards;
+    private final Consumer<ShardId> handleFailedShard;
 
     public ShardBatchCache(Logger logger, String type,
                            Map<ShardId, ShardAttributes> shardToCustomDataPath, String logKey, Class<V> clazz,
-                           BiFunction<DiscoveryNode, Map<ShardId, V>, T> responseGetter, Function<T,
-        Map<ShardId, V>> shardsBatchDataGetter, Supplier<V> emptyResponseBuilder) {
+                           BiFunction<DiscoveryNode, Map<ShardId, V>, T> responseConstructor, Function<T,
+        Map<ShardId, V>> shardsBatchDataGetter, Supplier<V> emptyResponseBuilder, Consumer<ShardId> handleFailedShard) {
         super(logger, logKey, type);
         this.batchSize = shardToCustomDataPath.size();
         fillShardIdKeys(shardToCustomDataPath.keySet());
         this.shardResponseClass = clazz;
-        this.responseConstructor = responseGetter;
+        this.responseConstructor = responseConstructor;
         this.shardsBatchDataGetter = shardsBatchDataGetter;
         this.emptyResponseBuilder = emptyResponseBuilder;
         failedShards = new HashSet<>();
+        cache = new HashMap<>();
+        shardIdToArray = new HashMap<>();
+        arrayToShardId = new HashMap<>();
+        shardIdIndex = new AtomicInteger();
+        this.handleFailedShard = handleFailedShard;
     }
 
     @Override
@@ -139,6 +148,7 @@ public class ShardBatchCache<T extends BaseNodeResponse, V extends BaseShardResp
                         logger.trace("got unhandled retryable exception for shard {} {}", shardId.toString(),
                             shardException.toString());
                         failedShards.add(shardId);
+                        handleFailedShard.accept(shardId);
                         // remove this failed entry. So, while storing the data, we don't need to re-process it.
                         it.remove();
                     }

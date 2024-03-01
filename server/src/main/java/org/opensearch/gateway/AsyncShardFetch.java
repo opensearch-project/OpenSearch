@@ -89,7 +89,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     private final Map<String, NodeEntry<T>> cache = new HashMap<>();
     private final AtomicLong round = new AtomicLong();
     private boolean closed;
-    private final String reroutingKey;
+    protected final String reroutingKey;
     private final Map<ShardId, Set<String>> shardToIgnoreNodes = new HashMap<>();
 
     private final boolean enableBatchMode;

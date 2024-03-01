@@ -12,42 +12,83 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.store.ShardAttributes;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
  * Implementation of AsyncShardFetchAbstract with batching support.
+ * cache will be created using ShardBatchCache class as that can handle the caching strategy correctly for a
+ * batch of shards. Other necessary functions are also stored so cache can store or get the data for both primary
+ * and replicas.
+ *
  * @param <T> Response type of the transport action.
  * @param <V> Data type of shard level response.
  */
 public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends BaseShardResponse>
-    extends AsyncShardFetch<T>{
+    extends AsyncShardFetch<T> {
 
     @SuppressWarnings("unchecked")
     AsyncShardBatchFetch(
         Logger logger,
         String type,
-        Map<ShardId, ShardAttributes> shardToCustomDataPath,
+        Map<ShardId, ShardAttributes> shardAttributesMap,
         AsyncShardFetch.Lister<? extends BaseNodesResponse<T>, T> action,
         String batchId,
         Class<V> clazz,
-        BiFunction<DiscoveryNode, Map<ShardId, V>, T> responseGetter,
+        BiFunction<DiscoveryNode, Map<ShardId, V>, T> responseConstructor,
         Function<T, Map<ShardId, V>> shardsBatchDataGetter,
-        Supplier<V> emptyResponseBuilder
+        Supplier<V> emptyResponseBuilder,
+        Consumer<ShardId> handleFailedShard
     ) {
-        super(logger, type, shardToCustomDataPath, action, batchId);
-        this.shardCache = new ShardBatchCache<>(logger, type, shardToCustomDataPath, "BatchID=[" + batchId+ "]"
-            , clazz, responseGetter, shardsBatchDataGetter, emptyResponseBuilder);
+        super(logger, type, shardAttributesMap, action, batchId);
+        this.cache = new ShardBatchCache<>(logger, type, shardAttributesMap, "BatchID=[" + batchId + "]"
+            , clazz, responseConstructor, shardsBatchDataGetter, emptyResponseBuilder, handleFailedShard);
+    }
+
+    /**
+     * Fetch the data for a batch of shards, this uses the already written {@link AsyncShardFetch} fetchData method.
+     * Based on the shards failed in last round, it makes sure to trigger a reroute for them.
+     *
+     * @param nodes       all the nodes where transport call should be sent
+     * @param ignoreNodes nodes to update based on failures received from transport actions
+     * @return data received from the transport actions
+     */
+    public synchronized FetchResult<T> fetchData(DiscoveryNodes nodes, Map<ShardId, Set<String>> ignoreNodes) {
+        List<ShardId> failedShards = cleanUpFailedShards();
+        if (failedShards.isEmpty() == false) {
+            // trigger a reroute if there are any shards failed, to make sure they're picked up in next run
+            logger.trace("triggering another reroute for failed shards in {}", reroutingKey);
+            reroute("shards-failed", "shards failed in " + reroutingKey);
+        }
+        return super.fetchData(nodes, ignoreNodes);
+    }
+
+    /**
+     * Remove the shard from shardAttributesMap so we don't send it in next fetching round.
+     *
+     * @return return the failed shards so a reroute can be triggered.
+     */
+    private List<ShardId> cleanUpFailedShards() {
+        List<ShardId> failedShards = cache.getFailedShards();
+        if (failedShards != null && failedShards.isEmpty() == false) {
+            shardAttributesMap.keySet().removeIf(failedShards::contains);
+        }
+        return failedShards;
     }
 
     /**
      * Remove a shard from the cache maintaining a full batch of shards. This is needed to clear the shard once it's
      * assigned or failed.
+     *
      * @param shardId shardId to be removed from the batch.
      */
     public void clearShard(ShardId shardId) {
