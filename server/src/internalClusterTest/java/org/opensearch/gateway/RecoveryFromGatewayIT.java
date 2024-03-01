@@ -812,7 +812,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             .get(discoveryNodes[0].getId())
             .getNodeGatewayStartedShardsBatch()
             .get(shardId);
-        assertNotNull(nodeGatewayStartedShards.storeException());
+        assertNotNull(nodeGatewayStartedShards.getException());
         assertNotNull(nodeGatewayStartedShards.allocationId());
         assertTrue(nodeGatewayStartedShards.primary());
     }
@@ -820,7 +820,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
     private void assertNodeGatewayStartedShardsHappyCase(
         TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard nodeGatewayStartedShards
     ) {
-        assertNull(nodeGatewayStartedShards.storeException());
+        assertNull(nodeGatewayStartedShards.getException());
         assertNotNull(nodeGatewayStartedShards.allocationId());
         assertTrue(nodeGatewayStartedShards.primary());
     }

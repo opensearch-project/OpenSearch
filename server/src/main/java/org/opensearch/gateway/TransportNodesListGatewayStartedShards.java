@@ -169,7 +169,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                 shardInfo.allocationId(),
                 shardInfo.primary(),
                 shardInfo.replicationCheckpoint(),
-                shardInfo.storeException()
+                shardInfo.getException()
             );
         } catch (Exception e) {
             throw new OpenSearchException("failed to load started shards", e);

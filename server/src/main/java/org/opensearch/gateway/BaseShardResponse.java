@@ -21,16 +21,34 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public abstract class BaseShardResponse extends TransportResponse {
-    public BaseShardResponse() {}
+
+    private Exception storeException;
+
+    public BaseShardResponse(Exception storeException) {
+        this.storeException = storeException;
+    }
 
     public abstract boolean isEmpty();
 
-    public abstract Exception getException();
+    public Exception getException() {
+        return storeException;
+    }
 
     public BaseShardResponse(StreamInput in) throws IOException {
-        super(in);
+        if (in.readBoolean()) {
+            storeException = in.readException();
+        } else {
+            storeException = null;
+        }
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {}
+    public void writeTo(StreamOutput out) throws IOException {
+        if (storeException != null) {
+            out.writeBoolean(true);
+            out.writeException(storeException);
+        } else {
+            out.writeBoolean(false);
+        }
+    }
 }
