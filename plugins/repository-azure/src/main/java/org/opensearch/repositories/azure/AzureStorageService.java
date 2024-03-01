@@ -43,6 +43,7 @@ import com.azure.core.http.policy.HttpPipelinePolicy;
 import com.azure.core.util.Configuration;
 import com.azure.core.util.Context;
 import com.azure.core.util.logging.ClientLogger;
+import com.azure.identity.ManagedIdentityCredentialBuilder;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.blob.models.ParallelTransferOptions;
@@ -56,11 +57,13 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.net.Authenticator;
 import java.net.PasswordAuthentication;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
 import java.time.Duration;
@@ -159,10 +162,27 @@ public class AzureStorageService implements AutoCloseable {
         return new Tuple<>(state.getClient(), () -> buildOperationContext(azureStorageSettings));
     }
 
+    public StorageEndpoint getStorageBlobEndpoint(final AzureStorageSettings settings) {
+        try {
+            String endpointSuffix = settings.getEndpointSuffix();
+            if (!Strings.hasText(endpointSuffix)) {
+                endpointSuffix = "core.windows.net";
+            }
+            final URI primaryBlobEndpoint = new URI(String.format("https://%s.blob.%s", settings.getAccount(), endpointSuffix));
+            final URI secondaryBlobEndpoint = new URI(String.format("https://%s-secondary.blob.%s", settings.getAccount(), endpointSuffix));
+            return new StorageEndpoint(primaryBlobEndpoint, secondaryBlobEndpoint);
+        } catch (URISyntaxException var14) {
+            throw logger.logExceptionAsError(new RuntimeException(var14));
+        }
+    }
+
     private ClientState buildClient(AzureStorageSettings azureStorageSettings, BiConsumer<HttpRequest, HttpResponse> statsCollector)
         throws InvalidKeyException, URISyntaxException {
         final BlobServiceClientBuilder builder = createClientBuilder(azureStorageSettings);
-
+        // When managed identity is enabled, no connection string will be generated, need to declare the primary uri
+        if (azureStorageSettings.useManagedIdentityCredential()) {
+            builder.endpoint(getStorageBlobEndpoint(azureStorageSettings).getPrimaryUri());
+        }
         final NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(new NioThreadFactory());
         final NettyAsyncHttpClientBuilder clientBuilder = new NettyAsyncHttpClientBuilder().eventLoopGroup(eventLoopGroup);
 
@@ -216,8 +236,13 @@ public class AzureStorageService implements AutoCloseable {
      * <a href="https://github.com/Azure/azure-sdk-for-java/blob/main/sdk/storage/azure-storage-blob/migrationGuides/V8_V12.md#miscellaneous">migration guide</a> for mode details:
      */
     private BlobServiceClientBuilder applyLocationMode(final BlobServiceClientBuilder builder, final AzureStorageSettings settings) {
-        final StorageConnectionString storageConnectionString = StorageConnectionString.create(settings.getConnectString(), logger);
-        final StorageEndpoint endpoint = storageConnectionString.getBlobEndpoint();
+        final StorageEndpoint endpoint;
+        if (settings.useManagedIdentityCredential()) {
+            endpoint = getStorageBlobEndpoint(settings);
+        } else {
+            final StorageConnectionString storageConnectionString = StorageConnectionString.create(settings.getConnectString(), logger);
+            endpoint = storageConnectionString.getBlobEndpoint();
+        }
 
         if (endpoint == null || endpoint.getPrimaryUri() == null) {
             throw new IllegalArgumentException("connectionString missing required settings to derive blob service primary endpoint.");
@@ -249,6 +274,9 @@ public class AzureStorageService implements AutoCloseable {
 
     private static BlobServiceClientBuilder createClientBuilder(AzureStorageSettings settings) throws InvalidKeyException,
         URISyntaxException {
+        if (settings.useManagedIdentityCredential()) {
+            return SocketAccess.doPrivilegedException(() -> new BlobServiceClientBuilder().credential(new ManagedIdentityCredentialBuilder().build()));
+        }
         return SocketAccess.doPrivilegedException(() -> new BlobServiceClientBuilder().connectionString(settings.getConnectString()));
     }
 
