@@ -9,6 +9,7 @@
 package org.opensearch.cache.common.tier;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.cache.CacheTierPolicy;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
@@ -21,6 +22,7 @@ import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.iterable.Iterables;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +54,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
      * Maintains caching tiers in ascending order of cache latency.
      */
     private final List<ICache<K, V>> cacheList;
+    private final List<CacheTierPolicy<V>> policies;
 
     TieredSpilloverCache(Builder<K, V> builder) {
         Objects.requireNonNull(builder.onHeapCacheFactory, "onHeap cache builder can't be null");
@@ -63,7 +66,9 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 @Override
                 public void onRemoval(RemovalNotification<K, V> notification) {
                     try (ReleasableLock ignore = writeLock.acquire()) {
-                        diskCache.put(notification.getKey(), notification.getValue());
+                        if (checkPolicies(notification.getValue())) {
+                            diskCache.put(notification.getKey(), notification.getValue());
+                        }
                     }
                     removalListener.onRemoval(notification);
                 }
@@ -79,6 +84,12 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         );
         this.diskCache = builder.diskCacheFactory.create(builder.cacheConfig, builder.cacheType, builder.cacheFactories);
         this.cacheList = Arrays.asList(onHeapCache, diskCache);
+
+        List<CacheTierPolicy<V>> builderPolicies = builder.policies;
+        if (builderPolicies == null) {
+            builderPolicies = new ArrayList<>();
+        }
+        this.policies = builderPolicies;
     }
 
     // Package private for testing
@@ -193,6 +204,15 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         };
     }
 
+    boolean checkPolicies(V value) {
+        for (CacheTierPolicy<V> policy : policies) {
+            if (!policy.checkData(value)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Factory to create TieredSpilloverCache objects.
      */
@@ -237,6 +257,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 .setRemovalListener(config.getRemovalListener())
                 .setCacheConfig(config)
                 .setCacheType(cacheType)
+                //.setPolicy(new DiskTierTookTimePolicy(settings))
                 .build();
         }
 
@@ -258,6 +279,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         private CacheConfig<K, V> cacheConfig;
         private CacheType cacheType;
         private Map<String, ICache.Factory> cacheFactories;
+        private final ArrayList<CacheTierPolicy<V>> policies = new ArrayList<>();
 
         /**
          * Default constructor
@@ -321,6 +343,16 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
          */
         public Builder<K, V> setCacheFactories(Map<String, ICache.Factory> cacheFactories) {
             this.cacheFactories = cacheFactories;
+            return this;
+        }
+
+        public Builder<K, V> setPolicy(CacheTierPolicy<V> policy) {
+            this.policies.add(policy);
+            return this;
+        }
+
+        public Builder<K, V> setPolicies(List<CacheTierPolicy<V>> policies) {
+            this.policies.addAll(policies);
             return this;
         }
 

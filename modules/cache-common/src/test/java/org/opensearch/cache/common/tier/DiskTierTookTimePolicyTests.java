@@ -55,8 +55,7 @@ public class DiskTierTookTimePolicyTests extends OpenSearchTestCase {
     private DiskTierTookTimePolicy getTookTimePolicy() {
         // dummy settings
         Settings dummySettings = Settings.EMPTY;
-        ClusterSettings dummyClusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        return new DiskTierTookTimePolicy(dummySettings, dummyClusterSettings, transformationFunction);
+        return new DiskTierTookTimePolicy(dummySettings, transformationFunction);
     }
 
     public void testTookTimePolicy() throws Exception {
@@ -121,7 +120,7 @@ public class DiskTierTookTimePolicyTests extends OpenSearchTestCase {
         ShardId shardId = new ShardId("index", "uuid", randomInt());
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
         ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
-            OriginalIndicesTests.randomOriginalIndices(),
+            OriginalIndices.NONE,
             searchRequest,
             shardId,
             1,
