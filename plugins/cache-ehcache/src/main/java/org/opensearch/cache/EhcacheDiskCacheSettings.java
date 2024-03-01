@@ -103,6 +103,14 @@ public class EhcacheDiskCacheSettings {
     );
 
     /**
+     * Disk cache listener mode setting.
+     */
+    public static final Setting.AffixSetting<Boolean> DISK_CACHE_LISTENER_MODE_SYNC_SETTING = Setting.suffixKeySetting(
+        EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".is_event_listener_sync",
+        (key) -> Setting.boolSetting(key, false, NodeScope)
+    );
+
+    /**
      * Key for disk segment.
      */
     public static final String DISK_SEGMENT_KEY = "disk_segment";
@@ -138,6 +146,10 @@ public class EhcacheDiskCacheSettings {
      * Key for storage path.
      */
     public static final String DISK_STORAGE_PATH_KEY = "disk_storage_path";
+    /**
+     * Key for listener mode
+     */
+    public static final String DISK_LISTENER_MODE_SYNC_KEY = "disk_listener_mode";
 
     /**
      * Map of key to setting.
@@ -160,7 +172,9 @@ public class EhcacheDiskCacheSettings {
         DISK_STORAGE_PATH_KEY,
         DISK_STORAGE_PATH_SETTING,
         DISK_MAX_SIZE_IN_BYTES_KEY,
-        DISK_CACHE_MAX_SIZE_IN_BYTES_SETTING
+        DISK_CACHE_MAX_SIZE_IN_BYTES_SETTING,
+        DISK_LISTENER_MODE_SYNC_KEY,
+        DISK_CACHE_LISTENER_MODE_SYNC_SETTING
     );
 
     /**

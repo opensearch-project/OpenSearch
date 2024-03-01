@@ -60,6 +60,7 @@ import org.ehcache.spi.loaderwriter.CacheWritingException;
 
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_CACHE_ALIAS_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_LISTENER_MODE_SYNC_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_MAX_SIZE_IN_BYTES_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_SEGMENT_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_STORAGE_PATH_KEY;
@@ -475,6 +476,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
             Settings settings = config.getSettings();
             return new Builder<K, V>().setStoragePath((String) settingList.get(DISK_STORAGE_PATH_KEY).get(settings))
                 .setDiskCacheAlias((String) settingList.get(DISK_CACHE_ALIAS_KEY).get(settings))
+                .setIsEventListenerModeSync((Boolean) settingList.get(DISK_LISTENER_MODE_SYNC_KEY).get(settings))
                 .setCacheType(cacheType)
                 .setKeyType((config.getKeyType()))
                 .setValueType(config.getValueType())

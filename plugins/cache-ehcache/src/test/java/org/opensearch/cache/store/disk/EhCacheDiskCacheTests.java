@@ -32,6 +32,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Phaser;
 
+import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_LISTENER_MODE_SYNC_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_MAX_SIZE_IN_BYTES_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_STORAGE_PATH_KEY;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -46,6 +47,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setIsEventListenerModeSync(true)
                 .setKeyType(String.class)
                 .setValueType(String.class)
                 .setCacheType(CacheType.INDICES_REQUEST_CACHE)
@@ -99,6 +101,12 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                                     .get(DISK_STORAGE_PATH_KEY)
                                     .getKey(),
                                 env.nodePaths()[0].indicesPath.toString() + "/request_cache"
+                            )
+                            .put(
+                                EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                                    .get(DISK_LISTENER_MODE_SYNC_KEY)
+                                    .getKey(),
+                                true
                             )
                             .build()
                     )
@@ -225,6 +233,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
                 .setThreadPoolAlias("ehcacheTest")
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setIsEventListenerModeSync(true)
                 .setKeyType(String.class)
                 .setValueType(String.class)
                 .setCacheType(CacheType.INDICES_REQUEST_CACHE)
