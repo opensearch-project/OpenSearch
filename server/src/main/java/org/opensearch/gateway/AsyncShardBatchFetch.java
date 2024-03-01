@@ -33,8 +33,7 @@ import java.util.function.Supplier;
  * @param <T> Response type of the transport action.
  * @param <V> Data type of shard level response.
  */
-public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends BaseShardResponse>
-    extends AsyncShardFetch<T> {
+public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends BaseShardResponse> extends AsyncShardFetch<T> {
 
     @SuppressWarnings("unchecked")
     AsyncShardBatchFetch(
@@ -50,8 +49,17 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
         Consumer<ShardId> handleFailedShard
     ) {
         super(logger, type, shardAttributesMap, action, batchId);
-        this.cache = new ShardBatchCache<>(logger, type, shardAttributesMap, "BatchID=[" + batchId + "]"
-            , clazz, responseConstructor, shardsBatchDataGetter, emptyResponseBuilder, handleFailedShard);
+        this.cache = new ShardBatchCache<>(
+            logger,
+            type,
+            shardAttributesMap,
+            "BatchID=[" + batchId + "]",
+            clazz,
+            responseConstructor,
+            shardsBatchDataGetter,
+            emptyResponseBuilder,
+            handleFailedShard
+        );
     }
 
     /**

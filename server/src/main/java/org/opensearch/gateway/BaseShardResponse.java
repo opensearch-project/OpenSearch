@@ -21,7 +21,7 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public abstract class BaseShardResponse extends TransportResponse {
-    public BaseShardResponse(){}
+    public BaseShardResponse() {}
 
     public abstract boolean isEmpty();
 
@@ -32,6 +32,5 @@ public abstract class BaseShardResponse extends TransportResponse {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-    }
+    public void writeTo(StreamOutput out) throws IOException {}
 }

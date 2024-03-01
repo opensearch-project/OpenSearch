@@ -54,10 +54,17 @@ public class ShardBatchCache<T extends BaseNodeResponse, V extends BaseShardResp
     private final Set<ShardId> failedShards;
     private final Consumer<ShardId> handleFailedShard;
 
-    public ShardBatchCache(Logger logger, String type,
-                           Map<ShardId, ShardAttributes> shardToCustomDataPath, String logKey, Class<V> clazz,
-                           BiFunction<DiscoveryNode, Map<ShardId, V>, T> responseConstructor, Function<T,
-        Map<ShardId, V>> shardsBatchDataGetter, Supplier<V> emptyResponseBuilder, Consumer<ShardId> handleFailedShard) {
+    public ShardBatchCache(
+        Logger logger,
+        String type,
+        Map<ShardId, ShardAttributes> shardToCustomDataPath,
+        String logKey,
+        Class<V> clazz,
+        BiFunction<DiscoveryNode, Map<ShardId, V>, T> responseConstructor,
+        Function<T, Map<ShardId, V>> shardsBatchDataGetter,
+        Supplier<V> emptyResponseBuilder,
+        Consumer<ShardId> handleFailedShard
+    ) {
         super(logger, logKey, type);
         this.batchSize = shardToCustomDataPath.size();
         fillShardIdKeys(shardToCustomDataPath.keySet());
@@ -134,7 +141,7 @@ public class ShardBatchCache<T extends BaseNodeResponse, V extends BaseShardResp
     private List<ShardId> filterFailedShards(Map<ShardId, V> batchResponse) {
         logger.trace("filtering failed shards");
         List<ShardId> failedShards = new ArrayList<>();
-        for (Iterator<ShardId> it = batchResponse.keySet().iterator(); it.hasNext(); ) {
+        for (Iterator<ShardId> it = batchResponse.keySet().iterator(); it.hasNext();) {
             ShardId shardId = it.next();
             if (batchResponse.get(shardId) != null) {
                 if (batchResponse.get(shardId).getException() != null) {
@@ -145,8 +152,7 @@ public class ShardBatchCache<T extends BaseNodeResponse, V extends BaseShardResp
                     if (shardException instanceof OpenSearchRejectedExecutionException
                         || shardException instanceof ReceiveTimeoutTransportException
                         || shardException instanceof OpenSearchTimeoutException) {
-                        logger.trace("got unhandled retryable exception for shard {} {}", shardId.toString(),
-                            shardException.toString());
+                        logger.trace("got unhandled retryable exception for shard {} {}", shardId.toString(), shardException.toString());
                         failedShards.add(shardId);
                         handleFailedShard.accept(shardId);
                         // remove this failed entry. So, while storing the data, we don't need to re-process it.
@@ -179,8 +185,7 @@ public class ShardBatchCache<T extends BaseNodeResponse, V extends BaseShardResp
                 shardData.put(arrayToShardId.get(shardIdIndex), emptyResponseBuilder.get());
             } else if (nodeShardEntries[shardIdIndex] != null) {
                 // ignore null responses here
-                shardData.put(arrayToShardId.get(shardIdIndex),
-                    nodeShardEntries[shardIdIndex]);
+                shardData.put(arrayToShardId.get(shardIdIndex), nodeShardEntries[shardIdIndex]);
             }
         }
         return shardData;
@@ -233,7 +238,6 @@ public class ShardBatchCache<T extends BaseNodeResponse, V extends BaseShardResp
             return emptyShardResponse;
         }
 
-
         private void fillShardData(Map<ShardId, V> shardDataFromNode, Map<ShardId, Integer> shardIdKey) {
             for (ShardId shardId : shardDataFromNode.keySet()) {
                 if (shardDataFromNode.get(shardId) != null) {
@@ -243,12 +247,10 @@ public class ShardBatchCache<T extends BaseNodeResponse, V extends BaseShardResp
                     } else if (shardDataFromNode.get(shardId).getException() == null) {
                         this.shardData[shardIdKey.get(shardId)] = shardDataFromNode.get(shardId);
                     }
-                    //if exception is not null, we got unhandled failure for the shard which needs to be ignored
+                    // if exception is not null, we got unhandled failure for the shard which needs to be ignored
                 }
             }
         }
     }
 
 }
-
-

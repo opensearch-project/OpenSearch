@@ -8,7 +8,6 @@
 
 package org.opensearch.gateway;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
@@ -40,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.INDEX_NOT_FOUND;
 import static org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.getShardInfoOnLocalNode;
 
 /**
@@ -153,10 +153,13 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
                     )
                 );
             } catch (Exception e) {
-                shardsOnNode.put(
-                    shardId,
-                    new NodeGatewayStartedShard(null, false, null, new OpenSearchException("failed to load started shards", e))
-                );
+                // should return null in case of known exceptions being returned from getShardInfoOnLocalNode method.
+                if (e instanceof IllegalStateException || e.getMessage().contains(INDEX_NOT_FOUND)) {
+                    shardsOnNode.put(shardId, null);
+                } else {
+                    // return actual exception as it is for unknown exceptions
+                    shardsOnNode.put(shardId, new NodeGatewayStartedShard(null, false, null, e));
+                }
             }
         }
         return new NodeGatewayStartedShardsBatch(clusterService.localNode(), shardsOnNode);
