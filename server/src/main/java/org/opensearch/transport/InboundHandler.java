@@ -32,8 +32,6 @@
 
 package org.opensearch.transport;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.telemetry.tracing.Tracer;
@@ -47,8 +45,6 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class InboundHandler {
-
-    private static final Logger logger = LogManager.getLogger(InboundHandler.class);
 
     private final ThreadPool threadPool;
     private final OutboundHandler outboundHandler;
@@ -122,7 +118,7 @@ public class InboundHandler {
                     responseHandlers,
                     tracer
                 );
-                nativeInboundHandler.messageReceived(channel, inboundMessage, startTime, slowLogThresholdMs);
+                nativeInboundHandler.messageReceived(channel, inboundMessage, startTime, slowLogThresholdMs, messageListener);
             }
         }
     }

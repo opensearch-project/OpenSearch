@@ -338,6 +338,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         QueryFetchSearchResult result = responseCaptor.get();
         assertNotNull(result);
         assertEquals(queryResult.getMaxScore(), result.queryResult().getMaxScore(), 0.0);
+        System.setProperty(FeatureFlags.PROTOBUF, "false");
     }
 
     public void testSendsErrorResponseToHandshakeFromCompatibleVersion() throws Exception {

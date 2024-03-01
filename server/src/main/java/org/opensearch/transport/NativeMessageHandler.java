@@ -77,8 +77,6 @@ public class NativeMessageHandler {
     private final Transport.ResponseHandlers responseHandlers;
     private final Transport.RequestHandlers requestHandlers;
 
-    private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
-
     private final Tracer tracer;
 
     NativeMessageHandler(
@@ -99,18 +97,16 @@ public class NativeMessageHandler {
         this.tracer = tracer;
     }
 
-    void setMessageListener(TransportMessageListener listener) {
-        if (messageListener == TransportMessageListener.NOOP_LISTENER) {
-            messageListener = listener;
-        } else {
-            throw new IllegalStateException("Cannot set message listener twice");
-        }
-    }
-
     // Empty stream constant to avoid instantiating a new stream for empty messages.
     private static final StreamInput EMPTY_STREAM_INPUT = new ByteBufferStreamInput(ByteBuffer.wrap(BytesRef.EMPTY_BYTES));
 
-    public void messageReceived(TcpChannel channel, InboundMessage message, long startTime, long slowLogThresholdMs) throws IOException {
+    public void messageReceived(
+        TcpChannel channel,
+        InboundMessage message,
+        long startTime,
+        long slowLogThresholdMs,
+        TransportMessageListener messageListener
+    ) throws IOException {
         final InetSocketAddress remoteAddress = channel.getRemoteAddress();
         final Header header = message.getHeader();
         assert header.needsToReadVariableHeader() == false;
@@ -120,7 +116,7 @@ public class NativeMessageHandler {
             threadContext.setHeaders(header.getHeaders());
             threadContext.putTransient("_remote_address", remoteAddress);
             if (header.isRequest()) {
-                handleRequest(channel, header, message);
+                handleRequest(channel, header, message, messageListener);
             } else {
                 // Responses do not support short circuiting currently
                 assert message.isShortCircuit() == false;
@@ -175,7 +171,12 @@ public class NativeMessageHandler {
         return headers.entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> Collections.singleton(e.getValue())));
     }
 
-    private <T extends TransportRequest> void handleRequest(TcpChannel channel, Header header, InboundMessage message) throws IOException {
+    private <T extends TransportRequest> void handleRequest(
+        TcpChannel channel,
+        Header header,
+        InboundMessage message,
+        TransportMessageListener messageListener
+    ) throws IOException {
         final String action = header.getActionName();
         final long requestId = header.getRequestId();
         final Version version = header.getVersion();
