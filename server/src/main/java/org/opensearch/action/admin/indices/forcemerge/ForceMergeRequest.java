@@ -102,7 +102,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_13_0)) {
             primaryOnly = in.readBoolean();
         }
         if (in.getVersion().onOrAfter(FORCE_MERGE_UUID_VERSION)) {
@@ -219,7 +219,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
-        if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_13_0)) {
             out.writeBoolean(primaryOnly);
         }
         if (out.getVersion().onOrAfter(FORCE_MERGE_UUID_VERSION)) {

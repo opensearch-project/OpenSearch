@@ -109,7 +109,7 @@ public class ForceMergeRequestTests extends OpenSearchTestCase {
                 assertEquals(sample.maxNumSegments(), deserializedRequest.maxNumSegments());
                 assertEquals(sample.onlyExpungeDeletes(), deserializedRequest.onlyExpungeDeletes());
                 assertEquals(sample.flush(), deserializedRequest.flush());
-                if (compatibleVersion.onOrAfter(Version.V_2_12_0)) {
+                if (compatibleVersion.onOrAfter(Version.V_2_13_0)) {
                     assertEquals(sample.primaryOnly(), deserializedRequest.primaryOnly());
                     if (compatibleVersion.onOrAfter(Version.V_3_0_0)) {
                         assertEquals(sample.forceMergeUUID(), deserializedRequest.forceMergeUUID());
@@ -129,7 +129,7 @@ public class ForceMergeRequestTests extends OpenSearchTestCase {
                 out.writeInt(sample.maxNumSegments());
                 out.writeBoolean(sample.onlyExpungeDeletes());
                 out.writeBoolean(sample.flush());
-                if (compatibleVersion.onOrAfter(Version.V_2_12_0)) {
+                if (compatibleVersion.onOrAfter(Version.V_2_13_0)) {
                     out.writeBoolean(sample.primaryOnly());
                 }
                 if (compatibleVersion.onOrAfter(Version.V_3_0_0)) {
