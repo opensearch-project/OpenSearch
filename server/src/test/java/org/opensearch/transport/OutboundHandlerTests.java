@@ -337,6 +337,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
         assertNotNull(message.getResponseHandlers());
         assertNotNull(message.getMessage());
         assertTrue(message.getMessage().hasQueryFetchSearchResult());
+        System.setProperty(FeatureFlags.PROTOBUF, "false");
     }
 
     public void testErrorResponse() throws IOException {
