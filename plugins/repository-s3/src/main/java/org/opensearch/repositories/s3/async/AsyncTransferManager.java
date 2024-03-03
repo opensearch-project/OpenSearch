@@ -400,11 +400,16 @@ public final class AsyncTransferManager {
         });
 
         PermitBackedRetryableFutureUtils.RequestContext requestContext = permitBackedRetryableFutureUtils.createRequestContext();
-        CompletableFuture<Void> putObjectFuture = permitBackedRetryableFutureUtils.createPermitBackedRetryableFuture(
-            putObjectFutureSupplier,
-            uploadRequest.getWritePriority(),
-            requestContext
-        );
+        CompletableFuture<Void> putObjectFuture;
+        if (uploadRequest.getWritePriority() == WritePriority.HIGH || uploadRequest.getWritePriority() == WritePriority.URGENT) {
+            putObjectFuture = putObjectFutureSupplier.get();
+        } else {
+            putObjectFuture = permitBackedRetryableFutureUtils.createPermitBackedRetryableFuture(
+                putObjectFutureSupplier,
+                uploadRequest.getWritePriority(),
+                requestContext
+            );
+        }
 
         CompletableFutureUtils.forwardExceptionTo(returnFuture, putObjectFuture);
         CompletableFutureUtils.forwardResultTo(putObjectFuture, returnFuture);

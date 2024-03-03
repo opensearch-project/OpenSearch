@@ -29,6 +29,7 @@ import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
 
 import java.io.FileNotFoundException;
@@ -355,6 +356,7 @@ public class RemoteDirectory extends Directory {
         if (getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
             remoteIntegrityEnabled = ((AsyncMultiStreamBlobContainer) getBlobContainer()).remoteIntegrityCheckSupported();
         }
+        lowPriorityUpload = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
         RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
             src,
             remoteFileName,

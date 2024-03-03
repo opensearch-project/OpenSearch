@@ -24,7 +24,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -44,7 +43,6 @@ public class PermitBackedRetryableFutureUtils<FutureType> {
     private final int highPriorityPermits;
     private final int maxRetryAttempts;
     private static final int RETRY_BASE_INTERVAL_MILLIS = 1_000;
-    private final AtomicBoolean lowPriorityTransferProgress;
 
     private final ExecutorService remoteTransferRetryPool;
     private final ScheduledExecutorService scheduler;
@@ -68,7 +66,6 @@ public class PermitBackedRetryableFutureUtils<FutureType> {
         this.highPrioritySemaphore = new TypeSemaphore(highPriorityPermits, "high");
         this.lowPriorityPermits = availablePermits - highPriorityPermits;
         this.lowPrioritySemaphore = new TypeSemaphore(lowPriorityPermits, "low");
-        this.lowPriorityTransferProgress = new AtomicBoolean();
         this.remoteTransferRetryPool = remoteTransferRetryPool;
         this.scheduler = scheduler;
     }
@@ -140,15 +137,19 @@ public class PermitBackedRetryableFutureUtils<FutureType> {
      */
     static class RetryableException extends CompletionException {
         private final Iterator<TimeValue> retryBackoffDelayIterator;
+        private final Semaphore semaphore;
 
-        public RetryableException(Iterator<TimeValue> retryBackoffDelayIterator, String message, Throwable cause) {
+        public RetryableException(Iterator<TimeValue> retryBackoffDelayIterator, String message, Throwable cause, Semaphore semaphore) {
             super(message, cause);
             this.retryBackoffDelayIterator = retryBackoffDelayIterator;
+            this.semaphore = semaphore;
         }
 
         public RetryableException(Iterator<TimeValue> retryBackoffDelayIterator) {
             this.retryBackoffDelayIterator = retryBackoffDelayIterator;
+            this.semaphore = null;
         }
+
     }
 
     /**
@@ -205,7 +206,7 @@ public class PermitBackedRetryableFutureUtils<FutureType> {
             TimeValue.timeValueMillis(RETRY_BASE_INTERVAL_MILLIS),
             maxRetryAttempts
         ).iterator();
-        Supplier<CompletableFuture<FutureType>> permitBackedFutureSupplier = createPermitBackedFutureSupplier(
+        Function<Semaphore, CompletableFuture<FutureType>> permitBackedFutureSupplier = createPermitBackedFutureSupplier(
             retryBackoffDelayIterator,
             requestContext.lowPriorityPermitsConsumable,
             futureSupplier,
@@ -214,7 +215,7 @@ public class PermitBackedRetryableFutureUtils<FutureType> {
 
         CompletableFuture<FutureType> permitBackedFuture;
         try {
-            permitBackedFuture = permitBackedFutureSupplier.get();
+            permitBackedFuture = permitBackedFutureSupplier.apply(null);
         } catch (RetryableException re) {
             // We need special handling when an exception occurs during first future creation itself.
             permitBackedFuture = retry(re, permitBackedFutureSupplier, retryBackoffDelayIterator);
@@ -222,13 +223,13 @@ public class PermitBackedRetryableFutureUtils<FutureType> {
             return CompletableFuture.failedFuture(ex);
         }
 
-        return flatten(
+        return unwrap(
             permitBackedFuture.thenApply(CompletableFuture::completedFuture)
                 .exceptionally(t -> retry(t, permitBackedFutureSupplier, retryBackoffDelayIterator))
         );
     }
 
-    private static <FutureType> CompletableFuture<FutureType> flatten(
+    private static <FutureType> CompletableFuture<FutureType> unwrap(
         CompletableFuture<CompletableFuture<FutureType>> completableCompletable
     ) {
         return completableCompletable.thenCompose(Function.identity());
@@ -236,7 +237,7 @@ public class PermitBackedRetryableFutureUtils<FutureType> {
 
     private CompletableFuture<FutureType> retry(
         Throwable ex,
-        Supplier<CompletableFuture<FutureType>> futureSupplier,
+        Function<Semaphore, CompletableFuture<FutureType>> futureSupplier,
         Iterator<TimeValue> retryBackoffDelayIterator
     ) {
         if (!(ex instanceof RetryableException)) {
@@ -248,10 +249,10 @@ public class PermitBackedRetryableFutureUtils<FutureType> {
             return CompletableFuture.failedFuture(ex);
         }
 
-        return flatten(
-            flatten(
+        return unwrap(
+            unwrap(
                 CompletableFuture.supplyAsync(
-                    futureSupplier,
+                    () -> futureSupplier.apply(retryableException.semaphore),
                     new DelayedExecutor(
                         retryableException.retryBackoffDelayIterator.next().millis(),
                         TimeUnit.MILLISECONDS,
@@ -298,21 +299,22 @@ public class PermitBackedRetryableFutureUtils<FutureType> {
         return null;
     }
 
-    private Supplier<CompletableFuture<FutureType>> createPermitBackedFutureSupplier(
+    private Function<Semaphore, CompletableFuture<FutureType>> createPermitBackedFutureSupplier(
         Iterator<TimeValue> retryBackoffDelayIterator,
         boolean lowPriorityPermitsConsumable,
         Supplier<CompletableFuture<FutureType>> futureSupplier,
         WritePriority writePriority
     ) {
-        return () -> {
-            Semaphore semaphore;
-            try {
-                semaphore = acquirePermit(writePriority, lowPriorityPermitsConsumable);
-                if (semaphore == null) {
-                    throw new RetryableException(retryBackoffDelayIterator);
+        return (semaphore) -> {
+            if (semaphore == null) {
+                try {
+                    semaphore = acquirePermit(writePriority, lowPriorityPermitsConsumable);
+                    if (semaphore == null) {
+                        throw new RetryableException(retryBackoffDelayIterator);
+                    }
+                } catch (InterruptedException e) {
+                    throw new CompletionException(e);
                 }
-            } catch (InterruptedException e) {
-                throw new CompletionException(e);
             }
 
             CompletableFuture<FutureType> future;
@@ -324,18 +326,26 @@ public class PermitBackedRetryableFutureUtils<FutureType> {
                 throw new RuntimeException(ex);
             }
 
+            Semaphore finalSemaphore = semaphore;
             return future.handle((resp, t) -> {
                 try {
                     if (t != null) {
                         Throwable ex = ExceptionsHelper.unwrap(t, SdkException.class);
                         if (ex != null) {
-                            throw new RetryableException(retryBackoffDelayIterator, t.getMessage(), t);
+                            throw new RetryableException(retryBackoffDelayIterator, t.getMessage(), t, finalSemaphore);
                         }
                         throw new CompletionException(t);
                     }
+                    finalSemaphore.release();
                     return resp;
-                } finally {
-                    semaphore.release();
+                } catch (RetryableException rex) {
+                    if (!retryBackoffDelayIterator.hasNext()) {
+                        finalSemaphore.release();
+                    }
+                    throw rex;
+                } catch (Exception ex) {
+                    finalSemaphore.release();
+                    throw ex;
                 }
             });
         };

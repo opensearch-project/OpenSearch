@@ -42,7 +42,7 @@ import java.util.function.Supplier;
  */
 public class AsyncPartsHandler {
 
-    private static Logger log = LogManager.getLogger(AsyncPartsHandler.class);
+    private static final Logger log = LogManager.getLogger(AsyncPartsHandler.class);
 
     /**
      * Uploads parts of the upload multipart request*
@@ -72,7 +72,7 @@ public class AsyncPartsHandler {
         StatsMetricPublisher statsMetricPublisher,
         boolean uploadRetryEnabled,
         PermitBackedRetryableFutureUtils permitBackedRetryableFutureUtils
-    ) throws InterruptedException {
+    ) {
         List<CompletableFuture<CompletedPart>> futures = new ArrayList<>();
         PermitBackedRetryableFutureUtils.RequestContext requestContext = permitBackedRetryableFutureUtils.createRequestContext();
         for (int partIdx = 0; partIdx < streamContext.getNumberOfParts(); partIdx++) {
@@ -109,12 +109,17 @@ public class AsyncPartsHandler {
                 );
             };
 
-            CompletableFuture<CompletedPart> retryableFuture = permitBackedRetryableFutureUtils.createPermitBackedRetryableFuture(
-                partFutureSupplier,
-                uploadRequest.getWritePriority(),
-                requestContext
-            );
-            futures.add(retryableFuture);
+            CompletableFuture<CompletedPart> partFuture;
+            if (uploadRequest.getWritePriority() == WritePriority.HIGH || uploadRequest.getWritePriority() == WritePriority.URGENT) {
+                partFuture = partFutureSupplier.get();
+            } else {
+                partFuture = permitBackedRetryableFutureUtils.createPermitBackedRetryableFuture(
+                    partFutureSupplier,
+                    uploadRequest.getWritePriority(),
+                    requestContext
+                );
+            }
+            futures.add(partFuture);
         }
 
         return futures;
