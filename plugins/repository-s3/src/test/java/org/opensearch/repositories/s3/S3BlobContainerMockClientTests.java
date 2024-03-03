@@ -47,7 +47,8 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
-import org.opensearch.repositories.s3.async.PermitBackedRetryableFutureUtils;
+import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
+import org.opensearch.repositories.s3.async.TransferSemaphoresHolder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler;
 import org.junit.After;
@@ -95,9 +96,12 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
     private ExecutorService futureCompletionService;
     private ExecutorService streamReaderService;
     private ExecutorService remoteTransferRetry;
+    private ExecutorService transferQueueConsumerService;
     private ScheduledExecutorService scheduler;
     private AsyncTransferEventLoopGroup transferNIOGroup;
     private S3BlobContainer blobContainer;
+    private SizeBasedBlockingQ otherPrioritySizeBasedBlockingQ;
+    private SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
 
     static class MockS3AsyncService extends S3AsyncService {
 
@@ -370,8 +374,21 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         futureCompletionService = Executors.newSingleThreadExecutor();
         streamReaderService = Executors.newSingleThreadExecutor();
         remoteTransferRetry = Executors.newFixedThreadPool(20);
+        transferQueueConsumerService = Executors.newFixedThreadPool(20);
         scheduler = new Scheduler.SafeScheduledThreadPoolExecutor(1);
         transferNIOGroup = new AsyncTransferEventLoopGroup(1);
+        otherPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
+            new ByteSizeValue(Runtime.getRuntime().availableProcessors() * 10L, ByteSizeUnit.GB),
+            transferQueueConsumerService,
+            10
+        );
+        lowPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
+            new ByteSizeValue(Runtime.getRuntime().availableProcessors() * 20L, ByteSizeUnit.GB),
+            transferQueueConsumerService,
+            5
+        );
+        otherPrioritySizeBasedBlockingQ.start();
+        lowPrioritySizeBasedBlockingQ.start();
         blobContainer = createBlobContainer();
         super.setUp();
     }
@@ -383,6 +400,9 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         futureCompletionService.shutdown();
         streamReaderService.shutdown();
         remoteTransferRetry.shutdown();
+        transferQueueConsumerService.shutdown();
+        otherPrioritySizeBasedBlockingQ.close();
+        lowPrioritySizeBasedBlockingQ.close();
         scheduler.shutdown();
         transferNIOGroup.close();
         super.tearDown();
@@ -423,17 +443,13 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
                 asyncExecutorContainer.getStreamReader(),
                 asyncExecutorContainer.getStreamReader(),
                 asyncExecutorContainer.getStreamReader(),
-                new PermitBackedRetryableFutureUtils<>(
-                    3,
-                    Math.max(Runtime.getRuntime().availableProcessors() * 5, 10),
-                    0.7,
-                    remoteTransferRetry,
-                    scheduler
-                )
+                new TransferSemaphoresHolder(3, Math.max(Runtime.getRuntime().availableProcessors() * 5, 10), 5, TimeUnit.MINUTES)
             ),
             asyncExecutorContainer,
             asyncExecutorContainer,
-            asyncExecutorContainer
+            asyncExecutorContainer,
+            otherPrioritySizeBasedBlockingQ,
+            lowPrioritySizeBasedBlockingQ
         );
     }
 
@@ -593,19 +609,25 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         return (int) ((contentLength % partSize) == 0 ? contentLength / partSize : (contentLength / partSize) + 1);
     }
 
-    public void testFailureWhenLargeFileRedirected() throws IOException, ExecutionException, InterruptedException {
-        testLargeFilesRedirectedToSlowSyncClient(true);
+    public void testFailureWhenLargeFileRedirected() throws IOException, InterruptedException {
+        testLargeFilesRedirectedToSlowSyncClient(true, WritePriority.LOW);
+        testLargeFilesRedirectedToSlowSyncClient(true, WritePriority.NORMAL);
     }
 
-    public void testLargeFileRedirected() throws IOException, ExecutionException, InterruptedException {
-        testLargeFilesRedirectedToSlowSyncClient(false);
+    public void testLargeFileRedirected() throws IOException, InterruptedException {
+        testLargeFilesRedirectedToSlowSyncClient(false, WritePriority.LOW);
+        testLargeFilesRedirectedToSlowSyncClient(false, WritePriority.NORMAL);
     }
 
-    private void testLargeFilesRedirectedToSlowSyncClient(boolean expectException) throws IOException, InterruptedException {
-        final ByteSizeValue partSize = new ByteSizeValue(1024, ByteSizeUnit.MB);
-
+    private void testLargeFilesRedirectedToSlowSyncClient(boolean expectException, WritePriority writePriority) throws IOException,
+        InterruptedException {
+        ByteSizeValue capacity = new ByteSizeValue(1, ByteSizeUnit.GB);
         int numberOfParts = 20;
-        final long lastPartSize = new ByteSizeValue(20, ByteSizeUnit.MB).getBytes();
+        final ByteSizeValue partSize = new ByteSizeValue(capacity.getBytes() / numberOfParts + 1, ByteSizeUnit.BYTES);
+
+        SizeBasedBlockingQ sizeBasedBlockingQ = new SizeBasedBlockingQ(capacity, transferQueueConsumerService, 10);
+
+        final long lastPartSize = new ByteSizeValue(200, ByteSizeUnit.MB).getBytes();
         final long blobSize = ((numberOfParts - 1) * partSize.getBytes()) + lastPartSize;
         CountDownLatch countDownLatch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
@@ -627,6 +649,9 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
         when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
+
+        when(blobStore.getLowPrioritySizeBasedBlockingQ()).thenReturn(sizeBasedBlockingQ);
+        when(blobStore.getOtherPrioritySizeBasedBlockingQ()).thenReturn(sizeBasedBlockingQ);
 
         final boolean serverSideEncryption = randomBoolean();
         when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
@@ -677,7 +702,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             .streamContextSupplier(streamContextSupplier)
             .fileSize(blobSize)
             .failIfAlreadyExists(false)
-            .writePriority(WritePriority.HIGH)
+            .writePriority(writePriority)
             .uploadFinalizer(Assert::assertTrue)
             .doRemoteDataIntegrityCheck(false)
             .metadata(new HashMap<>())
@@ -712,5 +737,4 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             }
         });
     }
-
 }

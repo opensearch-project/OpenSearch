@@ -303,7 +303,21 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
             ClusterService clusterService,
             RecoverySettings recoverySettings
         ) {
-            return new S3Repository(metadata, registry, service, clusterService, recoverySettings, null, null, null, null, null, false) {
+            return new S3Repository(
+                metadata,
+                registry,
+                service,
+                clusterService,
+                recoverySettings,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                null,
+                null
+            ) {
                 @Override
                 protected void assertSnapshotOrGenericThread() {
                     // eliminate thread name check as we create repo manually on test/main threads

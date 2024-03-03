@@ -23,6 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.io.InputStreamContainer;
+import org.opensearch.repositories.s3.S3TransferRejectedException;
 import org.opensearch.repositories.s3.SocketAccess;
 import org.opensearch.repositories.s3.StatsMetricPublisher;
 import org.opensearch.repositories.s3.io.CheckedContainer;
@@ -34,15 +35,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-import java.util.function.Supplier;
 
 /**
  * Responsible for handling parts of the original multipart request
  */
 public class AsyncPartsHandler {
 
-    private static Logger log = LogManager.getLogger(AsyncPartsHandler.class);
+    private static final Logger log = LogManager.getLogger(AsyncPartsHandler.class);
 
     /**
      * Uploads parts of the upload multipart request*
@@ -56,6 +58,7 @@ public class AsyncPartsHandler {
      * @param completedParts Reference of completed parts
      * @param inputStreamContainers Checksum containers
      * @param statsMetricPublisher sdk metric publisher
+     * @param maxRetryablePartSize Max content size which can be used for retries in buffered streams.
      * @return list of completable futures
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -71,23 +74,24 @@ public class AsyncPartsHandler {
         AtomicReferenceArray<CheckedContainer> inputStreamContainers,
         StatsMetricPublisher statsMetricPublisher,
         boolean uploadRetryEnabled,
-        PermitBackedRetryableFutureUtils permitBackedRetryableFutureUtils
+        TransferSemaphoresHolder transferSemaphoresHolder,
+        long maxRetryablePartSize
     ) throws InterruptedException {
         List<CompletableFuture<CompletedPart>> futures = new ArrayList<>();
-        PermitBackedRetryableFutureUtils.RequestContext requestContext = permitBackedRetryableFutureUtils.createRequestContext();
+        TransferSemaphoresHolder.RequestContext requestContext = transferSemaphoresHolder.createRequestContext();
         for (int partIdx = 0; partIdx < streamContext.getNumberOfParts(); partIdx++) {
-            int finalPartIdx = partIdx;
-            Supplier<CompletableFuture<CompletedPart>> partFutureSupplier = () -> {
-                InputStreamContainer inputStreamContainer;
-                try {
-                    inputStreamContainer = streamContext.provideStream(finalPartIdx);
-                } catch (IOException e) {
-                    return CompletableFuture.failedFuture(e);
-                }
-                inputStreamContainers.set(finalPartIdx, new CheckedContainer(inputStreamContainer.getContentLength()));
+            Semaphore semaphore = maybeAcquireSemaphore(
+                transferSemaphoresHolder,
+                requestContext,
+                uploadRequest.getWritePriority(),
+                uploadRequest.getKey()
+            );
+            try {
+                InputStreamContainer inputStreamContainer = streamContext.provideStream(partIdx);
+                inputStreamContainers.set(partIdx, new CheckedContainer(inputStreamContainer.getContentLength()));
                 UploadPartRequest.Builder uploadPartRequestBuilder = UploadPartRequest.builder()
                     .bucket(uploadRequest.getBucket())
-                    .partNumber(finalPartIdx + 1)
+                    .partNumber(partIdx + 1)
                     .key(uploadRequest.getKey())
                     .uploadId(uploadId)
                     .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector))
@@ -95,26 +99,26 @@ public class AsyncPartsHandler {
                 if (uploadRequest.doRemoteDataIntegrityCheck()) {
                     uploadPartRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
                 }
-                return uploadPart(
+                uploadPart(
                     s3AsyncClient,
                     executorService,
                     priorityExecutorService,
                     urgentExecutorService,
                     completedParts,
                     inputStreamContainers,
+                    futures,
                     uploadPartRequestBuilder.build(),
                     inputStreamContainer,
                     uploadRequest,
-                    uploadRetryEnabled
+                    uploadRetryEnabled,
+                    maxRetryablePartSize,
+                    semaphore
                 );
-            };
-
-            CompletableFuture<CompletedPart> retryableFuture = permitBackedRetryableFutureUtils.createPermitBackedRetryableFuture(
-                partFutureSupplier,
-                uploadRequest.getWritePriority(),
-                requestContext
-            );
-            futures.add(retryableFuture);
+            } catch (Exception ex) {
+                if (semaphore != null) {
+                    semaphore.release();
+                }
+            }
         }
 
         return futures;
@@ -154,26 +158,70 @@ public class AsyncPartsHandler {
         InputStream inputStream,
         WritePriority writePriority,
         boolean uploadRetryEnabled,
-        long contentLength
+        long contentLength,
+        long maxRetryablePartSize
     ) {
-        if (uploadRetryEnabled == true && (writePriority == WritePriority.HIGH || writePriority == WritePriority.URGENT)) {
-            return new BufferedInputStream(inputStream, (int) (contentLength + 1));
+        // Since we are backing uploads with limited permits, it is ok to use buffered stream. Maximum in-memory buffer
+        // would be (max permits * maxRetryablePartSize) excluding urgent
+        if (uploadRetryEnabled == true
+            && (contentLength <= maxRetryablePartSize || writePriority == WritePriority.HIGH || writePriority == WritePriority.URGENT)) {
+            return new UploadTrackedBufferedInputStream(inputStream, (int) (contentLength + 1));
         }
         return inputStream;
     }
 
-    private static CompletableFuture<CompletedPart> uploadPart(
+    public static Semaphore maybeAcquireSemaphore(
+        TransferSemaphoresHolder transferSemaphoresHolder,
+        TransferSemaphoresHolder.RequestContext requestContext,
+        WritePriority writePriority,
+        String file
+    ) throws InterruptedException {
+        final TransferSemaphoresHolder.TypeSemaphore semaphore;
+        if (writePriority != WritePriority.HIGH && writePriority != WritePriority.URGENT) {
+            semaphore = transferSemaphoresHolder.acquirePermit(writePriority, requestContext);
+            if (semaphore == null) {
+                throw new S3TransferRejectedException("Permit not available for transfer of file " + file);
+            }
+        } else {
+            semaphore = null;
+        }
+
+        return semaphore;
+    }
+
+    /**
+     * Overridden stream to identify upload streams among all buffered stream instances for triaging.
+     */
+    static class UploadTrackedBufferedInputStream extends BufferedInputStream {
+        AtomicBoolean closed = new AtomicBoolean();
+
+        public UploadTrackedBufferedInputStream(InputStream in, int length) {
+            super(in, length);
+        }
+
+        @Override
+        public void close() throws IOException {
+            super.close();
+            closed.set(true);
+        }
+    }
+
+    private static void uploadPart(
         S3AsyncClient s3AsyncClient,
         ExecutorService executorService,
         ExecutorService priorityExecutorService,
         ExecutorService urgentExecutorService,
         AtomicReferenceArray<CompletedPart> completedParts,
         AtomicReferenceArray<CheckedContainer> inputStreamContainers,
+        List<CompletableFuture<CompletedPart>> futures,
         UploadPartRequest uploadPartRequest,
         InputStreamContainer inputStreamContainer,
         UploadRequest uploadRequest,
-        boolean uploadRetryEnabled
+        boolean uploadRetryEnabled,
+        long maxRetryablePartSize,
+        Semaphore semaphore
     ) {
+
         Integer partNumber = uploadPartRequest.partNumber();
 
         ExecutorService streamReadExecutor;
@@ -189,7 +237,8 @@ public class AsyncPartsHandler {
             inputStreamContainer.getInputStream(),
             uploadRequest.getWritePriority(),
             uploadRetryEnabled,
-            uploadPartRequest.contentLength()
+            uploadPartRequest.contentLength(),
+            maxRetryablePartSize
         );
         CompletableFuture<UploadPartResponse> uploadPartResponseFuture = SocketAccess.doPrivileged(
             () -> s3AsyncClient.uploadPart(
@@ -199,6 +248,10 @@ public class AsyncPartsHandler {
         );
 
         CompletableFuture<CompletedPart> convertFuture = uploadPartResponseFuture.whenComplete((resp, throwable) -> {
+            if (semaphore != null) {
+                semaphore.release();
+            }
+
             try {
                 inputStream.close();
             } catch (IOException ex) {
@@ -221,9 +274,9 @@ public class AsyncPartsHandler {
                     uploadRequest.doRemoteDataIntegrityCheck()
                 )
             );
+        futures.add(convertFuture);
 
         CompletableFutureUtils.forwardExceptionTo(convertFuture, uploadPartResponseFuture);
-        return convertFuture;
     }
 
     private static CompletedPart convertUploadPartResponse(

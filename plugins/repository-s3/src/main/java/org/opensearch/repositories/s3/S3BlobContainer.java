@@ -90,6 +90,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
 import org.opensearch.repositories.s3.async.UploadRequest;
 import org.opensearch.repositories.s3.utils.HttpRangeUtils;
 
@@ -218,7 +219,13 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             writeContext.getMetadata()
         );
         try {
-            if (uploadRequest.getContentLength() > ByteSizeUnit.GB.toBytes(10) && blobStore.isRedirectLargeUploads()) {
+            // If file size is greater than the queue capacity than SizeBasedBlockingQ will always reject the upload.
+            // Therefore, redirecting it to slow client.
+            if ((uploadRequest.getWritePriority() == WritePriority.LOW
+                && blobStore.getLowPrioritySizeBasedBlockingQ().canProduce(uploadRequest.getContentLength()) == false)
+                || (uploadRequest.getWritePriority() != WritePriority.HIGH
+                    && uploadRequest.getWritePriority() != WritePriority.URGENT
+                    && blobStore.getOtherPrioritySizeBasedBlockingQ().canProduce(uploadRequest.getContentLength()) == false)) {
                 StreamContext streamContext = SocketAccess.doPrivileged(
                     () -> writeContext.getStreamProvider(uploadRequest.getContentLength())
                 );
@@ -258,21 +265,49 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 } else {
                     s3AsyncClient = amazonS3Reference.get().client();
                 }
-                CompletableFuture<Void> completableFuture = blobStore.getAsyncTransferManager()
-                    .uploadObject(s3AsyncClient, uploadRequest, streamContext, blobStore.getStatsMetricPublisher());
-                completableFuture.whenComplete((response, throwable) -> {
-                    if (throwable == null) {
-                        completionListener.onResponse(response);
-                    } else {
-                        Exception ex = throwable instanceof Error ? new Exception(throwable) : (Exception) throwable;
-                        completionListener.onFailure(ex);
-                    }
-                });
+
+                if (writeContext.getWritePriority() == WritePriority.URGENT || writeContext.getWritePriority() == WritePriority.HIGH) {
+                    createFileCompletableFuture(s3AsyncClient, uploadRequest, streamContext, completionListener);
+                } else if (writeContext.getWritePriority() == WritePriority.LOW) {
+                    blobStore.getLowPrioritySizeBasedBlockingQ()
+                        .produce(
+                            new SizeBasedBlockingQ.Item(
+                                writeContext.getFileSize(),
+                                () -> createFileCompletableFuture(s3AsyncClient, uploadRequest, streamContext, completionListener)
+                            )
+                        );
+                } else {
+                    blobStore.getOtherPrioritySizeBasedBlockingQ()
+                        .produce(
+                            new SizeBasedBlockingQ.Item(
+                                writeContext.getFileSize(),
+                                () -> createFileCompletableFuture(s3AsyncClient, uploadRequest, streamContext, completionListener)
+                            )
+                        );
+                }
             }
         } catch (Exception e) {
             logger.info("exception error from blob container for file {}", writeContext.getFileName());
             throw new IOException(e);
         }
+    }
+
+    private CompletableFuture<Void> createFileCompletableFuture(
+        S3AsyncClient s3AsyncClient,
+        UploadRequest uploadRequest,
+        StreamContext streamContext,
+        ActionListener<Void> completionListener
+    ) {
+        CompletableFuture<Void> completableFuture = blobStore.getAsyncTransferManager()
+            .uploadObject(s3AsyncClient, uploadRequest, streamContext, blobStore.getStatsMetricPublisher());
+        return completableFuture.whenComplete((response, throwable) -> {
+            if (throwable == null) {
+                completionListener.onResponse(response);
+            } else {
+                Exception ex = throwable instanceof Error ? new Exception(throwable) : (Exception) throwable;
+                completionListener.onFailure(ex);
+            }
+        });
     }
 
     @ExperimentalApi

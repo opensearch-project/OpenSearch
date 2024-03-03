@@ -67,7 +67,8 @@ import org.opensearch.repositories.blobstore.ZeroInputStream;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
-import org.opensearch.repositories.s3.async.PermitBackedRetryableFutureUtils;
+import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
+import org.opensearch.repositories.s3.async.TransferSemaphoresHolder;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -118,8 +119,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     private ExecutorService futureCompletionService;
     private ExecutorService streamReaderService;
     private ExecutorService remoteTransferRetry;
+    private ExecutorService transferQueueConsumerService;
     private ScheduledExecutorService scheduler;
     private AsyncTransferEventLoopGroup transferNIOGroup;
+    private SizeBasedBlockingQ otherPrioritySizeBasedBlockingQ;
+    private SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
 
     @Before
     public void setUp() throws Exception {
@@ -131,8 +135,20 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         streamReaderService = Executors.newSingleThreadExecutor();
         transferNIOGroup = new AsyncTransferEventLoopGroup(1);
         remoteTransferRetry = Executors.newFixedThreadPool(20);
+        transferQueueConsumerService = Executors.newFixedThreadPool(2);
         scheduler = new ScheduledThreadPoolExecutor(1);
-
+        otherPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
+            new ByteSizeValue(Runtime.getRuntime().availableProcessors() * 5L, ByteSizeUnit.GB),
+            transferQueueConsumerService,
+            2
+        );
+        lowPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
+            new ByteSizeValue(Runtime.getRuntime().availableProcessors() * 5L, ByteSizeUnit.GB),
+            transferQueueConsumerService,
+            2
+        );
+        otherPrioritySizeBasedBlockingQ.start();
+        lowPrioritySizeBasedBlockingQ.start();
         // needed by S3AsyncService
         SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
         super.setUp();
@@ -145,7 +161,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         streamReaderService.shutdown();
         futureCompletionService.shutdown();
         remoteTransferRetry.shutdown();
+        transferQueueConsumerService.shutdown();
         scheduler.shutdown();
+        otherPrioritySizeBasedBlockingQ.close();
+        lowPrioritySizeBasedBlockingQ.close();
         IOUtils.close(transferNIOGroup);
 
         if (previousOpenSearchPathConf != null) {
@@ -233,17 +252,13 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     asyncExecutorContainer.getStreamReader(),
                     asyncExecutorContainer.getStreamReader(),
                     asyncExecutorContainer.getStreamReader(),
-                    new PermitBackedRetryableFutureUtils<>(
-                        3,
-                        Math.max(Runtime.getRuntime().availableProcessors() * 5, 10),
-                        0.7,
-                        remoteTransferRetry,
-                        scheduler
-                    )
+                    new TransferSemaphoresHolder(3, Math.max(Runtime.getRuntime().availableProcessors() * 5, 10), 5, TimeUnit.MINUTES)
                 ),
                 asyncExecutorContainer,
                 asyncExecutorContainer,
-                asyncExecutorContainer
+                asyncExecutorContainer,
+                otherPrioritySizeBasedBlockingQ,
+                lowPrioritySizeBasedBlockingQ
             )
         ) {
             @Override
