@@ -17,7 +17,6 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.opensearch.common.settings.Setting.Property.Dynamic;
 import static org.opensearch.common.settings.Setting.Property.NodeScope;
 
 /**
