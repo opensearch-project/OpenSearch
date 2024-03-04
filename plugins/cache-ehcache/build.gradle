@@ -23,7 +23,12 @@ versions << [
 ]
 
 dependencies {
+  // For ehcache
   api "org.ehcache:ehcache:${versions.ehcache}"
+
+  // For roaring bitmaps
+  api 'org.roaringbitmap:RoaringBitmap:0.9.49'
+  runtimeOnly 'org.roaringbitmap:shims:0.9.49'
 }
 
 thirdPartyAudit {
