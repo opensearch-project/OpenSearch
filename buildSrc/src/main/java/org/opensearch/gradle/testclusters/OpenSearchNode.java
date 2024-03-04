@@ -1187,6 +1187,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         baseConfig.put("indices.breaker.total.use_real_memory", "false");
         // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
         baseConfig.put("discovery.initial_state_timeout", "0s");
+        baseConfig.put("fips.approved", "true");
 
         // TODO: Remove these once https://github.com/elastic/elasticsearch/issues/46091 is fixed
         baseConfig.put("logger.org.opensearch.action.support.master", "DEBUG");
