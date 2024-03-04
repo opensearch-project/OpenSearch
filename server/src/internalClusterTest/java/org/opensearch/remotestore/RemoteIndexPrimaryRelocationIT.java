@@ -13,7 +13,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.recovery.IndexPrimaryRelocationIT;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.junit.annotations.TestLogging;
 
 import java.nio.file.Path;
 
@@ -45,8 +44,6 @@ public class RemoteIndexPrimaryRelocationIT extends IndexPrimaryRelocationIT {
             .build();
     }
 
-    @TestLogging(reason = "Getting trace logs from replication package", value = "org.opensearch.indices.recovery:TRACE,"
-        + "org.opensearch.index.translog:TRACE")
     public void testPrimaryRelocationWhileIndexing() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         super.testPrimaryRelocationWhileIndexing();

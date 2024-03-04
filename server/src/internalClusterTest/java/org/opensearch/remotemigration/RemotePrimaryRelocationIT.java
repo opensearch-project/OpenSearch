@@ -8,6 +8,8 @@
 
 package org.opensearch.remotemigration;
 
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
@@ -90,6 +92,7 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         assertEquals(1, getRepositoriesResponse.repositories().size());
 
         for (int i = 0; i < RELOCATION_COUNT; i++) {
+            Thread.sleep(RandomNumbers.randomIntBetween(random(), 0, 2000));
             logger.info("--> [iteration {}] relocating from {} to {} ", i, cmNodes.get(0), remoteNode);
             client().admin()
                 .cluster()
@@ -106,6 +109,7 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
                 .execute()
                 .actionGet();
             logger.info("--> [iteration {}] relocation complete", i);
+            Thread.sleep(RandomNumbers.randomIntBetween(random(), 0, 2000));
 
             client().admin()
                 .cluster()
