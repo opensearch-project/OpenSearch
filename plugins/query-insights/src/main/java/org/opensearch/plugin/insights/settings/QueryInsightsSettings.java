@@ -24,6 +24,15 @@ import java.util.concurrent.TimeUnit;
  */
 public class QueryInsightsSettings {
     /**
+     * Constant setting for user info header key that are injected during authentication
+     */
+    public static final String REQUEST_HEADER_USER_INFO = "_opendistro_security_user_info";
+    /**
+     * Constant setting for remote address info header key that are injected during authentication
+     */
+    public static final String REQUEST_HEADER_REMOTE_ADDRESS = "_opendistro_security_remote_address";
+
+    /**
      * Executors settings
      */
     public static final String QUERY_INSIGHTS_EXECUTOR = "query_insights_executor";

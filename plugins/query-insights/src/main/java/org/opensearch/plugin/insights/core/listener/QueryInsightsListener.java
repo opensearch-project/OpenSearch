@@ -16,11 +16,14 @@ import org.opensearch.action.search.SearchRequestContext;
 import org.opensearch.action.search.SearchRequestOperationsListener;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.commons.authuser.User;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.rules.model.Attribute;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
+import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,16 +48,23 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
     private static final Logger log = LogManager.getLogger(QueryInsightsListener.class);
 
     private final QueryInsightsService queryInsightsService;
+    private final ThreadPool threadPool;
 
     /**
      * Constructor for QueryInsightsListener
      *
      * @param clusterService The Node's cluster service.
      * @param queryInsightsService The topQueriesByLatencyService associated with this listener
+     * @param threadPool The OpenSearch thread pool to run async tasks
      */
     @Inject
-    public QueryInsightsListener(final ClusterService clusterService, final QueryInsightsService queryInsightsService) {
+    public QueryInsightsListener(
+        final ClusterService clusterService,
+        final QueryInsightsService queryInsightsService,
+        final ThreadPool threadPool
+    ) {
         this.queryInsightsService = queryInsightsService;
+        this.threadPool = threadPool;
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_ENABLED, v -> this.setEnableTopQueries(MetricType.LATENCY, v));
         clusterService.getClusterSettings()
@@ -138,6 +148,16 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
             attributes.put(Attribute.TOTAL_SHARDS, context.getNumShards());
             attributes.put(Attribute.INDICES, request.indices());
             attributes.put(Attribute.PHASE_LATENCY_MAP, searchRequestContext.phaseTookMap());
+            // add user related information
+            Object userInfo = threadPool.getThreadContext().getTransient(QueryInsightsSettings.REQUEST_HEADER_USER_INFO);
+            if (userInfo != null) {
+                attributes.put(Attribute.USER, User.parse(userInfo.toString()));
+            }
+            // add remote ip address
+            Object remoteAddress = threadPool.getThreadContext().getTransient(QueryInsightsSettings.REQUEST_HEADER_REMOTE_ADDRESS);
+            if (remoteAddress != null) {
+                attributes.put(Attribute.REMOTE_ADDRESS, remoteAddress.toString());
+            }
             SearchQueryRecord record = new SearchQueryRecord(request.getOrCreateAbsoluteStartMillis(), measurements, attributes);
             queryInsightsService.addRecord(record);
         } catch (Exception e) {

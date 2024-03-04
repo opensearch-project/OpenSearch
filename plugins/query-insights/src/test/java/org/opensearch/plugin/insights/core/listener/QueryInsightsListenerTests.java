@@ -15,22 +15,31 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.commons.InjectSecurity;
+import org.opensearch.commons.authuser.User;
 import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.core.service.TopQueriesService;
+import org.opensearch.plugin.insights.rules.model.Attribute;
 import org.opensearch.plugin.insights.rules.model.MetricType;
+import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
+
+import org.mockito.ArgumentCaptor;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -47,12 +56,15 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
     private final SearchRequest searchRequest = mock(SearchRequest.class);
     private final QueryInsightsService queryInsightsService = mock(QueryInsightsService.class);
     private final TopQueriesService topQueriesService = mock(TopQueriesService.class);
+    private final ThreadPool threadPool = mock(ThreadPool.class);
+    private final Settings.Builder settingsBuilder = Settings.builder();
+    private final Settings settings = settingsBuilder.build();
+    private final String remoteAddress = "1.2.3.4";
+    private User user;
     private ClusterService clusterService;
 
     @Before
     public void setup() {
-        Settings.Builder settingsBuilder = Settings.builder();
-        Settings settings = settingsBuilder.build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE);
@@ -60,10 +72,18 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         clusterService = new ClusterService(settings, clusterSettings, null);
         when(queryInsightsService.isCollectionEnabled(MetricType.LATENCY)).thenReturn(true);
         when(queryInsightsService.getTopQueriesService(MetricType.LATENCY)).thenReturn(topQueriesService);
+
+        // inject user info
+        ThreadContext threadContext = new ThreadContext(settings);
+        user = new User("user-1", List.of("role1", "role2"), List.of("role3", "role4"), List.of());
+        InjectSecurity injector = new InjectSecurity("id", settings, threadContext);
+        injector.injectUserInfo(user);
+        threadContext.putTransient(QueryInsightsSettings.REQUEST_HEADER_REMOTE_ADDRESS, remoteAddress);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
     }
 
-    public void testOnRequestEnd() throws InterruptedException {
-        Long timestamp = System.currentTimeMillis() - 100L;
+    public void testOnRequestEnd() {
+        long timestamp = System.currentTimeMillis() - 100L;
         SearchType searchType = SearchType.QUERY_THEN_FETCH;
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
@@ -79,7 +99,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
 
         int numberOfShards = 10;
 
-        QueryInsightsListener queryInsightsListener = new QueryInsightsListener(clusterService, queryInsightsService);
+        QueryInsightsListener queryInsightsListener = new QueryInsightsListener(clusterService, queryInsightsService, threadPool);
 
         when(searchRequest.getOrCreateAbsoluteStartMillis()).thenReturn(timestamp);
         when(searchRequest.searchType()).thenReturn(searchType);
@@ -92,6 +112,16 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         queryInsightsListener.onRequestEnd(searchPhaseContext, searchRequestContext);
 
         verify(queryInsightsService, times(1)).addRecord(any());
+        ArgumentCaptor<SearchQueryRecord> argumentCaptor = ArgumentCaptor.forClass(SearchQueryRecord.class);
+        verify(queryInsightsService).addRecord(argumentCaptor.capture());
+        assertEquals(timestamp, argumentCaptor.getValue().getTimestamp());
+        Map<Attribute, Object> attrs = argumentCaptor.getValue().getAttributes();
+        assertEquals(searchType.toString().toLowerCase(Locale.ROOT), attrs.get(Attribute.SEARCH_TYPE));
+        assertEquals(numberOfShards, attrs.get(Attribute.TOTAL_SHARDS));
+        assertEquals(indices, attrs.get(Attribute.INDICES));
+        assertEquals(phaseLatencyMap, attrs.get(Attribute.PHASE_LATENCY_MAP));
+        assertEquals(user, attrs.get(Attribute.USER));
+        assertEquals(remoteAddress, attrs.get(Attribute.REMOTE_ADDRESS));
     }
 
     public void testConcurrentOnRequestEnd() throws InterruptedException {
@@ -127,7 +157,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         CountDownLatch countDownLatch = new CountDownLatch(numRequests);
 
         for (int i = 0; i < numRequests; i++) {
-            searchListenersList.add(new QueryInsightsListener(clusterService, queryInsightsService));
+            searchListenersList.add(new QueryInsightsListener(clusterService, queryInsightsService, threadPool));
         }
 
         for (int i = 0; i < numRequests; i++) {
@@ -148,7 +178,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
 
     public void testSetEnabled() {
         when(queryInsightsService.isCollectionEnabled(MetricType.LATENCY)).thenReturn(true);
-        QueryInsightsListener queryInsightsListener = new QueryInsightsListener(clusterService, queryInsightsService);
+        QueryInsightsListener queryInsightsListener = new QueryInsightsListener(clusterService, queryInsightsService, threadPool);
         queryInsightsListener.setEnableTopQueries(MetricType.LATENCY, true);
         assertTrue(queryInsightsListener.isEnabled());
 

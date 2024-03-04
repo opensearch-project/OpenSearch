@@ -43,7 +43,15 @@ public enum Attribute {
     /**
      * The node id for this request
      */
-    NODE_ID;
+    NODE_ID,
+    /**
+     * The remote address of this request
+     */
+    REMOTE_ADDRESS,
+    /**
+     * Information related to the user who sent this request
+     */
+    USER;
 
     /**
      * Read an Attribute from a StreamInput
