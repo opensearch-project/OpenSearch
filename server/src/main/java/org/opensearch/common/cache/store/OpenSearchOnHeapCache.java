@@ -152,10 +152,11 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
             Map<String, Setting<?>> settingList = OpenSearchOnHeapCacheSettings.getSettingListForCacheType(cacheType);
             Settings settings = config.getSettings();
-            return new Builder<K, V>()
-                .setDimensionNames(config.getDimensionNames())
+            return new Builder<K, V>().setDimensionNames(config.getDimensionNames())
                 .setMaximumWeightInBytes(((ByteSizeValue) settingList.get(MAXIMUM_SIZE_IN_BYTES_KEY).get(settings)).getBytes())
-                .setWeigher(config.getWeigher()).setRemovalListener(config.getRemovalListener()).build();
+                .setWeigher(config.getWeigher())
+                .setRemovalListener(config.getRemovalListener())
+                .build();
         }
 
         @Override

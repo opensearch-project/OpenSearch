@@ -10,8 +10,6 @@ package org.opensearch.cache.store.disk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.ehcache.core.spi.service.FileBasedPersistenceContext;
-import org.ehcache.spi.serialization.SerializerException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cache.EhcacheDiskCacheSettings;
 import org.opensearch.common.SuppressForbidden;
@@ -59,6 +57,7 @@ import org.ehcache.config.builders.CacheManagerBuilder;
 import org.ehcache.config.builders.PooledExecutionServiceConfigurationBuilder;
 import org.ehcache.config.builders.ResourcePoolsBuilder;
 import org.ehcache.config.units.MemoryUnit;
+import org.ehcache.core.spi.service.FileBasedPersistenceContext;
 import org.ehcache.event.CacheEvent;
 import org.ehcache.event.CacheEventListener;
 import org.ehcache.event.EventType;
@@ -66,6 +65,7 @@ import org.ehcache.expiry.ExpiryPolicy;
 import org.ehcache.impl.config.store.disk.OffHeapDiskStoreConfiguration;
 import org.ehcache.spi.loaderwriter.CacheLoadingException;
 import org.ehcache.spi.loaderwriter.CacheWritingException;
+import org.ehcache.spi.serialization.SerializerException;
 
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_CACHE_ALIAS_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY;
@@ -500,7 +500,11 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                     break;
                 case EXPIRED:
                     this.removalListener.onRemoval(
-                        new RemovalNotification<>(event.getKey(), valueSerializer.deserialize(event.getOldValue()), RemovalReason.INVALIDATED)
+                        new RemovalNotification<>(
+                            event.getKey(),
+                            valueSerializer.deserialize(event.getOldValue()),
+                            RemovalReason.INVALIDATED
+                        )
                     );
                     stats.decrementEntriesByDimensions(event.getKey().dimensions);
                     stats.incrementMemorySizeByDimensions(event.getKey().dimensions, -getOldValuePairSize(event));
