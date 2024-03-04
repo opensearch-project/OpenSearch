@@ -58,7 +58,7 @@ public class IoUsageStats implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("io_utilization_percent", String.format(Locale.ROOT, "%.1f", this.ioUtilisationPercent));
+        builder.field("max_io_utilization_percent", String.format(Locale.ROOT, "%.1f", this.ioUtilisationPercent));
         return builder.endObject();
     }
 

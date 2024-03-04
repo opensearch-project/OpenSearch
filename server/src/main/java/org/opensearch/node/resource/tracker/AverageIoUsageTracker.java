@@ -10,6 +10,7 @@ package org.opensearch.node.resource.tracker;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Constants;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.monitor.fs.FsInfo.DeviceStats;
 import org.opensearch.monitor.fs.FsService;
@@ -28,14 +29,14 @@ public class AverageIoUsageTracker extends AbstractAverageUsageTracker {
     private final FsService fsService;
     private final HashMap<String, Long> prevIoTimeDeviceMap;
     private long prevTimeInMillis;
-    private final IoUsageStats ioUsageStats;
+    private IoUsageStats ioUsageStats;
 
     public AverageIoUsageTracker(FsService fsService, ThreadPool threadPool, TimeValue pollingInterval, TimeValue windowDuration) {
         super(threadPool, pollingInterval, windowDuration);
         this.fsService = fsService;
         this.prevIoTimeDeviceMap = new HashMap<>();
         this.prevTimeInMillis = -1;
-        this.ioUsageStats = new IoUsageStats(-1);
+        this.ioUsageStats = null;
     }
 
     /**
@@ -67,11 +68,14 @@ public class AverageIoUsageTracker extends AbstractAverageUsageTracker {
 
     @Override
     protected void doStart() {
-        scheduledFuture = threadPool.scheduleWithFixedDelay(() -> {
-            long usage = getUsage();
-            recordUsage(usage);
-            updateIoUsageStats();
-        }, pollingInterval, ThreadPool.Names.GENERIC);
+        if (Constants.LINUX) {
+            this.ioUsageStats = new IoUsageStats(-1);
+            scheduledFuture = threadPool.scheduleWithFixedDelay(() -> {
+                long usage = getUsage();
+                recordUsage(usage);
+                updateIoUsageStats();
+            }, pollingInterval, ThreadPool.Names.GENERIC);
+        }
     }
 
     private boolean preValidateFsStats() {

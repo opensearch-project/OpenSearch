@@ -39,12 +39,12 @@ public class IoUsageStatsTests extends OpenSearchTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder = ioUsageStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         String response = builder.toString();
-        assertEquals(response, "{\"io_utilization_percent\":\"10.0\"}");
+        assertEquals(response, "{\"max_io_utilization_percent\":\"10.0\"}");
         ioUsageStats.setIoUtilisationPercent(20);
         builder = JsonXContent.contentBuilder();
         builder = ioUsageStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         response = builder.toString();
-        assertEquals(response, "{\"io_utilization_percent\":\"20.0\"}");
+        assertEquals(response, "{\"max_io_utilization_percent\":\"20.0\"}");
     }
 
     public void testIoUsageStatsToString() {
