@@ -32,7 +32,10 @@ public class KeyStoreStats {
     /** Number of successful removal attempts */
     protected CounterMetric numSuccessfulRemovals;
 
-    /** Constructor using memory size cap. */
+    /**
+     * Constructor using memory cap.
+     * @param memSizeCapInBytes The memory cap in bytes.
+     */
     protected KeyStoreStats(long memSizeCapInBytes) {
         this.size = new CounterMetric();
         this.numAddAttempts = new CounterMetric();

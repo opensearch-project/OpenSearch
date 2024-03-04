@@ -74,14 +74,19 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
     static final int REFRESH_SIZE_EST_INTERVAL = 10_000;
 
     /**
-     Use this constructor to specify memory cap with default modulo = 2^28, which we found in experiments
-     to be the best tradeoff between lower memory usage and risk of collisions
+     * Use this constructor to specify memory cap with default modulo = 2^28, which we found in experiments
+     *      to be the best tradeoff between lower memory usage and risk of collisions
+     * @param memSizeCapInBytes The memory size cap in bytes.
      */
     public RBMIntKeyLookupStore(long memSizeCapInBytes) {
         this(KeystoreModuloValue.TWO_TO_TWENTY_EIGHT, memSizeCapInBytes);
     }
 
-    /** Use this constructor to specify memory cap and modulo */
+    /**
+     * Use this constructor to specify memory cap and modulo
+     * @param moduloValue The modulo value.
+     * @param memSizeCapInBytes The memory size cap in bytes.
+     */
     public RBMIntKeyLookupStore(KeystoreModuloValue moduloValue, long memSizeCapInBytes) {
         this.modulo = moduloValue.getValue();
         if (modulo > 0) {
@@ -269,7 +274,12 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         return (int) stats.numCollisions.count();
     }
 
-    /** Returns true if the two values would collide */
+    /**
+     * Returns true if the two values would collide
+     * @param value1 value 1
+     * @param value2 value 2
+     * @return whether there is a collision
+     */
     public boolean isCollision(Integer value1, Integer value2) {
         if (value1 == null || value2 == null) {
             return false;
