@@ -32,6 +32,8 @@
 
 package org.opensearch.common.ssl;
 
+import org.bouncycastle.crypto.CryptoServicesRegistrar;
+
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
@@ -155,7 +157,12 @@ public class SslConfiguration {
         final X509ExtendedKeyManager keyManager = keyConfig.createKeyManager();
         final X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
         try {
-            SSLContext sslContext = SSLContext.getInstance(contextProtocol());
+            SSLContext sslContext;
+            if (CryptoServicesRegistrar.isInApprovedOnlyMode()) {
+                sslContext = SSLContext.getInstance("TLS");
+            } else {
+                sslContext = SSLContext.getInstance(contextProtocol());
+            }
             sslContext.init(new X509ExtendedKeyManager[] { keyManager }, new X509ExtendedTrustManager[] { trustManager }, null);
             return sslContext;
         } catch (GeneralSecurityException e) {

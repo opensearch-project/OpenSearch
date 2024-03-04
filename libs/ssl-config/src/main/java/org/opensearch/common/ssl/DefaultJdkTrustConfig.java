@@ -65,7 +65,7 @@ final class DefaultJdkTrustConfig implements SslTrustConfig {
      * Create a trust config that uses supplied {@link BiFunction} to determine the TrustStore type, and the relevant password.
      */
     DefaultJdkTrustConfig(BiFunction<String, String, String> systemProperties) {
-        this(systemProperties, isPkcs11Truststore(systemProperties) ? getSystemTrustStorePassword(systemProperties) : null);
+        this(systemProperties, getSystemTrustStorePassword(systemProperties));
     }
 
     /**
@@ -93,11 +93,16 @@ final class DefaultJdkTrustConfig implements SslTrustConfig {
      * @return the KeyStore used as truststore for PKCS#11 initialized with the password, null otherwise
      */
     private KeyStore getSystemTrustStore() {
-        if (isPkcs11Truststore(systemProperties) && trustStorePassword != null) {
+        if (trustStorePassword != null) {
             try {
-                KeyStore keyStore = KeyStore.getInstance("PKCS11");
-                keyStore.load(null, trustStorePassword);
-                return keyStore;
+                if (isBcfksTruststore(systemProperties)) {
+                    var path = Path.of(System.getProperty("javax.net.ssl.trustStore", ""));
+                    KeyStoreUtil.readKeyStore(path, "BCFKS", trustStorePassword);
+                } else if (isPkcs11Truststore(systemProperties)) {
+                    KeyStore keyStore = KeyStore.getInstance("PKCS11");
+                    keyStore.load(null, trustStorePassword);
+                    return keyStore;
+                }
             } catch (GeneralSecurityException | IOException e) {
                 throw new SslConfigException("failed to load the system PKCS#11 truststore", e);
             }
@@ -105,12 +110,17 @@ final class DefaultJdkTrustConfig implements SslTrustConfig {
         return null;
     }
 
+    private static boolean isBcfksTruststore(BiFunction<String, String, String> systemProperties) {
+        return systemProperties.apply("javax.net.ssl.trustStoreType", "").equalsIgnoreCase("BCFKS");
+    }
+
     private static boolean isPkcs11Truststore(BiFunction<String, String, String> systemProperties) {
         return systemProperties.apply("javax.net.ssl.trustStoreType", "").equalsIgnoreCase("PKCS11");
     }
 
     private static char[] getSystemTrustStorePassword(BiFunction<String, String, String> systemProperties) {
-        return systemProperties.apply("javax.net.ssl.trustStorePassword", "").toCharArray();
+        var password = systemProperties.apply("javax.net.ssl.trustStorePassword", "");
+        return password.isEmpty() ? null : password.toCharArray();
     }
 
     @Override

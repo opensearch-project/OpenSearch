@@ -35,6 +35,10 @@ apply plugin: "opensearch.publish"
 dependencies {
   api project(':libs:opensearch-common')
 
+  // bouncyCastle
+  implementation 'org.bouncycastle:bcpkix-fips:1.0.7'
+  compileOnly 'org.bouncycastle:bc-fips:1.0.2.5'
+
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-ssl-config'
   }
@@ -47,6 +51,10 @@ dependencies {
 
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /bc.*/, to: 'bouncycastle'
 }
 
 forbiddenPatterns {
