@@ -12,10 +12,12 @@ import org.opensearch.cache.store.disk.EhcacheDiskCache;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.opensearch.common.settings.Setting.Property.Dynamic;
 import static org.opensearch.common.settings.Setting.Property.NodeScope;
 
 /**
@@ -111,6 +113,22 @@ public class EhcacheDiskCacheSettings {
     );
 
     /**
+     * Defines whether to use an in-memory keystore to check for probable presence of keys before having to go to disk.
+     */
+    public static final Setting.AffixSetting<Boolean> USE_RBM_KEYSTORE_SETTING = Setting.suffixKeySetting(
+        EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + "use_keystore",
+        (key) -> Setting.boolSetting(key, true, NodeScope)
+    );
+
+    /**
+     * Defines the max size of the RBM keystore if used (as a percentage of heap memory)
+     */
+    public static final Setting.AffixSetting<ByteSizeValue> RBM_KEYSTORE_SIZE_SETTING = Setting.suffixKeySetting(
+        EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + "keystore_size",
+        (key) -> Setting.memorySizeSetting(key, "0.05%", NodeScope)
+    );
+
+    /**
      * Key for disk segment.
      */
     public static final String DISK_SEGMENT_KEY = "disk_segment";
@@ -150,29 +168,30 @@ public class EhcacheDiskCacheSettings {
      * Key for listener mode
      */
     public static final String DISK_LISTENER_MODE_SYNC_KEY = "disk_listener_mode";
+    /**
+     * Key for whether to use RBM keystore
+     */
+    public static final String USE_RBM_KEYSTORE_KEY = "use_keystore";
+    /**
+     * Key for the keystore size in bytes
+     */
+    public static final String RBM_KEYSTORE_SIZE_KEY = "keystore_size";
 
     /**
      * Map of key to setting.
      */
-    private static final Map<String, Setting.AffixSetting<?>> KEY_SETTING_MAP = Map.of(
-        DISK_SEGMENT_KEY,
-        DISK_SEGMENTS_SETTING,
-        DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY,
-        DISK_CACHE_EXPIRE_AFTER_ACCESS_SETTING,
-        DISK_CACHE_ALIAS_KEY,
-        DISK_CACHE_ALIAS_SETTING,
-        DISK_WRITE_CONCURRENCY_KEY,
-        DISK_WRITE_CONCURRENCY_SETTING,
-        DISK_WRITE_MAXIMUM_THREADS_KEY,
-        DISK_WRITE_MAXIMUM_THREADS_SETTING,
-        DISK_WRITE_MIN_THREADS_KEY,
-        DISK_WRITE_MINIMUM_THREADS_SETTING,
-        DISK_STORAGE_PATH_KEY,
-        DISK_STORAGE_PATH_SETTING,
-        DISK_MAX_SIZE_IN_BYTES_KEY,
-        DISK_CACHE_MAX_SIZE_IN_BYTES_SETTING,
-        DISK_LISTENER_MODE_SYNC_KEY,
-        DISK_CACHE_LISTENER_MODE_SYNC_SETTING
+    private static final Map<String, Setting.AffixSetting<?>> KEY_SETTING_MAP = Map.ofEntries(
+        Map.entry(DISK_SEGMENT_KEY, DISK_SEGMENTS_SETTING),
+        Map.entry(DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY, DISK_CACHE_EXPIRE_AFTER_ACCESS_SETTING),
+        Map.entry(DISK_CACHE_ALIAS_KEY, DISK_CACHE_ALIAS_SETTING),
+        Map.entry(DISK_WRITE_CONCURRENCY_KEY, DISK_WRITE_CONCURRENCY_SETTING),
+        Map.entry(DISK_WRITE_MAXIMUM_THREADS_KEY, DISK_WRITE_MAXIMUM_THREADS_SETTING),
+        Map.entry(DISK_WRITE_MIN_THREADS_KEY, DISK_WRITE_MINIMUM_THREADS_SETTING),
+        Map.entry(DISK_STORAGE_PATH_KEY, DISK_STORAGE_PATH_SETTING),
+        Map.entry(DISK_MAX_SIZE_IN_BYTES_KEY, DISK_CACHE_MAX_SIZE_IN_BYTES_SETTING),
+        Map.entry(DISK_LISTENER_MODE_SYNC_KEY, DISK_CACHE_LISTENER_MODE_SYNC_SETTING),
+        Map.entry(USE_RBM_KEYSTORE_KEY, USE_RBM_KEYSTORE_SETTING),
+        Map.entry(RBM_KEYSTORE_SIZE_KEY, RBM_KEYSTORE_SIZE_SETTING)
     );
 
     /**
