@@ -121,6 +121,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
     @Override
     public void close() {}
 
+    @Override
     public CacheStats stats() {
         return stats;
     }

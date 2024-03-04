@@ -84,7 +84,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         );
         this.diskCache = builder.diskCacheFactory.create(builder.cacheConfig, builder.cacheType, builder.cacheFactories);
         this.cacheList = Arrays.asList(onHeapCache, diskCache);
-        this.stats = null; // TODO - in next stats rework PR 
+        this.stats = null; // TODO - in next stats rework PR
     }
 
     // Package private for testing
@@ -182,6 +182,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         }
     }
 
+    @Override
     public CacheStats stats() {
         return stats;
     }

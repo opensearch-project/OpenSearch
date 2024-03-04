@@ -9,6 +9,7 @@
 package org.opensearch.common.cache;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.cache.stats.CacheStats;
 import org.opensearch.common.cache.store.config.CacheConfig;
 
 import java.io.Closeable;
@@ -38,6 +39,8 @@ public interface ICache<K, V> extends Closeable {
     long count();
 
     void refresh();
+
+    CacheStats stats();
 
     /**
      * Factory to create objects.
