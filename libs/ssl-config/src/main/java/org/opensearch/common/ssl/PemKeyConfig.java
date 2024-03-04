@@ -32,6 +32,8 @@
 
 package org.opensearch.common.ssl;
 
+import org.bouncycastle.pkcs.PKCSException;
+
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 
@@ -82,7 +84,12 @@ public final class PemKeyConfig implements SslKeyConfig {
 
     private PrivateKey getPrivateKey() {
         try {
-            final PrivateKey privateKey = PemUtils.readPrivateKey(key, () -> keyPassword);
+            final PrivateKey privateKey = PemUtils.readPrivateKey(key, () -> {
+                if (keyPassword.length == 0) {
+                    throw new SslConfigException("cannot read encrypted key [" + key.toAbsolutePath() + "] without a password");
+                }
+                return keyPassword;
+            });
             if (privateKey == null) {
                 throw new SslConfigException("could not load ssl private key file [" + key + "]");
             }
@@ -91,7 +98,7 @@ public final class PemKeyConfig implements SslKeyConfig {
             throw new SslConfigException("the configured ssl private key file [" + key.toAbsolutePath() + "] does not exist", e);
         } catch (IOException e) {
             throw new SslConfigException("the configured ssl private key file [" + key.toAbsolutePath() + "] cannot be read", e);
-        } catch (GeneralSecurityException e) {
+        } catch (PKCSException e) {
             throw new SslConfigException("cannot load ssl private key file [" + key.toAbsolutePath() + "]", e);
         }
     }

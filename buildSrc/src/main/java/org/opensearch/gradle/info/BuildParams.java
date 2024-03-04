@@ -52,6 +52,7 @@ public class BuildParams {
     private static JavaVersion gradleJavaVersion;
     private static JavaVersion runtimeJavaVersion;
     private static String runtimeJavaDetails;
+    @Deprecated
     private static Boolean inFipsJvm;
     private static String gitRevision;
     private static String gitOrigin;
