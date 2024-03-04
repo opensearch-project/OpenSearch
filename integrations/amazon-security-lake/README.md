@@ -47,3 +47,16 @@ sudo -E /usr/share/logstash/bin/logstash -f /etc/logstash/conf.d/wazuh-s3.conf -
 sudo systemctl enable logstash
 sudo systemctl start logstash
 ```
+
+
+### Building the Docker image
+
+```console
+docker build -t wazuh/indexer-security-lake-integration:latest . --progress=plain
+```
+
+
+Run with: 
+```console
+docker run -it --name=wazuh-indexer-security-lake-integration --rm wazuh/indexer-security-lake-integration ls
+```

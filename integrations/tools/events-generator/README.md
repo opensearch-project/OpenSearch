@@ -41,3 +41,14 @@ INFO:event_generator:Event created
 INFO:event_generator:Event created
 {'_index': 'wazuh-alerts-4.x-2024.02.13-000001', '_id': 'eRWno40BZRXLJU5t4u66', '_version': 1, 'result': 'created', '_shards': {'total': 2, 'successful': 2, 'failed': 0}, '_seq_no': 172, '_primary_term': 1}
 ```
+
+### Building the Docker image
+
+```console
+docker build -t wazuh/indexer-events-generator:latest .
+```
+
+Run with: 
+```console
+docker run -it --name=wazuh-indexer-events-generator --rm wazuh/indexer-events-generator python run.py -h
+```

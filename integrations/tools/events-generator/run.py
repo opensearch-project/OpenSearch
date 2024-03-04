@@ -1,4 +1,4 @@
-#!/usr/bin/pyton
+#!/usr/bin/python3
 
 # Events generator tool for Wazuh's indices.
 # Chooses a random element from <index>/alerts.json to index
@@ -42,9 +42,11 @@ class Inventory:
             self.size = len(self.elements)
 
     def get_random(self) -> str:
+        """
+        Returns the last element of the list
+        """
         random.shuffle(self.elements)
-        return self.elements.pop()
-        # return self.elements[random.randint(0, self.size)]
+        return self.elements[self.size-1]
 
 # ================================================== #
 
@@ -137,15 +139,20 @@ def parse_args():
         description="Events generator tool for Wazuh's indices. Indexes a random element from <index>/alerts.json",
     )
     parser.add_argument(
+        '-i', '--index',
+        default="wazuh-alerts-4.x-sample",
+        help="Destination index name or alias"
+    )
+    parser.add_argument(
         '-o', '--output',
         choices=['indexer', 'filebeat'],
         default="indexer",
         help="Destination of the events. Default: indexer."
     )
     parser.add_argument(
-        '-i', '--index',
+        '-m', '--module',
         default="wazuh-alerts",
-        help="Index name or module (e.g: wazuh-alerts, wazuh-states-vulnerabilities)"
+        help="Wazuh module to read the alerts from (e.g: wazuh-alerts, wazuh-states-vulnerabilities). Must match a subfolder's name."
     )
     # Infinite loop by default
     parser.add_argument(
@@ -189,7 +196,7 @@ def parse_args():
 
 
 def main(args: dict):
-    inventory = Inventory(f"{args['index']}/alerts.json")
+    inventory = Inventory(f"{args['module']}/alerts.json")
     logger.info("Inventory created")
     publisher = PublisherCreator.create(args["output"], args)
     logger.info("Publisher created")
