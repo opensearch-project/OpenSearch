@@ -11,9 +11,11 @@ package org.opensearch.cache.common.tier;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
+import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.stats.CacheStats;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -44,7 +46,10 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
     private final ICache<K, V> diskCache;
     private final ICache<K, V> onHeapCache;
-    private final RemovalListener<K, V> removalListener;
+
+    // The listener for removals from the spillover cache as a whole
+    private final RemovalListener<ICacheKey<K>, V> removalListener;
+    private final CacheStats stats;
     ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     ReleasableLock readLock = new ReleasableLock(readWriteLock.readLock());
     ReleasableLock writeLock = new ReleasableLock(readWriteLock.writeLock());
@@ -59,9 +64,9 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         this.removalListener = Objects.requireNonNull(builder.removalListener, "Removal listener can't be null");
 
         this.onHeapCache = builder.onHeapCacheFactory.create(
-            new CacheConfig.Builder<K, V>().setRemovalListener(new RemovalListener<K, V>() {
+            new CacheConfig.Builder<K, V>().setRemovalListener(new RemovalListener<ICacheKey<K>, V>() {
                 @Override
-                public void onRemoval(RemovalNotification<K, V> notification) {
+                public void onRemoval(RemovalNotification<ICacheKey<K>, V> notification) {
                     try (ReleasableLock ignore = writeLock.acquire()) {
                         diskCache.put(notification.getKey(), notification.getValue());
                     }
@@ -79,6 +84,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         );
         this.diskCache = builder.diskCacheFactory.create(builder.cacheConfig, builder.cacheType, builder.cacheFactories);
         this.cacheList = Arrays.asList(onHeapCache, diskCache);
+        this.stats = null; // TODO - in next stats rework PR 
     }
 
     // Package private for testing
@@ -92,19 +98,19 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     }
 
     @Override
-    public V get(K key) {
+    public V get(ICacheKey<K> key) {
         return getValueFromTieredCache().apply(key);
     }
 
     @Override
-    public void put(K key, V value) {
+    public void put(ICacheKey<K> key, V value) {
         try (ReleasableLock ignore = writeLock.acquire()) {
             onHeapCache.put(key, value);
         }
     }
 
     @Override
-    public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
+    public V computeIfAbsent(ICacheKey<K> key, LoadAwareCacheLoader<ICacheKey<K>, V> loader) throws Exception {
 
         V cacheValue = getValueFromTieredCache().apply(key);
         if (cacheValue == null) {
@@ -121,7 +127,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     }
 
     @Override
-    public void invalidate(K key) {
+    public void invalidate(ICacheKey<K> key) {
         // We are trying to invalidate the key from all caches though it would be present in only of them.
         // Doing this as we don't know where it is located. We could do a get from both and check that, but what will
         // also trigger a hit/miss listener event, so ignoring it for now.
@@ -147,7 +153,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
      */
     @SuppressWarnings("unchecked")
     @Override
-    public Iterable<K> keys() {
+    public Iterable<ICacheKey<K>> keys() {
         return Iterables.concat(onHeapCache.keys(), diskCache.keys());
     }
 
@@ -176,7 +182,11 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         }
     }
 
-    private Function<K, V> getValueFromTieredCache() {
+    public CacheStats stats() {
+        return stats;
+    }
+
+    private Function<ICacheKey<K>, V> getValueFromTieredCache() {
         return key -> {
             try (ReleasableLock ignore = readLock.acquire()) {
                 for (ICache<K, V> cache : cacheList) {
@@ -254,7 +264,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     public static class Builder<K, V> {
         private ICache.Factory onHeapCacheFactory;
         private ICache.Factory diskCacheFactory;
-        private RemovalListener<K, V> removalListener;
+        private RemovalListener<ICacheKey<K>, V> removalListener;
         private CacheConfig<K, V> cacheConfig;
         private CacheType cacheType;
         private Map<String, ICache.Factory> cacheFactories;
@@ -289,7 +299,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
          * @param removalListener Removal listener
          * @return builder
          */
-        public Builder<K, V> setRemovalListener(RemovalListener<K, V> removalListener) {
+        public Builder<K, V> setRemovalListener(RemovalListener<ICacheKey<K>, V> removalListener) {
             this.removalListener = removalListener;
             return this;
         }
