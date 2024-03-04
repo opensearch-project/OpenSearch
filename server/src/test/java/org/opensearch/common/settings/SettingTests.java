@@ -909,6 +909,18 @@ public class SettingTests extends OpenSearchTestCase {
         }
     }
 
+    public void testAffixKeySettingWithDynamicPrefix() {
+        Setting.AffixSetting<Boolean> setting = Setting.suffixKeySetting(
+            "enable",
+            (key) -> Setting.boolSetting(key, false, Property.NodeScope)
+        );
+        Setting<Boolean> concreteSetting = setting.getConcreteSettingForNamespace("foo.bar");
+        assertEquals("foo.bar.enable", concreteSetting.getKey());
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> setting.getConcreteSettingForNamespace("foo."));
+        assertEquals("key [foo..enable] must match [*.enable] but didn't.", ex.getMessage());
+    }
+
     public void testAffixKeySetting() {
         Setting<Boolean> setting = Setting.affixKeySetting("foo.", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
         assertTrue(setting.hasComplexMatcher());
