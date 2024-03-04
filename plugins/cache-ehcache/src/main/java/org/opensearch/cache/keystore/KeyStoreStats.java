@@ -17,21 +17,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Getters should be exposed by the KeyLookupStore which uses it.
  */
 public class KeyStoreStats {
-    // Number of entries
+    /** Number of entries */
     protected CounterMetric size;
-    // Memory cap in bytes
+    /** Memory cap in bytes */
     protected long memSizeCapInBytes;
-    // Number of add attempts
+    /** Number of add attempts */
     protected CounterMetric numAddAttempts;
-    // Number of collisions
+    /** Number of collisions */
     protected CounterMetric numCollisions;
-    // True if the store is at capacity
+    /** True if the store is at capacity */
     protected AtomicBoolean atCapacity;
-    // Number of removal attempts
+    /** Number of removal attempts */
     protected CounterMetric numRemovalAttempts;
-    // Number of successful removal attempts
+    /** Number of successful removal attempts */
     protected CounterMetric numSuccessfulRemovals;
 
+    /** Constructor using memory size cap. */
     protected KeyStoreStats(long memSizeCapInBytes) {
         this.size = new CounterMetric();
         this.numAddAttempts = new CounterMetric();

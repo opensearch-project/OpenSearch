@@ -32,24 +32,30 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
      * An enum representing modulo values for use in the keystore
      */
     public enum KeystoreModuloValue {
-        NONE(0), // No modulo applied
+        /** No modulo applied */
+        NONE(0),
+        /** 2^31 */
         TWO_TO_THIRTY_ONE((int) Math.pow(2, 31)),
-        TWO_TO_TWENTY_NINE((int) Math.pow(2, 29)), // recommended value
+        /** 2^29 */
+        TWO_TO_TWENTY_NINE((int) Math.pow(2, 29)),
+        /** 2^28, recommended value */
         TWO_TO_TWENTY_EIGHT((int) Math.pow(2, 28)),
+        /** 2^26 */
         TWO_TO_TWENTY_SIX((int) Math.pow(2, 26));
 
         private final int value;
 
-        private KeystoreModuloValue(int value) {
+        KeystoreModuloValue(int value) {
             this.value = value;
         }
 
+        /** Get the numerical value. */
         public int getValue() {
             return this.value;
         }
     }
 
-    // The modulo applied to values before adding into the RBM
+    /** The modulo applied to values before adding into the RBM */
     protected final int modulo;
     private final int modulo_bitmask;
     // Since our modulo is always a power of two we can optimize it by ANDing with a particular bitmask
@@ -67,13 +73,15 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
     // in terms of storage impact
     static final int REFRESH_SIZE_EST_INTERVAL = 10_000;
 
-    // Use this constructor to specify memory cap with default modulo = 2^28, which we found in experiments
-    // to be the best tradeoff between lower memory usage and risk of collisions
+    /**
+     Use this constructor to specify memory cap with default modulo = 2^28, which we found in experiments
+     to be the best tradeoff between lower memory usage and risk of collisions
+     */
     public RBMIntKeyLookupStore(long memSizeCapInBytes) {
         this(KeystoreModuloValue.TWO_TO_TWENTY_EIGHT, memSizeCapInBytes);
     }
 
-    // Use this constructor to specify memory cap and modulo
+    /** Use this constructor to specify memory cap and modulo */
     public RBMIntKeyLookupStore(KeystoreModuloValue moduloValue, long memSizeCapInBytes) {
         this.modulo = moduloValue.getValue();
         if (modulo > 0) {
@@ -166,7 +174,7 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         }
     }
 
-    public Integer getInternalRepresentation(Integer value) {
+    Integer getInternalRepresentation(Integer value) {
         if (value == null) {
             return 0;
         }
@@ -251,14 +259,17 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         }
     }
 
+    /** Get the number of add attempts */
     public int getAddAttempts() {
         return (int) stats.numAddAttempts.count();
     }
 
+    /** Get the number of collisions that have happened */
     public int getCollisions() {
         return (int) stats.numCollisions.count();
     }
 
+    /** Returns true if the two values would collide */
     public boolean isCollision(Integer value1, Integer value2) {
         if (value1 == null || value2 == null) {
             return false;
@@ -343,15 +354,17 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         regenerateStore(new Integer[] {});
     }
 
+    /** Get the number of removal attempts so far */
     public int getNumRemovalAttempts() {
         return (int) stats.numRemovalAttempts.count();
     }
 
+    /** Get the number of successful removal attempts os far */
     public int getNumSuccessfulRemovals() {
         return (int) stats.numSuccessfulRemovals.count();
     }
 
-    public boolean valueHasHadCollision(Integer value) {
+    boolean valueHasHadCollision(Integer value) {
         if (value == null) {
             return false;
         }
@@ -368,7 +381,6 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
 
     /**
      * Function to set a new memory size cap.
-     * TODO: Integrate this with the tiered caching cluster settings PR once this is raised.
      * @param newMemSizeCap The new cap size.
      */
     protected void setMemSizeCap(ByteSizeValue newMemSizeCap) {
