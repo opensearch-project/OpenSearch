@@ -23,17 +23,17 @@ import java.util.Map;
  */
 @ExperimentalApi
 public interface ICache<K, V> extends Closeable {
-    V get(K key);
+    V get(ICacheKey<K> key);
 
-    void put(K key, V value);
+    void put(ICacheKey<K> key, V value);
 
-    V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) throws Exception;
+    V computeIfAbsent(ICacheKey<K> key, LoadAwareCacheLoader<ICacheKey<K>, V> loader) throws Exception;
 
-    void invalidate(K key);
+    void invalidate(ICacheKey<K> key);
 
     void invalidateAll();
 
-    Iterable<K> keys();
+    Iterable<ICacheKey<K>> keys();
 
     long count();
 
