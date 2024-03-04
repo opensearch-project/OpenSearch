@@ -11,7 +11,6 @@
 
 import org.opensearch.gradle.ExportOpenSearchBuildResourcesTask
 import org.opensearch.gradle.info.BuildParams
-import org.opensearch.gradle.testclusters.OpenSearchCluster
 
 // Common config when running with a FIPS-140 runtime JVM
 if (BuildParams.inFipsJvm) {
@@ -36,8 +35,8 @@ if (BuildParams.inFipsJvm) {
       fipsPolicy = new File(fipsResourcesDir, "fips_java_bcjsse_11.policy")
     }
     File fipsTrustStore = new File(fipsResourcesDir, 'cacerts.bcfks')
-    def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2.1')
-    def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.12.2')
+    def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2.4')
+    def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.18')
 
     pluginManager.withPlugin('java') {
       TaskProvider<ExportOpenSearchBuildResourcesTask> fipsResourcesTask = project.tasks.register('fipsResources', ExportOpenSearchBuildResourcesTask)
@@ -50,10 +49,8 @@ if (BuildParams.inFipsJvm) {
 
       project.afterEvaluate {
         def extraFipsJars = configurations.detachedConfiguration(bcFips, bcTlsFips)
-        // ensure that bouncycastle is on classpath for the all of test types, must happen in evaluateAfter since the rest tests explicitly
-        // set the class path to help maintain pure black box testing, and here we are adding to that classpath
-        tasks.withType(Test).configureEach { Test test ->
-          test.setClasspath(test.getClasspath().plus(extraFipsJars))
+        tasks.withType(Test)*.doFirst {
+          classpath += extraFipsJars
         }
       }
 
@@ -62,13 +59,13 @@ if (BuildParams.inFipsJvm) {
           // This afterEvaluate hooks is required to avoid deprecated configuration resolution
           // This configuration can be removed once system modules are available
           def extraFipsJars = configurations.detachedConfiguration(bcFips, bcTlsFips)
-          testClusters.all {
+          testClusters.configureEach {
             extraFipsJars.files.each {
               extraJarFile it
             }
           }
         }
-        testClusters.all {
+        testClusters.configureEach {
           extraConfigFile "fips_java.security", fipsSecurity
           extraConfigFile "fips_java.policy", fipsPolicy
           extraConfigFile "cacerts.bcfks", fipsTrustStore
