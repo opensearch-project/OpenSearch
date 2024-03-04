@@ -38,6 +38,7 @@ import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.core.StreamWriteConstraints;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactoryBuilder;
 
 import org.opensearch.common.xcontent.XContentContraints;
 import org.opensearch.common.xcontent.XContentType;
@@ -55,6 +56,8 @@ import java.io.OutputStream;
 import java.io.Reader;
 import java.util.Set;
 
+import org.yaml.snakeyaml.LoaderOptions;
+
 /**
  * A YAML based content implementation using Jackson.
  */
@@ -67,7 +70,9 @@ public class YamlXContent implements XContent, XContentContraints {
     public static final YamlXContent yamlXContent;
 
     static {
-        yamlFactory = new YAMLFactory();
+        final LoaderOptions loaderOptions = new LoaderOptions();
+        loaderOptions.setCodePointLimit(DEFAULT_CODEPOINT_LIMIT);
+        yamlFactory = new YAMLFactoryBuilder(new YAMLFactory()).loaderOptions(loaderOptions).build();
         yamlFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         yamlFactory.setStreamWriteConstraints(StreamWriteConstraints.builder().maxNestingDepth(DEFAULT_MAX_DEPTH).build());
         yamlFactory.setStreamReadConstraints(

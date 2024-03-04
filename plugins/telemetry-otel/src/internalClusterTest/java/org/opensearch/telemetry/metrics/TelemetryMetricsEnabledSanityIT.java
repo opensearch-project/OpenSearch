@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.stream.Collectors;
 
 import io.opentelemetry.sdk.metrics.data.DoublePointData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableExponentialHistogramPointData;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 1)
 public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
@@ -90,6 +91,31 @@ public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
             .getDoubleSumData()
             .getPoints()).get(0)).getValue();
         assertEquals(-1.0, value, 0.0);
+    }
+
+    public void testHistogram() throws Exception {
+        MetricsRegistry metricsRegistry = internalCluster().getInstance(MetricsRegistry.class);
+        InMemorySingletonMetricsExporter.INSTANCE.reset();
+
+        Histogram histogram = metricsRegistry.createHistogram("test-histogram", "test", "ms");
+        histogram.record(2.0);
+        histogram.record(1.0);
+        histogram.record(3.0);
+        // Sleep for about 2s to wait for metrics to be published.
+        Thread.sleep(2000);
+
+        InMemorySingletonMetricsExporter exporter = InMemorySingletonMetricsExporter.INSTANCE;
+        ImmutableExponentialHistogramPointData histogramPointData = ((ImmutableExponentialHistogramPointData) ((ArrayList) exporter
+            .getFinishedMetricItems()
+            .stream()
+            .filter(a -> a.getName().contains("test-histogram"))
+            .collect(Collectors.toList())
+            .get(0)
+            .getExponentialHistogramData()
+            .getPoints()).get(0));
+        assertEquals(1.0, histogramPointData.getSum(), 6.0);
+        assertEquals(1.0, histogramPointData.getMax(), 3.0);
+        assertEquals(1.0, histogramPointData.getMin(), 1.0);
     }
 
     @After
