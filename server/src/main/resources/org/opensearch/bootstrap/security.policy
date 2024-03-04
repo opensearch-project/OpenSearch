@@ -37,7 +37,7 @@
 //// SecurityManager impl:
 //// Must have all permissions to properly perform access checks
 
-grant codeBase "${codebase.opensearch-secure-sm}" {
+grant {
   permission java.security.AllPermission;
 };
 
