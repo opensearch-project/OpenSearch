@@ -9,9 +9,12 @@
 package org.opensearch.common.cache.store.config;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.RemovalListener;
+import org.opensearch.common.cache.serializer.Serializer;
 import org.opensearch.common.settings.Settings;
 
+import java.util.List;
 import java.util.function.ToLongBiFunction;
 
 /**
@@ -37,9 +40,15 @@ public class CacheConfig<K, V> {
     /**
      * Represents a function that calculates the size or weight of a key-value pair.
      */
-    private final ToLongBiFunction<K, V> weigher;
+    private final ToLongBiFunction<ICacheKey<K>, V> weigher;
 
-    private final RemovalListener<K, V> removalListener;
+    private final RemovalListener<ICacheKey<K>, V> removalListener;
+
+    // Serializers for keys and values. Not required for all caches.
+    private final Serializer<K, ?> keySerializer;
+    private final Serializer<V, ?> valueSerializer;
+
+    private final List<String> dimensionNames;
 
     private CacheConfig(Builder<K, V> builder) {
         this.keyType = builder.keyType;
@@ -47,6 +56,9 @@ public class CacheConfig<K, V> {
         this.settings = builder.settings;
         this.removalListener = builder.removalListener;
         this.weigher = builder.weigher;
+        this.keySerializer = builder.keySerializer;
+        this.valueSerializer = builder.valueSerializer;
+        this.dimensionNames = builder.dimensionNames;
     }
 
     public Class<K> getKeyType() {
@@ -61,12 +73,24 @@ public class CacheConfig<K, V> {
         return settings;
     }
 
-    public RemovalListener<K, V> getRemovalListener() {
+    public RemovalListener<ICacheKey<K>, V> getRemovalListener() {
         return removalListener;
     }
 
-    public ToLongBiFunction<K, V> getWeigher() {
+    public ToLongBiFunction<ICacheKey<K>, V> getWeigher() {
         return weigher;
+    }
+
+    public Serializer<K, ?> getKeySerializer() {
+        return keySerializer;
+    }
+
+    public Serializer<V, ?> getValueSerializer() {
+        return valueSerializer;
+    }
+
+    public List<String> getDimensionNames() {
+        return dimensionNames;
     }
 
     /**
@@ -82,9 +106,12 @@ public class CacheConfig<K, V> {
 
         private Class<V> valueType;
 
-        private RemovalListener<K, V> removalListener;
+        private RemovalListener<ICacheKey<K>, V> removalListener;
 
-        private ToLongBiFunction<K, V> weigher;
+        private ToLongBiFunction<ICacheKey<K>, V> weigher;
+        private Serializer<K, ?> keySerializer;
+        private Serializer<V, ?> valueSerializer;
+        private List<String> dimensionNames;
 
         public Builder() {}
 
@@ -103,13 +130,28 @@ public class CacheConfig<K, V> {
             return this;
         }
 
-        public Builder<K, V> setRemovalListener(RemovalListener<K, V> removalListener) {
+        public Builder<K, V> setRemovalListener(RemovalListener<ICacheKey<K>, V> removalListener) {
             this.removalListener = removalListener;
             return this;
         }
 
-        public Builder<K, V> setWeigher(ToLongBiFunction<K, V> weigher) {
+        public Builder<K, V> setWeigher(ToLongBiFunction<ICacheKey<K>, V> weigher) {
             this.weigher = weigher;
+            return this;
+        }
+
+        public Builder<K, V> setKeySerializer(Serializer<K, ?> keySerializer) {
+            this.keySerializer = keySerializer;
+            return this;
+        }
+
+        public Builder<K, V> setValueSerializer(Serializer<V, ?> valueSerializer) {
+            this.valueSerializer = valueSerializer;
+            return this;
+        }
+
+        public Builder<K, V> setDimensionNames(List<String> dimensionNames) {
+            this.dimensionNames = dimensionNames;
             return this;
         }
 
