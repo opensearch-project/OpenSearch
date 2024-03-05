@@ -17,7 +17,6 @@ import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.transport.ReceiveTimeoutTransportException;
 
 import java.util.ArrayList;
@@ -27,19 +26,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import reactor.util.annotation.NonNull;
-
 /**
  * Common functionalities of a cache for storing shard metadata. Cache maintains node level responses.
- * Setting up the cache is required from implementation class. While set up, we need 3 functionalities from the user.
- * initData : how to initialize an entry of shard cache for a node.
- * putData : how to store the response of transport action in the cache.
- * getData : how to populate the stored data for any shard allocators like {@link PrimaryShardAllocator} or
- * {@link ReplicaShardAllocator}
+ * Setting up the cache is required from implementation class.
  *
  * @param <K> Response type of transport action which has the data to be stored in the cache.
  */
-public abstract class BaseShardCache<K extends BaseNodeResponse> {
+public abstract class BaseShardCache<K extends BaseNodeResponse> implements NodeCache<K> {
     private final Logger logger;
     private final String logKey;
     private final String type;
@@ -51,43 +44,9 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
     }
 
     /**
-     * Initialize cache's entry for a node.
-     *
-     * @param node for which node we need to initialize the cache.
-     */
-    public abstract void initData(DiscoveryNode node);
-
-    /**
-     * Store the response in the cache from node.
-     *
-     * @param node     node from which we got the response.
-     * @param response shard metadata coming from node.
-     */
-    public abstract void putData(DiscoveryNode node, K response);
-
-    /**
-     * Populate the response from cache.
-     *
-     * @param node node for which we need the response.
-     * @return actual response.
-     */
-    public abstract K getData(DiscoveryNode node);
-
-    /**
-     * Provide the list of shards which got failures, these shards should be retried
-     * @return list of failed shards
-     */
-    public abstract List<ShardId> getFailedShards();
-
-    @NonNull
-    public abstract Map<String, ? extends BaseNodeEntry> getCache();
-
-    public abstract void clearShardCache(ShardId shardId);
-
-    /**
      * Returns the number of fetches that are currently ongoing.
      */
-    public int getInflightFetches() {
+    int getInflightFetches() {
         int count = 0;
         for (BaseNodeEntry nodeEntry : getCache().values()) {
             if (nodeEntry.isFetching()) {
@@ -101,7 +60,7 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
      * Fills the shard fetched data with new (data) nodes and a fresh NodeEntry, and removes from
      * it nodes that are no longer part of the state.
      */
-    public void fillShardCacheWithDataNodes(DiscoveryNodes nodes) {
+    void fillShardCacheWithDataNodes(DiscoveryNodes nodes) {
         // verify that all current data nodes are there
         for (final DiscoveryNode node : nodes.getDataNodes().values()) {
             if (getCache().containsKey(node.getId()) == false) {
@@ -116,7 +75,7 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
      * Finds all the nodes that need to be fetched. Those are nodes that have no
      * data, and are not in fetch mode.
      */
-    public List<String> findNodesToFetch() {
+    List<String> findNodesToFetch() {
         List<String> nodesToFetch = new ArrayList<>();
         for (BaseNodeEntry nodeEntry : getCache().values()) {
             if (nodeEntry.hasData() == false && nodeEntry.isFetching() == false) {
@@ -129,7 +88,7 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
     /**
      * Are there any nodes that are fetching data?
      */
-    public boolean hasAnyNodeFetching() {
+    boolean hasAnyNodeFetching() {
         for (BaseNodeEntry nodeEntry : getCache().values()) {
             if (nodeEntry.isFetching()) {
                 return true;
@@ -146,7 +105,7 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
      * @param failedNodes return failedNodes with the nodes where fetch has failed.
      * @return Map of cache data for every DiscoveryNode.
      */
-    public Map<DiscoveryNode, K> populateCache(DiscoveryNodes nodes, Set<String> failedNodes) {
+    Map<DiscoveryNode, K> populateCache(DiscoveryNodes nodes, Set<String> failedNodes) {
         Map<DiscoveryNode, K> fetchData = new HashMap<>();
         for (Iterator<? extends Map.Entry<String, ? extends BaseNodeEntry>> it = getCache().entrySet().iterator(); it.hasNext();) {
             Map.Entry<String, BaseNodeEntry> entry = (Map.Entry<String, BaseNodeEntry>) it.next();
@@ -171,7 +130,7 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
         return fetchData;
     }
 
-    public void processResponses(List<K> responses, long fetchingRound) {
+    void processResponses(List<K> responses, long fetchingRound) {
         for (K response : responses) {
             BaseNodeEntry nodeEntry = getCache().get(response.getNode().getId());
             if (nodeEntry != null) {
@@ -218,9 +177,7 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
             // if the entry is there, for the right fetching round and not marked as failed already, process it
             Throwable unwrappedCause = ExceptionsHelper.unwrapCause(failure.getCause());
             // if the request got rejected or timed out, we need to try it again next time...
-            if (unwrappedCause instanceof OpenSearchRejectedExecutionException
-                || unwrappedCause instanceof ReceiveTimeoutTransportException
-                || unwrappedCause instanceof OpenSearchTimeoutException) {
+            if (retryableException(unwrappedCause)) {
                 nodeEntry.restartFetching();
             } else {
                 logger.warn(
@@ -232,7 +189,13 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
         }
     }
 
-    public void processFailures(List<FailedNodeException> failures, long fetchingRound) {
+    boolean retryableException(Throwable unwrappedCause) {
+        return unwrappedCause instanceof OpenSearchRejectedExecutionException
+            || unwrappedCause instanceof ReceiveTimeoutTransportException
+            || unwrappedCause instanceof OpenSearchTimeoutException;
+    }
+
+    void processFailures(List<FailedNodeException> failures, long fetchingRound) {
         for (FailedNodeException failure : failures) {
             logger.trace("{} processing failure {} for [{}]", logKey, failure, type);
             BaseNodeEntry nodeEntry = getCache().get(failure.nodeId());
@@ -242,11 +205,16 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
         }
     }
 
-    public void remove(String nodeId) {
+    /**
+     * Common function for removing whole node entry.
+     *
+     * @param nodeId nodeId to be cleaned.
+     */
+    void remove(String nodeId) {
         this.getCache().remove(nodeId);
     }
 
-    public void markAsFetching(List<String> nodeIds, long fetchingRound) {
+    void markAsFetching(List<String> nodeIds, long fetchingRound) {
         for (String nodeId : nodeIds) {
             getCache().get(nodeId).markAsFetching(fetchingRound);
         }

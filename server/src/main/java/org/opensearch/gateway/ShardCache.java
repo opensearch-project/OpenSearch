@@ -14,10 +14,10 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.index.shard.ShardId;
 
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+
+import reactor.util.annotation.NonNull;
 
 /**
  * Cache implementation of transport actions returning single shard related data in the response.
@@ -48,20 +48,15 @@ public class ShardCache<K extends BaseNodeResponse> extends BaseShardCache<K> {
         return cache.get(node.getId()).getValue();
     }
 
+    @NonNull
     @Override
     public Map<String, ? extends BaseNodeEntry> getCache() {
         return cache;
     }
 
     @Override
-    public void clearShardCache(ShardId shardId) {
-        cache.clear();
-    }
-
-    @Override
-    public List<ShardId> getFailedShards() {
-        // Single shard cache does not need to return that shard itself because handleFailure will take care of retries
-        return Collections.emptyList();
+    public void deleteData(ShardId shardId) {
+        cache.clear(); // single shard cache can clear the full map
     }
 
     /**
