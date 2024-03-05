@@ -425,7 +425,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
      * This iterator wraps ehCache iterator and only iterates over its keys.
      * @param <K> Type of key
      */
-    @SuppressWarnings({ "rawtypes" })
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     class EhCacheKeyIterator<K> implements Iterator<ICacheKey<K>> {
 
         Iterator<Cache.Entry<ICacheKey, byte[]>> iterator;
@@ -524,7 +524,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         }
     }
 
-    @SuppressWarnings({ "rawtypes" })
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     private class KeySerializerWrapper implements org.ehcache.spi.serialization.Serializer<ICacheKey> {
         private ICacheKeySerializer<K> serializer;
 
