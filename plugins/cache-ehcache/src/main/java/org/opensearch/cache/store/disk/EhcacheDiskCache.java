@@ -99,7 +99,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     private final PersistentCacheManager cacheManager;
 
     // Disk cache
-    @SuppressWarnings({"rawtypes"}) // We have to use the raw type as there's no way to pass the "generic class" to ehcache
+    @SuppressWarnings({ "rawtypes" }) // We have to use the raw type as there's no way to pass the "generic class" to ehcache
     private Cache<ICacheKey, byte[]> cache;
     private final long maxWeightInBytes;
     private final String storagePath;
@@ -159,7 +159,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         this.stats = new MultiDimensionCacheStats(dimensionNames, TIER_DIMENSION_VALUE);
     }
 
-    @SuppressWarnings({"rawtypes"})
+    @SuppressWarnings({ "rawtypes" })
     private Cache<ICacheKey, byte[]> buildCache(Duration expireAfterAccess, Builder<K, V> builder) {
         try {
             return this.cacheManager.createCache(
@@ -425,7 +425,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
      * This iterator wraps ehCache iterator and only iterates over its keys.
      * @param <K> Type of key
      */
-    @SuppressWarnings({"rawtypes"})
+    @SuppressWarnings({ "rawtypes" })
     class EhCacheKeyIterator<K> implements Iterator<ICacheKey<K>> {
 
         Iterator<Cache.Entry<ICacheKey, byte[]>> iterator;
@@ -524,7 +524,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         }
     }
 
-    @SuppressWarnings({"rawtypes"})
+    @SuppressWarnings({ "rawtypes" })
     private class KeySerializerWrapper implements org.ehcache.spi.serialization.Serializer<ICacheKey> {
         private ICacheKeySerializer<K> serializer;
 
