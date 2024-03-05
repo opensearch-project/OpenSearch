@@ -73,7 +73,7 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
                 TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_NAME.getConcreteSettingForNamespace(
                     CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
                 ).getKey(),
-                MockOnDiskCache.MockDiskCacheFactory.NAME
+                MockDiskCache.MockDiskCacheFactory.NAME
             )
             .build();
     }
@@ -139,7 +139,7 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
 
         @Override
         public Map<String, ICache.Factory> getCacheFactoryMap() {
-            return Map.of(MockOnDiskCache.MockDiskCacheFactory.NAME, new MockOnDiskCache.MockDiskCacheFactory(0, 1000));
+            return Map.of(MockDiskCache.MockDiskCacheFactory.NAME, new MockDiskCache.MockDiskCacheFactory(0, 1000));
         }
 
         @Override

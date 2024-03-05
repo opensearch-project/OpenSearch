@@ -14,7 +14,6 @@ import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
-import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
 import org.opensearch.common.metrics.CounterMetric;
@@ -25,7 +24,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
@@ -105,7 +103,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_NAME.getConcreteSettingForNamespace(
                     CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
                 ).getKey(),
-                MockOnDiskCache.MockDiskCacheFactory.NAME
+                MockDiskCache.MockDiskCacheFactory.NAME
             )
             .put(
                 OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
@@ -126,8 +124,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             Map.of(
                 OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME,
                 new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory(),
-                MockOnDiskCache.MockDiskCacheFactory.NAME,
-                new MockOnDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300))
+                MockDiskCache.MockDiskCacheFactory.NAME,
+                new MockDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300))
             )
         );
 
@@ -164,7 +162,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_NAME.getConcreteSettingForNamespace(
                     CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
                 ).getKey(),
-                MockOnDiskCache.MockDiskCacheFactory.NAME
+                MockDiskCache.MockDiskCacheFactory.NAME
             )
             .put(
                 OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
@@ -187,8 +185,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 Map.of(
                     OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME,
                     new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory(),
-                    MockOnDiskCache.MockDiskCacheFactory.NAME,
-                    new MockOnDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300))
+                    MockDiskCache.MockDiskCacheFactory.NAME,
+                    new MockDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300))
                 )
             )
         );
@@ -232,8 +230,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 Map.of(
                     OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME,
                     new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory(),
-                    MockOnDiskCache.MockDiskCacheFactory.NAME,
-                    new MockOnDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300))
+                    MockDiskCache.MockDiskCacheFactory.NAME,
+                    new MockDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300))
                 )
             )
         );
@@ -266,7 +264,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             )
             .build();
 
-        ICache.Factory mockDiskCacheFactory = new MockOnDiskCache.MockDiskCacheFactory(0, diskCacheSize);
+        ICache.Factory mockDiskCacheFactory = new MockDiskCache.MockDiskCacheFactory(0, diskCacheSize);
 
         TieredSpilloverCache<String, String> tieredSpilloverCache = new TieredSpilloverCache.Builder<String, String>()
             .setOnHeapCacheFactory(onHeapCacheFactory)
@@ -741,7 +739,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
 
         ICache.Factory onHeapCacheFactory = new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory();
-        ICache.Factory diskCacheFactory = new MockOnDiskCache.MockDiskCacheFactory(500, diskCacheSize);
+        ICache.Factory diskCacheFactory = new MockDiskCache.MockDiskCacheFactory(500, diskCacheSize);
         CacheConfig<String, String> cacheConfig = new CacheConfig.Builder<String, String>().setKeyType(String.class)
             .setKeyType(String.class)
             .setWeigher((k, v) -> 150)
@@ -861,7 +859,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             .setSettings(settings)
             .build();
 
-        ICache.Factory mockDiskCacheFactory = new MockOnDiskCache.MockDiskCacheFactory(diskDeliberateDelay, diskCacheSize);
+        ICache.Factory mockDiskCacheFactory = new MockDiskCache.MockDiskCacheFactory(diskDeliberateDelay, diskCacheSize);
 
         return new TieredSpilloverCache.Builder<String, String>().setCacheType(CacheType.INDICES_REQUEST_CACHE)
             .setRemovalListener(removalListener)
@@ -869,120 +867,5 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             .setDiskCacheFactory(mockDiskCacheFactory)
             .setCacheConfig(cacheConfig)
             .build();
-    }
-}
-
-class MockOnDiskCache<K, V> implements ICache<K, V> {
-
-    Map<K, V> cache;
-    int maxSize;
-    long delay;
-
-    MockOnDiskCache(int maxSize, long delay) {
-        this.maxSize = maxSize;
-        this.delay = delay;
-        this.cache = new ConcurrentHashMap<K, V>();
-    }
-
-    @Override
-    public V get(K key) {
-        V value = cache.get(key);
-        return value;
-    }
-
-    @Override
-    public void put(K key, V value) {
-        if (this.cache.size() >= maxSize) { // For simplification
-            return;
-        }
-        try {
-            Thread.sleep(delay);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        this.cache.put(key, value);
-    }
-
-    @Override
-    public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) {
-        V value = cache.computeIfAbsent(key, key1 -> {
-            try {
-                return loader.load(key);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
-        return value;
-    }
-
-    @Override
-    public void invalidate(K key) {
-        this.cache.remove(key);
-    }
-
-    @Override
-    public void invalidateAll() {
-        this.cache.clear();
-    }
-
-    @Override
-    public Iterable<K> keys() {
-        return this.cache.keySet();
-    }
-
-    @Override
-    public long count() {
-        return this.cache.size();
-    }
-
-    @Override
-    public void refresh() {}
-
-    @Override
-    public void close() {
-
-    }
-
-    public static class MockDiskCacheFactory implements Factory {
-
-        static final String NAME = "mockDiskCache";
-        final long delay;
-        final int maxSize;
-
-        MockDiskCacheFactory(long delay, int maxSize) {
-            this.delay = delay;
-            this.maxSize = maxSize;
-        }
-
-        @Override
-        public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
-            return new Builder<K, V>().setMaxSize(maxSize).setDeliberateDelay(delay).build();
-        }
-
-        @Override
-        public String getCacheName() {
-            return NAME;
-        }
-    }
-
-    public static class Builder<K, V> extends ICacheBuilder<K, V> {
-
-        int maxSize;
-        long delay;
-
-        @Override
-        public ICache<K, V> build() {
-            return new MockOnDiskCache<K, V>(this.maxSize, this.delay);
-        }
-
-        public Builder<K, V> setMaxSize(int maxSize) {
-            this.maxSize = maxSize;
-            return this;
-        }
-
-        public Builder<K, V> setDeliberateDelay(long millis) {
-            this.delay = millis;
-            return this;
-        }
     }
 }
