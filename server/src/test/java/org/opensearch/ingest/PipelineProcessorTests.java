@@ -96,10 +96,21 @@ public class PipelineProcessorTests extends OpenSearchTestCase {
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Map<String, Object> config = new HashMap<>();
         config.put("name", "missingPipelineId");
+        if (randomBoolean()) {
+            config.put("ignore_missing_pipeline", false);
+        }
         IllegalStateException[] e = new IllegalStateException[1];
         factory.create(Collections.emptyMap(), null, null, config)
             .execute(testIngestDocument, (result, e1) -> e[0] = (IllegalStateException) e1);
         assertEquals("Pipeline processor configured for non-existent pipeline [missingPipelineId]", e[0].getMessage());
+
+        IllegalStateException[] exceptions = new IllegalStateException[1];
+        config = new HashMap<>();
+        config.put("name", "missingPipelineId");
+        config.put("ignore_missing_pipeline", true);
+        factory.create(Collections.emptyMap(), null, null, config)
+            .execute(testIngestDocument, (result, e1) -> exceptions[0] = (IllegalStateException) e1);
+        assertEquals(exceptions[0], null);
     }
 
     public void testThrowsOnRecursivePipelineInvocations() throws Exception {
@@ -241,7 +252,7 @@ public class PipelineProcessorTests extends OpenSearchTestCase {
             });
             if (i < (numPipelines - 1)) {
                 TemplateScript.Factory pipelineName = new TestTemplateService.MockTemplateScript.Factory(Integer.toString(i + 1));
-                processors.add(new PipelineProcessor(null, null, pipelineName, ingestService));
+                processors.add(new PipelineProcessor(null, null, pipelineName, ingestService, false));
             }
 
             Pipeline pipeline = new Pipeline(pipelineId, null, null, new CompoundProcessor(false, processors, Collections.emptyList()));
