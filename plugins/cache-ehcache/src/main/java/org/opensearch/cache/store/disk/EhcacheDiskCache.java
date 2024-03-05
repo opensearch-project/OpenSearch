@@ -573,6 +573,8 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         public EhcacheDiskCacheFactory() {}
 
         @Override
+        @SuppressWarnings({ "unchecked" }) // TODO: Is there a better way to check for generic type than a try-catch block? It still gives
+                                           // the unchecked cast warning.
         public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
             Map<String, Setting<?>> settingList = EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType);
             Settings settings = config.getSettings();
