@@ -16,6 +16,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.store.ShardAttributes;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +36,9 @@ import java.util.function.Supplier;
  */
 public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends BaseShardResponse> extends AsyncShardFetch<T> {
 
+    private final Consumer<ShardId> removeShardFromBatch;
+    private final List<ShardId> failedShards;
+
     @SuppressWarnings("unchecked")
     AsyncShardBatchFetch(
         Logger logger,
@@ -49,6 +53,8 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
         Consumer<ShardId> handleFailedShard
     ) {
         super(logger, type, shardAttributesMap, action, batchId);
+        this.removeShardFromBatch = handleFailedShard;
+        this.failedShards = new ArrayList<>();
         this.cache = new ShardBatchCache<>(
             logger,
             type,
@@ -71,7 +77,6 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
      * @return data received from the transport actions
      */
     public synchronized FetchResult<T> fetchData(DiscoveryNodes nodes, Map<ShardId, Set<String>> ignoreNodes) {
-        List<ShardId> failedShards = cleanUpFailedShards();
         if (failedShards.isEmpty() == false) {
             // trigger a reroute if there are any shards failed, to make sure they're picked up in next run
             logger.trace("triggering another reroute for failed shards in {}", reroutingKey);
@@ -81,16 +86,15 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
     }
 
     /**
-     * Remove the shard from shardAttributesMap so we don't send it in next fetching round.
+     * Remove the shard from shardAttributesMap, so we don't send it in next fetching round.
+     * Remove shard from the batch, so it gets picked up in a new batch in next reroute.
      *
-     * @return return the failed shards so a reroute can be triggered.
+     * @param shardId shardId to be cleaned up
      */
-    private List<ShardId> cleanUpFailedShards() {
-        List<ShardId> failedShards = cache.getFailedShards();
-        if (failedShards != null && failedShards.isEmpty() == false) {
-            shardAttributesMap.keySet().removeIf(failedShards::contains);
-        }
-        return failedShards;
+    private void cleanUpFailedShard(ShardId shardId) {
+        shardAttributesMap.remove(shardId);
+        removeShardFromBatch.accept(shardId);
+        failedShards.add(shardId);
     }
 
     /**
@@ -100,7 +104,7 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
      * @param shardId shardId to be removed from the batch.
      */
     public void clearShard(ShardId shardId) {
-        this.shardAttributesMap.remove(shardId);
-        this.cache.clearShardCache(shardId);
+        shardAttributesMap.remove(shardId);
+        cache.deleteData(shardId);
     }
 }

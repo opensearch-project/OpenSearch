@@ -51,7 +51,6 @@ public class ShardBatchCache<T extends BaseNodeResponse, V extends BaseShardResp
     private final Map<Integer, ShardId> arrayToShardId;
     private final Function<T, Map<ShardId, V>> shardsBatchDataGetter;
     private final Supplier<V> emptyResponseBuilder;
-    private final Set<ShardId> failedShards;
     private final Consumer<ShardId> handleFailedShard;
 
     public ShardBatchCache(
@@ -72,7 +71,6 @@ public class ShardBatchCache<T extends BaseNodeResponse, V extends BaseShardResp
         this.responseConstructor = responseConstructor;
         this.shardsBatchDataGetter = shardsBatchDataGetter;
         this.emptyResponseBuilder = emptyResponseBuilder;
-        failedShards = new HashSet<>();
         cache = new HashMap<>();
         shardIdToArray = new HashMap<>();
         arrayToShardId = new HashMap<>();
@@ -86,7 +84,7 @@ public class ShardBatchCache<T extends BaseNodeResponse, V extends BaseShardResp
     }
 
     @Override
-    public void clearShardCache(ShardId shardId) {
+    public void deleteData(ShardId shardId) {
         if (shardIdToArray.containsKey(shardId)) {
             Integer shardIdIndex = shardIdToArray.remove(shardId);
             for (String nodeId : cache.keySet()) {
@@ -128,7 +126,7 @@ public class ShardBatchCache<T extends BaseNodeResponse, V extends BaseShardResp
     public void putData(DiscoveryNode node, T response) {
         NodeEntry<V> nodeEntry = cache.get(node.getId());
         Map<ShardId, V> batchResponse = shardsBatchDataGetter.apply(response);
-        failedShards.addAll(filterFailedShards(batchResponse));
+        filterFailedShards(batchResponse);
         nodeEntry.doneFetching(batchResponse, shardIdToArray);
     }
 
@@ -136,11 +134,8 @@ public class ShardBatchCache<T extends BaseNodeResponse, V extends BaseShardResp
      * Return the shard for which we got unhandled exceptions.
      *
      * @param batchResponse response from one node for the batch.
-     * @return List of failed shards.
      */
-    private List<ShardId> filterFailedShards(Map<ShardId, V> batchResponse) {
-        logger.trace("filtering failed shards");
-        List<ShardId> failedShards = new ArrayList<>();
+    private void filterFailedShards(Map<ShardId, V> batchResponse) {
         for (Iterator<ShardId> it = batchResponse.keySet().iterator(); it.hasNext();) {
             ShardId shardId = it.next();
             if (batchResponse.get(shardId) != null) {
@@ -149,11 +144,9 @@ public class ShardBatchCache<T extends BaseNodeResponse, V extends BaseShardResp
                     // the batch
                     Exception shardException = batchResponse.get(shardId).getException();
                     // if the request got rejected or timed out, we need to try it again next time...
-                    if (shardException instanceof OpenSearchRejectedExecutionException
-                        || shardException instanceof ReceiveTimeoutTransportException
-                        || shardException instanceof OpenSearchTimeoutException) {
-                        logger.trace("got unhandled retryable exception for shard {} {}", shardId.toString(), shardException.toString());
-                        failedShards.add(shardId);
+                    if (retryableException(shardException)) {
+                        logger.trace("got unhandled retryable exception for shard {} {}", shardId.toString(),
+                            shardException.toString());
                         handleFailedShard.accept(shardId);
                         // remove this failed entry. So, while storing the data, we don't need to re-process it.
                         it.remove();
@@ -161,19 +154,11 @@ public class ShardBatchCache<T extends BaseNodeResponse, V extends BaseShardResp
                 }
             }
         }
-        return failedShards;
     }
 
     @Override
     public T getData(DiscoveryNode node) {
         return this.responseConstructor.apply(node, getBatchData(cache.get(node.getId())));
-    }
-
-    @Override
-    public List<ShardId> getFailedShards() {
-        List<ShardId> defectedShards = List.copyOf(failedShards);
-        failedShards.clear();
-        return defectedShards;
     }
 
     private HashMap<ShardId, V> getBatchData(NodeEntry<V> nodeEntry) {
@@ -197,7 +182,7 @@ public class ShardBatchCache<T extends BaseNodeResponse, V extends BaseShardResp
         }
         this.shardIdToArray.keySet().removeIf(shardId -> {
             if (!shardIds.contains(shardId)) {
-                clearShardCache(shardId);
+                deleteData(shardId);
                 return true;
             } else {
                 return false;
