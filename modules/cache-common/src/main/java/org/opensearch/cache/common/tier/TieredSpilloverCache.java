@@ -30,6 +30,7 @@ import java.util.Objects;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
+import java.util.function.ToLongBiFunction;
 
 /**
  * This cache spillover the evicted items from heap tier to disk tier. All the new items are first cached on heap
@@ -50,6 +51,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     // The listener for removals from the spillover cache as a whole
     private final RemovalListener<ICacheKey<K>, V> removalListener;
     private final CacheStats stats;
+    private final List<String> dimensionNames;
+    private ToLongBiFunction<ICacheKey<K>, V> weigher;
     ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     ReleasableLock readLock = new ReleasableLock(readWriteLock.readLock());
     ReleasableLock writeLock = new ReleasableLock(readWriteLock.writeLock());
@@ -77,6 +80,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 .setValueType(builder.cacheConfig.getValueType())
                 .setSettings(builder.cacheConfig.getSettings())
                 .setWeigher(builder.cacheConfig.getWeigher())
+                .setDimensionNames(builder.cacheConfig.getDimensionNames())
                 .build(),
             builder.cacheType,
             builder.cacheFactories
@@ -85,6 +89,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         this.diskCache = builder.diskCacheFactory.create(builder.cacheConfig, builder.cacheType, builder.cacheFactories);
         this.cacheList = Arrays.asList(onHeapCache, diskCache);
         this.stats = null; // TODO - in next stats rework PR
+        this.dimensionNames = builder.cacheConfig.getDimensionNames();
     }
 
     // Package private for testing
