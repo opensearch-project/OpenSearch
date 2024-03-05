@@ -46,6 +46,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedSupplier;
+import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
@@ -80,7 +81,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         IndexShard indexShard = createIndex("test").getShard(0);
         IndicesRequestCache cache = new IndicesRequestCache(
             Settings.EMPTY,
-            (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard)))
+            (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
+            mock(CacheService.class)
         );
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -146,7 +148,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 return Optional.empty();
             }
             return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }));
+        }), mock(CacheService.class));
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
@@ -247,7 +249,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             IndexShard indexShard = createIndex("test").getShard(0);
             IndicesRequestCache cache = new IndicesRequestCache(
                 Settings.EMPTY,
-                (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard)))
+                (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
+                mock(CacheService.class)
             );
             Directory dir = newDirectory();
             IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -274,7 +277,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         IndexShard indexShard = createIndex("test1").getShard(0);
         IndicesRequestCache cache = new IndicesRequestCache(
             Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.getBytes() + 1 + "b").build(),
-            (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard)))
+            (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
+            mock(CacheService.class)
         );
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -319,7 +323,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 return Optional.empty();
             }
             return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }));
+        }), mock(CacheService.class));
 
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -414,7 +418,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 return Optional.empty();
             }
             return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }));
+        }), mock(CacheService.class));
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 

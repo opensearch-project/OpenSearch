@@ -2072,7 +2072,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     repositoriesServiceReference::get,
                     null,
                     new RemoteStoreStatsTrackerFactory(clusterService, settings),
-                    DefaultRecoverySettings.INSTANCE
+                    DefaultRecoverySettings.INSTANCE,
+                    null
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(

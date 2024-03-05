@@ -823,7 +823,8 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 searchRequestStats,
                 remoteStoreStatsTrackerFactory,
-                recoverySettings
+                recoverySettings,
+                cacheService
             );
 
             final IngestService ingestService = new IngestService(

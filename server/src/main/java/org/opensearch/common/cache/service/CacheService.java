@@ -8,6 +8,7 @@
 
 package org.opensearch.common.cache.service;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.settings.CacheSettings;
@@ -21,6 +22,7 @@ import java.util.Map;
 /**
  * Service responsible to create caches.
  */
+@ExperimentalApi
 public class CacheService {
 
     private final Map<String, ICache.Factory> cacheStoreTypeFactories;

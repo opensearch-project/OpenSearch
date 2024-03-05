@@ -36,6 +36,7 @@ public class FeatureFlagSettings extends AbstractScopedSettings {
         FeatureFlags.DATETIME_FORMATTER_CACHING_SETTING,
         FeatureFlags.WRITEABLE_REMOTE_INDEX_SETTING,
         FeatureFlags.DOC_ID_FUZZY_SET_SETTING,
-        FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING
+        FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
+        FeatureFlags.TIERED_CACHING_SETTING
     );
 }

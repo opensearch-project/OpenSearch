@@ -42,6 +42,7 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.cache.request.RequestCacheStats;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
@@ -79,6 +80,11 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.TIERED_CACHING, "true").build();
     }
 
     @Override
