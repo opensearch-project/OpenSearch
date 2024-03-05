@@ -114,6 +114,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     private final String diskCacheAlias;
     private final Serializer<K, byte[]> keySerializer;
     private final Serializer<V, byte[]> valueSerializer;
+    /** The value for this cache's tier dimension, used in stats. */
     public final static String TIER_DIMENSION_VALUE = "disk";
 
     /**
@@ -715,16 +716,31 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
             return this;
         }
 
+        /**
+         * Sets the allowed dimension names for keys that will enter this cache.
+         * @param dimensionNames A list of dimension names this cache will accept
+         * @return builder
+         */
         public Builder<K, V> setDimensionNames(List<String> dimensionNames) {
             this.dimensionNames = dimensionNames;
             return this;
         }
 
+        /**
+         * Sets the key serializer for this cache.
+         * @param keySerializer the key serializer
+         * @return builder
+         */
         public Builder<K, V> setKeySerializer(Serializer<K, byte[]> keySerializer) {
             this.keySerializer = keySerializer;
             return this;
         }
 
+        /**
+         * Sets the value serializer for this cache.
+         * @param valueSerializer the value serializer
+         * @return builder
+         */
         public Builder<K, V> setValueSerializer(Serializer<V, byte[]> valueSerializer) {
             this.valueSerializer = valueSerializer;
             return this;
