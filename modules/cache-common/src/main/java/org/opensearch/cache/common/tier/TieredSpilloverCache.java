@@ -49,6 +49,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     private final ICache<K, V> onHeapCache;
 
     // The listener for removals from the spillover cache as a whole
+    // TODO: In TSC stats PR, each tier will have its own separate removal listener.
     private final RemovalListener<ICacheKey<K>, V> removalListener;
     private final CacheStats stats;
     private final List<String> dimensionNames;
@@ -86,7 +87,16 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             builder.cacheFactories
 
         );
-        this.diskCache = builder.diskCacheFactory.create(builder.cacheConfig, builder.cacheType, builder.cacheFactories);
+        this.diskCache = builder.diskCacheFactory.create(
+            new CacheConfig.Builder<K, V>().setRemovalListener(removalListener) // TODO: change
+                .setKeyType(builder.cacheConfig.getKeyType())
+                .setValueType(builder.cacheConfig.getValueType())
+                .setSettings(builder.cacheConfig.getSettings())
+                .setWeigher(builder.cacheConfig.getWeigher())
+                .build(),
+            builder.cacheType,
+            builder.cacheFactories
+        );
         this.cacheList = Arrays.asList(onHeapCache, diskCache);
         this.stats = null; // TODO - in next stats rework PR
         this.dimensionNames = builder.cacheConfig.getDimensionNames();
