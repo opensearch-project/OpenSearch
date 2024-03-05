@@ -11,6 +11,7 @@ package org.opensearch.node.resource.tracker;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.opensearch.common.ValidationException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.monitor.fs.FsInfo.DeviceStats;
 import org.opensearch.monitor.fs.FsService;
@@ -18,6 +19,7 @@ import org.opensearch.node.IoUsageStats;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
+import java.util.Optional;
 
 /**
  * AverageIoUsageTracker tracks the IO usage by polling the FS Stats for IO metrics every (pollingInterval)
@@ -45,8 +47,9 @@ public class AverageIoUsageTracker extends AbstractAverageUsageTracker {
     @Override
     public long getUsage() {
         long usage = 0;
-        if (this.preValidateFsStats()) {
-            return usage;
+        Optional<ValidationException> validationException = this.preValidateFsStats();
+        if (validationException != null && validationException.isPresent()) {
+            throw validationException.get();
         }
         // Currently even during the raid setup we have only one mount device and it is giving 0 io time from /proc/diskstats
         DeviceStats[] devicesStats = fsService.stats().getIoStats().getDevicesStats();
@@ -78,11 +81,15 @@ public class AverageIoUsageTracker extends AbstractAverageUsageTracker {
         }
     }
 
-    private boolean preValidateFsStats() {
-        return fsService == null
+    public Optional<ValidationException> preValidateFsStats() {
+        ValidationException validationException = new ValidationException();
+        if (fsService == null
             || fsService.stats() == null
             || fsService.stats().getIoStats() == null
-            || fsService.stats().getIoStats().getDevicesStats() == null;
+            || fsService.stats().getIoStats().getDevicesStats() == null) {
+            validationException.addValidationError("FSService IoStats Or DeviceStats are Missing");
+        }
+        return validationException.validationErrors().isEmpty() ? Optional.empty() : Optional.of(validationException);
     }
 
     private void updateIoUsageStats() {
