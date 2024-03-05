@@ -41,6 +41,7 @@ import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSe
 public class TieredSpilloverCacheTests extends OpenSearchTestCase {
     // TODO: TSC stats impl is in a future PR. Parts of tests which use stats values are commented out for now.
     static final List<String> dimensionNames = List.of("dim1", "dim2", "dim3");
+
     public void testComputeIfAbsentWithoutAnyOnHeapCacheEviction() throws Exception {
         int onHeapCacheSize = randomIntBetween(10, 30);
         int keyValueSize = 50;
@@ -535,12 +536,12 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         String value = UUID.randomUUID().toString();
         // First try to invalidate without the key present in cache.
         tieredSpilloverCache.invalidate(key);
-        //assertEquals(0, tieredSpilloverCache.stats().getEvictionsByDimensions(HEAP_DIMS));
+        // assertEquals(0, tieredSpilloverCache.stats().getEvictionsByDimensions(HEAP_DIMS));
 
         // Now try to invalidate with the key present in onHeap cache.
         tieredSpilloverCache.put(key, value);
         tieredSpilloverCache.invalidate(key);
-        //assertEquals(0, tieredSpilloverCache.stats().getEvictionsByDimensions(HEAP_DIMS));
+        // assertEquals(0, tieredSpilloverCache.stats().getEvictionsByDimensions(HEAP_DIMS));
         // Evictions metric shouldn't increase for invalidations.
         assertEquals(0, tieredSpilloverCache.count());
 
@@ -789,7 +790,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         // Put first key on tiered cache. Will go into onHeap cache.
         tieredSpilloverCache.computeIfAbsent(keyToBeEvicted, getLoadAwareCacheLoader());
-        //assertEquals(1, tieredSpilloverCache.stats().getEntriesByDimensions(HEAP_DIMS));
+        // assertEquals(1, tieredSpilloverCache.stats().getEntriesByDimensions(HEAP_DIMS));
         CountDownLatch countDownLatch = new CountDownLatch(1);
         CountDownLatch countDownLatch1 = new CountDownLatch(1);
         // Put second key on tiered cache. Will cause eviction of first key from onHeap cache and should go into
@@ -992,7 +993,10 @@ class MockOnDiskCache<K, V> implements ICache<K, V> {
 
         @Override
         public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
-            return new Builder<K, V>().setMaxSize(maxSize).setDeliberateDelay(delay).setRemovalListener(config.getRemovalListener()).build();
+            return new Builder<K, V>().setMaxSize(maxSize)
+                .setDeliberateDelay(delay)
+                .setRemovalListener(config.getRemovalListener())
+                .build();
         }
 
         @Override
