@@ -121,7 +121,8 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            // TODO alongside parseCreateField
+            // TODO Return to this during Query implementation. The derived fields don't typically exist in _source but
+            //  we may want fetch the field name from source if a 'script' is not provided.
             return new SourceValueFetcher(name(), context) {
                 @Override
                 protected Object parseSourceValue(Object value) {
@@ -160,7 +161,9 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        // TODO
+        // Leaving this empty as the parsing should be handled via the Builder when root object is parsed.
+        // The context would not contain anything in this case since the DerivedFieldMapper is not indexed or stored.
+        throw new UnsupportedOperationException("should not be invoked");
     }
 
     @Override
