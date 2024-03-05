@@ -120,7 +120,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
-        });
+        }, Version.CURRENT);
     }
 
     @After
@@ -316,7 +316,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
         InboundPipeline inboundPipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, (c, m) -> {
             NodeToNodeMessage m1 = (NodeToNodeMessage) m;
             protobufMessage.set(BytesReference.fromByteBuffer(ByteBuffer.wrap(m1.getMessage().toByteArray())));
-        });
+        }, Version.CURRENT);
         BytesReference reference = channel.getMessageCaptor().get();
         ActionListener<Void> sendListener = channel.getListenerCaptor().get();
         if (randomBoolean()) {

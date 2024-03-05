@@ -67,6 +67,7 @@ public class InboundPipeline implements Releasable {
     private Exception uncaughtException;
     private final ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
+    private Version version;
 
     public InboundPipeline(
         Version version,
@@ -82,7 +83,8 @@ public class InboundPipeline implements Releasable {
             relativeTimeInMillis,
             new InboundDecoder(version, recycler),
             new InboundAggregator(circuitBreaker, registryFunction),
-            messageHandler
+            messageHandler,
+            version
         );
     }
 
@@ -91,13 +93,15 @@ public class InboundPipeline implements Releasable {
         LongSupplier relativeTimeInMillis,
         InboundDecoder decoder,
         InboundAggregator aggregator,
-        BiConsumer<TcpChannel, BaseInboundMessage> messageHandler
+        BiConsumer<TcpChannel, BaseInboundMessage> messageHandler,
+        Version version
     ) {
         this.relativeTimeInMillis = relativeTimeInMillis;
         this.statsTracker = statsTracker;
         this.decoder = decoder;
         this.aggregator = aggregator;
         this.messageHandler = messageHandler;
+        this.version = version;
     }
 
     @Override
@@ -126,7 +130,7 @@ public class InboundPipeline implements Releasable {
         pending.add(reference.retain());
 
         String incomingMessageProtocol = TcpTransport.determineTransportProtocol(reference);
-        if (incomingMessageProtocol.equals(BaseInboundMessage.PROTOBUF_PROTOCOL)) {
+        if (incomingMessageProtocol.equals(BaseInboundMessage.PROTOBUF_PROTOCOL) && this.version.onOrAfter(Version.V_3_0_0)) {
             // removing the first byte we added for protobuf message
             byte[] incomingBytes = BytesReference.toBytes(reference.slice(3, reference.length() - 3));
             NodeToNodeMessage protobufMessage = new NodeToNodeMessage(incomingBytes);
