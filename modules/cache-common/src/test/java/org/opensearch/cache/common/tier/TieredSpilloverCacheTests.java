@@ -8,18 +8,20 @@
 
 package org.opensearch.cache.common.tier;
 
-import org.opensearch.common.cache.CacheTierPolicy;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.policy.CachePolicyInfoWrapper;
+import org.opensearch.common.cache.policy.CacheTierPolicy;
 import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -33,6 +35,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES_KEY;
 
@@ -123,6 +126,12 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setWeigher((k, v) -> keyValueSize)
                 .setRemovalListener(removalListener)
                 .setSettings(settings)
+                .setPolicyInfoWrapperFunction(new Function<String, CachePolicyInfoWrapper>() {
+                    @Override
+                    public CachePolicyInfoWrapper apply(String s) {
+                        return new CachePolicyInfoWrapper(10_000L);
+                    }
+                }) // Values will always appear to have taken 10_000 ns = 10 ms to compute
                 .build(),
             CacheType.INDICES_REQUEST_CACHE,
             Map.of(
@@ -837,10 +846,11 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         policies.add(new AllowFirstLetterA());
         policies.add(new AllowEvenLengths());
 
+        int keyValueSize = 50;
         int onHeapCacheSize = 0;
         MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
         TieredSpilloverCache<String, String> tieredSpilloverCache = intializeTieredSpilloverCache(
-            onHeapCacheSize,
+            keyValueSize,
             100,
             removalListener,
             Settings.builder()
@@ -870,6 +880,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         LoadAwareCacheLoader<String, String> loader = new LoadAwareCacheLoader<String, String>() {
             boolean isLoaded = false;
+
             @Override
             public boolean isLoaded() {
                 return isLoaded;
@@ -897,6 +908,109 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         }
     }
 
+    public void testTookTimePolicyFromFactory() throws Exception {
+        // Mock took time by passing this map to the policy info wrapper fn
+        // The policy inspects values, not keys, so this is a map from values -> took time
+        Map<String, Long> tookTimeMap = new HashMap<>();
+        tookTimeMap.put("a", 10_000_000L);
+        tookTimeMap.put("b", 0L);
+        tookTimeMap.put("c", 99_999_999L);
+        tookTimeMap.put("d", null);
+        tookTimeMap.put("e", -1L);
+        tookTimeMap.put("f", 8_888_888L);
+        long timeValueThresholdNanos = 10_000_000L;
+
+        Map<String, String> keyValueMap = Map.of("A", "a", "B", "b", "C", "c", "D", "d", "E", "e", "F", "f");
+
+        // Most of setup duplicated from testComputeIfAbsentWithFactoryBasedCacheCreation()
+        int onHeapCacheSize = randomIntBetween(tookTimeMap.size() + 1, tookTimeMap.size() + 30);
+        int diskCacheSize = tookTimeMap.size();
+        int keyValueSize = 50;
+
+        MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+
+        // Set the desired settings needed to create a TieredSpilloverCache object with INDICES_REQUEST_CACHE cacheType.
+        Settings settings = Settings.builder()
+            .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_NAME.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME
+            )
+            .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_NAME.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                MockOnDiskCache.MockDiskCacheFactory.NAME
+            )
+            .put(
+                OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                    .get(MAXIMUM_SIZE_IN_BYTES_KEY)
+                    .getKey(),
+                onHeapCacheSize * keyValueSize + "b"
+            )
+            .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_TOOKTIME_THRESHOLD.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                new TimeValue(timeValueThresholdNanos / 1_000_000)
+            )
+            .build();
+
+        ICache<String, String> tieredSpilloverICache = new TieredSpilloverCache.TieredSpilloverCacheFactory().create(
+            new CacheConfig.Builder<String, String>().setKeyType(String.class)
+                .setKeyType(String.class)
+                .setWeigher((k, v) -> keyValueSize)
+                .setRemovalListener(removalListener)
+                .setSettings(settings)
+                .setPolicyInfoWrapperFunction(new Function<String, CachePolicyInfoWrapper>() {
+                    @Override
+                    public CachePolicyInfoWrapper apply(String s) {
+                        return new CachePolicyInfoWrapper(tookTimeMap.get(s));
+                    }
+                })
+                .build(),
+            CacheType.INDICES_REQUEST_CACHE,
+            Map.of(
+                OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME,
+                new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory(),
+                MockOnDiskCache.MockDiskCacheFactory.NAME,
+                new MockOnDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300))
+            )
+        );
+
+        TieredSpilloverCache<String, String> tieredSpilloverCache = (TieredSpilloverCache<String, String>) tieredSpilloverICache;
+
+        // First add all our values to the on heap cache
+        for (String key : tookTimeMap.keySet()) {
+            tieredSpilloverCache.computeIfAbsent(key, getLoadAwareCacheLoader(keyValueMap));
+        }
+        assertEquals(tookTimeMap.size(), tieredSpilloverCache.count());
+
+        // Ensure all these keys get evicted from the on heap tier by adding > heap tier size worth of random keys
+        for (int i = 0; i < onHeapCacheSize; i++) {
+            tieredSpilloverCache.computeIfAbsent(UUID.randomUUID().toString(), getLoadAwareCacheLoader(keyValueMap));
+        }
+        ICache<String, String> onHeapCache = tieredSpilloverCache.getOnHeapCache();
+        for (String key : tookTimeMap.keySet()) {
+            assertNull(onHeapCache.get(key));
+        }
+
+        // Now the original keys should be in the disk tier if the policy allows them, or misses if not
+        for (String key : tookTimeMap.keySet()) {
+            String computedValue = tieredSpilloverCache.get(key);
+            String mapValue = keyValueMap.get(key);
+            Long tookTime = tookTimeMap.get(mapValue);
+            if (tookTime != null && tookTime > timeValueThresholdNanos) {
+                // expect a hit
+                assertNotNull(computedValue);
+            } else {
+                // expect a miss
+                assertNull(computedValue);
+            }
+        }
+    }
+
     private static class AllowFirstLetterA implements CacheTierPolicy<String> {
         @Override
         public boolean checkData(String data) {
@@ -914,7 +1028,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             return data.length() % 2 == 0;
         }
     }
-    
+
     private LoadAwareCacheLoader<String, String> getLoadAwareCacheLoader() {
         return new LoadAwareCacheLoader<>() {
             boolean isLoaded = false;
@@ -923,6 +1037,27 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             public String load(String key) {
                 isLoaded = true;
                 return UUID.randomUUID().toString();
+            }
+
+            @Override
+            public boolean isLoaded() {
+                return isLoaded;
+            }
+        };
+    }
+
+    private LoadAwareCacheLoader<String, String> getLoadAwareCacheLoader(Map<String, String> keyValueMap) {
+        return new LoadAwareCacheLoader<>() {
+            boolean isLoaded = false;
+
+            @Override
+            public String load(String key) {
+                isLoaded = true;
+                String mapValue = keyValueMap.get(key);
+                if (mapValue == null) {
+                    mapValue = UUID.randomUUID().toString();
+                }
+                return mapValue;
             }
 
             @Override
@@ -961,8 +1096,9 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         ICache.Factory mockDiskCacheFactory = new MockOnDiskCache.MockDiskCacheFactory(diskDeliberateDelay, diskCacheSize);
 
-        TieredSpilloverCache.Builder<String, String> builder = new TieredSpilloverCache.Builder<String, String>()
-            .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+        TieredSpilloverCache.Builder<String, String> builder = new TieredSpilloverCache.Builder<String, String>().setCacheType(
+            CacheType.INDICES_REQUEST_CACHE
+        )
             .setRemovalListener(removalListener)
             .setOnHeapCacheFactory(onHeapCacheFactory)
             .setDiskCacheFactory(mockDiskCacheFactory)

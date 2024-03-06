@@ -62,7 +62,7 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.cache.CachePolicyInfoWrapper;
+import org.opensearch.common.cache.policy.CachePolicyInfoWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;

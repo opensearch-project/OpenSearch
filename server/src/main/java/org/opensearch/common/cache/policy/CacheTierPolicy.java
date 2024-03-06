@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.cache;
+package org.opensearch.common.cache.policy;
 
 /**
  * An interface for policies that inspect data of type T to decide whether they are admitted into a cache tier.

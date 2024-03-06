@@ -6,24 +6,17 @@
  * compatible open source license.
  */
 
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
-package org.opensearch.cache.common.tier;
+package org.opensearch.common.cache.policy;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.OriginalIndicesTests;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.cache.CachePolicyInfoWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -39,7 +32,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.function.Function;
 
-public class DiskTierTookTimePolicyTests extends OpenSearchTestCase {
+public class TookTimePolicyTests extends OpenSearchTestCase {
     private final Function<BytesReference, CachePolicyInfoWrapper> transformationFunction = (data) -> {
         try {
             return getPolicyInfo(data);
@@ -52,14 +45,12 @@ public class DiskTierTookTimePolicyTests extends OpenSearchTestCase {
         return new CachePolicyInfoWrapper(data.streamInput());
     }
 
-    private DiskTierTookTimePolicy getTookTimePolicy() {
-        // dummy settings
-        Settings dummySettings = Settings.EMPTY;
-        return new DiskTierTookTimePolicy(dummySettings, transformationFunction);
+    private TookTimePolicy<BytesReference> getTookTimePolicy() {
+        return new TookTimePolicy<>(TimeValue.ZERO, transformationFunction);
     }
 
     public void testTookTimePolicy() throws Exception {
-        DiskTierTookTimePolicy tookTimePolicy = getTookTimePolicy();
+        TookTimePolicy<BytesReference> tookTimePolicy = getTookTimePolicy();
 
         // manually set threshold for test
         double threshMillis = 10;
@@ -74,7 +65,7 @@ public class DiskTierTookTimePolicyTests extends OpenSearchTestCase {
         boolean longResult = tookTimePolicy.checkData(longTime);
         assertTrue(longResult);
 
-        DiskTierTookTimePolicy disabledPolicy = getTookTimePolicy();
+        TookTimePolicy<BytesReference> disabledPolicy = getTookTimePolicy();
         disabledPolicy.setThreshold(TimeValue.ZERO);
         shortResult = disabledPolicy.checkData(shortTime);
         assertTrue(shortResult);
@@ -83,7 +74,7 @@ public class DiskTierTookTimePolicyTests extends OpenSearchTestCase {
     }
 
     public void testMissingWrapper() throws Exception {
-        DiskTierTookTimePolicy tookTimePolicy = getTookTimePolicy();
+        TookTimePolicy<BytesReference> tookTimePolicy = getTookTimePolicy();
         tookTimePolicy.setThreshold(TimeValue.ZERO);
         QuerySearchResult qsr = getQSR();
         BytesStreamOutput out = new BytesStreamOutput();
@@ -97,9 +88,9 @@ public class DiskTierTookTimePolicyTests extends OpenSearchTestCase {
         // Null took time should always be rejected (because it might be the result of a
         // BytesReference without a CachePolicyInfoWrapper in front of it)
 
-        DiskTierTookTimePolicy zeroThreshold = getTookTimePolicy();
+        TookTimePolicy<BytesReference> zeroThreshold = getTookTimePolicy();
         zeroThreshold.setThreshold(TimeValue.ZERO);
-        DiskTierTookTimePolicy nonZeroThreshold = getTookTimePolicy();
+        TookTimePolicy<BytesReference> nonZeroThreshold = getTookTimePolicy();
         nonZeroThreshold.setThreshold(new TimeValue(10L));
 
         Long nullTookTime = null;
@@ -120,7 +111,7 @@ public class DiskTierTookTimePolicyTests extends OpenSearchTestCase {
         ShardId shardId = new ShardId("index", "uuid", randomInt());
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
         ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
-            OriginalIndices.NONE,
+            OriginalIndicesTests.randomOriginalIndices(),
             searchRequest,
             shardId,
             1,
@@ -148,7 +139,7 @@ public class DiskTierTookTimePolicyTests extends OpenSearchTestCase {
         CachePolicyInfoWrapper policyInfo = new CachePolicyInfoWrapper(tookTimeNanos);
         BytesStreamOutput out = new BytesStreamOutput();
         policyInfo.writeTo(out);
-        qsr.writeTo(out);
+        qsr.writeTo(out); // This fails when OriginalIndices is OriginalIndices.NONE.
         return out.bytes();
     }
 }

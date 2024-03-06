@@ -9,15 +9,18 @@
 package org.opensearch.cache.common.tier;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.cache.CacheTierPolicy;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.policy.CachePolicyInfoWrapper;
+import org.opensearch.common.cache.policy.CacheTierPolicy;
+import org.opensearch.common.cache.policy.TookTimePolicy;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.iterable.Iterables;
 
@@ -252,12 +255,21 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 );
             }
             ICache.Factory diskCacheFactory = cacheFactories.get(diskCacheStoreName);
+
+            TimeValue diskPolicyThreshold = TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_TOOKTIME_THRESHOLD
+                .getConcreteSettingForNamespace(cacheType.getSettingPrefix())
+                .get(settings);
+            Function<V, CachePolicyInfoWrapper> policyInfoWrapperFunction = Objects.requireNonNull(
+                config.getPolicyInfoWrapperFunction(),
+                "Policy info wrapper fn can't be null"
+            );
+
             return new Builder<K, V>().setDiskCacheFactory(diskCacheFactory)
                 .setOnHeapCacheFactory(onHeapCacheFactory)
                 .setRemovalListener(config.getRemovalListener())
                 .setCacheConfig(config)
                 .setCacheType(cacheType)
-                //.setPolicy(new DiskTierTookTimePolicy(settings))
+                .setPolicy(new TookTimePolicy<V>(diskPolicyThreshold, policyInfoWrapperFunction))
                 .build();
         }
 

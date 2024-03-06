@@ -11,40 +11,25 @@
  * GitHub history for details.
  */
 
-package org.opensearch.cache.common.tier;
+package org.opensearch.common.cache.policy;
 
-import org.opensearch.common.cache.CachePolicyInfoWrapper;
-import org.opensearch.common.cache.CacheTierPolicy;
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.bytes.BytesReference;
 
 import java.util.function.Function;
 
 /**
- * A cache tier policy which accepts queries whose took time is greater than some threshold,
- * which is specified as a dynamic cluster-level setting. The threshold should be set to approximately
+ * A cache tier policy which accepts queries whose took time is greater than some threshold.
+ * The threshold should be set to approximately
  * the time it takes to get a result from the cache tier.
- * The policy expects to be able to read a CachePolicyInfoWrapper from the start of the BytesReference.
+ * The policy accepts values of type V and decodes them into CachePolicyInfoWrapper, which has the data needed
+ * to decide whether to admit the value.
  */
-public class DiskTierTookTimePolicy implements CacheTierPolicy<BytesReference> {
-    /*public static final Setting<TimeValue> DISK_TOOKTIME_THRESHOLD_SETTING = Setting.positiveTimeSetting(
-        "indices.requests.cache.disk.tooktime.threshold",
-        TimeValue.ZERO,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );*/ // Set this to TimeValue.ZERO to let all data through
+public class TookTimePolicy<V> implements CacheTierPolicy<V> {
+    private TimeValue threshold; // Set this to TimeValue.ZERO to let all data through
+    private final Function<V, CachePolicyInfoWrapper> getPolicyInfoFn;
 
-    private TimeValue threshold;
-    private final Function<BytesReference, CachePolicyInfoWrapper> getPolicyInfoFn;
-
-    public DiskTierTookTimePolicy(
-        Settings settings,
-        Function<BytesReference, CachePolicyInfoWrapper> getPolicyInfoFn
-    ) {
-        this.threshold = TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_TOOKTIME_THRESHOLD.get(settings);
+    public TookTimePolicy(TimeValue threshold, Function<V, CachePolicyInfoWrapper> getPolicyInfoFn) {
+        this.threshold = threshold;
         this.getPolicyInfoFn = getPolicyInfoFn;
     }
 
@@ -53,7 +38,7 @@ public class DiskTierTookTimePolicy implements CacheTierPolicy<BytesReference> {
     }
 
     @Override
-    public boolean checkData(BytesReference data) {
+    public boolean checkData(V data) {
         Long tookTimeNanos;
         try {
             tookTimeNanos = getPolicyInfoFn.apply(data).getTookTimeNanos();
