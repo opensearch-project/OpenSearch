@@ -14,24 +14,5 @@ opensearchplugin {
   classname 'org.opensearch.plugin.insights.QueryInsightsPlugin'
 }
 
-dependencyLicenses.enabled = false
-
-ext {
-  opensearch_version = versions.opensearch
-  // 3.0.0-SNAPSHOT -> 3.0.0.0
-  version_tokens = opensearch_version.tokenize('-')
-  common_utils_version = version_tokens[0] + '.0'
-  if (version_tokens.size() > 1) {
-    common_utils_version = common_utils_version + "-" + version_tokens[1]
-  }
-}
-
-repositories {
-  mavenLocal()
-  mavenCentral()
-  maven { url "https://aws.oss.sonatype.org/content/repositories/snapshots" }
-}
-
 dependencies {
-  implementation "org.opensearch:common-utils:${common_utils_version}"
 }

@@ -16,13 +16,12 @@ import org.opensearch.action.search.SearchRequestContext;
 import org.opensearch.action.search.SearchRequestOperationsListener;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.commons.authuser.User;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.rules.model.Attribute;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
-import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
+import org.opensearch.plugin.insights.utils.ThreadContextParser;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -149,15 +148,7 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
             attributes.put(Attribute.INDICES, request.indices());
             attributes.put(Attribute.PHASE_LATENCY_MAP, searchRequestContext.phaseTookMap());
             // add user related information
-            Object userInfo = threadPool.getThreadContext().getTransient(QueryInsightsSettings.REQUEST_HEADER_USER_INFO);
-            if (userInfo != null) {
-                attributes.put(Attribute.USER, User.parse(userInfo.toString()));
-            }
-            // add remote ip address
-            Object remoteAddress = threadPool.getThreadContext().getTransient(QueryInsightsSettings.REQUEST_HEADER_REMOTE_ADDRESS);
-            if (remoteAddress != null) {
-                attributes.put(Attribute.REMOTE_ADDRESS, remoteAddress.toString());
-            }
+            attributes.putAll(ThreadContextParser.getUserInfoFromThreadContext(threadPool.getThreadContext()));
             SearchQueryRecord record = new SearchQueryRecord(request.getOrCreateAbsoluteStartMillis(), measurements, attributes);
             queryInsightsService.addRecord(record);
         } catch (Exception e) {

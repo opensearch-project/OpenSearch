@@ -16,8 +16,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.commons.InjectSecurity;
-import org.opensearch.commons.authuser.User;
 import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.core.service.TopQueriesService;
 import org.opensearch.plugin.insights.rules.model.Attribute;
@@ -60,7 +58,10 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
     private final Settings.Builder settingsBuilder = Settings.builder();
     private final Settings settings = settingsBuilder.build();
     private final String remoteAddress = "1.2.3.4";
-    private User user;
+    private final String userName = "user1";
+    private final List<String> userBackendRoles = List.of("bk-role1", "bk-role2");
+    private final List<String> userRoles = List.of("role1", "role2");
+    private final String userTenant = "tenant1";
     private ClusterService clusterService;
 
     @Before
@@ -75,9 +76,10 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
 
         // inject user info
         ThreadContext threadContext = new ThreadContext(settings);
-        user = new User("user-1", List.of("role1", "role2"), List.of("role3", "role4"), List.of());
-        InjectSecurity injector = new InjectSecurity("id", settings, threadContext);
-        injector.injectUserInfo(user);
+        threadContext.putTransient(
+            QueryInsightsSettings.REQUEST_HEADER_USER_INFO,
+            userName + '|' + String.join(",", userBackendRoles) + "|" + String.join(",", userRoles) + "|" + userTenant
+        );
         threadContext.putTransient(QueryInsightsSettings.REQUEST_HEADER_REMOTE_ADDRESS, remoteAddress);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
     }
@@ -120,7 +122,10 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         assertEquals(numberOfShards, attrs.get(Attribute.TOTAL_SHARDS));
         assertEquals(indices, attrs.get(Attribute.INDICES));
         assertEquals(phaseLatencyMap, attrs.get(Attribute.PHASE_LATENCY_MAP));
-        assertEquals(user, attrs.get(Attribute.USER));
+        assertEquals(userName, attrs.get(Attribute.USER_NAME));
+        assertEquals(userBackendRoles, attrs.get(Attribute.USER_BACKEND_ROLES));
+        assertEquals(userRoles, attrs.get(Attribute.USER_ROLES));
+        assertEquals(userTenant, attrs.get(Attribute.USER_TENANT));
         assertEquals(remoteAddress, attrs.get(Attribute.REMOTE_ADDRESS));
     }
 

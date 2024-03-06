@@ -15,7 +15,6 @@ repositories {
   maven {
     url = "https://ci.opensearch.org/ci/dbc/snapshots/lucene/"
   }
-  maven { url "https://aws.oss.sonatype.org/content/repositories/snapshots" }
 }
 
 allprojects {
