@@ -131,7 +131,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         long sizeInBytes = size.getBytes();
         ToLongBiFunction<Key, BytesReference> weigher = (k, v) -> k.ramBytesUsed() + v.ramBytesUsed();
         this.cacheEntityLookup = cacheEntityFunction;
-        if (FeatureFlags.TIERED_CACHING_SETTING.get(settings)) {
+        if (FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings)) {
             this.cache = cacheService.createCache(
                 new CacheConfig.Builder<Key, BytesReference>().setSettings(settings)
                     .setWeigher((k, v) -> k.ramBytesUsed() + v.ramBytesUsed())

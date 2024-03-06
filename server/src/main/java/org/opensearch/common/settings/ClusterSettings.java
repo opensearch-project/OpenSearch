@@ -732,7 +732,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING,
             TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING
         ),
-        List.of(FeatureFlags.TIERED_CACHING),
+        List.of(FeatureFlags.PLUGGABLE_CACHE),
         List.of(CacheSettings.getConcreteSettingForCacheType(CacheType.INDICES_REQUEST_CACHE))
     );
 }

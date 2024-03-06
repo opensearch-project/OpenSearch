@@ -52,7 +52,7 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.TIERED_CACHING, "true").build();
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.PLUGGABLE_CACHE, "true").build();
     }
 
     @Override

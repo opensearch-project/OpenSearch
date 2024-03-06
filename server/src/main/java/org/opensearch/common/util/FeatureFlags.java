@@ -65,9 +65,10 @@ public class FeatureFlags {
     public static final String DOC_ID_FUZZY_SET = "opensearch.experimental.optimize_doc_id_lookup.fuzzy_set.enabled";
 
     /**
-     * Gates the functionality of tiered caching
+     * Gates the functionality of pluggable cache.
+     * Enables OpenSearch to use pluggable caches with respective store names via setting.
      */
-    public static final String TIERED_CACHING = "opensearch.experimental.feature.tiered.caching.enabled";
+    public static final String PLUGGABLE_CACHE = "opensearch.experimental.feature.pluggable.caching.enabled";
 
     /**
      * Should store the settings from opensearch.yml.
@@ -134,5 +135,5 @@ public class FeatureFlags {
 
     public static final Setting<Boolean> DOC_ID_FUZZY_SET_SETTING = Setting.boolSetting(DOC_ID_FUZZY_SET, false, Property.NodeScope);
 
-    public static final Setting<Boolean> TIERED_CACHING_SETTING = Setting.boolSetting(TIERED_CACHING, false, Property.NodeScope);
+    public static final Setting<Boolean> PLUGGABLE_CACHE_SETTING = Setting.boolSetting(PLUGGABLE_CACHE, false, Property.NodeScope);
 }

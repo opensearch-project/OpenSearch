@@ -144,7 +144,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         IndexShard indexShard = createIndex("test").getShard(0);
         CacheService cacheService = new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService();
         IndicesRequestCache cache = new IndicesRequestCache(
-            Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.TIERED_CACHING, "true").build(),
+            Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.PLUGGABLE_CACHE, "true").build(),
             (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
             cacheService
         );
