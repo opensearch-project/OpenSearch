@@ -44,13 +44,6 @@ public interface RemoteStoreLockManager {
     Boolean isAcquired(LockInfo lockInfo) throws IOException;
 
     /**
-     *
-     * @return true if lock directory is empty.
-     * @throws IOException throws exception if list locks call fails.
-     */
-    Boolean isEmpty() throws IOException;
-
-    /**
      * Acquires lock on the file mentioned in originalLockInfo for acquirer mentioned in clonedLockInfo.
      * There can occur a race condition where the original file is deleted before we can use it to acquire lock for the new acquirer. Until we have a
      * fix on LockManager side, Implementors must ensure thread safety for this operation.
