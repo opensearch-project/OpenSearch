@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.index.shard.ShardId;
 
 import java.util.HashMap;
@@ -29,7 +30,7 @@ public class ShardCache<K extends BaseNodeResponse> extends BaseShardCache<K> {
     private final Map<String, NodeEntry<K>> cache;
 
     public ShardCache(Logger logger, String logKey, String type) {
-        super(logger, logKey, type);
+        super(Loggers.getLogger(logger, "_" + logKey), type);
         cache = new HashMap<>();
     }
 
