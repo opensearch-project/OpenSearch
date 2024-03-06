@@ -627,6 +627,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                .setIsEventListenerModeSync(true)
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setKeyType(String.class)
                 .setValueType(String.class)
