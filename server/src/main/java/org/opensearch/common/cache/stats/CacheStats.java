@@ -13,12 +13,9 @@ import org.opensearch.core.common.io.stream.Writeable;
 import java.util.List;
 
 /**
- * Interface for any cache specific stats. Allows accessing stats by total value or by dimension,
- * and also allows updating stats.
- * When updating stats, we take in the list of dimensions associated with the key/value pair that caused the update.
- * This allows us to aggregate stats by dimension when accessing them.
+ * Interface for access to any cache specific stats. Allows accessing stats by total value or by dimension,
  */
-public interface CacheStats extends Writeable {
+public interface CacheStats extends Writeable {// TODO: also extends ToXContentFragment (in API PR)
 
     // Methods to get all 5 values at once, either in total or for a specific set of dimensions.
     CacheStatsResponse getTotalStats();
@@ -47,21 +44,5 @@ public interface CacheStats extends Writeable {
     long getMemorySizeByDimensions(List<CacheStatsDimension> dimensions);
 
     long getEntriesByDimensions(List<CacheStatsDimension> dimensions);
-
-    void incrementHitsByDimensions(List<CacheStatsDimension> dimensions);
-
-    void incrementMissesByDimensions(List<CacheStatsDimension> dimensions);
-
-    void incrementEvictionsByDimensions(List<CacheStatsDimension> dimensions);
-
-    // Can also use to decrement, with negative values
-    void incrementMemorySizeByDimensions(List<CacheStatsDimension> dimensions, long amountBytes);
-
-    void incrementEntriesByDimensions(List<CacheStatsDimension> dimensions);
-
-    void decrementEntriesByDimensions(List<CacheStatsDimension> dimensions);
-
-    // Resets memory and entries stats but leaves the others; called when the cache clears itself.
-    void reset();
 
 }

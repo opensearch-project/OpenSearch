@@ -25,6 +25,7 @@ import org.opensearch.common.cache.serializer.ICacheKeySerializer;
 import org.opensearch.common.cache.serializer.Serializer;
 import org.opensearch.common.cache.stats.CacheStats;
 import org.opensearch.common.cache.stats.MultiDimensionCacheStats;
+import org.opensearch.common.cache.stats.StatsHolder;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.collect.Tuple;
@@ -106,7 +107,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     private final Class<K> keyType;
     private final Class<V> valueType;
     private final TimeValue expireAfterAccess;
-    private final CacheStats stats;
+    private final StatsHolder statsHolder;
     private final EhCacheEventListener<K, V> ehCacheEventListener;
     private final String threadPoolAlias;
     private final Settings settings;
@@ -157,7 +158,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         );
         this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
         List<String> dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
-        this.stats = new MultiDimensionCacheStats(dimensionNames, TIER_DIMENSION_VALUE);
+        this.statsHolder = new StatsHolder(dimensionNames);
     }
 
     @SuppressWarnings({ "rawtypes" })
@@ -263,9 +264,9 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
             throw new OpenSearchException("Exception occurred while trying to fetch item from ehcache disk cache");
         }
         if (value != null) {
-            stats.incrementHitsByDimensions(key.dimensions);
+            statsHolder.incrementHitsByDimensions(key.dimensions);
         } else {
-            stats.incrementMissesByDimensions(key.dimensions);
+            statsHolder.incrementMissesByDimensions(key.dimensions);
         }
         return value;
     }
@@ -301,9 +302,9 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
             value = compute(key, loader);
         }
         if (!loader.isLoaded()) {
-            stats.incrementHitsByDimensions(key.dimensions);
+            statsHolder.incrementHitsByDimensions(key.dimensions);
         } else {
-            stats.incrementMissesByDimensions(key.dimensions);
+            statsHolder.incrementMissesByDimensions(key.dimensions);
         }
         return value;
     }
@@ -394,7 +395,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
      */
     @Override
     public long count() {
-        return stats.getTotalEntries();
+        return statsHolder.count();
     }
 
     @Override
@@ -419,7 +420,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
      */
     @Override
     public CacheStats stats() {
-        return stats;
+        return new MultiDimensionCacheStats(statsHolder, TIER_DIMENSION_VALUE);
     }
 
     /**
@@ -481,25 +482,25 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         public void onEvent(CacheEvent<? extends ICacheKey<K>, ? extends byte[]> event) {
             switch (event.getType()) {
                 case CREATED:
-                    stats.incrementEntriesByDimensions(event.getKey().dimensions);
-                    stats.incrementMemorySizeByDimensions(event.getKey().dimensions, getNewValuePairSize(event));
+                    statsHolder.incrementEntriesByDimensions(event.getKey().dimensions);
+                    statsHolder.incrementMemorySizeByDimensions(event.getKey().dimensions, getNewValuePairSize(event));
                     assert event.getOldValue() == null;
                     break;
                 case EVICTED:
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), valueSerializer.deserialize(event.getOldValue()), RemovalReason.EVICTED)
                     );
-                    stats.decrementEntriesByDimensions(event.getKey().dimensions);
-                    stats.incrementMemorySizeByDimensions(event.getKey().dimensions, -getOldValuePairSize(event));
-                    stats.incrementEvictionsByDimensions(event.getKey().dimensions);
+                    statsHolder.decrementEntriesByDimensions(event.getKey().dimensions);
+                    statsHolder.incrementMemorySizeByDimensions(event.getKey().dimensions, -getOldValuePairSize(event));
+                    statsHolder.incrementEvictionsByDimensions(event.getKey().dimensions);
                     assert event.getNewValue() == null;
                     break;
                 case REMOVED:
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), valueSerializer.deserialize(event.getOldValue()), RemovalReason.EXPLICIT)
                     );
-                    stats.decrementEntriesByDimensions(event.getKey().dimensions);
-                    stats.incrementMemorySizeByDimensions(event.getKey().dimensions, -getOldValuePairSize(event));
+                    statsHolder.decrementEntriesByDimensions(event.getKey().dimensions);
+                    statsHolder.incrementMemorySizeByDimensions(event.getKey().dimensions, -getOldValuePairSize(event));
                     assert event.getNewValue() == null;
                     break;
                 case EXPIRED:
@@ -510,14 +511,14 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                             RemovalReason.INVALIDATED
                         )
                     );
-                    stats.decrementEntriesByDimensions(event.getKey().dimensions);
-                    stats.incrementMemorySizeByDimensions(event.getKey().dimensions, -getOldValuePairSize(event));
+                    statsHolder.decrementEntriesByDimensions(event.getKey().dimensions);
+                    statsHolder.incrementMemorySizeByDimensions(event.getKey().dimensions, -getOldValuePairSize(event));
                     assert event.getNewValue() == null;
                     break;
                 case UPDATED:
                     long newSize = getNewValuePairSize(event);
                     long oldSize = getOldValuePairSize(event);
-                    stats.incrementMemorySizeByDimensions(event.getKey().dimensions, newSize - oldSize);
+                    statsHolder.incrementMemorySizeByDimensions(event.getKey().dimensions, newSize - oldSize);
                     break;
                 default:
                     break;
