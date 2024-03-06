@@ -61,7 +61,7 @@ import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
-import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
@@ -272,7 +272,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
             nodeHealthService,
             persistedStateRegistry,
             Mockito.mock(RemoteStoreNodeService.class),
-            Mockito.mock(MetricsRegistry.class)
+            NoopMetricsRegistry.INSTANCE
         );
         transportService.start();
         transportService.acceptIncomingRequests();

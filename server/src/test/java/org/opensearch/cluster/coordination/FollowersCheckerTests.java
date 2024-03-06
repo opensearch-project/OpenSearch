@@ -47,6 +47,7 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
+import org.opensearch.telemetry.metrics.Counter;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
@@ -77,8 +78,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.mockito.Mockito;
-
 import static java.util.Collections.emptySet;
 import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_ACTION_NAME;
 import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
@@ -95,6 +94,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class FollowersCheckerTests extends OpenSearchTestCase {
 
@@ -144,7 +149,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
                 assert false : node;
             },
             () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"),
-            Mockito.mock(MetricsRegistry.class)
+            NoopMetricsRegistry.INSTANCE
         );
 
         followersChecker.setCurrentNodes(discoveryNodesHolder[0]);
@@ -313,7 +318,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
                 assertThat(reason, equalTo("disconnected"));
             },
             () -> new StatusInfo(HEALTHY, "healthy-info"),
-            Mockito.mock(MetricsRegistry.class)
+            NoopMetricsRegistry.INSTANCE
         );
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build();
@@ -393,6 +398,10 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
 
         final AtomicBoolean nodeFailed = new AtomicBoolean();
 
+        final MetricsRegistry metricsRegistry = mock(MetricsRegistry.class);
+        final Counter counter = mock(Counter.class);
+        when(metricsRegistry.createCounter(anyString(), anyString(), anyString())).thenReturn(counter);
+
         final FollowersChecker followersChecker = new FollowersChecker(
             settings,
             clusterSettings,
@@ -403,7 +412,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
                 assertThat(reason, equalTo(failureReason));
             },
             nodeHealthService,
-            NoopMetricsRegistry.INSTANCE
+            metricsRegistry
         );
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build();
@@ -449,6 +458,8 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertTrue(nodeFailed.get());
         assertThat(followersChecker.getFaultyNodes(), contains(otherNode));
+
+        verify(counter, atLeastOnce()).add(anyDouble());
     }
 
     public void testFollowerCheckRequestEqualsHashCodeSerialization() {
@@ -508,11 +519,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             if (exception != null) {
                 throw exception;
             }
-        },
-            (node, reason) -> { assert false : node; },
-            () -> new StatusInfo(UNHEALTHY, "unhealthy-info"),
-            Mockito.mock(MetricsRegistry.class)
-        );
+        }, (node, reason) -> { assert false : node; }, () -> new StatusInfo(UNHEALTHY, "unhealthy-info"), NoopMetricsRegistry.INSTANCE);
 
         final long leaderTerm = randomLongBetween(2, Long.MAX_VALUE);
         final long followerTerm = randomLongBetween(1, leaderTerm - 1);
@@ -585,7 +592,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             if (exception != null) {
                 throw exception;
             }
-        }, (node, reason) -> { assert false : node; }, () -> new StatusInfo(HEALTHY, "healthy-info"), Mockito.mock(MetricsRegistry.class));
+        }, (node, reason) -> { assert false : node; }, () -> new StatusInfo(HEALTHY, "healthy-info"), NoopMetricsRegistry.INSTANCE);
 
         {
             // Does not call into the coordinator in the normal case
@@ -732,7 +739,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         );
         final FollowersChecker followersChecker = new FollowersChecker(Settings.EMPTY, clusterSettings, transportService, fcr -> {
             assert false : fcr;
-        }, (node, reason) -> { assert false : node; }, () -> new StatusInfo(HEALTHY, "healthy-info"), Mockito.mock(MetricsRegistry.class));
+        }, (node, reason) -> { assert false : node; }, () -> new StatusInfo(HEALTHY, "healthy-info"), NoopMetricsRegistry.INSTANCE);
         followersChecker.setCurrentNodes(discoveryNodes);
         List<DiscoveryNode> followerTargets = Stream.of(capturingTransport.getCapturedRequestsAndClear())
             .map(cr -> cr.node)

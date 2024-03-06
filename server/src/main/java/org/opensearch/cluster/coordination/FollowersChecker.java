@@ -172,7 +172,7 @@ public class FollowersChecker {
 
     private void initializeMetrics(MetricsRegistry metricsRegistry) {
         this.followerChecksFailureCounter = metricsRegistry.createCounter(
-            "follower.checker.failure.count",
+            "followers.checker.failure.count",
             "Counter for number of failed follower checks",
             UNIT
         );
