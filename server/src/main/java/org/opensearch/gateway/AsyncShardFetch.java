@@ -58,11 +58,8 @@ import static java.util.Collections.unmodifiableMap;
  * Allows to asynchronously fetch shard related data from other nodes for allocation, without blocking
  * the cluster update thread.
  * <p>
- * The async fetch logic maintains a map of which nodes are being fetched from in an async manner,
- * and once the results are back, it makes sure to schedule a reroute to make sure those results will
- * be taken into account.
- *
- * It comes in two modes, to single fetch a shard or fetch a batch of shards.
+ * The async fetch logic maintains a cache {@link BaseShardCache} which is filled in async manner when nodes respond back.
+ * It also schedules a reroute to make sure those results will be taken into account.
  * @opensearch.internal
  */
 public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Releasable {
@@ -85,8 +82,6 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     private final String reroutingKey;
     private final Map<ShardId, Set<String>> shardToIgnoreNodes = new HashMap<>();
 
-    private final boolean enableBatchMode;
-
     @SuppressWarnings("unchecked")
     protected AsyncShardFetch(
         Logger logger,
@@ -101,7 +96,6 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         shardAttributesMap.put(shardId, new ShardAttributes(shardId, customDataPath));
         this.action = (Lister<BaseNodesResponse<T>, T>) action;
         this.reroutingKey = "ShardId=[" + shardId.toString() + "]";
-        enableBatchMode = false;
         cache = new ShardCache<>(logger, reroutingKey, type);
     }
 
@@ -127,7 +121,6 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         this.shardAttributesMap = shardAttributesMap;
         this.action = (Lister<BaseNodesResponse<T>, T>) action;
         this.reroutingKey = "BatchID=[" + batchId + "]";
-        enableBatchMode = true;
         cache = new ShardCache<>(logger, reroutingKey, type);
     }
 
@@ -148,7 +141,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             throw new IllegalStateException(reroutingKey + ": can't fetch data on closed async fetch");
         }
 
-        if (enableBatchMode == false) {
+        if (shardAttributesMap.size() == 1) {
             // we will do assertions here on ignoreNodes
             if (ignoreNodes.size() > 1) {
                 throw new IllegalStateException(
@@ -186,7 +179,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         } else {
             // nothing to fetch, yay, build the return value
             Set<String> failedNodes = new HashSet<>();
-            Map<DiscoveryNode, T> fetchData = cache.populateCache(nodes, failedNodes);
+            Map<DiscoveryNode, T> fetchData = cache.getCacheData(nodes, failedNodes);
 
             Map<ShardId, Set<String>> allIgnoreNodesMap = unmodifiableMap(new HashMap<>(shardToIgnoreNodes));
             // clear the nodes to ignore, we had a successful run in fetching everything we can
