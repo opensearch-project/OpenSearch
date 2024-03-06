@@ -486,7 +486,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         {
             builder.field("name", name);
             builder.field("version", version);
-            builder.field("opensearch_version", opensearchVersionRanges);
+            builder.field("opensearch_version", getOpenSearchVersionRangesString());
             builder.field("java_version", javaVersion);
             builder.field("description", description);
             builder.field("classname", classname);
