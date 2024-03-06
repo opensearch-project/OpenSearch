@@ -38,6 +38,9 @@ public class TieredSpilloverCacheSettings {
         (key) -> Setting.simpleString(key, "", NodeScope)
     );
 
+    /**
+     * Setting defining the minimum took time for a query to be allowed into the disk cache.
+     */
     public static final Setting.AffixSetting<TimeValue> TIERED_SPILLOVER_DISK_TOOKTIME_THRESHOLD = Setting.suffixKeySetting(
         TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".disk.took_time.threshold",
         (key) -> Setting.timeSetting(key, TimeValue.ZERO, NodeScope, Dynamic)

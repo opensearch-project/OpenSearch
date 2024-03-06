@@ -358,11 +358,21 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             return this;
         }
 
+        /**
+         * Set a cache policy to be used to limit access to this cache's disk tier.
+         * @param policy the policy
+         * @return builder
+         */
         public Builder<K, V> setPolicy(CacheTierPolicy<V> policy) {
             this.policies.add(policy);
             return this;
         }
 
+        /**
+         * Set multiple policies to be used to limit access to this cache's disk tier.
+         * @param policies the policies
+         * @return builder
+         */
         public Builder<K, V> setPolicies(List<CacheTierPolicy<V>> policies) {
             this.policies.addAll(policies);
             return this;
