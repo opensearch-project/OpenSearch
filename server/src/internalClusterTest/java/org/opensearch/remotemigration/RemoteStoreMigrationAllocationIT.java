@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.remotestore;
+package org.opensearch.remotemigration;
 
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteResponse;
@@ -29,6 +29,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
@@ -70,6 +71,7 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
     private final ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
     private Client client;
 
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         if (segmentRepoPath == null || translogRepoPath == null) {
             segmentRepoPath = randomRepoPath().toAbsolutePath();
@@ -103,43 +105,32 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
         return Collections.singletonList(InternalOrPrivateSettingsPlugin.class);
     }
 
-    // tests for primary shard copy allocation with REMOTE_STORE direction
+    // tests for primary shard copy allocation with MIXED mode and REMOTE_STORE direction
 
-    public void testDontAllocateNewPrimaryShardOnNonRemoteNodeForRemoteStoreDirection() throws Exception {
+    public void testDontAllocateNewPrimaryShardOnNonRemoteNodeForMixedModeAndRemoteStoreDirection() throws Exception {
         logger.info(" --> initialize cluster");
         initializeCluster();
 
-        logger.info(" --> add non-remote node");
+        logger.info(" --> add remote and non-remote nodes");
+        setClusterMode(MIXED_MODE);
+        addRemote = true;
+        String remoteNodeName = internalCluster().startNode();
         addRemote = false;
         String nonRemoteNodeName = internalCluster().startNode();
         internalCluster().validateClusterFormed();
+        DiscoveryNode remoteNode = assertNodeInCluster(remoteNodeName);
         DiscoveryNode nonRemoteNode = assertNodeInCluster(nonRemoteNodeName);
+        assertTrue(remoteNode.isRemoteStoreNode());
         assertFalse(nonRemoteNode.isRemoteStoreNode());
 
         logger.info(" --> set remote_store direction");
         setDirection(REMOTE_STORE_DIRECTION);
 
         logger.info(" --> verify expected decision for allocating a new primary shard on a non-remote node");
-
-        boolean isRemoteStoreEnabledIndex = randomBoolean();
-        if (isRemoteStoreEnabledIndex) {
-            // to create the repositories
-            setClusterMode(MIXED_MODE);
-            addRemote = true;
-            String remoteNodeName = internalCluster().startNode();
-            internalCluster().validateClusterFormed();
-            DiscoveryNode remoteNode = assertNodeInCluster(remoteNodeName);
-            assertTrue(remoteNode.isRemoteStoreNode());
-            setClusterMode(STRICT_MODE);
-        }
-        boolean isMixedMode = randomBoolean();
-        if (isMixedMode) {
-            setClusterMode(MIXED_MODE);
-        }
-
-        prepareIndex(1, 0, getRemoteStoreEnabledIndexSettingsBuilder(isRemoteStoreEnabledIndex));
+        boolean isRemoteStoreBackedIndex = randomBoolean();
+        prepareIndex(1, 0, getRemoteStoreBackedIndexSettingsBuilder(isRemoteStoreBackedIndex));
         assertEquals(
-            (isRemoteStoreEnabledIndex ? "true" : null),
+            (isRemoteStoreBackedIndex ? "true" : null),
             client.admin()
                 .cluster()
                 .prepareState()
@@ -154,15 +145,10 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
 
         Decision decision = getDecisionForTargetNode(nonRemoteNode, true, true, false);
         Decision.Type type = Decision.Type.NO;
-        String reason = "[remote_store migration_direction]: primary shard copy can not be allocated to a non_remote_store node";
-        if (!isMixedMode) {
-            // strict mode
-            type = Decision.Type.YES;
+        String reason = "[remote_store migration_direction]: primary shard copy can not be allocated to a non-remote node";
+        if (isRemoteStoreBackedIndex) {
             reason =
-                "[remote_store migration_direction]: primary shard copy can be allocated to a non_remote_store node for strict compatibility mode";
-        } else if (isRemoteStoreEnabledIndex) {
-            reason =
-                "[remote_store migration_direction]: primary shard copy can not be allocated to a non_remote_store node because a remote_store_enabled index's shard copy can only move towards a remote_store node";
+                "[remote_store migration_direction]: primary shard copy can not be allocated to a non-remote node because a remote store backed index's shard copy can only be allocated to a remote node";
         }
         assertEquals(type, decision.type());
         assertEquals(reason, decision.getExplanation().toLowerCase(Locale.ROOT));
@@ -179,50 +165,38 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
             .execute()
             .actionGet();
 
-        if (!isMixedMode) {
-            ensureGreen(TEST_INDEX);
+        ensureRed(TEST_INDEX);
 
-            logger.info(" --> verify allocation of primary shard");
-            RoutingTable routingTable = client.admin().cluster().prepareState().execute().actionGet().getState().getRoutingTable();
-            ShardRouting primaryShardRouting = routingTable.index(TEST_INDEX).shard(0).primaryShard();
-            assertAllocation(primaryShardRouting, nonRemoteNode);
-        } else {
-            ensureRed(TEST_INDEX);
-
-            logger.info(" --> verify non-allocation of primary shard");
-            RoutingTable routingTable = client.admin().cluster().prepareState().execute().actionGet().getState().getRoutingTable();
-            ShardRouting primaryShardRouting = routingTable.index(TEST_INDEX).shard(0).primaryShard();
-            assertNonAllocation(primaryShardRouting);
-        }
+        logger.info(" --> verify non-allocation of primary shard");
+        RoutingTable routingTable = client.admin().cluster().prepareState().execute().actionGet().getState().getRoutingTable();
+        ShardRouting primaryShardRouting = routingTable.index(TEST_INDEX).shard(0).primaryShard();
+        assertNonAllocation(primaryShardRouting);
     }
 
-    public void testAllocateNewPrimaryShardOnRemoteNodeForRemoteStoreDirection() throws Exception {
+    public void testAllocateNewPrimaryShardOnRemoteNodeForMixedModeAndRemoteStoreDirection() throws Exception {
         logger.info(" --> initialize cluster");
         initializeCluster();
 
-        logger.info(" --> set mixed cluster compatibility mode");
+        logger.info(" --> add remote and non-remote nodes");
         setClusterMode(MIXED_MODE);
-
-        logger.info(" --> add remote node");
         addRemote = true;
         String remoteNodeName = internalCluster().startNode();
+        addRemote = false;
+        String nonRemoteNodeName = internalCluster().startNode();
         internalCluster().validateClusterFormed();
         DiscoveryNode remoteNode = assertNodeInCluster(remoteNodeName);
+        DiscoveryNode nonRemoteNode = assertNodeInCluster(nonRemoteNodeName);
         assertTrue(remoteNode.isRemoteStoreNode());
+        assertFalse(nonRemoteNode.isRemoteStoreNode());
 
         logger.info(" --> set remote_store direction");
         setDirection(REMOTE_STORE_DIRECTION);
 
-        boolean isStrictMode = randomBoolean();
-        if (isStrictMode) {
-            setClusterMode(STRICT_MODE);
-        }
-
         logger.info(" --> verify expected decision for allocating a new primary shard on a remote node");
-        boolean isRemoteStoreEnabledIndex = randomBoolean();
-        prepareIndex(1, 0, getRemoteStoreEnabledIndexSettingsBuilder(isRemoteStoreEnabledIndex));
+        boolean isRemoteStoreBackedIndex = randomBoolean();
+        prepareIndex(1, 0, getRemoteStoreBackedIndexSettingsBuilder(isRemoteStoreBackedIndex));
         assertEquals(
-            (isRemoteStoreEnabledIndex ? "true" : null),
+            (isRemoteStoreBackedIndex ? "true" : null),
             client.admin()
                 .cluster()
                 .prepareState()
@@ -237,12 +211,10 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
 
         Decision decision = getDecisionForTargetNode(remoteNode, true, true, false);
         assertEquals(Decision.Type.YES, decision.type());
-        String reason = "[remote_store migration_direction]: primary shard copy can be allocated to a remote_store node";
-        if (isStrictMode) {
-            reason =
-                "[remote_store migration_direction]: primary shard copy can be allocated to a remote_store node for strict compatibility mode";
-        }
-        assertEquals(reason, decision.getExplanation().toLowerCase(Locale.ROOT));
+        assertEquals(
+            "[remote_store migration_direction]: primary shard copy can be allocated to a remote node",
+            decision.getExplanation().toLowerCase(Locale.ROOT)
+        );
 
         logger.info(" --> attempt allocation");
         client.admin()
@@ -250,8 +222,8 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
             .prepareUpdateSettings(TEST_INDEX)
             .setSettings(
                 Settings.builder()
-                    .put("index.routing.allocation.include._name", remoteNodeName)
-                    .put("index.routing.allocation.exclude._name", allNodesExcept(remoteNodeName))
+                    .put("index.routing.allocation.include._name", allNodesExcept(null))
+                    .put("index.routing.allocation.exclude._name", "")
             )
             .execute()
             .actionGet();
@@ -264,16 +236,15 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
         assertAllocation(primaryShardRouting, remoteNode);
     }
 
-    // tests for replica shard copy allocation with REMOTE_STORE direction
+    // tests for replica shard copy allocation with MIXED mode and REMOTE_STORE direction
 
-    public void testDontAllocateNewReplicaShardOnRemoteNodeIfPrimaryShardOnNonRemoteNodeForRemoteStoreDirection() throws Exception {
+    public void testDontAllocateNewReplicaShardOnRemoteNodeIfPrimaryShardOnNonRemoteNodeForMixedModeAndRemoteStoreDirection()
+        throws Exception {
         logger.info(" --> initialize cluster");
         initializeCluster();
 
-        logger.info(" --> set mixed cluster compatibility mode");
-        setClusterMode(MIXED_MODE);
-
         logger.info(" --> add remote and non-remote nodes");
+        setClusterMode(MIXED_MODE);
         addRemote = false;
         String nonRemoteNodeName = internalCluster().startNode();
         addRemote = true;
@@ -289,7 +260,7 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate(TEST_INDEX)
             .setSettings(
-                getRemoteStoreEnabledIndexSettingsBuilder(false).put("index.number_of_shards", 1)
+                getRemoteStoreBackedIndexSettingsBuilder(false).put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 1)
                     .put("index.routing.allocation.include._name", nonRemoteNodeName)
                     .put("index.routing.allocation.exclude._name", allNodesExcept(nonRemoteNodeName))
@@ -310,12 +281,12 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
         logger.info(" --> set remote_store direction");
         setDirection(REMOTE_STORE_DIRECTION);
 
-        boolean isRemoteStoreEnabledIndex = randomBoolean();
-        if (isRemoteStoreEnabledIndex) {
-            setRemoteStoreEnabledIndex();
+        boolean isRemoteStoreBackedIndex = randomBoolean();
+        if (isRemoteStoreBackedIndex) {
+            setRemoteStoreBackedIndex();
         }
         assertEquals(
-            (isRemoteStoreEnabledIndex ? "true" : null),
+            (isRemoteStoreBackedIndex ? "true" : null),
             client.admin()
                 .cluster()
                 .prepareState()
@@ -328,24 +299,14 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
                 .get(SETTING_REMOTE_STORE_ENABLED)
         );
 
-        boolean isStrictMode = randomBoolean();
-        if (isStrictMode) {
-            setClusterMode(STRICT_MODE);
-        }
-
         logger.info(" --> verify expected decision for replica shard");
         prepareDecisions();
         Decision decision = getDecisionForTargetNode(remoteNode, false, true, false);
-        Decision.Type type = Decision.Type.NO;
-        String reason =
-            "[remote_store migration_direction]: replica shard copy can not be allocated to a remote_store node since primary shard copy is not yet migrated to remote";
-        if (isStrictMode) {
-            type = Decision.Type.YES;
-            reason =
-                "[remote_store migration_direction]: replica shard copy can be allocated to a remote_store node for strict compatibility mode";
-        }
-        assertEquals(type, decision.type());
-        assertEquals(reason, decision.getExplanation().toLowerCase(Locale.ROOT));
+        assertEquals(Decision.Type.NO, decision.type());
+        assertEquals(
+            "[remote_store migration_direction]: replica shard copy can not be allocated to a remote node since primary shard copy is not yet migrated to remote",
+            decision.getExplanation().toLowerCase(Locale.ROOT)
+        );
 
         logger.info(" --> attempt allocation of replica shard on remote node");
         client.admin()
@@ -359,46 +320,41 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
             .execute()
             .actionGet();
 
-        if (isStrictMode) {
-            ensureGreen(TEST_INDEX);
+        ensureYellowAndNoInitializingShards(TEST_INDEX);
 
-            logger.info(" --> verify allocation of replica shard");
-            routingTable = client.admin().cluster().prepareState().execute().actionGet().getState().getRoutingTable();
-            replicaShardRouting = routingTable.index(TEST_INDEX).shard(0).replicaShards().get(0);
-            assertAllocation(replicaShardRouting, remoteNode);
-        } else {
-            ensureYellowAndNoInitializingShards(TEST_INDEX);
-
-            logger.info(" --> verify non-allocation of replica shard");
-            routingTable = client.admin().cluster().prepareState().execute().actionGet().getState().getRoutingTable();
-            replicaShardRouting = routingTable.index(TEST_INDEX).shard(0).replicaShards().get(0);
-            assertNonAllocation(replicaShardRouting);
-        }
+        logger.info(" --> verify non-allocation of replica shard");
+        routingTable = client.admin().cluster().prepareState().execute().actionGet().getState().getRoutingTable();
+        replicaShardRouting = routingTable.index(TEST_INDEX).shard(0).replicaShards().get(0);
+        assertNonAllocation(replicaShardRouting);
     }
 
-    public void testAllocateNewReplicaShardOnRemoteNodeIfPrimaryShardOnRemoteNodeForRemoteStoreDirection() throws Exception {
+    public void testAllocateNewReplicaShardOnRemoteNodeIfPrimaryShardOnRemoteNodeForMixedModeAndRemoteStoreDirection() throws Exception {
         logger.info(" --> initialize cluster");
         initializeCluster();
 
         logger.info(" --> set mixed cluster compatibility mode");
         setClusterMode(MIXED_MODE);
 
-        logger.info(" --> add remote nodes");
+        logger.info(" --> add remote and non-remote nodes");
         addRemote = true;
         String remoteNodeName1 = internalCluster().startNode();
         String remoteNodeName2 = internalCluster().startNode();
+        addRemote = false;
+        String nonRemoteNodeName = internalCluster().startNode();
         internalCluster().validateClusterFormed();
         DiscoveryNode remoteNode1 = assertNodeInCluster(remoteNodeName1);
         DiscoveryNode remoteNode2 = assertNodeInCluster(remoteNodeName2);
+        DiscoveryNode nonRemoteNode = assertNodeInCluster(nonRemoteNodeName);
         assertTrue(remoteNode1.isRemoteStoreNode());
         assertTrue(remoteNode2.isRemoteStoreNode());
+        assertFalse(nonRemoteNode.isRemoteStoreNode());
 
         logger.info(" --> allocate primary shard on remote node");
         client.admin()
             .indices()
             .prepareCreate(TEST_INDEX)
             .setSettings(
-                getRemoteStoreEnabledIndexSettingsBuilder(false).put("index.number_of_shards", 1)
+                getRemoteStoreBackedIndexSettingsBuilder(false).put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 1)
                     .put("index.routing.allocation.include._name", remoteNodeName1)
                     .put("index.routing.allocation.exclude._name", allNodesExcept(remoteNodeName1))
@@ -419,12 +375,12 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
         logger.info(" --> set remote_store direction");
         setDirection(REMOTE_STORE_DIRECTION);
 
-        boolean isRemoteStoreEnabledIndex = randomBoolean();
-        if (isRemoteStoreEnabledIndex) {
-            setRemoteStoreEnabledIndex();
+        boolean isRemoteStoreBackedIndex = randomBoolean();
+        if (isRemoteStoreBackedIndex) {
+            setRemoteStoreBackedIndex();
         }
         assertEquals(
-            (isRemoteStoreEnabledIndex ? "true" : null),
+            (isRemoteStoreBackedIndex ? "true" : null),
             client.admin()
                 .cluster()
                 .prepareState()
@@ -437,22 +393,14 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
                 .get(SETTING_REMOTE_STORE_ENABLED)
         );
 
-        boolean isStrictMode = randomBoolean();
-        if (isStrictMode) {
-            setClusterMode(STRICT_MODE);
-        }
-
         logger.info(" --> verify expected decision for replica shard");
         prepareDecisions();
         Decision decision = getDecisionForTargetNode(remoteNode2, false, true, false);
         assertEquals(Decision.Type.YES, decision.type());
-        String reason =
-            "[remote_store migration_direction]: replica shard copy can be allocated to a remote_store node since primary shard copy has been migrated to remote";
-        if (isStrictMode) {
-            reason =
-                "[remote_store migration_direction]: replica shard copy can be allocated to a remote_store node for strict compatibility mode";
-        }
-        assertEquals(reason, decision.getExplanation().toLowerCase(Locale.ROOT));
+        assertEquals(
+            "[remote_store migration_direction]: replica shard copy can be allocated to a remote node since primary shard copy has been migrated to remote",
+            decision.getExplanation().toLowerCase(Locale.ROOT)
+        );
 
         logger.info(" --> attempt allocation of replica shard the other remote node");
         client.admin()
@@ -474,17 +422,23 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
         assertAllocation(replicaShardRouting, remoteNode2);
     }
 
-    public void testAllocateNewReplicaShardOnNonRemoteNodeIfPrimaryShardOnNonRemoteNodeForRemoteStoreDirection() throws Exception {
+    public void testAllocateNewReplicaShardOnNonRemoteNodeIfPrimaryShardOnNonRemoteNodeForMixedModeAndRemoteStoreDirection()
+        throws Exception {
         logger.info(" --> initialize cluster");
         initializeCluster();
 
-        logger.info(" --> add non-remote nodes");
+        logger.info(" --> add remote and non-remote nodes");
+        setClusterMode(MIXED_MODE);
+        addRemote = true;
+        String remoteNodeName = internalCluster().startNode();
         addRemote = false;
         String nonRemoteNodeName1 = internalCluster().startNode();
         String nonRemoteNodeName2 = internalCluster().startNode();
         internalCluster().validateClusterFormed();
+        DiscoveryNode remoteNode = assertNodeInCluster(remoteNodeName);
         DiscoveryNode nonRemoteNode1 = assertNodeInCluster(nonRemoteNodeName1);
         DiscoveryNode nonRemoteNode2 = assertNodeInCluster(nonRemoteNodeName2);
+        assertTrue(remoteNode.isRemoteStoreNode());
         assertFalse(nonRemoteNode1.isRemoteStoreNode());
         assertFalse(nonRemoteNode2.isRemoteStoreNode());
 
@@ -493,7 +447,7 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate(TEST_INDEX)
             .setSettings(
-                getRemoteStoreEnabledIndexSettingsBuilder(false).put("index.number_of_shards", 1)
+                getRemoteStoreBackedIndexSettingsBuilder(false).put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 1)
                     .put("index.routing.allocation.include._name", nonRemoteNodeName1)
                     .put("index.routing.allocation.exclude._name", allNodesExcept(nonRemoteNodeName1))
@@ -516,21 +470,12 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
         logger.info(" --> set remote_store direction");
         setDirection(REMOTE_STORE_DIRECTION);
 
-        boolean isRemoteStoreEnabledIndex = randomBoolean();
-        if (isRemoteStoreEnabledIndex) {
-            setRemoteStoreEnabledIndex();
-
-            // to create the repositories
-            setClusterMode(MIXED_MODE);
-            addRemote = true;
-            String remoteNodeName = internalCluster().startNode();
-            internalCluster().validateClusterFormed();
-            DiscoveryNode remoteNode = assertNodeInCluster(remoteNodeName);
-            assertTrue(remoteNode.isRemoteStoreNode());
-            setClusterMode(STRICT_MODE);
+        boolean isRemoteStoreBackedIndex = randomBoolean();
+        if (isRemoteStoreBackedIndex) {
+            setRemoteStoreBackedIndex();
         }
         assertEquals(
-            (isRemoteStoreEnabledIndex ? "true" : null),
+            (isRemoteStoreBackedIndex ? "true" : null),
             client.admin()
                 .cluster()
                 .prepareState()
@@ -543,23 +488,15 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
                 .get(SETTING_REMOTE_STORE_ENABLED)
         );
 
-        boolean isMixedMode = randomBoolean();
-        if (isMixedMode) {
-            setClusterMode(MIXED_MODE);
-        }
-
         logger.info(" --> verify expected decision for replica shard");
         prepareDecisions();
         Decision decision = getDecisionForTargetNode(nonRemoteNode2, false, true, false);
         Decision.Type type = Decision.Type.YES;
-        String reason = "[remote_store migration_direction]: replica shard copy can be allocated to a non_remote_store node";
-        if (!isMixedMode) {
-            reason =
-                "[remote_store migration_direction]: replica shard copy can be allocated to a non_remote_store node for strict compatibility mode";
-        } else if (isRemoteStoreEnabledIndex) {
+        String reason = "[remote_store migration_direction]: replica shard copy can be allocated to a non-remote node";
+        if (isRemoteStoreBackedIndex) {
             type = Decision.Type.NO;
             reason =
-                "[remote_store migration_direction]: replica shard copy can not be allocated to a non_remote_store node because a remote_store_enabled index's shard copy can only move towards a remote_store node";
+                "[remote_store migration_direction]: replica shard copy can not be allocated to a non-remote node because a remote store backed index's shard copy can only be allocated to a remote node";
         }
         assertEquals(type, decision.type());
         assertEquals(reason, decision.getExplanation().toLowerCase(Locale.ROOT));
@@ -576,14 +513,14 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
             .execute()
             .actionGet();
 
-        if (!isMixedMode || !isRemoteStoreEnabledIndex) {
+        if (isRemoteStoreBackedIndex == false) {
             ensureGreen(TEST_INDEX);
 
             logger.info(" --> verify allocation of replica shard");
             routingTable = client.admin().cluster().prepareState().execute().actionGet().getState().getRoutingTable();
             replicaShardRouting = routingTable.index(TEST_INDEX).shard(0).replicaShards().get(0);
             assertAllocation(replicaShardRouting, nonRemoteNode2);
-        } else if (isRemoteStoreEnabledIndex) {
+        } else {
             ensureYellowAndNoInitializingShards(TEST_INDEX);
 
             logger.info(" --> verify non-allocation of replica shard");
@@ -593,14 +530,14 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testAllocateNewReplicaShardOnNonRemoteNodeIfPrimaryShardOnRemoteNodeForRemoteStoreDirection() throws Exception {
+    public void testAllocateNewReplicaShardOnNonRemoteNodeIfPrimaryShardOnRemoteNodeForMixedModeAndRemoteStoreDirection() throws Exception {
         logger.info(" --> initialize cluster");
         initializeCluster();
 
         logger.info(" --> set mixed cluster compatibility mode");
-        setClusterMode(MIXED_MODE);
 
         logger.info(" --> add remote and non-remote nodes");
+        setClusterMode(MIXED_MODE);
         addRemote = false;
         String nonRemoteNodeName = internalCluster().startNode();
         addRemote = true;
@@ -616,7 +553,7 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate(TEST_INDEX)
             .setSettings(
-                getRemoteStoreEnabledIndexSettingsBuilder(false).put("index.number_of_shards", 1)
+                getRemoteStoreBackedIndexSettingsBuilder(false).put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 1)
                     .put("index.routing.allocation.include._name", remoteNodeName)
                     .put("index.routing.allocation.exclude._name", allNodesExcept(remoteNodeName))
@@ -637,12 +574,12 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
         logger.info(" --> set remote_store direction");
         setDirection(REMOTE_STORE_DIRECTION);
 
-        boolean isRemoteStoreEnabledIndex = randomBoolean();
-        if (isRemoteStoreEnabledIndex) {
-            setRemoteStoreEnabledIndex();
+        boolean isRemoteStoreBackedIndex = randomBoolean();
+        if (isRemoteStoreBackedIndex) {
+            setRemoteStoreBackedIndex();
         }
         assertEquals(
-            (isRemoteStoreEnabledIndex ? "true" : null),
+            (isRemoteStoreBackedIndex ? "true" : null),
             client.admin()
                 .cluster()
                 .prepareState()
@@ -655,24 +592,16 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
                 .get(SETTING_REMOTE_STORE_ENABLED)
         );
 
-        boolean isStrictMode = randomBoolean();
-        if (isStrictMode) {
-            setClusterMode(STRICT_MODE);
-        }
-
         logger.info(" --> verify expected decision for replica shard");
         prepareDecisions();
         Decision decision = getDecisionForTargetNode(nonRemoteNode, false, true, false);
 
         Decision.Type type = Decision.Type.YES;
-        String reason = "[remote_store migration_direction]: replica shard copy can be allocated to a non_remote_store node";
-        if (isStrictMode) {
-            reason =
-                "[remote_store migration_direction]: replica shard copy can be allocated to a non_remote_store node for strict compatibility mode";
-        } else if (isRemoteStoreEnabledIndex) {
+        String reason = "[remote_store migration_direction]: replica shard copy can be allocated to a non-remote node";
+        if (isRemoteStoreBackedIndex) {
             type = Decision.Type.NO;
             reason =
-                "[remote_store migration_direction]: replica shard copy can not be allocated to a non_remote_store node because a remote_store_enabled index's shard copy can only move towards a remote_store node";
+                "[remote_store migration_direction]: replica shard copy can not be allocated to a non-remote node because a remote store backed index's shard copy can only be allocated to a remote node";
         }
         assertEquals(type, decision.type());
         assertEquals(reason, decision.getExplanation().toLowerCase(Locale.ROOT));
@@ -689,7 +618,7 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
             .execute()
             .actionGet();
 
-        if (isStrictMode || !isRemoteStoreEnabledIndex) {
+        if (isRemoteStoreBackedIndex == false) {
             ensureGreen(TEST_INDEX);
 
             logger.info(" --> verify allocation of replica shard");
@@ -704,6 +633,353 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
             replicaShardRouting = routingTable.index(TEST_INDEX).shard(0).replicaShards().get(0);
             assertNonAllocation(replicaShardRouting);
         }
+    }
+
+    // tests for STRICT mode
+
+    public void testAlwaysAllocateNewPrimaryShardToNonRemoteNodeForStrictMode() throws Exception {
+        logger.info(" --> initialize cluster");
+        initializeCluster();
+
+        logger.info(" --> add non-remote node");
+        setClusterMode(STRICT_MODE);
+        addRemote = false;
+        String nonRemoteNodeName = internalCluster().startNode();
+        internalCluster().validateClusterFormed();
+        DiscoveryNode nonRemoteNode = assertNodeInCluster(nonRemoteNodeName);
+        assertFalse(nonRemoteNode.isRemoteStoreNode());
+
+        logger.info(" --> set remote_store direction");
+        setDirection(REMOTE_STORE_DIRECTION);
+
+        logger.info(" --> verify expected decision for allocating a new primary shard on a non-remote node");
+        prepareIndex(1, 0, getRemoteStoreBackedIndexSettingsBuilder(false));
+        assertEquals(
+            null,
+            client.admin()
+                .cluster()
+                .prepareState()
+                .execute()
+                .actionGet()
+                .getState()
+                .getMetadata()
+                .index(TEST_INDEX)
+                .getSettings()
+                .get(SETTING_REMOTE_STORE_ENABLED)
+        );
+
+        Decision decision = getDecisionForTargetNode(nonRemoteNode, true, true, false);
+        assertEquals(Decision.Type.YES, decision.type());
+        assertEquals(
+            "[remote_store migration_direction]: primary shard copy can be allocated to a non-remote node for strict compatibility mode",
+            decision.getExplanation().toLowerCase(Locale.ROOT)
+        );
+
+        logger.info(" --> attempt allocation");
+        client.admin()
+            .indices()
+            .prepareUpdateSettings(TEST_INDEX)
+            .setSettings(
+                Settings.builder()
+                    .put("index.routing.allocation.include._name", nonRemoteNodeName)
+                    .put("index.routing.allocation.exclude._name", allNodesExcept(nonRemoteNodeName))
+            )
+            .execute()
+            .actionGet();
+
+        ensureGreen(TEST_INDEX);
+
+        logger.info(" --> verify allocation of primary shard");
+        RoutingTable routingTable = client.admin().cluster().prepareState().execute().actionGet().getState().getRoutingTable();
+        ShardRouting primaryShardRouting = routingTable.index(TEST_INDEX).shard(0).primaryShard();
+        assertAllocation(primaryShardRouting, nonRemoteNode);
+    }
+
+    public void testAlwaysAllocateNewPrimaryShardToRemoteNodeForStrictMode() throws Exception {
+        logger.info(" --> initialize cluster");
+        addRemote = true;
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
+        internalCluster().startNodes(1);
+        client = internalCluster().client();
+
+        logger.info(" --> add remote node");
+        setClusterMode(STRICT_MODE);
+        String remoteNodeName = internalCluster().startNode();
+        internalCluster().validateClusterFormed();
+        DiscoveryNode remoteNode = assertNodeInCluster(remoteNodeName);
+        assertTrue(remoteNode.isRemoteStoreNode());
+
+        logger.info(" --> set remote_store direction");
+        setDirection(REMOTE_STORE_DIRECTION);
+
+        logger.info(" --> verify expected decision for allocating a new primary shard on a remote node");
+
+        prepareIndex(1, 0, getRemoteStoreBackedIndexSettingsBuilder(true));
+        assertEquals(
+            "true",
+            client.admin()
+                .cluster()
+                .prepareState()
+                .execute()
+                .actionGet()
+                .getState()
+                .getMetadata()
+                .index(TEST_INDEX)
+                .getSettings()
+                .get(SETTING_REMOTE_STORE_ENABLED)
+        );
+
+        Decision decision = getDecisionForTargetNode(remoteNode, true, true, false);
+        assertEquals(Decision.Type.YES, decision.type());
+        assertEquals(
+            "[remote_store migration_direction]: primary shard copy can be allocated to a remote node for strict compatibility mode",
+            decision.getExplanation().toLowerCase(Locale.ROOT)
+        );
+
+        logger.info(" --> attempt allocation");
+        client.admin()
+            .indices()
+            .prepareUpdateSettings(TEST_INDEX)
+            .setSettings(
+                Settings.builder()
+                    .put("index.routing.allocation.include._name", remoteNodeName)
+                    .put("index.routing.allocation.exclude._name", allNodesExcept(remoteNodeName))
+            )
+            .execute()
+            .actionGet();
+
+        ensureGreen(TEST_INDEX);
+
+        logger.info(" --> verify allocation of primary shard");
+        RoutingTable routingTable = client.admin().cluster().prepareState().execute().actionGet().getState().getRoutingTable();
+        ShardRouting primaryShardRouting = routingTable.index(TEST_INDEX).shard(0).primaryShard();
+        assertAllocation(primaryShardRouting, remoteNode);
+    }
+
+    public void testAlwaysAllocateNewReplicaShardToNonRemoteNodeForStrictMode() throws Exception {
+        logger.info(" --> initialize cluster");
+        initializeCluster();
+
+        logger.info(" --> add non-remote nodes");
+        setClusterMode(STRICT_MODE);
+        addRemote = false;
+        String nonRemoteNodeName1 = internalCluster().startNode();
+        String nonRemoteNodeName2 = internalCluster().startNode();
+        internalCluster().validateClusterFormed();
+        DiscoveryNode nonRemoteNode1 = assertNodeInCluster(nonRemoteNodeName1);
+        DiscoveryNode nonRemoteNode2 = assertNodeInCluster(nonRemoteNodeName2);
+        assertFalse(nonRemoteNode1.isRemoteStoreNode());
+        assertFalse(nonRemoteNode2.isRemoteStoreNode());
+
+        logger.info(" --> allocate primary shard on non-remote node");
+        client.admin()
+            .indices()
+            .prepareCreate(TEST_INDEX)
+            .setSettings(
+                getRemoteStoreBackedIndexSettingsBuilder(false).put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 1)
+                    .put("index.routing.allocation.include._name", nonRemoteNodeName1)
+                    .put("index.routing.allocation.exclude._name", allNodesExcept(nonRemoteNodeName1))
+            )
+            .setWaitForActiveShards(ActiveShardCount.ONE)
+            .execute()
+            .actionGet();
+
+        logger.info(" --> verify allocation of primary shard");
+        RoutingTable routingTable = client.admin().cluster().prepareState().execute().actionGet().getState().getRoutingTable();
+        ShardRouting primaryShardRouting = routingTable.index(TEST_INDEX).shard(0).primaryShard();
+        assertAllocation(primaryShardRouting, nonRemoteNode1);
+
+        logger.info(" --> verify non-allocation of replica shard");
+        ShardRouting replicaShardRouting = routingTable.index(TEST_INDEX).shard(0).replicaShards().get(0);
+        assertNonAllocation(replicaShardRouting);
+
+        logger.info(" --> set remote_store direction");
+        setDirection(REMOTE_STORE_DIRECTION);
+
+        assertEquals(
+            null,
+            client.admin()
+                .cluster()
+                .prepareState()
+                .execute()
+                .actionGet()
+                .getState()
+                .getMetadata()
+                .index(TEST_INDEX)
+                .getSettings()
+                .get(SETTING_REMOTE_STORE_ENABLED)
+        );
+
+        logger.info(" --> verify expected decision for replica shard");
+        prepareDecisions();
+        Decision decision = getDecisionForTargetNode(nonRemoteNode2, false, true, false);
+        assertEquals(Decision.Type.YES, decision.type());
+        assertEquals(
+            "[remote_store migration_direction]: replica shard copy can be allocated to a non-remote node for strict compatibility mode",
+            decision.getExplanation().toLowerCase(Locale.ROOT)
+        );
+
+        logger.info(" --> attempt allocation of replica shard on remote node");
+        client.admin()
+            .indices()
+            .prepareUpdateSettings(TEST_INDEX)
+            .setSettings(
+                Settings.builder()
+                    .put("index.routing.allocation.include._name", nonRemoteNodeName2)
+                    .put("index.routing.allocation.exclude._name", allNodesExcept(nonRemoteNodeName2))
+            )
+            .execute()
+            .actionGet();
+
+        ensureGreen(TEST_INDEX);
+
+        logger.info(" --> verify allocation of replica shard");
+        routingTable = client.admin().cluster().prepareState().execute().actionGet().getState().getRoutingTable();
+        replicaShardRouting = routingTable.index(TEST_INDEX).shard(0).replicaShards().get(0);
+        assertAllocation(replicaShardRouting, nonRemoteNode2);
+    }
+
+    public void testAlwaysAllocateNewReplicaShardToRemoteNodeForStrictMode() throws Exception {
+        logger.info(" --> initialize cluster");
+        addRemote = true;
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
+        internalCluster().startNodes(1);
+        client = internalCluster().client();
+
+        logger.info(" --> add remote nodes");
+        setClusterMode(STRICT_MODE);
+        String remoteNodeName1 = internalCluster().startNode();
+        String remoteNodeName2 = internalCluster().startNode();
+        internalCluster().validateClusterFormed();
+        DiscoveryNode remoteNode1 = assertNodeInCluster(remoteNodeName1);
+        DiscoveryNode remoteNode2 = assertNodeInCluster(remoteNodeName2);
+        assertTrue(remoteNode1.isRemoteStoreNode());
+        assertTrue(remoteNode2.isRemoteStoreNode());
+
+        logger.info(" --> allocate primary shard on non-remote node");
+        client.admin()
+            .indices()
+            .prepareCreate(TEST_INDEX)
+            .setSettings(
+                getRemoteStoreBackedIndexSettingsBuilder(true).put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 1)
+                    .put("index.routing.allocation.include._name", remoteNodeName1)
+                    .put("index.routing.allocation.exclude._name", allNodesExcept(remoteNodeName1))
+            )
+            .setWaitForActiveShards(ActiveShardCount.ONE)
+            .execute()
+            .actionGet();
+
+        logger.info(" --> verify allocation of primary shard");
+        RoutingTable routingTable = client.admin().cluster().prepareState().execute().actionGet().getState().getRoutingTable();
+        ShardRouting primaryShardRouting = routingTable.index(TEST_INDEX).shard(0).primaryShard();
+        assertAllocation(primaryShardRouting, remoteNode1);
+
+        logger.info(" --> verify non-allocation of replica shard");
+        ShardRouting replicaShardRouting = routingTable.index(TEST_INDEX).shard(0).replicaShards().get(0);
+        assertNonAllocation(replicaShardRouting);
+
+        logger.info(" --> set remote_store direction");
+        setDirection(REMOTE_STORE_DIRECTION);
+
+        assertEquals(
+            "true",
+            client.admin()
+                .cluster()
+                .prepareState()
+                .execute()
+                .actionGet()
+                .getState()
+                .getMetadata()
+                .index(TEST_INDEX)
+                .getSettings()
+                .get(SETTING_REMOTE_STORE_ENABLED)
+        );
+
+        logger.info(" --> verify expected decision for replica shard");
+        prepareDecisions();
+        Decision decision = getDecisionForTargetNode(remoteNode2, false, true, false);
+        assertEquals(Decision.Type.YES, decision.type());
+        assertEquals(
+            "[remote_store migration_direction]: replica shard copy can be allocated to a remote node for strict compatibility mode",
+            decision.getExplanation().toLowerCase(Locale.ROOT)
+        );
+
+        logger.info(" --> attempt allocation of replica shard on remote node");
+        client.admin()
+            .indices()
+            .prepareUpdateSettings(TEST_INDEX)
+            .setSettings(
+                Settings.builder()
+                    .put("index.routing.allocation.include._name", remoteNodeName2)
+                    .put("index.routing.allocation.exclude._name", allNodesExcept(remoteNodeName2))
+            )
+            .execute()
+            .actionGet();
+
+        ensureGreen(TEST_INDEX);
+
+        logger.info(" --> verify allocation of replica shard");
+        routingTable = client.admin().cluster().prepareState().execute().actionGet().getState().getRoutingTable();
+        replicaShardRouting = routingTable.index(TEST_INDEX).shard(0).replicaShards().get(0);
+        assertAllocation(replicaShardRouting, remoteNode2);
+    }
+
+    // edge case
+
+    public void testDontAllocateReplicaIfPrimaryNotFound() throws Exception {
+        logger.info(" --> initialize cluster");
+        initializeCluster();
+
+        logger.info(" --> add remote and non-remote nodes");
+        setDirection(REMOTE_STORE_DIRECTION);
+        setClusterMode(MIXED_MODE);
+        addRemote = true;
+        String remoteNodeName1 = internalCluster().startNode();
+        String remoteNodeName2 = internalCluster().startNode();
+        internalCluster().validateClusterFormed();
+        DiscoveryNode remoteNode1 = assertNodeInCluster(remoteNodeName1);
+        DiscoveryNode remoteNode2 = assertNodeInCluster(remoteNodeName2);
+        assertTrue(remoteNode1.isRemoteStoreNode());
+        assertTrue(remoteNode2.isRemoteStoreNode());
+
+        logger.info(" --> allocate primary shard on remote node");
+        client.admin()
+            .indices()
+            .prepareCreate(TEST_INDEX)
+            .setSettings(
+                getRemoteStoreBackedIndexSettingsBuilder(false).put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 1)
+                    .put("index.routing.allocation.include._name", remoteNodeName1)
+                    .put("index.routing.allocation.exclude._name", allNodesExcept(remoteNodeName1))
+            )
+            .setWaitForActiveShards(ActiveShardCount.ONE)
+            .execute()
+            .actionGet();
+
+        logger.info(" --> verify allocation of primary shard");
+        RoutingTable routingTable = client.admin().cluster().prepareState().execute().actionGet().getState().getRoutingTable();
+        ShardRouting primaryShardRouting = routingTable.index(TEST_INDEX).shard(0).primaryShard();
+        assertAllocation(primaryShardRouting, remoteNode1);
+
+        logger.info(" --> verify non-allocation of replica shard");
+        ShardRouting replicaShardRouting = routingTable.index(TEST_INDEX).shard(0).replicaShards().get(0);
+        assertNonAllocation(replicaShardRouting);
+
+        logger.info(" --> drop remote node on which primary exists");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(remoteNodeName1));
+        ensureStableCluster(2);
+        ensureRed(TEST_INDEX);
+
+        logger.info(" --> verify expected decision for replica shard");
+        prepareDecisions();
+        Decision decision = getDecisionForTargetNode(remoteNode2, false, false, false);
+        assertEquals(Decision.Type.NO, decision.type());
+        assertEquals(
+            "[remote_store migration_direction]: replica shard copy can not be allocated to a remote node since primary shard for this replica is not yet active",
+            decision.getExplanation().toLowerCase(Locale.ROOT)
+        );
     }
 
     // bootstrap a cluster
@@ -748,7 +1024,7 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
         StringBuilder exclude = new StringBuilder();
         DiscoveryNodes allNodes = client.admin().cluster().prepareState().get().getState().nodes();
         for (DiscoveryNode node : allNodes) {
-            if (!(node.getName().equals(except))) {
+            if (node.getName().equals(except) == false) {
                 exclude.append(node.getName()).append(",");
             }
         }
@@ -897,9 +1173,9 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
     }
 
     // index settings builder for remote store enabled index
-    private Settings.Builder getRemoteStoreEnabledIndexSettingsBuilder(boolean isRemoteStoreEnabledIndex) {
+    private Settings.Builder getRemoteStoreBackedIndexSettingsBuilder(boolean isRemoteStoreBackedIndex) {
         Settings.Builder builder = Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
-        if (isRemoteStoreEnabledIndex) {
+        if (isRemoteStoreBackedIndex) {
             builder.put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, REPOSITORY_NAME)
                 .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, REPOSITORY_2_NAME)
                 .put(SETTING_REMOTE_STORE_ENABLED, true);
@@ -919,7 +1195,7 @@ public class RemoteStoreMigrationAllocationIT extends OpenSearchIntegTestCase {
     }
 
     // to set index as remote_store_enabled post its intialization
-    public void setRemoteStoreEnabledIndex() {
+    public void setRemoteStoreBackedIndex() {
         updatePrivateOrInternalIndexSetting(SETTING_REMOTE_STORE_ENABLED, "true");
         updatePrivateOrInternalIndexSetting(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, REPOSITORY_NAME);
         updatePrivateOrInternalIndexSetting(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, REPOSITORY_2_NAME);
