@@ -33,9 +33,9 @@
 package org.opensearch.repositories.azure;
 
 import com.azure.core.http.policy.HttpPipelinePolicy;
+import com.azure.identity.CredentialUnavailableException;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.common.policy.RequestRetryPolicy;
-import com.azure.identity.CredentialUnavailableException;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
@@ -143,13 +143,11 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
     }
 
     public void testGetStorageBlobEndpoint() throws IOException {
-        final Settings settings = Settings.builder()
-            .setSecureSettings(buildSecureSettings())
-            .build();
+        final Settings settings = Settings.builder().setSecureSettings(buildSecureSettings()).build();
 
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService;
-            final AzureStorageSettings storageSettings= azureStorageService.storageSettings.get("azure1");
+            final AzureStorageSettings storageSettings = azureStorageService.storageSettings.get("azure1");
             String primaryUri = azureStorageService.getStorageBlobEndpoint(storageSettings).getPrimaryUri();
             String secondaryUri = azureStorageService.getStorageBlobEndpoint(storageSettings).getSecondaryUri();
             assertThat(primaryUri, equalTo("https://myaccount1.blob.core.windows.net"));
@@ -165,8 +163,11 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
 
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService;
-            final AzureStorageSettings storageSettings= azureStorageService.storageSettings.get("azure1");
-            final RuntimeException e = expectThrows(RuntimeException.class, () -> azureStorageService.getStorageBlobEndpoint(storageSettings));
+            final AzureStorageSettings storageSettings = azureStorageService.storageSettings.get("azure1");
+            final RuntimeException e = expectThrows(
+                RuntimeException.class,
+                () -> azureStorageService.getStorageBlobEndpoint(storageSettings)
+            );
         }
     }
 
@@ -180,7 +181,8 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             final AzureStorageService azureStorageService = plugin.azureStoreService;
             final BlobServiceClient client1 = azureStorageService.client("azure1").v1();
 
-            // Expect the client to use managed identity for authentication, and it should fail because managed identity environment is not setup in the test
+            // Expect the client to use managed identity for authentication, and it should fail because managed identity environment is not
+            // setup in the test
             final CredentialUnavailableException e = expectThrows(CredentialUnavailableException.class, () -> client1.getAccountInfo());
             assertThat(e.getMessage(), is("Managed Identity authentication is not available."));
         }
@@ -520,8 +522,14 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             .put("azure.client.azure.token_credential_type", unsupported_token_credential_type)
             .build();
 
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> storageServiceWithSettingsValidation(settings));
-        assertEquals("No enum constant org.opensearch.repositories.azure.TokenCredentialType."+ unsupported_token_credential_type, e.getMessage());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> storageServiceWithSettingsValidation(settings)
+        );
+        assertEquals(
+            "No enum constant org.opensearch.repositories.azure.TokenCredentialType." + unsupported_token_credential_type,
+            e.getMessage()
+        );
     }
 
     public void testBuildConnectStringWhenATokenCredentialIsEnabled() {
@@ -572,7 +580,10 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         final Exception e = expectThrows(Exception.class, () -> storageServiceWithSettingsValidation(settings));
 
         // Expect failure due to missing account name
-        assertEquals("missing required setting [azure.client.azure.account] for setting [azure.client.azure.token_credential_type]", e.getMessage());
+        assertEquals(
+            "missing required setting [azure.client.azure.account] for setting [azure.client.azure.token_credential_type]",
+            e.getMessage()
+        );
     }
 
     public void testAuthenticationMethodNotProvided() {
@@ -581,9 +592,7 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         secureSettings.setString("azure.client.azure.account", "myaccount");
 
         // Disabled Managed Identity in the settings by default
-        final Settings settings = Settings.builder()
-            .setSecureSettings(secureSettings)
-            .build();
+        final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         final SettingsException e = expectThrows(SettingsException.class, () -> storageServiceWithSettingsValidation(settings));
 
         // Expect fall back to authentication via sas token or account key when token credential is not specified.
