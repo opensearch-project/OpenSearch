@@ -47,6 +47,10 @@ body:
         - Storage:Remote
         - Storage:Snapshots
         - Storage
+        - ShardManagement:Placement
+        - ShardManagement:Performance
+        - ShardManagement:Resiliency
+        - ShardManagement:Insights
     validations:
       required: true
   - type: textarea
