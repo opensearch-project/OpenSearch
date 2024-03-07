@@ -40,7 +40,7 @@ jobs:
           java-version: 11
 
       - name: Setup Gradle
-        uses: gradle/gradle-build-action@v2.9.0
+        uses: gradle/actions/setup-gradle@v3
 
       - name: Run `build.sh`
         run: |
