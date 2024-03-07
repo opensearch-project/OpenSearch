@@ -47,7 +47,7 @@ import java.util.function.Consumer;
  *
  * @opensearch.internal
  */
-class RetryListener implements RejectAwareActionListener<ScrollableHitSource.Response> {
+public class RetryListener implements RejectAwareActionListener<ScrollableHitSource.Response> {
     private final Logger logger;
     private final Iterator<TimeValue> retries;
     private final ThreadPool threadPool;
@@ -55,7 +55,7 @@ class RetryListener implements RejectAwareActionListener<ScrollableHitSource.Res
     private final ActionListener<ScrollableHitSource.Response> delegate;
     private int retryCount = 0;
 
-    RetryListener(
+    public RetryListener(
         Logger logger,
         ThreadPool threadPool,
         BackoffPolicy backoffPolicy,
@@ -84,7 +84,7 @@ class RetryListener implements RejectAwareActionListener<ScrollableHitSource.Res
         if (retries.hasNext()) {
             retryCount += 1;
             TimeValue delay = retries.next();
-            logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
+            logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay, e.getMessage()));
             schedule(() -> retryScrollHandler.accept(this), delay);
         } else {
             logger.warn(() -> new ParameterizedMessage("giving up on search because we retried [{}] times without success", retryCount), e);
