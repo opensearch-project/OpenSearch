@@ -79,10 +79,10 @@ final class AzureStorageSettings {
     );
 
     /** Azure token credentials such as Managed Identity */
-    public static final AffixSetting<String> TOKEN_CREDENTIAL_TYPE_SETTING = Setting.affixKeySetting(
+    public static final AffixSetting<TokenCredentialType> TOKEN_CREDENTIAL_TYPE_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
         "token_credential_type",
-        key -> Setting.simpleString(key, Property.NodeScope),
+        (key) -> new Setting<>(key, "not_applicable", s -> TokenCredentialType.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope),
         () -> ACCOUNT_SETTING
     );
 
@@ -205,7 +205,7 @@ final class AzureStorageSettings {
     private final String account;
     private final String connectString;
     private final String endpointSuffix;
-    private final String tokenCredentialType;
+    private final TokenCredentialType tokenCredentialType;
     private final TimeValue timeout;
     private final int maxRetries;
     private final LocationMode locationMode;
@@ -219,7 +219,7 @@ final class AzureStorageSettings {
     private AzureStorageSettings(
         String account,
         String connectString,
-        String tokenCredentialType,
+        TokenCredentialType tokenCredentialType,
         String endpointSuffix,
         TimeValue timeout,
         int maxRetries,
@@ -248,7 +248,7 @@ final class AzureStorageSettings {
             String account,
             String key,
             String sasToken,
-            String tokenCredentialType,
+            TokenCredentialType tokenCredentialType,
             String endpointSuffix,
             TimeValue timeout,
             int maxRetries,
@@ -260,7 +260,7 @@ final class AzureStorageSettings {
     ) {
         this.account = account;
         this.connectString = buildConnectString(account, key, sasToken, endpointSuffix, tokenCredentialType);
-        this.tokenCredentialType = validateTokenCredentialType(tokenCredentialType);
+        this.tokenCredentialType = tokenCredentialType;
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.maxRetries = maxRetries;
@@ -271,8 +271,8 @@ final class AzureStorageSettings {
         this.responseTimeout = responseTimeout;
         this.proxySettings = proxySettings;
     }
-    public boolean useManagedIdentityCredential() {
-        return tokenCredentialType.equals(TokenCredentialType.MANAGED_IDENTITY.name());
+    public boolean usesManagedIdentityCredential() {
+        return tokenCredentialType.equals(TokenCredentialType.MANAGED_IDENTITY);
     }
     public String getEndpointSuffix() {
         return endpointSuffix;
@@ -298,25 +298,11 @@ final class AzureStorageSettings {
         return account;
     }
 
-    private static String validateTokenCredentialType(String tokenCredentialType){
-        final boolean hasTokenCredentialType = Strings.hasText(tokenCredentialType);
-        boolean isValidTokenCredentialType = false;
-        for (TokenCredentialType type : TokenCredentialType.values()) {
-            if (Objects.equals(type.name(), tokenCredentialType)) {
-                isValidTokenCredentialType = true;
-            }
-        }
-        if (hasTokenCredentialType && !isValidTokenCredentialType) {
-            throw new SettingsException(String.format("'%s' is currently not supported.", tokenCredentialType));
-        }
-        return tokenCredentialType;
-    }
-
-    private static String buildConnectString(String account, @Nullable String key, @Nullable String sasToken, String endpointSuffix, String tokenCredentialType) {
+    private static String buildConnectString(String account, @Nullable String key, @Nullable String sasToken, String endpointSuffix, TokenCredentialType tokenCredentialType) {
         final boolean hasSasToken = Strings.hasText(sasToken);
         final boolean hasKey = Strings.hasText(key);
-        final boolean hasTokenCredentialType = Strings.hasText(tokenCredentialType);
-        // When a token credential type is declared, we are no longer using connection string
+        final boolean hasTokenCredentialType = !tokenCredentialType.equals(TokenCredentialType.NOT_APPLICABLE);
+        // When a valid token credential type is declared, we are no longer using connection string
         if (hasTokenCredentialType) {
             return "";
         }

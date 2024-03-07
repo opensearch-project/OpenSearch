@@ -180,7 +180,7 @@ public class AzureStorageService implements AutoCloseable {
         throws InvalidKeyException, URISyntaxException {
         final BlobServiceClientBuilder builder = createClientBuilder(azureStorageSettings);
         // When managed identity is enabled, no connection string will be generated, need to declare the primary uri
-        if (azureStorageSettings.useManagedIdentityCredential()) {
+        if (azureStorageSettings.usesManagedIdentityCredential()) {
             builder.endpoint(getStorageBlobEndpoint(azureStorageSettings).getPrimaryUri());
         }
         final NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(new NioThreadFactory());
@@ -237,7 +237,7 @@ public class AzureStorageService implements AutoCloseable {
      */
     private BlobServiceClientBuilder applyLocationMode(final BlobServiceClientBuilder builder, final AzureStorageSettings settings) {
         final StorageEndpoint endpoint;
-        if (settings.useManagedIdentityCredential()) {
+        if (settings.usesManagedIdentityCredential()) {
             endpoint = getStorageBlobEndpoint(settings);
         } else {
             final StorageConnectionString storageConnectionString = StorageConnectionString.create(settings.getConnectString(), logger);
@@ -274,7 +274,7 @@ public class AzureStorageService implements AutoCloseable {
 
     private static BlobServiceClientBuilder createClientBuilder(AzureStorageSettings settings) throws InvalidKeyException,
         URISyntaxException {
-        if (settings.useManagedIdentityCredential()) {
+        if (settings.usesManagedIdentityCredential()) {
             return SocketAccess.doPrivilegedException(() -> new BlobServiceClientBuilder().credential(new ManagedIdentityCredentialBuilder().build()));
         }
         return SocketAccess.doPrivilegedException(() -> new BlobServiceClientBuilder().connectionString(settings.getConnectString()));
