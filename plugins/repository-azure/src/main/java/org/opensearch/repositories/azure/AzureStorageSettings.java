@@ -245,18 +245,18 @@ final class AzureStorageSettings {
     }
 
     private AzureStorageSettings(
-            String account,
-            String key,
-            String sasToken,
-            TokenCredentialType tokenCredentialType,
-            String endpointSuffix,
-            TimeValue timeout,
-            int maxRetries,
-            TimeValue connectTimeout,
-            TimeValue writeTimeout,
-            TimeValue readTimeout,
-            TimeValue responseTimeout,
-            ProxySettings proxySettings
+        String account,
+        String key,
+        String sasToken,
+        TokenCredentialType tokenCredentialType,
+        String endpointSuffix,
+        TimeValue timeout,
+        int maxRetries,
+        TimeValue connectTimeout,
+        TimeValue writeTimeout,
+        TimeValue readTimeout,
+        TimeValue responseTimeout,
+        ProxySettings proxySettings
     ) {
         this.account = account;
         this.connectString = buildConnectString(account, key, sasToken, endpointSuffix, tokenCredentialType);
