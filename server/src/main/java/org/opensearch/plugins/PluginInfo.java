@@ -445,7 +445,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
      */
     public String getOpenSearchVersionRangesString() {
         if (opensearchVersionRanges == null || opensearchVersionRanges.isEmpty()) {
-            return "";
+            throw new IllegalStateException("Opensearch version ranges list cannot be empty");
         }
         if (opensearchVersionRanges.size() == 1) {
             return opensearchVersionRanges.get(0).toString();
