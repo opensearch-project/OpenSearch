@@ -173,4 +173,8 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
+
+    public String getType() { return type; }
+
+    public Script getScript() { return script; }
 }
