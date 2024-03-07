@@ -10,5 +10,6 @@ package org.opensearch.repositories.azure;
 
 // Type of token credentials that the plugin supports
 public enum TokenCredentialType {
-    MANAGED_IDENTITY
+    MANAGED_IDENTITY,
+    NOT_APPLICABLE
 }

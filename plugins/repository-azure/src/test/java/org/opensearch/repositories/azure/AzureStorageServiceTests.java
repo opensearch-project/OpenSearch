@@ -492,6 +492,21 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         assertThat(name, is("path/to/myfile"));
     }
 
+    public void testSettingTokenCredentialForAuthenticationIsCaseInsensitive() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        // Azure client without account key or sas token.
+        secureSettings.setString("azure.client.azure.account", "myaccount");
+
+        // Enabled Managed Identity in the settings using lower case
+        final Settings settings = Settings.builder()
+            .setSecureSettings(secureSettings)
+            .put("azure.client.azure.token_credential_type", "managed_identity")
+            .build();
+
+        final AzureStorageService mock = storageServiceWithSettingsValidation(settings);
+        assertEquals(true, mock.storageSettings.get("azure").usesManagedIdentityCredential());
+    }
+
     public void testSettingUnsupportedTokenCredentialForAuthentication() {
         final String unsupported_token_credential_type = "TOKEN_CREDENTIAL_THAT_DOES_NOT_EXIST";
         final MockSecureSettings secureSettings = new MockSecureSettings();
@@ -505,8 +520,8 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             .put("azure.client.azure.token_credential_type", unsupported_token_credential_type)
             .build();
 
-        final SettingsException e = expectThrows(SettingsException.class, () -> storageServiceWithSettingsValidation(settings));
-        assertEquals('\''+ unsupported_token_credential_type + "' is currently not supported.", e.getMessage());
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> storageServiceWithSettingsValidation(settings));
+        assertEquals("No enum constant org.opensearch.repositories.azure.TokenCredentialType."+ unsupported_token_credential_type, e.getMessage());
     }
 
     public void testBuildConnectStringWhenATokenCredentialIsEnabled() {
@@ -554,7 +569,7 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             .setSecureSettings(secureSettings)
             .put("azure.client.azure.token_credential_type", TokenCredentialType.MANAGED_IDENTITY.name())
             .build();
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> storageServiceWithSettingsValidation(settings));
+        final Exception e = expectThrows(Exception.class, () -> storageServiceWithSettingsValidation(settings));
 
         // Expect failure due to missing account name
         assertEquals("missing required setting [azure.client.azure.account] for setting [azure.client.azure.token_credential_type]", e.getMessage());
@@ -587,7 +602,7 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             .build();
 
         final AzureStorageService mock = storageServiceWithSettingsValidation(settings);
-        assertEquals(true, mock.storageSettings.get("azure").useManagedIdentityCredential());
+        assertEquals(true, mock.storageSettings.get("azure").usesManagedIdentityCredential());
     }
 
     private static MockSecureSettings buildSecureSettings() {
