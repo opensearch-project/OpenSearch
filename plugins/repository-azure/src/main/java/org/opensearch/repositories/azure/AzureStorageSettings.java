@@ -271,9 +271,11 @@ final class AzureStorageSettings {
         this.responseTimeout = responseTimeout;
         this.proxySettings = proxySettings;
     }
+
     public boolean usesManagedIdentityCredential() {
         return tokenCredentialType.equals(TokenCredentialType.MANAGED_IDENTITY);
     }
+
     public String getEndpointSuffix() {
         return endpointSuffix;
     }
