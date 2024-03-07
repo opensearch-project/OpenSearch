@@ -61,6 +61,7 @@ import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
@@ -179,7 +180,8 @@ public class NodeJoinTests extends OpenSearchTestCase {
         ClusterManagerService clusterManagerService = new ClusterManagerService(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_node").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            NoopMetricsRegistry.INSTANCE
         );
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialState);
         clusterManagerService.setClusterStatePublisher((event, publishListener, ackListener) -> {

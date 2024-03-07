@@ -72,6 +72,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.opensearch.test.ClusterServiceUtils.createNoOpNodeConnectionsService;
+import static org.opensearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -81,10 +85,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-import static org.opensearch.test.ClusterServiceUtils.createNoOpNodeConnectionsService;
-import static org.opensearch.test.ClusterServiceUtils.setState;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
 
 public class ClusterApplierServiceTests extends OpenSearchTestCase {
 
@@ -134,7 +134,8 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         TimedClusterApplierService timedClusterApplierService = new TimedClusterApplierService(
             Settings.builder().put("cluster.name", "ClusterApplierServiceTests").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool, metricsRegistry
+            threadPool,
+            metricsRegistry
         );
         timedClusterApplierService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         timedClusterApplierService.setInitialState(
@@ -673,7 +674,12 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         volatile Long currentTimeOverride = null;
         boolean applicationMayFail;
 
-        TimedClusterApplierService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, MetricsRegistry metricsRegistry) {
+        TimedClusterApplierService(
+            Settings settings,
+            ClusterSettings clusterSettings,
+            ThreadPool threadPool,
+            MetricsRegistry metricsRegistry
+        ) {
             super("test_node", settings, clusterSettings, threadPool, metricsRegistry);
             this.clusterSettings = clusterSettings;
         }

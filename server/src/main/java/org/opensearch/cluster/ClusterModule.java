@@ -100,6 +100,7 @@ import org.opensearch.search.pipeline.SearchPipelineMetadata;
 import org.opensearch.snapshots.SnapshotsInfoService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResultsService;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -143,7 +144,8 @@ public class ClusterModule extends AbstractModule {
         List<ClusterPlugin> clusterPlugins,
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
-        ThreadContext threadContext
+        ThreadContext threadContext,
+        MetricsRegistry metricsRegistry
     ) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
@@ -151,7 +153,13 @@ public class ClusterModule extends AbstractModule {
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext);
-        this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
+        this.allocationService = new AllocationService(
+            allocationDeciders,
+            shardsAllocator,
+            clusterInfoService,
+            snapshotsInfoService,
+            metricsRegistry
+        );
     }
 
     public static List<Entry> getNamedWriteables() {
