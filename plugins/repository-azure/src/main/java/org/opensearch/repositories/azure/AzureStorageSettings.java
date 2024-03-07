@@ -299,7 +299,13 @@ final class AzureStorageSettings {
         return account;
     }
 
-    private static String buildConnectString(String account, @Nullable String key, @Nullable String sasToken, String endpointSuffix, TokenCredentialType tokenCredentialType) {
+    private static String buildConnectString(
+        String account,
+        @Nullable String key,
+        @Nullable String sasToken,
+        String endpointSuffix,
+        TokenCredentialType tokenCredentialType
+    ) {
         final boolean hasSasToken = Strings.hasText(sasToken);
         final boolean hasKey = Strings.hasText(key);
         final boolean hasTokenCredentialType = !tokenCredentialType.equals(TokenCredentialType.NOT_APPLICABLE);

@@ -168,8 +168,8 @@ public class AzureStorageService implements AutoCloseable {
             if (!Strings.hasText(endpointSuffix)) {
                 endpointSuffix = "core.windows.net";
             }
-            final URI primaryBlobEndpoint = new URI(String.format("https://%s.blob.%s", settings.getAccount(), endpointSuffix));
-            final URI secondaryBlobEndpoint = new URI(String.format("https://%s-secondary.blob.%s", settings.getAccount(), endpointSuffix));
+            final URI primaryBlobEndpoint = new URI("https://" + settings.getAccount() + ".blob." + endpointSuffix);
+            final URI secondaryBlobEndpoint = new URI("https://" + settings.getAccount() + "-secondary.blob." + endpointSuffix);
             return new StorageEndpoint(primaryBlobEndpoint, secondaryBlobEndpoint);
         } catch (URISyntaxException var14) {
             throw logger.logExceptionAsError(new RuntimeException(var14));
@@ -275,7 +275,9 @@ public class AzureStorageService implements AutoCloseable {
     private static BlobServiceClientBuilder createClientBuilder(AzureStorageSettings settings) throws InvalidKeyException,
         URISyntaxException {
         if (settings.usesManagedIdentityCredential()) {
-            return SocketAccess.doPrivilegedException(() -> new BlobServiceClientBuilder().credential(new ManagedIdentityCredentialBuilder().build()));
+            return SocketAccess.doPrivilegedException(
+                () -> new BlobServiceClientBuilder().credential(new ManagedIdentityCredentialBuilder().build())
+            );
         }
         return SocketAccess.doPrivilegedException(() -> new BlobServiceClientBuilder().connectionString(settings.getConnectString()));
     }
