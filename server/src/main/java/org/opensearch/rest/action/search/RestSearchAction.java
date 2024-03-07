@@ -42,6 +42,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Booleans;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rest.BaseRestHandler;
@@ -223,6 +224,9 @@ public class RestSearchAction extends BaseRestHandler {
         }
 
         searchRequest.setCancelAfterTimeInterval(request.paramAsTime("cancel_after_time_interval", null));
+
+        // set remote address for searchRequest
+        searchRequest.remoteAddress(new TransportAddress(request.getHttpChannel().getRemoteAddress()));
     }
 
     /**

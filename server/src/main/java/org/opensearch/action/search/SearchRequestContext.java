@@ -51,6 +51,10 @@ public class SearchRequestContext {
         return phaseTookMap;
     }
 
+    public String getRequestRemoteAddress() {
+        return searchRequest.remoteAddress().toString();
+    }
+
     SearchResponse.PhaseTook getPhaseTook() {
         if (searchRequest != null && searchRequest.isPhaseTook() != null && searchRequest.isPhaseTook()) {
             return new SearchResponse.PhaseTook(phaseTookMap);

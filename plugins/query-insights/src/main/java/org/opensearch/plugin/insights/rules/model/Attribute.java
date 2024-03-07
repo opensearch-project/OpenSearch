@@ -47,23 +47,7 @@ public enum Attribute {
     /**
      * The remote address of this request
      */
-    REMOTE_ADDRESS,
-    /**
-     * Username of the user who sent this request
-     */
-    USER_NAME,
-    /**
-     * Backend roles of the user who sent this request
-     */
-    USER_BACKEND_ROLES,
-    /**
-     * Roles of the user who sent this request
-     */
-    USER_ROLES,
-    /**
-     * Tenant info of the user who sent this request
-     */
-    USER_TENANT;
+    REMOTE_ADDRESS;
 
     /**
      * Read an Attribute from a StreamInput

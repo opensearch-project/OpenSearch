@@ -71,7 +71,7 @@ public class QueryInsightsPlugin extends Plugin implements ActionPlugin {
     ) {
         // create top n queries service
         final QueryInsightsService queryInsightsService = new QueryInsightsService(threadPool);
-        return List.of(queryInsightsService, new QueryInsightsListener(clusterService, queryInsightsService, threadPool));
+        return List.of(queryInsightsService, new QueryInsightsListener(clusterService, queryInsightsService));
     }
 
     @Override

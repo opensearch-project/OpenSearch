@@ -21,8 +21,6 @@ import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.rules.model.Attribute;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
-import org.opensearch.plugin.insights.utils.ThreadContextParser;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -47,23 +45,16 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
     private static final Logger log = LogManager.getLogger(QueryInsightsListener.class);
 
     private final QueryInsightsService queryInsightsService;
-    private final ThreadPool threadPool;
 
     /**
      * Constructor for QueryInsightsListener
      *
      * @param clusterService The Node's cluster service.
      * @param queryInsightsService The topQueriesByLatencyService associated with this listener
-     * @param threadPool The OpenSearch thread pool to run async tasks
      */
     @Inject
-    public QueryInsightsListener(
-        final ClusterService clusterService,
-        final QueryInsightsService queryInsightsService,
-        final ThreadPool threadPool
-    ) {
+    public QueryInsightsListener(final ClusterService clusterService, final QueryInsightsService queryInsightsService) {
         this.queryInsightsService = queryInsightsService;
-        this.threadPool = threadPool;
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_ENABLED, v -> this.setEnableTopQueries(MetricType.LATENCY, v));
         clusterService.getClusterSettings()
@@ -147,8 +138,7 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
             attributes.put(Attribute.TOTAL_SHARDS, context.getNumShards());
             attributes.put(Attribute.INDICES, request.indices());
             attributes.put(Attribute.PHASE_LATENCY_MAP, searchRequestContext.phaseTookMap());
-            // add user related information
-            attributes.putAll(ThreadContextParser.getUserInfoFromThreadContext(threadPool.getThreadContext()));
+            attributes.put(Attribute.REMOTE_ADDRESS, searchRequestContext.getRequestRemoteAddress());
             SearchQueryRecord record = new SearchQueryRecord(request.getOrCreateAbsoluteStartMillis(), measurements, attributes);
             queryInsightsService.addRecord(record);
         } catch (Exception e) {
