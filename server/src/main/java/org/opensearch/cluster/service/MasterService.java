@@ -70,6 +70,9 @@ import org.opensearch.core.common.text.Text;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.node.Node;
+import org.opensearch.telemetry.metrics.Histogram;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -135,8 +138,10 @@ public class MasterService extends AbstractLifecycleComponent {
     protected final ClusterManagerTaskThrottler clusterManagerTaskThrottler;
     private final ClusterManagerThrottlingStats throttlingStats;
     private final ClusterStateStats stateStats;
+    private Histogram clusterStateComputeHistogram;
+    private Histogram clusterStatePublishHistogram;
 
-    public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, MetricsRegistry metricsRegistry) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
 
         this.slowTaskLoggingThreshold = CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
@@ -154,6 +159,20 @@ public class MasterService extends AbstractLifecycleComponent {
         );
         this.stateStats = new ClusterStateStats();
         this.threadPool = threadPool;
+        initializeMetrics(metricsRegistry);
+    }
+
+    private void initializeMetrics(MetricsRegistry metricsRegistry) {
+        this.clusterStateComputeHistogram = metricsRegistry.createHistogram(
+            "cluster.state.new.compute.latency",
+            "Histogram for recording time taken to compute new cluster state",
+            "ms"
+        );
+        this.clusterStatePublishHistogram = metricsRegistry.createHistogram(
+            "cluster.state.publish.success.latency",
+            "Histogram for recording time taken to publish a new cluster state",
+            "ms"
+        );
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -302,6 +321,10 @@ public class MasterService extends AbstractLifecycleComponent {
         taskOutputs.notifyFailedTasks();
         final TimeValue computationTime = getTimeSince(computationStartTime);
         logExecutionTime(computationTime, "compute cluster state update", summary);
+        clusterStateComputeHistogram.record(
+            computationTime.getMillis(),
+            Tags.create().addTag("Operation", taskInputs.executor.getClass().getSimpleName())
+        );
 
         if (taskOutputs.clusterStateUnchanged()) {
             final long notificationStartTime = threadPool.preciseRelativeTimeInNanos();
@@ -361,6 +384,7 @@ public class MasterService extends AbstractLifecycleComponent {
             final long durationMillis = getTimeSince(startTimeNanos).millis();
             stateStats.stateUpdateTook(durationMillis);
             stateStats.stateUpdated();
+            clusterStatePublishHistogram.record(durationMillis);
         } catch (Exception e) {
             stateStats.stateUpdateFailed();
             onPublicationFailed(clusterChangedEvent, taskOutputs, startTimeNanos, e);

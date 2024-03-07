@@ -68,7 +68,8 @@ public class ClusterServiceUtils {
         ClusterManagerService clusterManagerService = new ClusterManagerService(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_cluster_manager_node").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            NoopMetricsRegistry.INSTANCE
         );
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
         clusterManagerService.setClusterStatePublisher((event, publishListener, ackListener) -> {

@@ -96,7 +96,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         this(
             settings,
             clusterSettings,
-            new ClusterManagerService(settings, clusterSettings, threadPool),
+            new ClusterManagerService(settings, clusterSettings, threadPool, metricsRegistry),
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool, metricsRegistry)
         );
     }
