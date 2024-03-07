@@ -232,7 +232,7 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
     }
 
     @Override
-    protected boolean checkTermVersion() {
+    protected boolean canUseLocalNodeClusterState() {
         return true;
     }
 }

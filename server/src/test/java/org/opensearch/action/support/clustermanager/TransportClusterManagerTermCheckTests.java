@@ -189,7 +189,7 @@ public class TransportClusterManagerTermCheckTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected boolean checkTermVersion() {
+        protected boolean canUseLocalNodeClusterState() {
             return true;
         }
 
@@ -225,7 +225,7 @@ public class TransportClusterManagerTermCheckTests extends OpenSearchTestCase {
         assertThat(capturedRequest.action, equalTo("cluster:monitor/term"));
         GetTermVersionResponse response = new GetTermVersionResponse(
             clusterService.state().getClusterName(),
-            clusterService.state().stateUUID(),
+            clusterService.state().metadata().clusterUUID(),
             clusterService.state().term(),
             clusterService.state().version()
         );

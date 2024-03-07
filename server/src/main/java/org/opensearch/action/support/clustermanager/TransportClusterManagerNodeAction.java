@@ -73,9 +73,11 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import static org.opensearch.Version.CURRENT;
+import static org.opensearch.Version.V_3_0_0;
 
 /**
  * A base class for operations that needs to be performed on the cluster-manager node.
@@ -272,9 +274,12 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                         retryOnMasterChange(clusterState, null);
                     } else {
                         DiscoveryNode clusterManagerNode = nodes.getClusterManagerNode();
-                        boolean shouldCheckTerm = clusterManagerNode.getVersion().onOrAfter(CURRENT) && checkTermVersion();
-                        if (shouldCheckTerm) {
-                            execOnClusterManagerOnTermMismatch(clusterManagerNode, clusterState);
+                        if (clusterManagerNode.getVersion().onOrAfter(V_3_0_0) && canUseLocalNodeClusterState()) {
+                            BiConsumer<DiscoveryNode, ClusterState> executeOnLocalOrClusterManager = clusterStateLatestChecker(
+                                this::executeOnLocalNode,
+                                this::executeOnClusterManager
+                            );
+                            executeOnLocalOrClusterManager.accept(clusterManagerNode, clusterState);
                         } else {
                             executeOnClusterManager(clusterManagerNode, clusterState);
                         }
@@ -333,7 +338,8 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                 if (t instanceof FailedToCommitClusterStateException || t instanceof NotClusterManagerException) {
                     logger.debug(
                         () -> new ParameterizedMessage(
-                            "master could not publish cluster state or " + "stepped down before publishing action [{}], scheduling a retry",
+                            "cluster-manager could not publish cluster state or "
+                                + "stepped down before publishing action [{}], scheduling a retry",
                             actionName
                         ),
                         t
@@ -346,44 +352,58 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
             });
         }
 
-        private void execOnClusterManagerOnTermMismatch(DiscoveryNode clusterManagerNode, ClusterState clusterState) {
-            transportService.sendRequest(
-                clusterManagerNode,
-                GetTermVersionAction.NAME,
-                new GetTermVersionRequest(),
-                new TransportResponseHandler<GetTermVersionResponse>() {
-                    @Override
-                    public void handleResponse(GetTermVersionResponse response) {
-                        boolean shouldExecuteOnClusterManger = !response.matches(clusterState);
-                        if (shouldExecuteOnClusterManger) {
-                            executeOnClusterManager(clusterManagerNode, clusterState);
-                        } else {
-                            Runnable runTask = ActionRunnable.wrap(
-                                getDelegateForLocalExecute(clusterState),
-                                l -> clusterManagerOperation(task, request, clusterState, l)
+        protected BiConsumer<DiscoveryNode, ClusterState> clusterStateLatestChecker(
+            Consumer<ClusterState> onLatestWithLocalState,
+            BiConsumer<DiscoveryNode, ClusterState> onMisMatchWithLocalState
+        ) {
+            return (clusterManagerNode, clusterState) -> {
+                transportService.sendRequest(
+                    clusterManagerNode,
+                    GetTermVersionAction.NAME,
+                    new GetTermVersionRequest(),
+                    new TransportResponseHandler<GetTermVersionResponse>() {
+                        @Override
+                        public void handleResponse(GetTermVersionResponse response) {
+                            boolean isLatestClusterStatePresentOnLocalNode = response.matches(clusterState);
+                            logger.trace(
+                                "Received GetTermVersionResponse response : term {}, version {}, latest-on-local {}",
+                                response.getTerm(),
+                                response.getVersion(),
+                                isLatestClusterStatePresentOnLocalNode
                             );
-                            threadPool.executor(executor).execute(runTask);
+                            if (isLatestClusterStatePresentOnLocalNode) {
+                                onLatestWithLocalState.accept(clusterState);
+                            } else {
+                                onMisMatchWithLocalState.accept(clusterManagerNode, clusterState);
+                            }
                         }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            handleTransportException(clusterManagerNode, clusterState, exp);
+                        }
+
+                        @Override
+                        public String executor() {
+                            return ThreadPool.Names.SAME;
+                        }
+
+                        @Override
+                        public GetTermVersionResponse read(StreamInput in) throws IOException {
+                            return new GetTermVersionResponse(in);
+                        }
+
                     }
+                );
+            };
+        }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        handleTransportException(clusterManagerNode, clusterState, exp);
-                    }
-
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
-
-                    @Override
-                    public GetTermVersionResponse read(StreamInput in) throws IOException {
-                        return new GetTermVersionResponse(in);
-                    }
-
-                }
-
+        private void executeOnLocalNode(ClusterState localClusterState) {
+            Runnable runTask = ActionRunnable.wrap(
+                getDelegateForLocalExecute(localClusterState),
+                l -> clusterManagerOperation(task, request, localClusterState, l)
             );
+            threadPool.executor(executor).execute(runTask);
         }
 
         private void executeOnClusterManager(DiscoveryNode clusterManagerNode, ClusterState clusterState) {
@@ -421,7 +441,6 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                 listener.onFailure(exp);
             }
         }
-
     }
 
     /**
@@ -444,13 +463,13 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
     }
 
     /**
-     * Determines if transport action needs to check local cluster-state term with manager before
-     * executing the action on manager. This is generally true for actions that are read-only and can be executed locally
-     * on node if the term matches with cluster-manager.
-     * @return - true to perform term check and then execute the action
+     * Override to true if the transport action need NOT be executed always on cluster-manager (example Read-only actions).
+     * The action is executed locally if this method returns true AND
+     * the ClusterState on local node is in-sync with ClusterManager.
+     *
+     * @return - boolean if the action can be run locally
      */
-    protected boolean checkTermVersion() {
+    protected boolean canUseLocalNodeClusterState() {
         return false;
     }
-
 }

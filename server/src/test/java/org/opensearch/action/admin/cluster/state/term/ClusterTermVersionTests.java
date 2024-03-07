@@ -27,7 +27,7 @@ public class ClusterTermVersionTests extends OpenSearchSingleNodeTestCase {
 
         assertThat(resp.getTerm(), is(clusterState.term()));
         assertThat(resp.getVersion(), is(clusterState.version()));
-        assertThat(resp.getStateUUID(), is(clusterState.stateUUID()));
+        assertThat(resp.getClusterUUID(), is(clusterState.metadata().clusterUUID()));
         assertThat(resp.getClusterName().value().startsWith("single-node-cluster"), is(true));
     }
 }

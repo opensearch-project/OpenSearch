@@ -79,7 +79,6 @@ public class TransportGetTermVersionAction extends TransportClusterManagerNodeRe
     }
 
     private GetTermVersionResponse buildResponse(GetTermVersionRequest request, ClusterState state) {
-        logger.trace("Serving cluster term version request using term {} and version {}", state.term(), state.version());
-        return new GetTermVersionResponse(state.getClusterName(), state.stateUUID(), state.term(), state.getVersion());
+        return new GetTermVersionResponse(state.getClusterName(), state.metadata().clusterUUID(), state.term(), state.getVersion());
     }
 }

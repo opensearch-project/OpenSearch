@@ -24,13 +24,13 @@ import java.io.IOException;
 public class GetTermVersionResponse extends ActionResponse {
 
     private final ClusterName clusterName;
-    private final String stateUUID;
+    private final String clusterUUID;
     private final long term;
     private final long version;
 
-    public GetTermVersionResponse(ClusterName clusterName, String stateUUID, long term, long version) {
+    public GetTermVersionResponse(ClusterName clusterName, String clusterUUID, long term, long version) {
         this.clusterName = clusterName;
-        this.stateUUID = stateUUID;
+        this.clusterUUID = clusterUUID;
         this.term = term;
         this.version = version;
     }
@@ -38,7 +38,7 @@ public class GetTermVersionResponse extends ActionResponse {
     public GetTermVersionResponse(StreamInput in) throws IOException {
         super(in);
         this.clusterName = new ClusterName(in);
-        this.stateUUID = in.readString();
+        this.clusterUUID = in.readString();
         this.term = in.readLong();
         this.version = in.readLong();
     }
@@ -46,7 +46,7 @@ public class GetTermVersionResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         clusterName.writeTo(out);
-        out.writeString(stateUUID);
+        out.writeString(clusterUUID);
         out.writeLong(term);
         out.writeLong(version);
     }
@@ -63,13 +63,13 @@ public class GetTermVersionResponse extends ActionResponse {
         return clusterName;
     }
 
-    public String getStateUUID() {
-        return stateUUID;
+    public String getClusterUUID() {
+        return clusterUUID;
     }
 
     public boolean matches(ClusterState clusterState) {
         return clusterName.equals(clusterState.getClusterName())
-            && stateUUID.equals(clusterState.stateUUID())
+            && clusterUUID.equals(clusterState.metadata().clusterUUID())
             && term == clusterState.term()
             && version == clusterState.version();
     }
