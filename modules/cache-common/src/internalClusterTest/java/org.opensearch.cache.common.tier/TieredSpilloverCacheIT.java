@@ -60,7 +60,7 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(
-                CacheSettings.getConcreteSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
                 TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
             )
             .put(

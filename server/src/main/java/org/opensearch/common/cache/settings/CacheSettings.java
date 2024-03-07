@@ -10,7 +10,6 @@ package org.opensearch.common.cache.settings;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.CacheType;
-import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.settings.Setting;
 
 /**
@@ -26,10 +25,10 @@ public class CacheSettings {
      */
     public static final Setting.AffixSetting<String> CACHE_TYPE_STORE_NAME = Setting.suffixKeySetting(
         "store.name",
-        (key) -> Setting.simpleString(key, OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME, Setting.Property.NodeScope)
+        (key) -> Setting.simpleString(key, "", Setting.Property.NodeScope)
     );
 
-    public static Setting<String> getConcreteSettingForCacheType(CacheType cacheType) {
+    public static Setting<String> getConcreteStoreNameSettingForCacheType(CacheType cacheType) {
         return CACHE_TYPE_STORE_NAME.getConcreteSettingForNamespace(cacheType.getSettingPrefix());
     }
 }

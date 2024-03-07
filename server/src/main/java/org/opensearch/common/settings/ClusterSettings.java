@@ -733,6 +733,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING
         ),
         List.of(FeatureFlags.PLUGGABLE_CACHE),
-        List.of(CacheSettings.getConcreteSettingForCacheType(CacheType.INDICES_REQUEST_CACHE))
+        List.of(CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE))
     );
 }

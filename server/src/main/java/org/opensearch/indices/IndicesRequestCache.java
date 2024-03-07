@@ -45,15 +45,12 @@ import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.service.CacheService;
-import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
-import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -131,26 +128,17 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         long sizeInBytes = size.getBytes();
         ToLongBiFunction<Key, BytesReference> weigher = (k, v) -> k.ramBytesUsed() + v.ramBytesUsed();
         this.cacheEntityLookup = cacheEntityFunction;
-        if (FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings)) {
-            this.cache = cacheService.createCache(
-                new CacheConfig.Builder<Key, BytesReference>().setSettings(settings)
-                    .setWeigher((k, v) -> k.ramBytesUsed() + v.ramBytesUsed())
-                    .setValueType(BytesReference.class)
-                    .setKeyType(Key.class)
-                    .setRemovalListener(this)
-                    .build(),
-                CacheType.INDICES_REQUEST_CACHE
-            );
-        } else {
-            ICacheBuilder<Key, BytesReference> builder = new OpenSearchOnHeapCache.Builder<Key, BytesReference>().setSettings(settings)
-                .setMaximumWeightInBytes(sizeInBytes)
+        this.cache = cacheService.createCache(
+            new CacheConfig.Builder<Key, BytesReference>().setSettings(settings)
                 .setWeigher(weigher)
-                .setRemovalListener(this);
-            if (expire != null) {
-                builder.setExpireAfterAccess(expire);
-            }
-            this.cache = builder.build();
-        }
+                .setValueType(BytesReference.class)
+                .setKeyType(Key.class)
+                .setRemovalListener(this)
+                .setMaxSizeInBytes(sizeInBytes) // for backward compatibility
+                .setExpireAfterAccess(expire) // for backward compatibility
+                .build(),
+            CacheType.INDICES_REQUEST_CACHE
+        );
     }
 
     @Override
