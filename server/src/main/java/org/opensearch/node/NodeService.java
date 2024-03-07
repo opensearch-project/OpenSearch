@@ -34,6 +34,7 @@ package org.opensearch.node;
 
 import org.opensearch.Build;
 import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.node.info.NodeAnalysisComponents;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
@@ -49,6 +50,7 @@ import org.opensearch.discovery.Discovery;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationStatsTracker;
+import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
@@ -125,7 +127,8 @@ public class NodeService implements Closeable {
         ResourceUsageCollectorService resourceUsageCollectorService,
         SegmentReplicationStatsTracker segmentReplicationStatsTracker,
         RepositoriesService repositoriesService,
-        AdmissionControlService admissionControlService
+        AdmissionControlService admissionControlService,
+        AnalysisRegistry analysisRegistry
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -168,7 +171,8 @@ public class NodeService implements Closeable {
         boolean ingest,
         boolean aggs,
         boolean indices,
-        boolean searchPipeline
+        boolean searchPipeline,
+        boolean analyzers
     ) {
         NodeInfo.Builder builder = NodeInfo.builder(Version.CURRENT, Build.CURRENT, transportService.getLocalNode());
         if (settings) {
@@ -206,6 +210,9 @@ public class NodeService implements Closeable {
         }
         if (searchPipeline && searchPipelineService != null) {
             builder.setSearchPipelineInfo(searchPipelineService.info());
+        }
+        if (analyzers && indicesService != null && pluginService != null) {
+            builder.setNodeAnalysisComponents(new NodeAnalysisComponents(indicesService.getAnalysis(), pluginService));
         }
         return builder.build();
     }

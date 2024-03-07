@@ -82,7 +82,7 @@ public class PutSearchPipelineTransportAction extends TransportClusterManagerNod
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
+        NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().clear().addMetric(NodesInfoRequest.Metric.SEARCH_PIPELINES.metricName());
         client.admin().cluster().nodesInfo(nodesInfoRequest, ActionListener.wrap(nodeInfos -> {
             Map<DiscoveryNode, SearchPipelineInfo> searchPipelineInfos = new HashMap<>();
             for (NodeInfo nodeInfo : nodeInfos.getNodes()) {

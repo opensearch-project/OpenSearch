@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class NodeInfoTests extends OpenSearchTestCase {
 
     /**
-     * Check that the the {@link NodeInfo#getInfo(Class)} method returns null
+     * Check that the {@link NodeInfo#getInfo(Class)} method returns null
      * for absent info objects, and returns the right thing for present info
      * objects.
      */
@@ -65,6 +65,7 @@ public class NodeInfoTests extends OpenSearchTestCase {
             null,
             null,
             JvmInfo.jvmInfo(),
+            null,
             null,
             null,
             null,

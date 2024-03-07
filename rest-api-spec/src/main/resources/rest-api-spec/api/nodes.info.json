@@ -42,7 +42,8 @@
                 "transport",
                 "http",
                 "plugins",
-                "ingest"
+                "ingest",
+                "analysis_components"
               ],
               "description":"A comma-separated list of metrics you wish returned. Leave empty to return all."
             }
@@ -69,7 +70,8 @@
                 "transport",
                 "http",
                 "plugins",
-                "ingest"
+                "ingest",
+                "analysis_components"
               ],
               "description":"A comma-separated list of metrics you wish returned. Leave empty to return all."
             }

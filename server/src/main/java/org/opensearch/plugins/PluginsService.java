@@ -818,4 +818,18 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     public <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.v2().getClass())).map(p -> ((T) p.v2())).collect(Collectors.toList());
     }
+
+    /**
+     * Return {@link PluginInfo}s for filtered plugins of given type.
+     * Unlike {@link #filterPlugins(Class)} which returns only instances of T this method returns also {@link PluginInfo}
+     * for each matching plugin. The PluginInfo class can provide a lot of details about the plugin that the generic
+     * class T does not provide. For instance {@link PluginInfo#getClassname()} or {@link PluginInfo#getName()}.
+     */
+    public <T> List<Tuple<PluginInfo, T>> filterPluginsForPluginInfo(Class<T> type) {
+        List<Tuple<PluginInfo, T>> collect = plugins.stream()
+            .filter(x -> type.isAssignableFrom(x.v2().getClass()))
+            .map(tuple -> (Tuple<PluginInfo, T>) tuple)
+            .collect(Collectors.toList());
+        return collect;
+    }
 }

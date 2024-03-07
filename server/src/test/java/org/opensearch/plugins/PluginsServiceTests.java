@@ -156,6 +156,23 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertEquals(FilterablePlugin.class, scriptPlugins.get(0).getClass());
     }
 
+    public void testPluginInfoAccess() {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class, FilterablePlugin.class);
+
+        List<Tuple<PluginInfo, AdditionalSettingsPlugin1>> pluginInfos1 = service.filterPluginsForPluginInfo(
+            AdditionalSettingsPlugin1.class
+        );
+        assertEquals(1, pluginInfos1.size());
+        assertEquals("org.opensearch.plugins.PluginsServiceTests$AdditionalSettingsPlugin1", pluginInfos1.get(0).v1().getName());
+        assertEquals("org.opensearch.plugins.PluginsServiceTests$AdditionalSettingsPlugin1", pluginInfos1.get(0).v1().getClassname());
+
+        List<Tuple<PluginInfo, FilterablePlugin>> pluginInfos2 = service.filterPluginsForPluginInfo(FilterablePlugin.class);
+        assertEquals(1, pluginInfos2.size());
+        assertEquals("org.opensearch.plugins.PluginsServiceTests$FilterablePlugin", pluginInfos2.get(0).v1().getName());
+        assertEquals("org.opensearch.plugins.PluginsServiceTests$FilterablePlugin", pluginInfos2.get(0).v1().getClassname());
+    }
+
     public void testHiddenDirectories() throws IOException {
         final Path home = createTempDir();
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();

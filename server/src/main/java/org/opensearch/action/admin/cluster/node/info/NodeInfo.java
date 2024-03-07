@@ -103,6 +103,9 @@ public class NodeInfo extends BaseNodeResponse {
         if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
             addInfoIfNonNull(SearchPipelineInfo.class, in.readOptionalWriteable(SearchPipelineInfo::new));
         }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            addInfoIfNonNull(NodeAnalysisComponents.class, in.readOptionalWriteable(NodeAnalysisComponents::new));
+        }
     }
 
     public NodeInfo(
@@ -120,7 +123,8 @@ public class NodeInfo extends BaseNodeResponse {
         @Nullable IngestInfo ingest,
         @Nullable AggregationInfo aggsInfo,
         @Nullable ByteSizeValue totalIndexingBuffer,
-        @Nullable SearchPipelineInfo searchPipelineInfo
+        @Nullable SearchPipelineInfo searchPipelineInfo,
+        @Nullable NodeAnalysisComponents nodeAnalysisComponents
     ) {
         super(node);
         this.version = version;
@@ -136,6 +140,7 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(IngestInfo.class, ingest);
         addInfoIfNonNull(AggregationInfo.class, aggsInfo);
         addInfoIfNonNull(SearchPipelineInfo.class, searchPipelineInfo);
+        addInfoIfNonNull(NodeAnalysisComponents.class, nodeAnalysisComponents);
         this.totalIndexingBuffer = totalIndexingBuffer;
     }
 
@@ -227,6 +232,9 @@ public class NodeInfo extends BaseNodeResponse {
         if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeOptionalWriteable(getInfo(SearchPipelineInfo.class));
         }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalWriteable(getInfo(NodeAnalysisComponents.class));
+        }
     }
 
     public static NodeInfo.Builder builder(Version version, Build build, DiscoveryNode node) {
@@ -259,6 +267,7 @@ public class NodeInfo extends BaseNodeResponse {
         private AggregationInfo aggsInfo;
         private ByteSizeValue totalIndexingBuffer;
         private SearchPipelineInfo searchPipelineInfo;
+        private NodeAnalysisComponents nodeAnalysisComponents;
 
         public Builder setSettings(Settings settings) {
             this.settings = settings;
@@ -320,6 +329,11 @@ public class NodeInfo extends BaseNodeResponse {
             return this;
         }
 
+        public Builder setNodeAnalysisComponents(NodeAnalysisComponents nodeAnalysisComponents) {
+            this.nodeAnalysisComponents = nodeAnalysisComponents;
+            return this;
+        }
+
         public NodeInfo build() {
             return new NodeInfo(
                 version,
@@ -336,7 +350,8 @@ public class NodeInfo extends BaseNodeResponse {
                 ingest,
                 aggsInfo,
                 totalIndexingBuffer,
-                searchPipelineInfo
+                searchPipelineInfo,
+                nodeAnalysisComponents
             );
         }
 

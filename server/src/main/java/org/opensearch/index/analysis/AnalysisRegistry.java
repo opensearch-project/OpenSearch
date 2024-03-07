@@ -54,9 +54,11 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -221,6 +223,46 @@ public final class AnalysisRegistry implements Closeable {
         }
 
         return analyzerProvider.get(environment, analyzer).get();
+    }
+
+    /**
+     * Returns registered keys of {@link Analyzer}s on this node.
+     */
+    public Set<String> getNodeAnalyzersKeys() {
+        // return defensive copy so that client can do anything to it without affecting the registry content
+        return new HashSet<>(this.analyzers.keySet());
+    }
+
+    /**
+     * Returns registered keys of {@link org.apache.lucene.analysis.Tokenizer}s on this node.
+     */
+    public Set<String> getNodeTokenizersKeys() {
+        // return defensive copy so that client can do anything to it without affecting the registry content
+        return new HashSet<>(this.tokenizers.keySet());
+    }
+
+    /**
+     * Returns registered keys of {@link org.apache.lucene.analysis.TokenFilter}s on this node.
+     */
+    public Set<String> getNodeTokenFiltersKeys() {
+        // return defensive copy so that client can do anything to it without affecting the registry content
+        return new HashSet<>(this.tokenFilters.keySet());
+    }
+
+    /**
+     * Returns registered keys of {@link org.apache.lucene.analysis.CharFilter}s on this node.
+     */
+    public Set<String> getNodeCharFiltersKeys() {
+        // return defensive copy so that client can do anything to it without affecting the registry content
+        return new HashSet<>(this.charFilters.keySet());
+    }
+
+    /**
+     * Returns registered keys of Token normalizers on this node.
+     */
+    public Set<String> getNodeNormalizersKeys() {
+        // return defensive copy so that client can do anything to it without affecting the registry content
+        return new HashSet<>(this.normalizers.keySet());
     }
 
     @Override
