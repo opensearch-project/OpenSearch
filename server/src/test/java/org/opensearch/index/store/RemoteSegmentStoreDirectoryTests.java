@@ -164,6 +164,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         when(threadPool.executor(ThreadPool.Names.REMOTE_PURGE)).thenReturn(executorService);
         when(threadPool.executor(ThreadPool.Names.REMOTE_RECOVERY)).thenReturn(executorService);
+        when(threadPool.executor(ThreadPool.Names.SAME)).thenReturn(executorService);
     }
 
     @After
@@ -521,7 +522,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         assertEquals(
             "scenario 1 failed",
             expectedMdFilesForActiveSegments,
-            remoteSegmentStoreDirectory.getMetadataFilesForActiveSegments(3, sortedMdFiles, lockedMdFiles)
+            remoteSegmentStoreDirectory.getMetadataFilesToFilterActiveSegments(3, sortedMdFiles, lockedMdFiles)
         );
 
         // scenario 2: if activeSegments([[0, 1, 2], 3, 4, 5, 6(l), 7(l), 8(l), 9]) => [2, 6, 8]
@@ -533,7 +534,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         assertEquals(
             "scenario 2 failed",
             expectedMdFilesForActiveSegments,
-            remoteSegmentStoreDirectory.getMetadataFilesForActiveSegments(3, sortedMdFiles, lockedMdFiles)
+            remoteSegmentStoreDirectory.getMetadataFilesToFilterActiveSegments(3, sortedMdFiles, lockedMdFiles)
         );
 
         // scenario 3: if activeSegments([[0, 1, 2], 3, 4, 5(l), 6, 7(l), 8(l), 9]) => [3, 5, 7, 8]
@@ -545,17 +546,26 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         assertEquals(
             "scenario 3 failed",
             expectedMdFilesForActiveSegments,
-            remoteSegmentStoreDirectory.getMetadataFilesForActiveSegments(3, sortedMdFiles, lockedMdFiles)
+            remoteSegmentStoreDirectory.getMetadataFilesToFilterActiveSegments(3, sortedMdFiles, lockedMdFiles)
         );
 
-        // scenario 4: if (activeSegments([[0, 1, 2, 3]]) => []
-        sortedMdFiles = sortedMdFiles.subList(0, 4);
-        lockedMdFiles.clear();
+        // scenario 3: if activeSegments([[0(l), 1(l), 2(l), 3(l), 4(l), 5(l), 6(l), 7(l), 8(l), 9(l)])
+        lockedMdFiles.addAll(sortedMdFiles);
         expectedMdFilesForActiveSegments = Set.of();
         assertEquals(
             "scenario 4 failed",
             expectedMdFilesForActiveSegments,
-            remoteSegmentStoreDirectory.getMetadataFilesForActiveSegments(4, sortedMdFiles, lockedMdFiles)
+            remoteSegmentStoreDirectory.getMetadataFilesToFilterActiveSegments(0, sortedMdFiles, lockedMdFiles)
+        );
+
+        // scenario 5: if (activeSegments([[0, 1, 2, 3]]) => []
+        sortedMdFiles = sortedMdFiles.subList(0, 4);
+        lockedMdFiles.clear();
+        expectedMdFilesForActiveSegments = Set.of();
+        assertEquals(
+            "scenario 5 failed",
+            expectedMdFilesForActiveSegments,
+            remoteSegmentStoreDirectory.getMetadataFilesToFilterActiveSegments(4, sortedMdFiles, lockedMdFiles)
         );
     }
 
