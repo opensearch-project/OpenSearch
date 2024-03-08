@@ -721,7 +721,19 @@ public class ObjectMapper extends Mapper implements Cloneable {
         doXContent(builder, params);
 
         // sort the mappers so we get consistent serialization format
-        Mapper[] sortedMappers = mappers.values().stream().toArray(size -> new Mapper[size]);
+        Mapper[] derivedSortedMappers = mappers.values().stream()
+            .filter(m -> m instanceof DerivedFieldMapper)
+            .toArray(size -> new Mapper[size]);
+        Arrays.sort(derivedSortedMappers, new Comparator<Mapper>() {
+            @Override
+            public int compare(Mapper o1, Mapper o2) {
+                return o1.name().compareTo(o2.name());
+            }
+        });
+
+        Mapper[] sortedMappers = mappers.values().stream()
+            .filter(m -> !(m instanceof DerivedFieldMapper))
+            .toArray(size -> new Mapper[size]);
         Arrays.sort(sortedMappers, new Comparator<Mapper>() {
             @Override
             public int compare(Mapper o1, Mapper o2) {
@@ -730,6 +742,17 @@ public class ObjectMapper extends Mapper implements Cloneable {
         });
 
         int count = 0;
+        for (Mapper mapper : derivedSortedMappers) {
+            if (count++ == 0) {
+                builder.startObject("derived");
+            }
+            mapper.toXContent(builder, params);
+        }
+        if (count > 0) {
+            builder.endObject();
+        }
+
+        count = 0;
         for (Mapper mapper : sortedMappers) {
             if (!(mapper instanceof MetadataFieldMapper)) {
                 if (count++ == 0) {
