@@ -12,6 +12,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.Nullable;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.Script;
 import org.opensearch.search.lookup.SearchLookup;
@@ -73,7 +74,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
             () -> null,
             (n, c, o) -> o == null ? null : Script.parse(o),
             m -> toType(m).script
-        );
+        ).setSerializerCheck((id, ic, value) -> value != null);
 
         public Builder(String name) { super(name); }
 
@@ -137,6 +138,11 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public Query existsQuery(QueryShardContext context) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support exist queries");
+        }
+
+        @Override
         public boolean isAggregatable() { return false; }
     }
 
@@ -172,6 +178,13 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+        getMergeBuilder().toXContent(builder, includeDefaults);
+        multiFields.toXContent(builder, params);
+        copyTo.toXContent(builder, params);
     }
 
     public String getType() { return type; }
