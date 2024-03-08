@@ -978,6 +978,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
      * MultiGet with fail open enabled. No request failure on network disruption
      * @throws IOException throws exception
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10755")
     public void testMultiGetWithNetworkDisruption_FailOpenEnabled() throws Exception {
 
         Settings commonSettings = Settings.builder()
