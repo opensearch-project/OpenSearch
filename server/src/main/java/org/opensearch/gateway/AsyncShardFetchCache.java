@@ -41,9 +41,11 @@ import reactor.util.annotation.NonNull;
  * putData : how to store the response of transport action in the cache.
  * getData : how to get the stored data for any shard allocators like {@link PrimaryShardAllocator} or
  * {@link ReplicaShardAllocator}
- * deleteData : how to clean up the stored data from cache for a shard.
+ * deleteShard : how to clean up the stored data from cache for a shard.
  *
  * @param <K> Response type of transport action which has the data to be stored in the cache.
+ *
+ * @opensearch.internal
  */
 public abstract class AsyncShardFetchCache<K extends BaseNodeResponse> {
     private final Logger logger;
