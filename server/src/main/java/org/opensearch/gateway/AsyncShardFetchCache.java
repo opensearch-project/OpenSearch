@@ -30,9 +30,9 @@ import java.util.Set;
 import reactor.util.annotation.NonNull;
 
 /**
- * AsyncShardFetchCache will operate on the node level cache(Map<String, ? extends BaseNodeEntry>). initData, putData
- * and getData needs to be called for all the nodes. This class is responsible for managing the flow for all the
- * nodes.
+ * AsyncShardFetchCache will operate on the node level cache which is map of String and BaseNodeEntry. initData,
+ * putData and getData needs to be called for all the nodes. This class is responsible for managing the flow for all
+ * the nodes.
  * It'll also give useful insights like how many ongoing fetches are happening, how many nodes are left for fetch or
  * mark some node in fetching mode. All of these functionalities require checking the cache information and respond
  * accordingly.
