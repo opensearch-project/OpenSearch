@@ -40,6 +40,7 @@ import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.coordination.ClusterStateTermVersion;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -224,10 +225,12 @@ public class TransportClusterManagerTermCheckTests extends OpenSearchTestCase {
         assertTrue(capturedRequest.node.isClusterManagerNode());
         assertThat(capturedRequest.action, equalTo("cluster:monitor/term"));
         GetTermVersionResponse response = new GetTermVersionResponse(
-            clusterService.state().getClusterName(),
-            clusterService.state().metadata().clusterUUID(),
-            clusterService.state().term(),
-            clusterService.state().version()
+            new ClusterStateTermVersion(
+                clusterService.state().getClusterName(),
+                clusterService.state().metadata().clusterUUID(),
+                clusterService.state().term(),
+                clusterService.state().version()
+            )
         );
         transport.handleResponse(capturedRequest.requestId, response);
         assertTrue(listener.isDone());
@@ -248,10 +251,12 @@ public class TransportClusterManagerTermCheckTests extends OpenSearchTestCase {
         assertTrue(termCheckRequest.node.isClusterManagerNode());
         assertThat(termCheckRequest.action, equalTo("cluster:monitor/term"));
         GetTermVersionResponse termVersionResponse = new GetTermVersionResponse(
-            clusterService.state().getClusterName(),
-            clusterService.state().stateUUID(),
-            clusterService.state().term(),
-            clusterService.state().version() - 1
+            new ClusterStateTermVersion(
+                clusterService.state().getClusterName(),
+                clusterService.state().stateUUID(),
+                clusterService.state().term(),
+                clusterService.state().version() - 1
+            )
         );
         transport.handleResponse(termCheckRequest.requestId, termVersionResponse);
         assertFalse(listener.isDone());

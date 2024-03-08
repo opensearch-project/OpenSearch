@@ -14,6 +14,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.coordination.ClusterStateTermVersion;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -79,6 +80,8 @@ public class TransportGetTermVersionAction extends TransportClusterManagerNodeRe
     }
 
     private GetTermVersionResponse buildResponse(GetTermVersionRequest request, ClusterState state) {
-        return new GetTermVersionResponse(state.getClusterName(), state.metadata().clusterUUID(), state.term(), state.getVersion());
+        return new GetTermVersionResponse(
+            new ClusterStateTermVersion(state.getClusterName(), state.metadata().clusterUUID(), state.term(), state.getVersion())
+        );
     }
 }

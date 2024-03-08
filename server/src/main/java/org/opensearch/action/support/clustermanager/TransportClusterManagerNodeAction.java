@@ -366,9 +366,8 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                         public void handleResponse(GetTermVersionResponse response) {
                             boolean isLatestClusterStatePresentOnLocalNode = response.matches(clusterState);
                             logger.trace(
-                                "Received GetTermVersionResponse response : term {}, version {}, latest-on-local {}",
-                                response.getTerm(),
-                                response.getVersion(),
+                                "Received GetTermVersionResponse response : ClusterStateTermVersion {}, latest-on-local {}",
+                                response.getClusterStateTermVersion(),
                                 isLatestClusterStatePresentOnLocalNode
                             );
                             if (isLatestClusterStatePresentOnLocalNode) {

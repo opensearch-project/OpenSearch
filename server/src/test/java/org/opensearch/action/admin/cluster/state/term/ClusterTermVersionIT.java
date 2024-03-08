@@ -12,6 +12,7 @@ import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.coordination.ClusterStateTermVersion;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -113,7 +114,7 @@ public class ClusterTermVersionIT extends OpenSearchIntegTestCase {
     private void stubClusterTermResponse(String master) {
         MockTransportService primaryService = (MockTransportService) internalCluster().getInstance(TransportService.class, master);
         primaryService.addRequestHandlingBehavior(GetTermVersionAction.NAME, (handler, request, channel, task) -> {
-            channel.sendResponse(new GetTermVersionResponse(new ClusterName("test"), "1", -1, -1));
+            channel.sendResponse(new GetTermVersionResponse(new ClusterStateTermVersion(new ClusterName("test"), "1", -1, -1)));
         });
     }
 

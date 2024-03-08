@@ -8,13 +8,10 @@
 
 package org.opensearch.action.admin.cluster.state.term;
 
-import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.concurrent.ExecutionException;
-
-import static org.hamcrest.Matchers.is;
 
 public class ClusterTermVersionTests extends OpenSearchSingleNodeTestCase {
 
@@ -23,11 +20,7 @@ public class ClusterTermVersionTests extends OpenSearchSingleNodeTestCase {
         GetTermVersionResponse resp = client().execute(GetTermVersionAction.INSTANCE, request).get();
 
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        final ClusterState clusterState = clusterService.state();
 
-        assertThat(resp.getTerm(), is(clusterState.term()));
-        assertThat(resp.getVersion(), is(clusterState.version()));
-        assertThat(resp.getClusterUUID(), is(clusterState.metadata().clusterUUID()));
-        assertThat(resp.getClusterName().value().startsWith("single-node-cluster"), is(true));
+        assertTrue(resp.matches(clusterService.state()));
     }
 }
