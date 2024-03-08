@@ -89,6 +89,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;

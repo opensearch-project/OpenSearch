@@ -67,6 +67,7 @@ import org.opensearch.index.IndexComponent;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
@@ -708,6 +709,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             primaryTerm = indexMetadata.primaryTerm(shard.shardId().id());
             final Set<String> inSyncIds = indexMetadata.inSyncAllocationIds(shard.shardId().id());
             final IndexShardRoutingTable indexShardRoutingTable = routingTable.shardRoutingTable(shardRouting.shardId());
+            updateShardRoutingWithNode(indexShardRoutingTable, nodes);
             shard.updateShardState(
                 shardRouting,
                 primaryTerm,
@@ -1094,6 +1096,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
              * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
              */
             REOPENED,
+        }
+    }
+
+    private void updateShardRoutingWithNode(IndexShardRoutingTable indexShardRoutingTable, DiscoveryNodes nodes) {
+        for (ShardRouting routing : indexShardRoutingTable.assignedShards()) {
+            if (routing.relocating()) {
+                final ShardRouting targetRouting = routing.getTargetRelocatingShard();
+                targetRouting.setAssignedToRemoteStoreNode(nodes.get(targetRouting.currentNodeId()).isRemoteStoreNode());
+            }
+            routing.setAssignedToRemoteStoreNode(nodes.get(routing.currentNodeId()).isRemoteStoreNode());
         }
     }
 }

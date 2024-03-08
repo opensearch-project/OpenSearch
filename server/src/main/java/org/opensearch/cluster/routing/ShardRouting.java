@@ -75,6 +75,7 @@ public class ShardRouting implements Writeable, ToXContentObject {
     private final long expectedShardSize;
     @Nullable
     private final ShardRouting targetRelocatingShard;
+    private boolean assignedToRemoteStoreNode;
 
     /**
      * A constructor to internally create shard routing instances, note, the internal flag should only be set to true
@@ -877,5 +878,13 @@ public class ShardRouting implements Writeable, ToXContentObject {
             return unassignedInfo.getReason() == UnassignedInfo.Reason.INDEX_CREATED;
         }
         return false;
+    }
+
+    public boolean isAssignedToRemoteStoreNode() {
+        return assignedToRemoteStoreNode;
+    }
+
+    public void setAssignedToRemoteStoreNode(boolean assignedToRemoteStoreNode) {
+        this.assignedToRemoteStoreNode = assignedToRemoteStoreNode;
     }
 }

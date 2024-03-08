@@ -39,10 +39,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardCount;
-import org.opensearch.action.support.replication.ReplicationRequest;
-import org.opensearch.action.support.replication.ReplicationResponse;
-import org.opensearch.action.support.replication.ReplicationTask;
-import org.opensearch.action.support.replication.TransportReplicationAction;
+import org.opensearch.action.support.replication.*;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -196,6 +193,20 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             replica.persistRetentionLeases();
             return new ReplicaResult();
         });
+    }
+
+    @Override
+    public ReplicationMode getReplicationMode(IndexShard indexShard) {
+        /*
+        Unblock PRRL publication on both docrep and remote shard copies
+        during remote store migration. This is done deliberately to ensure
+        data consistency on remote to docrep shard copy failover during the
+        migration process.
+         */
+        if (indexShard.ongoingEngineMigration()) {
+            return ReplicationMode.FULL_REPLICATION;
+        }
+        return super.getReplicationMode(indexShard);
     }
 
     /**
