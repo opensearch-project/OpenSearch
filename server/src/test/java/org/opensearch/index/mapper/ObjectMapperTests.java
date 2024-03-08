@@ -451,7 +451,9 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .startObject("derived_field_name2")
             .field("type", "keyword")
-            .field("script", "{\"source\": \"doc['test'].value\"}")
+            .startObject("script")
+            .field("source", "doc['test'].value")
+            .endObject()
             .endObject()
             .endObject()
             .startObject("properties")
@@ -478,7 +480,7 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         assertTrue(mapper instanceof DerivedFieldMapper);
         derivedFieldMapper = (DerivedFieldMapper) mapper;
         assertEquals("keyword", derivedFieldMapper.getType());
-        assertEquals(Script.parse("{\"source\": \"doc['test'].value\"}"), derivedFieldMapper.getScript());
+        assertEquals(Script.parse("doc['test'].value"), derivedFieldMapper.getScript());
 
         // Check that field in properties was parsed correctly as well
         mapper = documentMapper.root().getMapper("field_name");
