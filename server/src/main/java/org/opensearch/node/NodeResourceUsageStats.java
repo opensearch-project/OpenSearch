@@ -46,7 +46,7 @@ public class NodeResourceUsageStats implements Writeable {
         this.timestamp = in.readLong();
         this.cpuUtilizationPercent = in.readDouble();
         this.memoryUtilizationPercent = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_13_0)) {
             this.ioUsageStats = in.readOptionalWriteable(IoUsageStats::new);
         } else {
             this.ioUsageStats = null;
@@ -59,7 +59,7 @@ public class NodeResourceUsageStats implements Writeable {
         out.writeLong(this.timestamp);
         out.writeDouble(this.cpuUtilizationPercent);
         out.writeDouble(this.memoryUtilizationPercent);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_13_0)) {
             out.writeOptionalWriteable(this.ioUsageStats);
         }
     }
