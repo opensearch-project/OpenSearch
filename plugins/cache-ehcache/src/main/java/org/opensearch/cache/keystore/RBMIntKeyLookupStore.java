@@ -28,6 +28,9 @@ import org.roaringbitmap.RoaringBitmap;
  * The store estimates its memory footprint and will stop adding more values once it reaches its memory cap.
  */
 public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
+    /** Used in settings to distinguish between keystore types. */
+    public static final String KEYSTORE_NAME = "rbm";
+
     /**
      * An enum representing modulo values for use in the keystore
      */

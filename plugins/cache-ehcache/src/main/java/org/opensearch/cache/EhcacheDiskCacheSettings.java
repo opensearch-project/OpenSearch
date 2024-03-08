@@ -8,6 +8,7 @@
 
 package org.opensearch.cache;
 
+import org.opensearch.cache.keystore.RBMIntKeyLookupStore;
 import org.opensearch.cache.store.disk.EhcacheDiskCache;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.settings.Setting;
@@ -114,16 +115,16 @@ public class EhcacheDiskCacheSettings {
     /**
      * Defines whether to use an in-memory keystore to check for probable presence of keys before having to go to disk.
      */
-    public static final Setting.AffixSetting<Boolean> USE_RBM_KEYSTORE_SETTING = Setting.suffixKeySetting(
-        EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + "use_keystore",
-        (key) -> Setting.boolSetting(key, true, NodeScope)
+    public static final Setting.AffixSetting<String> USE_KEYSTORE_SETTING = Setting.suffixKeySetting(
+        EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".keystore",
+        (key) -> Setting.simpleString(key, RBMIntKeyLookupStore.KEYSTORE_NAME, NodeScope)
     );
 
     /**
      * Defines the max size of the RBM keystore if used (as a percentage of heap memory)
      */
-    public static final Setting.AffixSetting<ByteSizeValue> RBM_KEYSTORE_SIZE_SETTING = Setting.suffixKeySetting(
-        EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + "keystore_size",
+    public static final Setting.AffixSetting<ByteSizeValue> KEYSTORE_SIZE_SETTING = Setting.suffixKeySetting(
+        EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".keystore_size",
         (key) -> Setting.memorySizeSetting(key, "0.05%", NodeScope)
     );
 
@@ -170,11 +171,11 @@ public class EhcacheDiskCacheSettings {
     /**
      * Key for whether to use RBM keystore
      */
-    public static final String USE_RBM_KEYSTORE_KEY = "use_keystore";
+    public static final String USE_KEYSTORE_KEY = "use_keystore";
     /**
      * Key for the keystore size in bytes
      */
-    public static final String RBM_KEYSTORE_SIZE_KEY = "keystore_size";
+    public static final String KEYSTORE_SIZE_KEY = "keystore_size";
 
     /**
      * Map of key to setting.
@@ -189,8 +190,8 @@ public class EhcacheDiskCacheSettings {
         Map.entry(DISK_STORAGE_PATH_KEY, DISK_STORAGE_PATH_SETTING),
         Map.entry(DISK_MAX_SIZE_IN_BYTES_KEY, DISK_CACHE_MAX_SIZE_IN_BYTES_SETTING),
         Map.entry(DISK_LISTENER_MODE_SYNC_KEY, DISK_CACHE_LISTENER_MODE_SYNC_SETTING),
-        Map.entry(USE_RBM_KEYSTORE_KEY, USE_RBM_KEYSTORE_SETTING),
-        Map.entry(RBM_KEYSTORE_SIZE_KEY, RBM_KEYSTORE_SIZE_SETTING)
+        Map.entry(USE_KEYSTORE_KEY, USE_KEYSTORE_SETTING),
+        Map.entry(KEYSTORE_SIZE_KEY, KEYSTORE_SIZE_SETTING)
     );
 
     /**

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cache.EhcacheDiskCacheSettings;
+import org.opensearch.cache.keystore.DummyKeystore;
 import org.opensearch.cache.keystore.RBMIntKeyLookupStore;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -70,8 +71,8 @@ import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_STORAGE_PATH_KE
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_WRITE_CONCURRENCY_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_WRITE_MAXIMUM_THREADS_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_WRITE_MIN_THREADS_KEY;
-import static org.opensearch.cache.EhcacheDiskCacheSettings.RBM_KEYSTORE_SIZE_KEY;
-import static org.opensearch.cache.EhcacheDiskCacheSettings.USE_RBM_KEYSTORE_KEY;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.KEYSTORE_SIZE_KEY;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.USE_KEYSTORE_KEY;
 
 /**
  * This variant of disk cache uses Ehcache underneath.
@@ -147,14 +148,14 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         this.removalListener = builder.getRemovalListener();
         this.ehCacheEventListener = new EhCacheEventListener<K, V>(builder.getRemovalListener());
         this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
-        boolean useRBMKeystore = (Boolean) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
-            .get(USE_RBM_KEYSTORE_KEY)
-            .get(settings);
-        if (useRBMKeystore) {
+        String keystoreType = (String) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType).get(USE_KEYSTORE_KEY).get(settings);
+        if (keystoreType.equals(RBMIntKeyLookupStore.KEYSTORE_NAME)) {
             long keystoreSize = ((ByteSizeValue) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
-                .get(RBM_KEYSTORE_SIZE_KEY)
+                .get(KEYSTORE_SIZE_KEY)
                 .get(settings)).getBytes();
             this.keystore = new RBMIntKeyLookupStore(keystoreSize);
+        } else {
+            this.keystore = new DummyKeystore();
         }
     }
 
@@ -253,7 +254,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
             throw new IllegalArgumentException("Key passed to ehcache disk cache was null.");
         }
         V value = null;
-        if (keystore == null || keystore.contains(key.hashCode()) || keystore.isFull()) {
+        if (keystore.contains(key.hashCode()) || keystore.isFull()) {
             try {
                 value = cache.get(key);
             } catch (CacheLoadingException ex) {
@@ -272,9 +273,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     public void put(K key, V value) {
         try {
             cache.put(key, value);
-            if (keystore != null) {
-                keystore.add(key.hashCode());
-            }
+            keystore.add(key.hashCode());
         } catch (CacheWritingException ex) {
             throw new OpenSearchException("Exception occurred while put item to ehcache disk cache");
         }
@@ -402,6 +401,14 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         } catch (CachePersistenceException e) {
             throw new OpenSearchException("Exception occurred while destroying ehcache and associated data", e);
         }
+    }
+
+    /**
+     * Returns keystore, for testing.
+     * @return keystore
+     */
+    KeyLookupStore<Integer> getKeystore() {
+        return keystore;
     }
 
     /**

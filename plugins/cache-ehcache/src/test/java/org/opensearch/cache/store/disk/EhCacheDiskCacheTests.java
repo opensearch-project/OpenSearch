@@ -9,6 +9,8 @@
 package org.opensearch.cache.store.disk;
 
 import org.opensearch.cache.EhcacheDiskCacheSettings;
+import org.opensearch.cache.keystore.DummyKeystore;
+import org.opensearch.cache.keystore.RBMIntKeyLookupStore;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
@@ -35,6 +37,7 @@ import java.util.concurrent.Phaser;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_LISTENER_MODE_SYNC_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_MAX_SIZE_IN_BYTES_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_STORAGE_PATH_KEY;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.USE_KEYSTORE_KEY;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
@@ -477,6 +480,97 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             countDownLatch.await();
 
             assertEquals(0, ((EhcacheDiskCache) ehcacheTest).getCompletableFutureMap().size());
+            ehcacheTest.close();
+        }
+    }
+
+    public void testKeystoreSettings() throws Exception {
+        Settings useRBMsettings = Settings.builder()
+            .put(
+                EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE).get(USE_KEYSTORE_KEY).getKey(),
+                RBMIntKeyLookupStore.KEYSTORE_NAME
+            )
+            .build();
+
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        try (NodeEnvironment env = newNodeEnvironment(Settings.EMPTY)) {
+            EhcacheDiskCache<String, String> ehcacheTest = (EhcacheDiskCache<String, String>) new EhcacheDiskCache.Builder<String, String>()
+                .setDiskCacheAlias("test1")
+                .setThreadPoolAlias("ehcacheTest")
+                .setIsEventListenerModeSync(true)
+                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setSettings(useRBMsettings)
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setRemovalListener(removalListener)
+                .build();
+            assertEquals(RBMIntKeyLookupStore.class, ehcacheTest.getKeystore().getClass());
+            ehcacheTest.close();
+        }
+
+        Settings useDummySettings = Settings.builder()
+            .put(
+                EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE).get(USE_KEYSTORE_KEY).getKey(),
+                "unrecognized_name"
+            )
+            .build();
+
+        try (NodeEnvironment env = newNodeEnvironment(Settings.EMPTY)) {
+            EhcacheDiskCache<String, String> ehcacheTest = (EhcacheDiskCache<String, String>) new EhcacheDiskCache.Builder<String, String>()
+                .setDiskCacheAlias("test1")
+                .setThreadPoolAlias("ehcacheTest")
+                .setIsEventListenerModeSync(true)
+                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setSettings(useDummySettings)
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setRemovalListener(removalListener)
+                .build();
+            assertEquals(DummyKeystore.class, ehcacheTest.getKeystore().getClass());
+
+            // Also test the dummy keystore doesn't incorrectly block any gets
+            int numKeys = 50;
+            Map<String, String> keyValueMap = new HashMap<>();
+            for (int i = 0; i < numKeys; i++) {
+                String key = generateRandomString(50);
+                String value = generateRandomString(50);
+                keyValueMap.put(key, value);
+                ehcacheTest.put(key, value);
+            }
+            for (String key : keyValueMap.keySet()) {
+                assertEquals(keyValueMap.get(key), ehcacheTest.get(key));
+            }
+            ehcacheTest.close();
+        }
+
+        // Check the factory correctly gives RBM keystore
+        try (NodeEnvironment env = newNodeEnvironment(Settings.EMPTY)) {
+            ICache.Factory ehcacheFactory = new EhcacheDiskCache.EhcacheDiskCacheFactory();
+            EhcacheDiskCache<String, String> ehcacheTest = (EhcacheDiskCache<String, String>) ehcacheFactory.create(
+                new CacheConfig.Builder<String, String>().setValueType(String.class)
+                    .setKeyType(String.class)
+                    .setRemovalListener(removalListener)
+                    .setSettings(
+                        Settings.builder()
+                            .put(
+                                EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                                    .get(DISK_STORAGE_PATH_KEY)
+                                    .getKey(),
+                                env.nodePaths()[0].indicesPath.toString() + "/request_cache"
+                            )
+                            .build()
+                    )
+                    .build(),
+                CacheType.INDICES_REQUEST_CACHE,
+                Map.of()
+            );
+            assertEquals(RBMIntKeyLookupStore.class, ehcacheTest.getKeystore().getClass());
             ehcacheTest.close();
         }
     }
