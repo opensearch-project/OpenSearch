@@ -64,6 +64,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.lease.Releasable;
@@ -683,6 +684,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 }
                 return new InternalTranslogFactory();
             };
+            final ClusterService clusterService = BlobStoreTestUtil.mockClusterService();
             indexShard = new IndexShard(
                 routing,
                 indexSettings,
@@ -711,7 +713,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
                 "dummy-node",
                 DefaultRecoverySettings.INSTANCE,
-                false
+                false,
+                clusterService
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {

@@ -8,13 +8,20 @@
 
 package org.opensearch.index.remote;
 
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 
 /**
  * Utils for remote store
@@ -101,4 +108,17 @@ public class RemoteStoreUtils {
         });
     }
 
+
+    /**
+     * Helper method to check the values for the following cluster settings:
+     * - `remote_store.compatibility_mode` (should be `mixed`)
+     * - `migration.direction` (should NOT be `none`)
+     * Used as a source of truth to confirm if a remote store migration is in progress
+     * @param clusterService Current clusterService ref to fetch cluster settings
+     */
+    public static boolean isMigrationDirectionSet(ClusterService clusterService) {
+        RemoteStoreNodeService.Direction migrationDirection = clusterService.getClusterSettings().get(MIGRATION_DIRECTION_SETTING);
+        RemoteStoreNodeService.CompatibilityMode currentCompatiblityMode = clusterService.getClusterSettings().get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING);
+        return currentCompatiblityMode.equals(RemoteStoreNodeService.CompatibilityMode.MIXED) == true && migrationDirection.equals(RemoteStoreNodeService.Direction.NONE) == false;
+    }
 }

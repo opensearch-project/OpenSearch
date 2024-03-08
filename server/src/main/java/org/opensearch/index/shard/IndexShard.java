@@ -72,6 +72,7 @@ import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
@@ -149,6 +150,7 @@ import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.search.stats.ShardSearchStats;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -355,6 +357,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      On source remote node , it will be REMOTE_MIGRATING_UNSEEDED when relocating from docrep node
      */
     private final ShardMigrationState shardMigrationState;
+    private final ClusterService clusterService;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -384,7 +387,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier,
         final String nodeId,
         final RecoverySettings recoverySettings,
-        boolean seedRemote
+        boolean seedRemote,
+        ClusterService clusterService
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -483,6 +487,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.recoverySettings = recoverySettings;
         this.fileDownloader = new RemoteStoreFileDownloader(shardRouting.shardId(), threadPool, recoverySettings);
         this.shardMigrationState = getShardMigrationState(indexSettings, seedRemote);
+        this.clusterService = clusterService;
     }
 
     public ThreadPool getThreadPool() {
@@ -3489,7 +3494,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              * update local checkpoint at replica, so the local checkpoint at replica can be less than globalCheckpoint.
              */
             assert (state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED)
-                || indexSettings.isRemoteTranslogStoreEnabled() : "supposedly in-sync shard copy received a global checkpoint ["
+                || indexSettings.isRemoteTranslogStoreEnabled() || indexSettings.isRemoteNode() : "supposedly in-sync shard copy received a global checkpoint ["
                     + globalCheckpoint
                     + "] "
                     + "that is higher than its local checkpoint ["

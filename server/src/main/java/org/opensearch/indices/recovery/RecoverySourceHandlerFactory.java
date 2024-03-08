@@ -24,7 +24,7 @@ public class RecoverySourceHandlerFactory {
         RecoverySettings recoverySettings
     ) {
         boolean isReplicaRecoveryWithRemoteTranslog = request.isPrimaryRelocation() == false
-            && (shard.isRemoteTranslogEnabled() || shard.isMigratingToRemote());
+            && (shard.isRemoteTranslogEnabled() || shard.isMigratingToRemote()) && request.targetNode().isRemoteStoreNode();
         if (isReplicaRecoveryWithRemoteTranslog) {
             return new RemoteStorePeerRecoverySourceHandler(
                 shard,

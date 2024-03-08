@@ -98,7 +98,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
 
     @Override
     public ReplicationMode getReplicationMode(IndexShard indexShard) {
-        if (indexShard.isRemoteTranslogEnabled()) {
+        if (indexShard.isRemoteTranslogEnabled() || indexShard.routingEntry().isAssignedToRemoteStoreNode()) {
             return ReplicationMode.FULL_REPLICATION;
         }
         return super.getReplicationMode(indexShard);
@@ -199,6 +199,11 @@ public class PublishCheckpointAction extends TransportReplicationAction<
         Objects.requireNonNull(replica);
         ActionListener.completeWith(listener, () -> {
             logger.trace(() -> new ParameterizedMessage("Checkpoint {} received on replica {}", request, replica.shardId()));
+            // Ignore replica operation if there is an ongoing remote store migration and the replica copy is assigned to a docrep enabled node
+            if (replica.ongoingEngineMigration() == true && replica.routingEntry().isAssignedToRemoteStoreNode() == false) {
+                logger.trace("Received segrep checkpoint on a docrep shard copy during an ongoing remote migration. NoOp.");
+                return new ReplicaResult();
+            }
             if (request.getCheckpoint().getShardId().equals(replica.shardId())) {
                 replicationService.onNewCheckpoint(request.getCheckpoint(), replica);
             }

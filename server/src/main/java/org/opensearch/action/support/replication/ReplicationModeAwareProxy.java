@@ -9,6 +9,7 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.action.support.replication.ReplicationOperation.ReplicaResponse;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.core.action.ActionListener;
 
@@ -60,16 +61,21 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
 
     @Override
     ReplicationMode determineReplicationMode(ShardRouting shardRouting, ShardRouting primaryRouting) {
-
         // If the current routing is the primary, then it does not need to be replicated
         if (shardRouting.isSameAllocation(primaryRouting)) {
             return ReplicationMode.NO_REPLICATION;
         }
-
+        // Perform full replication during primary failover
         if (primaryRouting.relocating() && shardRouting.isSameAllocation(primaryRouting.getTargetRelocatingShard())) {
             return ReplicationMode.FULL_REPLICATION;
         }
-
+        /*
+         Perform full replication if replica is hosted on a non-remote node.
+         Only applicable during remote migration
+         */
+        if (shardRouting.isAssignedToRemoteStoreNode() == false) {
+            return ReplicationMode.FULL_REPLICATION;
+        }
         return replicationModeOverride;
     }
 }

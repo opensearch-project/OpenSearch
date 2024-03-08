@@ -40,10 +40,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.WriteResponse;
-import org.opensearch.action.support.replication.ReplicatedWriteRequest;
-import org.opensearch.action.support.replication.ReplicationResponse;
-import org.opensearch.action.support.replication.ReplicationTask;
-import org.opensearch.action.support.replication.TransportWriteAction;
+import org.opensearch.action.support.replication.*;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.service.ClusterService;
@@ -207,6 +204,15 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
             replica.persistRetentionLeases();
             return new WriteReplicaResult<>(request, null, null, replica, getLogger());
         });
+    }
+
+    @Override
+    public ReplicationMode getReplicationMode(IndexShard indexShard) {
+        // Unblock PRRL publication during remote store migration
+        if (indexShard.ongoingEngineMigration()) {
+            return ReplicationMode.FULL_REPLICATION;
+        }
+        return super.getReplicationMode(indexShard);
     }
 
     @Override
