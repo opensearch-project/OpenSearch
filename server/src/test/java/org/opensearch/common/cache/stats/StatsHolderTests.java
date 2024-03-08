@@ -10,6 +10,7 @@ package org.opensearch.common.cache.stats;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.test.OpenSearchTestCase;
@@ -29,7 +30,7 @@ public class StatsHolderTests extends OpenSearchTestCase {
     // in MultiDimensionCacheStatsTests.java.
     public void testSerialization() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2");
-        StatsHolder statsHolder = new StatsHolder(dimensionNames, 10_000);
+        StatsHolder statsHolder = new StatsHolder(dimensionNames, getSettings(10_000));
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
         populateStats(statsHolder, usedDimensionValues, 100, 10);
 
@@ -39,18 +40,6 @@ public class StatsHolderTests extends OpenSearchTestCase {
         StatsHolder deserialized = new StatsHolder(is);
 
         checkStatsHolderEquality(statsHolder, deserialized);
-    }
-
-    public void testExceedsCap() throws Exception {
-        List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
-        StatsHolder statsHolder = new StatsHolder(dimensionNames, 1000);
-        Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 100);
-
-        // Try a few more than MAX_DIMENSION_VALUES times because there can be collisions in the randomly selected dimension values
-        assertThrows(
-            RuntimeException.class,
-            () -> populateStats(statsHolder, usedDimensionValues, (int) (statsHolder.maxDimensionValues * 1.1), 10)
-        );
     }
 
     public void testKeyEquality() throws Exception {
@@ -72,7 +61,7 @@ public class StatsHolderTests extends OpenSearchTestCase {
 
     public void testReset() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2");
-        StatsHolder statsHolder = new StatsHolder(dimensionNames);
+        StatsHolder statsHolder = new StatsHolder(dimensionNames, getSettings(20_000));
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
         Map<Set<CacheStatsDimension>, CacheStatsResponse> expected = populateStats(statsHolder, usedDimensionValues, 100, 10);
 
@@ -85,7 +74,7 @@ public class StatsHolderTests extends OpenSearchTestCase {
             originalResponse.entries = new CounterMetric();
 
             StatsHolder.Key key = new StatsHolder.Key(dimSet);
-            CacheStatsResponse actual = statsHolder.getMap().get(key);
+            CacheStatsResponse actual = statsHolder.getStatsMap().get(key);
             assertEquals(originalResponse, actual);
         }
 
@@ -100,8 +89,12 @@ public class StatsHolderTests extends OpenSearchTestCase {
     }
 
     static void checkStatsHolderEquality(StatsHolder statsHolder, StatsHolder deserialized) {
-        assertEquals(statsHolder.getMap(), deserialized.getMap());
+        assertEquals(statsHolder.getStatsMap(), deserialized.getStatsMap());
         assertEquals(statsHolder.getDimensionNames(), deserialized.getDimensionNames());
         assertEquals(statsHolder.totalStats, deserialized.totalStats);
+    }
+
+    static Settings getSettings(int maxDimensionValues) {
+        return Settings.builder().put(StatsHolder.MAX_DIMENSION_VALUES_SETTING.getKey(), maxDimensionValues).build();
     }
 }

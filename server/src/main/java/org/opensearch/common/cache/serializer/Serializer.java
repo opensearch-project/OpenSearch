@@ -9,7 +9,7 @@
 package org.opensearch.common.cache.serializer;
 
 /**
- * An interface for serializers, to be used in disk caching tier and elsewhere.
+ * Defines an interface for serializers, to be used by pluggable caches.
  * T is the class of the original object, and U is the serialized class.
  */
 public interface Serializer<T, U> {

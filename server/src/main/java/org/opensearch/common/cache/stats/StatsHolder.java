@@ -8,6 +8,10 @@
 
 package org.opensearch.common.cache.stats;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -22,6 +26,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiConsumer;
 
+import static org.opensearch.common.settings.Setting.Property.NodeScope;
+
 /**
  * A class caches use to internally keep track of their stats across multiple dimensions. Not intended to be exposed outside the cache.
  */
@@ -29,26 +35,24 @@ public class StatsHolder implements Writeable {
     /**
      * For memory purposes, don't track stats for more than this many distinct combinations of dimension values.
      */
-    public final static int DEFAULT_MAX_DIMENSION_VALUES = 20_000;
+    public static final Setting<Integer> MAX_DIMENSION_VALUES_SETTING = Setting.intSetting("cache.stats.max_dimension", 20_000, NodeScope);
 
     // The list of permitted dimensions.
     private final List<String> dimensionNames;
 
     // A map from a set of cache stats dimensions -> stats for that combination of dimensions.
-    private final ConcurrentMap<Key, CacheStatsResponse> map;
+    private final ConcurrentMap<Key, CacheStatsResponse> statsMap;
 
-    final int maxDimensionValues;
+    int maxDimensionValues;
     CacheStatsResponse totalStats;
 
-    public StatsHolder(List<String> dimensionNames, int maxDimensionValues) {
-        this.dimensionNames = dimensionNames;
-        this.map = new ConcurrentHashMap<>();
-        this.totalStats = new CacheStatsResponse();
-        this.maxDimensionValues = maxDimensionValues;
-    }
+    private final Logger logger = LogManager.getLogger(StatsHolder.class);
 
-    public StatsHolder(List<String> dimensionNames) {
-        this(dimensionNames, DEFAULT_MAX_DIMENSION_VALUES);
+    public StatsHolder(List<String> dimensionNames, Settings settings) {
+        this.dimensionNames = dimensionNames;
+        this.statsMap = new ConcurrentHashMap<>();
+        this.totalStats = new CacheStatsResponse();
+        this.maxDimensionValues = MAX_DIMENSION_VALUES_SETTING.get(settings);
     }
 
     public StatsHolder(StreamInput in) throws IOException {
@@ -57,7 +61,7 @@ public class StatsHolder implements Writeable {
             i -> new Key(Set.of(i.readArray(CacheStatsDimension::new, CacheStatsDimension[]::new))),
             CacheStatsResponse::new
         );
-        this.map = new ConcurrentHashMap<Key, CacheStatsResponse>(readMap);
+        this.statsMap = new ConcurrentHashMap<Key, CacheStatsResponse>(readMap);
         this.totalStats = new CacheStatsResponse(in);
         this.maxDimensionValues = in.readVInt();
     }
@@ -66,8 +70,8 @@ public class StatsHolder implements Writeable {
         return dimensionNames;
     }
 
-    public ConcurrentMap<Key, CacheStatsResponse> getMap() {
-        return map;
+    public ConcurrentMap<Key, CacheStatsResponse> getStatsMap() {
+        return statsMap;
     }
 
     public CacheStatsResponse getTotalStats() {
@@ -102,8 +106,8 @@ public class StatsHolder implements Writeable {
      * Reset number of entries and memory size when all keys leave the cache, but don't reset hit/miss/eviction numbers
      */
     public void reset() {
-        for (Key key : map.keySet()) {
-            CacheStatsResponse response = map.get(key);
+        for (Key key : statsMap.keySet()) {
+            CacheStatsResponse response = statsMap.get(key);
             response.memorySize.dec(response.getMemorySize());
             response.entries.dec(response.getEntries());
         }
@@ -124,13 +128,14 @@ public class StatsHolder implements Writeable {
 
     private CacheStatsResponse internalGetStats(List<CacheStatsDimension> dimensions) {
         assert dimensions.size() == dimensionNames.size();
-        CacheStatsResponse response = map.get(new Key(dimensions));
+        CacheStatsResponse response = statsMap.get(new Key(dimensions));
         if (response == null) {
-            if (map.size() < maxDimensionValues) {
-                response = new CacheStatsResponse();
-                map.put(new Key(dimensions), response);
-            } else {
-                throw new RuntimeException("Cannot add new combination of dimension values to stats object; reached maximum");
+            response = new CacheStatsResponse();
+            statsMap.put(new Key(dimensions), response);
+            if (statsMap.size() > maxDimensionValues) {
+                logger.warn(
+                    "Added " + statsMap.size() + "th combination of dimension values to StatsHolder; limit set to " + maxDimensionValues
+                );
             }
         }
         return response;
@@ -140,7 +145,7 @@ public class StatsHolder implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(dimensionNames.toArray(new String[0]));
         out.writeMap(
-            map,
+            statsMap,
             (o, key) -> o.writeArray((o1, dim) -> ((CacheStatsDimension) dim).writeTo(o1), key.dimensions.toArray()),
             (o, response) -> response.writeTo(o)
         );

@@ -29,7 +29,7 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2");
-        StatsHolder statsHolder = new StatsHolder(dimensionNames, 10_000);
+        StatsHolder statsHolder = new StatsHolder(dimensionNames, StatsHolderTests.getSettings(20_000));
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
         populateStats(statsHolder, usedDimensionValues, 100, 10);
         MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder, tierDimensionValue);
@@ -45,7 +45,7 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
 
     public void testAddAndGet() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
-        StatsHolder statsHolder = new StatsHolder(dimensionNames, 10_000);
+        StatsHolder statsHolder = new StatsHolder(dimensionNames, StatsHolderTests.getSettings(20_000));
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
 
         Map<Set<CacheStatsDimension>, CacheStatsResponse> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
@@ -107,7 +107,7 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
 
     public void testEmptyDimsList() throws Exception {
         // If the dimension list is empty, the map should have only one entry, from the empty set -> the total stats.
-        StatsHolder statsHolder = new StatsHolder(List.of());
+        StatsHolder statsHolder = new StatsHolder(List.of(), StatsHolderTests.getSettings(20_000));
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 100);
         populateStats(statsHolder, usedDimensionValues, 10, 100);
         MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder, tierDimensionValue);
@@ -118,12 +118,12 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         assertEquals(stats.getTotalEvictions(), stats.getEvictionsByDimensions(List.of()));
         assertEquals(stats.getTotalMemorySize(), stats.getMemorySizeByDimensions(List.of()));
         assertEquals(stats.getTotalEntries(), stats.getEntriesByDimensions(List.of()));
-        assertEquals(1, stats.statsHolder.getMap().size());
+        assertEquals(1, stats.statsHolder.getStatsMap().size());
     }
 
     public void testTierLogic() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
-        StatsHolder statsHolder = new StatsHolder(dimensionNames);
+        StatsHolder statsHolder = new StatsHolder(dimensionNames, StatsHolderTests.getSettings(20_000));
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
         Map<Set<CacheStatsDimension>, CacheStatsResponse> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
         MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder, tierDimensionValue);

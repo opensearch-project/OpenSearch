@@ -8,6 +8,7 @@
 
 package org.opensearch.common.cache.serializer;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.stats.CacheStatsDimension;
@@ -36,6 +37,17 @@ public class ICacheKeySerializerTests extends OpenSearchTestCase {
             assertEquals(key, deserialized);
             assertTrue(serializer.equals(deserialized, serialized));
         }
+    }
+
+    public void testInvalidInput() throws Exception {
+        BytesReferenceSerializer keySer = new BytesReferenceSerializer();
+        ICacheKeySerializer<BytesReference> serializer = new ICacheKeySerializer<>(keySer);
+
+        Random rand = Randomness.get();
+        byte[] randomInput = new byte[1000];
+        rand.nextBytes(randomInput);
+
+        assertThrows(OpenSearchException.class, () -> serializer.deserialize(randomInput));
     }
 
     public void testDimNumbers() throws Exception {

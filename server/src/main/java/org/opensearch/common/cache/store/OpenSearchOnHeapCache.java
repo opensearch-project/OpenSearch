@@ -58,7 +58,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         }
         cache = cacheBuilder.build();
         this.dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
-        this.statsHolder = new StatsHolder(dimensionNames);
+        this.statsHolder = new StatsHolder(dimensionNames, builder.getSettings());
         this.removalListener = builder.getRemovalListener();
     }
 
@@ -157,6 +157,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
                 .setMaximumWeightInBytes(((ByteSizeValue) settingList.get(MAXIMUM_SIZE_IN_BYTES_KEY).get(settings)).getBytes())
                 .setWeigher(config.getWeigher())
                 .setRemovalListener(config.getRemovalListener())
+                .setSettings(settings)
                 .build();
         }
 

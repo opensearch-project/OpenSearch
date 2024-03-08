@@ -79,7 +79,7 @@ public class MultiDimensionCacheStats implements CacheStats {
                 modifiedDimensions.remove(tierDim);
             }
 
-            ConcurrentMap<StatsHolder.Key, CacheStatsResponse> map = statsHolder.getMap();
+            ConcurrentMap<StatsHolder.Key, CacheStatsResponse> map = statsHolder.getStatsMap();
 
             CacheStatsResponse response = new CacheStatsResponse();
 

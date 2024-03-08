@@ -30,7 +30,6 @@ import java.util.Objects;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
-import java.util.function.ToLongBiFunction;
 
 /**
  * This cache spillover the evicted items from heap tier to disk tier. All the new items are first cached on heap
@@ -53,7 +52,6 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     private final RemovalListener<ICacheKey<K>, V> removalListener;
     private final CacheStats stats;
     private final List<String> dimensionNames;
-    private ToLongBiFunction<ICacheKey<K>, V> weigher;
     ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     ReleasableLock readLock = new ReleasableLock(readWriteLock.readLock());
     ReleasableLock writeLock = new ReleasableLock(readWriteLock.writeLock());

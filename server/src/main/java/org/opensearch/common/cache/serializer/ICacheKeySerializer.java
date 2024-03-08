@@ -8,6 +8,8 @@
 
 package org.opensearch.common.cache.serializer;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.stats.CacheStatsDimension;
@@ -22,7 +24,8 @@ import java.util.List;
 
 public class ICacheKeySerializer<K> implements Serializer<ICacheKey<K>, byte[]> {
 
-    public Serializer<K, byte[]> keySerializer;
+    public final Serializer<K, byte[]> keySerializer;
+    private final Logger logger = LogManager.getLogger(ICacheKeySerializer.class);
 
     public ICacheKeySerializer(Serializer<K, byte[]> serializer) {
         this.keySerializer = serializer;
@@ -41,11 +44,12 @@ public class ICacheKeySerializer<K> implements Serializer<ICacheKey<K>, byte[]> 
             for (CacheStatsDimension dim : object.dimensions) {
                 dim.writeTo(os);
             }
-            os.writeVInt(serializedKey.length); // ?? Is the read byte[] fn broken such that we have to do this?
-            os.writeBytes(serializedKey); // TODO: Is this re-copying unnecessarily? Come back to this
+            os.writeVInt(serializedKey.length); // The read byte[] fn seems to not work as expected
+            os.writeBytes(serializedKey);
             byte[] finalBytes = BytesReference.toBytes(os.bytes());
             return finalBytes;
         } catch (IOException e) {
+            logger.debug("Could not write ICacheKey to byte[]");
             throw new OpenSearchException(e);
         }
     }
@@ -65,9 +69,10 @@ public class ICacheKeySerializer<K> implements Serializer<ICacheKey<K>, byte[]> 
 
             int length = is.readVInt();
             byte[] serializedKey = new byte[length];
-            is.readBytes(serializedKey, 0, length); // not sure why is.readByteArray doesn't work??
+            is.readBytes(serializedKey, 0, length);
             return new ICacheKey<>(keySerializer.deserialize(serializedKey), dimensionList);
         } catch (IOException e) {
+            logger.debug("Could not write byte[] to ICacheKey");
             throw new OpenSearchException(e);
         }
     }

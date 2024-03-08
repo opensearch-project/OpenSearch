@@ -13,7 +13,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import java.util.List;
 
 /**
- * Interface for access to any cache specific stats. Allows accessing stats by total value or by dimension,
+ * Interface for access to any cache stats. Allows accessing stats by dimension values.
  */
 public interface CacheStats extends Writeable {// TODO: also extends ToXContentFragment (in API PR)
 
