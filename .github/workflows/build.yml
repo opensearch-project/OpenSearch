@@ -10,10 +10,14 @@ on:
   workflow_dispatch:
     inputs:
       revision:
-        description: "Any string or number used to extend the package's identifier"
+        description: "Revision"
         type: string
         required: true
         default: "1"
+      upload:
+        description: "Upload ?"
+        type: bool
+        default: false
 
 # ==========================
 # Bibliography
@@ -74,3 +78,12 @@ jobs:
     uses: ./.github/workflows/r_test.yml
     with:
       package: wazuh-indexer-${{ needs.version.outputs.version }}-${{ github.event_name == 'push' && '1' || inputs.revision }}_${{ matrix.os.suffix }}_${{ needs.commit_sha.outputs.commit_sha }}.${{ matrix.os.ext }}
+  
+  upload:
+    needs: [version, commit_sha, test]
+    # Upload only on 'workflow_dispatch' event and if 'upload=true'
+    if: ${{ github.event_name == 'push' && inputs.upload }}
+    uses: ./.github/workflows/r_upload.yml
+    with:
+      package: wazuh-indexer-${{ needs.version.outputs.version }}-${{ github.event_name == 'push' && '1' || inputs.revision }}_${{ matrix.os.suffix }}_${{ needs.commit_sha.outputs.commit_sha }}.${{ matrix.os.ext }}
+    secrets: inherit

@@ -1,0 +1,41 @@
+name: Upload (reusable)
+
+# This workflow runs when any of the following occur:
+# - Run from another workflow
+on:
+  workflow_call:
+    inputs:
+      package:
+        description: "The name of the package to upload to Wazuh's S3 development artifactory bucket."
+        required: true
+        type: string
+    secrets:
+      CI_INTERNAL_DEVELOPMENT_BUCKET_USER_ACCESS_KEY:
+        required: true
+      CI_INTERNAL_DEVELOPMENT_BUCKET_USER_SECRET_KEY:
+        required: true
+
+jobs:
+  r_upload:
+    runs-on: ubuntu-latest
+    # Permissions to upload the package
+    permissions:
+      packages: read
+      contents: read
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.package }}
+          path: artifacts/dist
+
+      - name: Set up AWS CLI
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.CI_INTERNAL_DEVELOPMENT_BUCKET_USER_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.CI_INTERNAL_DEVELOPMENT_BUCKET_USER_SECRET_KEY }}
+          aws-region: us-east-1
+
+      - name: Upload package to S3
+        run: |
+          aws s3 cp artifacts/dist/${{ inputs.package }} s3://packages-dev.internal.wazuh.com/development/wazuh/4.x/main/packages/
