@@ -47,12 +47,14 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.ConstantScoreQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -672,6 +674,23 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         XContentParser parser = createParser(JsonXContent.jsonXContent, queryJson);
         parser.nextToken();
         TermQueryBuilder query = TermQueryBuilder.fromXContent(parser);
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(query).get();
+        assertEquals(1, searchResponse.getHits().getTotalHits().value);
+    }
+
+    public void testIndexOnlyFloatField() throws IOException {
+        prepareCreate("idx").setMapping("field", "type=float,doc_values=false").get();
+        ensureGreen("idx");
+
+        IndexRequestBuilder indexRequestBuilder = client().prepareIndex("idx");
+
+        for (float i = 9000.0F; i < 20000.0F; i++) {
+            indexRequestBuilder.setId(String.valueOf(i)).setSource("{\"field\":" + i + "}", MediaTypeRegistry.JSON).get();
+        }
+        String queryJson = "{ \"filter\" : { \"terms\" : { \"field\" : [ 10000.0 ] } } }";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, queryJson);
+        parser.nextToken();
+        ConstantScoreQueryBuilder query = ConstantScoreQueryBuilder.fromXContent(parser);
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(query).get();
         assertEquals(1, searchResponse.getHits().getTotalHits().value);
     }
