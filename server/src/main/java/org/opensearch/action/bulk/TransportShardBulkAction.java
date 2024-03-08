@@ -32,7 +32,6 @@
 
 package org.opensearch.action.bulk;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
@@ -70,6 +69,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
@@ -126,7 +126,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
 
-    private static final Logger logger = LogManager.getLogger(TransportShardBulkAction.class);
+    private static final Logger logger = Loggers.getLogger(TransportShardBulkAction.class);
     private static final Function<IndexShard, String> EXECUTOR_NAME_FUNCTION = shard -> {
         if (shard.indexSettings().getIndexMetadata().isSystem()) {
             return Names.SYSTEM_WRITE;
