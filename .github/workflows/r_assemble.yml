@@ -1,5 +1,8 @@
 name: Assemble (reusable)
 
+env:
+  TEST: true
+
 # This workflow runs when any of the following occur:
 # - Run from another workflow
 on:

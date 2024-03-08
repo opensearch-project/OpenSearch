@@ -6,7 +6,7 @@ on:
   push:
     # Sequence of patterns matched against refs/heads
     branches:
-      - 'ci/*'
+      - "ci/*"
   workflow_dispatch:
     inputs:
       revision:
@@ -36,7 +36,7 @@ jobs:
     uses: ./.github/workflows/r_commit_sha.yml
 
   build:
-    needs: [ version, commit_sha ]
+    needs: [version, commit_sha]
     strategy:
       matrix:
         distribution: [tar, rpm, deb]
@@ -64,3 +64,13 @@ jobs:
       architecture: ${{ matrix.architecture }}
       distribution: ${{ matrix.distribution }}
       min: wazuh-indexer-min_${{ needs.version.outputs.version }}-${{ github.event_name == 'push' && '1' || inputs.revision }}-${{ matrix.architecture }}_${{ needs.commit_sha.outputs.commit_sha }}.${{ matrix.distribution }}
+
+  test:
+    needs: [version, commit_sha, assemble]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [{ suffix: "amd64", ext: "deb" }, { suffix: "x86_64", ext: "rpm" }]
+    uses: ./.github/workflows/r_test.yml
+    with:
+      package: wazuh-indexer-${{ needs.version.outputs.version }}-${{ github.event_name == 'push' && '1' || inputs.revision }}_${{ matrix.os.suffix }}_${{ needs.commit_sha.outputs.commit_sha }}.${{ matrix.os.ext }}

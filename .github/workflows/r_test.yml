@@ -1,0 +1,88 @@
+name: Test (reusable)
+
+# This workflow runs when any of the following occur:
+# - Run from another workflow
+on:
+  workflow_call:
+    inputs:
+      package:
+        description: "The name of the package to download."
+        required: true
+        type: string
+
+jobs:
+  r_test_rpm:
+    if: ${{ endsWith(inputs.package, 'rpm') }}
+    runs-on: ubuntu-latest
+    # Permissions to upload the package
+    permissions:
+      packages: read
+      contents: read
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.package }}
+          path: artifacts/dist
+
+      - name: Install package
+        uses: addnab/docker-run-action@v3
+        with:
+          image: redhat/ubi9:latest
+          options: -v ${{ github.workspace }}/artifacts/dist:/artifacts/dist
+          run: |
+            yum localinstall "/artifacts/dist/${{ inputs.package }}" -y
+
+  r_test_deb:
+    if: ${{ endsWith(inputs.package, 'deb') }}
+    runs-on: ubuntu-latest
+    # Permissions to upload the package
+    permissions:
+      packages: read
+      contents: read
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.package }}
+          path: artifacts/dist
+
+      - name: Install package
+        run: |
+          sudo dpkg -i "artifacts/dist/${{ inputs.package }}"
+
+      - uses: actions/checkout@v4
+      - name: Generate and deploy certificates
+        uses: addnab/docker-run-action@v3
+        with:
+          image: wazuh/wazuh-certs-generator:0.0.1
+          options: -v ${{ github.workspace }}/integrations/docker/config/certs.yml:/config/certs.yml -v /etc/wazuh-indexer/certs:/certs
+          shell: sh
+          run: |
+            mkdir -p /certificates /certs
+            /entrypoint.sh
+            chown -R 1000:999 /certificates
+            chmod 740 /certificates
+            chmod 440 /certificates/*
+
+            mv /certificates/wazuh.indexer-key.pem  /certs/indexer-key.pem
+            mv /certificates/wazuh.indexer.pem      /certs/indexer.pem
+            mv /certificates/root-ca.pem            /certs/root-ca.pem
+            ls /certs
+
+      - run: sudo systemctl daemon-reload
+      - run: |
+          if ! sudo systemctl enable wazuh-indexer.service; then
+              sudo journalctl --no-pager -u wazuh-indexer.service
+              exit 1
+          fi
+      - run: |
+          if ! sudo systemctl start wazuh-indexer; then
+            sudo journalctl --no-pager -u wazuh-indexer.service
+            exit 1
+          fi
+      - run: |
+          if ! sudo systemctl status --no-pager wazuh-indexer -n 100; then
+            sudo journalctl --no-pager -u wazuh-indexer.service
+            exit 1
+          fi
