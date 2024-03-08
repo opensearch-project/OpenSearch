@@ -18,7 +18,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.opensearch.transport.ReceiveTimeoutTransportException;
 
 import java.util.ArrayList;
@@ -31,10 +30,12 @@ import java.util.Set;
 import reactor.util.annotation.NonNull;
 
 /**
- * Common functionalities of a cache for storing shard metadata. Cache maintains node level responses.
- * Setting up the cache is required from implementation class.
- * Store node level responses of transport actions like {@link TransportNodesListGatewayStartedShards} or
- * {@link TransportNodesListShardStoreMetadata} using the given functionalities.
+ * AsyncShardFetchCache will operate on the node level cache(Map<String, ? extends BaseNodeEntry>). initData, putData
+ * and getData needs to be called for all the nodes. This class is responsible for managing the flow for all the
+ * nodes.
+ * It'll also give useful insights like how many ongoing fetches are happening, how many nodes are left for fetch or
+ * mark some node in fetching mode. All of these functionalities require checking the cache information and respond
+ * accordingly.
  * <p>
  * initData : how to initialize an entry of shard cache for a node.
  * putData : how to store the response of transport action in the cache.
@@ -44,45 +45,23 @@ import reactor.util.annotation.NonNull;
  *
  * @param <K> Response type of transport action which has the data to be stored in the cache.
  */
-public abstract class BaseShardCache<K extends BaseNodeResponse> {
+public abstract class AsyncShardFetchCache<K extends BaseNodeResponse> {
     private final Logger logger;
     private final String type;
 
-    protected BaseShardCache(Logger logger, String type) {
+    protected AsyncShardFetchCache(Logger logger, String type) {
         this.logger = logger;
         this.type = type;
     }
 
-    /**
-     * Initialize cache's entry for a node.
-     *
-     * @param node for which node we need to initialize the cache.
-     */
     abstract void initData(DiscoveryNode node);
 
-    /**
-     * Store the response in the cache from node.
-     *
-     * @param node     node from which we got the response.
-     * @param response shard metadata coming from node.
-     */
     abstract void putData(DiscoveryNode node, K response);
 
-    /**
-     * Populate the response from cache.
-     *
-     * @param node node for which we need the response.
-     * @return actual response.
-     */
     abstract K getData(DiscoveryNode node);
 
-    /**
-     * Get actual map object of the cache
-     *
-     * @return map of nodeId and NodeEntry extending BaseNodeEntry
-     */
     @NonNull
-    abstract Map<String, ? extends BaseShardCache.BaseNodeEntry> getCache();
+    abstract Map<String, ? extends BaseNodeEntry> getCache();
 
     /**
      * Cleanup cached data for this shard once it's started. Cleanup only happens at shard level. Node entries will
@@ -90,7 +69,7 @@ public abstract class BaseShardCache<K extends BaseNodeResponse> {
      *
      * @param shardId for which we need to free up the cached data.
      */
-    abstract void deleteData(ShardId shardId);
+    abstract void deleteShard(ShardId shardId);
 
     /**
      * Returns the number of fetches that are currently ongoing.
