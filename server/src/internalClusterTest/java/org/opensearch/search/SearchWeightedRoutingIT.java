@@ -480,7 +480,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
      * Assertions are put to make sure such shard search requests are served by data node in zone c.
      * @throws IOException throws exception
      */
-    @AwaitsFix(bugUrl ="https://github.com/opensearch-project/OpenSearch/issues/10673")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10673")
     public void testShardRoutingWithNetworkDisruption_FailOpenEnabled() throws Exception {
 
         Settings commonSettings = Settings.builder()
