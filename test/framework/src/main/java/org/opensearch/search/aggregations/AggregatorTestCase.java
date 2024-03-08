@@ -124,6 +124,7 @@ import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregatorFactories.Builder;
 import org.opensearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.opensearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.metrics.MetricsAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
@@ -150,6 +151,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -181,23 +183,10 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     // A list of field types that should not be tested, or are not currently supported
     private static List<String> TYPE_TEST_DENYLIST;
 
-    protected static final Consumer<Aggregator> DEFAULT_POST_COLLECTION = termsAggregator -> {
-        try {
-            termsAggregator.postCollection();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    };
+    protected static final TriConsumer<Document, String, String> ADD_SORTED_SET_FIELD_NOT_INDEXED = (document, field, value) -> document
+        .add(new SortedSetDocValuesField(field, new BytesRef(value)));
 
-    // aggregator.postCollection() is not required when LeafBucketCollector#termDocFreqCollector optimization is used.
-    // using NOOP_POST_COLLECTION_CONSUMER ensures that the bucket count in aggregation is completed before/without running postCollection()
-    protected static final Consumer<Aggregator> NOOP_POST_COLLECTION = termsAggregator -> {};
-
-    protected static final TriConsumer<Document, String, String> ADD_SORTED_FIELD_NO_STORE = (document, field, value) -> document.add(
-        new SortedSetDocValuesField(field, new BytesRef(value))
-    );
-
-    protected static final TriConsumer<Document, String, String> ADD_SORTED_FIELD_STORE = (document, field, value) -> {
+    protected static final TriConsumer<Document, String, String> ADD_SORTED_SET_FIELD_INDEXED = (document, field, value) -> {
         document.add(new SortedSetDocValuesField(field, new BytesRef(value)));
         document.add(new StringField(field, value, Field.Store.NO));
     };
@@ -457,7 +446,6 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays
     ) {
-
         return new QueryShardContext(
             0,
             indexSettings,
@@ -509,16 +497,6 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
-        IndexSearcher searcher,
-        Query query,
-        AggregationBuilder builder,
-        Consumer<Aggregator> postCollectionConsumer,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        return searchAndReduce(createIndexSettings(), searcher, query, builder, DEFAULT_MAX_BUCKETS, postCollectionConsumer, fieldTypes);
-    }
-
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
         IndexSettings indexSettings,
         IndexSearcher searcher,
         Query query,
@@ -538,17 +516,6 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         return searchAndReduce(createIndexSettings(), searcher, query, builder, maxBucket, fieldTypes);
     }
 
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
-        IndexSettings indexSettings,
-        IndexSearcher searcher,
-        Query query,
-        AggregationBuilder builder,
-        int maxBucket,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        return searchAndReduce(indexSettings, searcher, query, builder, maxBucket, DEFAULT_POST_COLLECTION, fieldTypes);
-    }
-
     /**
      * Collects all documents that match the provided query {@link Query} and
      * returns the reduced {@link InternalAggregation}.
@@ -563,7 +530,6 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         Query query,
         AggregationBuilder builder,
         int maxBucket,
-        Consumer<Aggregator> postCollectionConsumer,
         MappedFieldType... fieldTypes
     ) throws IOException {
         final IndexReaderContext ctx = searcher.getTopReaderContext();
@@ -594,13 +560,13 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
                 a.preCollection();
                 Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
                 subSearcher.search(weight, a);
-                postCollectionConsumer.accept(a);
+                a.postCollection();
                 aggs.add(a.buildTopLevel());
             }
         } else {
             root.preCollection();
             searcher.search(rewritten, root);
-            postCollectionConsumer.accept(root);
+            root.postCollection();
             aggs.add(root.buildTopLevel());
         }
 
@@ -1139,6 +1105,89 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         protected void doWriteTo(StreamOutput out) throws IOException {
             throw new UnsupportedOperationException();
 
+        }
+    }
+
+    /**
+     * Wrapper around Aggregator class
+     * Maintains a count for times collect() is invoked - number of documents visited
+     */
+    protected static class CountingAggregator extends Aggregator {
+        private final AtomicInteger collectCounter;
+        public final Aggregator delegate;
+
+        public CountingAggregator(AtomicInteger collectCounter, TermsAggregator delegate) {
+            this.collectCounter = collectCounter;
+            this.delegate = delegate;
+        }
+
+        public AtomicInteger getCollectCount() {
+            return collectCounter;
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+
+        @Override
+        public String name() {
+            return delegate.name();
+        }
+
+        @Override
+        public SearchContext context() {
+            return delegate.context();
+        }
+
+        @Override
+        public Aggregator parent() {
+            return delegate.parent();
+        }
+
+        @Override
+        public Aggregator subAggregator(String name) {
+            return delegate.subAggregator(name);
+        }
+
+        @Override
+        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+            return delegate.buildAggregations(owningBucketOrds);
+        }
+
+        @Override
+        public InternalAggregation buildEmptyAggregation() {
+            return delegate.buildEmptyAggregation();
+        }
+
+        @Override
+        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+            return new LeafBucketCollector() {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    delegate.getLeafCollector(ctx).collect(doc, bucket);
+                    collectCounter.incrementAndGet();
+                }
+            };
+        }
+
+        @Override
+        public ScoreMode scoreMode() {
+            return delegate.scoreMode();
+        }
+
+        @Override
+        public void preCollection() throws IOException {
+            delegate.preCollection();
+        }
+
+        @Override
+        public void postCollection() throws IOException {
+            delegate.postCollection();
+        }
+
+        public void setWeight(Weight weight) {
+            this.delegate.setWeight(weight);
         }
     }
 

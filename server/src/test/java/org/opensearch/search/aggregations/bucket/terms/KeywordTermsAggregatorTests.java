@@ -32,7 +32,6 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
@@ -41,11 +40,9 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.TriConsumer;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.support.ValueType;
 
@@ -59,6 +56,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class KeywordTermsAggregatorTests extends AggregatorTestCase {
     private static final String KEYWORD_FIELD = "keyword";
 
+    private static final Consumer<TermsAggregationBuilder> CONFIGURE_KEYWORD_FIELD = agg -> agg.field(KEYWORD_FIELD);
+
     private static final List<String> dataset;
     static {
         List<String> d = new ArrayList<>(45);
@@ -70,7 +69,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         dataset = d;
     }
 
-    private static Consumer<InternalMappedTerms> VERIFY_MATCH_ALL_DOCS = agg -> {
+    private static final Consumer<InternalMappedTerms> VERIFY_MATCH_ALL_DOCS = agg -> {
         assertEquals(9, agg.getBuckets().size());
         for (int i = 0; i < 9; i++) {
             StringTerms.Bucket bucket = (StringTerms.Bucket) agg.getBuckets().get(i);
@@ -79,77 +78,49 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         }
     };
 
-    private static Query MATCH_ALL_DOCS_QUERY = new MatchAllDocsQuery();
+    private static final Consumer<InternalMappedTerms> VERIFY_MATCH_NO_DOCS = agg -> { assertEquals(0, agg.getBuckets().size()); };
 
-    private static Query MATCH_NO_DOCS_QUERY = new MatchNoDocsQuery();
+    private static final Query MATCH_ALL_DOCS_QUERY = new MatchAllDocsQuery();
+
+    private static final Query MATCH_NO_DOCS_QUERY = new MatchNoDocsQuery();
 
     public void testMatchNoDocs() throws IOException {
         testSearchCase(
-            ADD_SORTED_FIELD_NO_STORE,
+            ADD_SORTED_SET_FIELD_NOT_INDEXED,
             MATCH_NO_DOCS_QUERY,
             dataset,
-            aggregation -> aggregation.field(KEYWORD_FIELD),
-            agg -> assertEquals(0, agg.getBuckets().size()),
-            null,        // without type hint
-            DEFAULT_POST_COLLECTION
+            CONFIGURE_KEYWORD_FIELD,
+            VERIFY_MATCH_NO_DOCS,
+            null                   // without type hint
         );
 
         testSearchCase(
-            ADD_SORTED_FIELD_NO_STORE,
+            ADD_SORTED_SET_FIELD_NOT_INDEXED,
             MATCH_NO_DOCS_QUERY,
             dataset,
-            aggregation -> aggregation.field(KEYWORD_FIELD),
-            agg -> assertEquals(0, agg.getBuckets().size()),
-            ValueType.STRING,        // with type hint
-            DEFAULT_POST_COLLECTION
+            CONFIGURE_KEYWORD_FIELD,
+            VERIFY_MATCH_NO_DOCS,
+            ValueType.STRING       // with type hint
         );
     }
 
     public void testMatchAllDocs() throws IOException {
         testSearchCase(
-            ADD_SORTED_FIELD_NO_STORE,
+            ADD_SORTED_SET_FIELD_NOT_INDEXED,
             MATCH_ALL_DOCS_QUERY,
             dataset,
-            aggregation -> aggregation.field(KEYWORD_FIELD),
+            CONFIGURE_KEYWORD_FIELD,
             VERIFY_MATCH_ALL_DOCS,
-            null,        // without type hint
-            DEFAULT_POST_COLLECTION
+            null                   // without type hint
         );
 
         testSearchCase(
-            ADD_SORTED_FIELD_NO_STORE,
+            ADD_SORTED_SET_FIELD_NOT_INDEXED,
             MATCH_ALL_DOCS_QUERY,
             dataset,
-            aggregation -> aggregation.field(KEYWORD_FIELD),
+            CONFIGURE_KEYWORD_FIELD,
             VERIFY_MATCH_ALL_DOCS,
-            ValueType.STRING,        // with type hint
-            DEFAULT_POST_COLLECTION
-        );
-    }
-
-    public void testMatchAllDocsWithStoredValues() throws IOException {
-        // aggregator.postCollection() is not required when LeafBucketCollector#termDocFreqCollector optimization is used,
-        // therefore using NOOP_POST_COLLECTION
-        // This also verifies that the bucket count is completed without running postCollection()
-
-        testSearchCase(
-            ADD_SORTED_FIELD_STORE,
-            MATCH_ALL_DOCS_QUERY,
-            dataset,
-            aggregation -> aggregation.field(KEYWORD_FIELD),
-            VERIFY_MATCH_ALL_DOCS,
-            null,            // without type hint
-            NOOP_POST_COLLECTION
-        );
-
-        testSearchCase(
-            ADD_SORTED_FIELD_STORE,
-            MATCH_ALL_DOCS_QUERY,
-            dataset,
-            aggregation -> aggregation.field(KEYWORD_FIELD),
-            VERIFY_MATCH_ALL_DOCS,
-            ValueType.STRING,        // with type hint
-            NOOP_POST_COLLECTION
+            ValueType.STRING       // with type hint
         );
     }
 
@@ -159,15 +130,13 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         List<String> dataset,
         Consumer<TermsAggregationBuilder> configure,
         Consumer<InternalMappedTerms> verify,
-        ValueType valueType,
-        Consumer<Aggregator> postCollectionConsumer
+        ValueType valueType
     ) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
                 for (String value : dataset) {
                     addField.apply(document, KEYWORD_FIELD, value);
-                    document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(value)));
                     indexWriter.addDocument(document);
                     document.clear();
                 }

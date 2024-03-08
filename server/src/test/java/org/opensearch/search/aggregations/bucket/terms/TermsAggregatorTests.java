@@ -44,6 +44,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -121,6 +122,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -137,9 +139,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TermsAggregatorTests extends AggregatorTestCase {
-
-    private boolean randomizeAggregatorImpl = true;
-
     // Constants for a script that returns a string
     private static final String STRING_SCRIPT_NAME = "string_script";
     private static final String STRING_SCRIPT_OUTPUT = "Orange";
@@ -172,9 +171,22 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
     }
 
+    protected CountingAggregator createCountingAggregator(
+        AggregationBuilder aggregationBuilder,
+        IndexSearcher indexSearcher,
+        boolean randomizeAggregatorImpl,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        return new CountingAggregator(
+            new AtomicInteger(),
+            createAggregator(aggregationBuilder, indexSearcher, randomizeAggregatorImpl, fieldTypes)
+        );
+    }
+
     protected <A extends Aggregator> A createAggregator(
         AggregationBuilder aggregationBuilder,
         IndexSearcher indexSearcher,
+        boolean randomizeAggregatorImpl,
         MappedFieldType... fieldTypes
     ) throws IOException {
         try {
@@ -187,6 +199,14 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = null;
             TermsAggregatorFactory.REMAP_GLOBAL_ORDS = null;
         }
+    }
+
+    protected <A extends Aggregator> A createAggregator(
+        AggregationBuilder aggregationBuilder,
+        IndexSearcher indexSearcher,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        return createAggregator(aggregationBuilder, indexSearcher, true, fieldTypes);
     }
 
     @Override
@@ -208,8 +228,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUsesGlobalOrdinalsByDefault() throws Exception {
-        randomizeAggregatorImpl = false;
-
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         indexWriter.close();
@@ -221,7 +239,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             .field("string");
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string");
 
-        TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, false, fieldType);
         assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
         GlobalOrdinalsStringTermsAggregator globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
         assertThat(globalAgg.descriptCollectionStrategy(), equalTo("dense"));
@@ -259,30 +277,55 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * This test case utilizes the low cardinality implementation of GlobalOrdinalsStringTermsAggregator.
-     * In this case, the segment terms will not get initialized and will run without LeafBucketCollector#termDocFreqCollector optimization
+     * This test case utilizes the default implementation of GlobalOrdinalsStringTermsAggregator.
      */
     public void testSimpleAggregation() throws Exception {
-        testSimple(ADD_SORTED_FIELD_NO_STORE, DEFAULT_POST_COLLECTION);
+        // Fields not indexed: cannot use LeafBucketCollector#termDocFreqCollector - all documents are visited
+        testSimple(ADD_SORTED_SET_FIELD_NOT_INDEXED, false, false, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 4);
+
+        // Fields indexed, deleted documents in segment: cannot use LeafBucketCollector#termDocFreqCollector - all documents are visited
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, true, false, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 4);
+
+        // Fields indexed, no deleted documents in segment: will use LeafBucketCollector#termDocFreqCollector - no documents are visited
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, false, false, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 0);
     }
 
     /**
-     * This test case utilizes the low cardinality implementation of GlobalOrdinalsStringTermsAggregator.
-     * In this case, the segment terms will get initialized and will use LeafBucketCollector#termDocFreqCollector optimization
+     * This test case utilizes the LowCardinality implementation of GlobalOrdinalsStringTermsAggregator.
      */
-    public void testSimpleAggregationWithStoredValues() throws Exception {
-        // aggregator.postCollection() is not required when LeafBucketCollector#termDocFreqCollector optimization is used,
-        // therefore using NOOP_POST_COLLECTION
-        // This also verifies that the bucket count is completed without running postCollection()
-        testSimple(ADD_SORTED_FIELD_STORE, NOOP_POST_COLLECTION);
+    public void testSimpleAggregationLowCardinality() throws Exception {
+        // Fields not indexed: cannot use LeafBucketCollector#termDocFreqCollector - all documents are visited
+        testSimple(ADD_SORTED_SET_FIELD_NOT_INDEXED, false, true, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 4);
+
+        // Fields indexed, deleted documents in segment: cannot use LeafBucketCollector#termDocFreqCollector - all documents are visited
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, true, true, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 4);
+
+        // Fields indexed, no deleted documents in segment: will use LeafBucketCollector#termDocFreqCollector - no documents are visited
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, false, true, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 0);
+    }
+
+    /**
+     * This test case utilizes the MapStringTermsAggregator.
+     */
+    public void testSimpleMapStringAggregation() throws Exception {
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, randomBoolean(), randomBoolean(), TermsAggregatorFactory.ExecutionMode.MAP, 4);
     }
 
     /**
      * This is a utility method to test out string terms aggregation
      * @param addFieldConsumer a function that determines how a field is added to the document
+     * @param includeDeletedDocumentsInSegment to include deleted documents in the segment or not
+     * @param collectSegmentOrds collect segment ords or not - set true to utilize LowCardinality implementation for GlobalOrdinalsStringTermsAggregator
+     * @param executionMode execution mode MAP or GLOBAL_ORDINALS
+     * @param expectedCollectCount expected number of documents visited as part of collect() invocation
      */
-    private void testSimple(TriConsumer<Document, String, String> addFieldConsumer, Consumer<Aggregator> postCollectionConsumer)
-        throws Exception {
+    private void testSimple(
+        TriConsumer<Document, String, String> addFieldConsumer,
+        final boolean includeDeletedDocumentsInSegment,
+        boolean collectSegmentOrds,
+        TermsAggregatorFactory.ExecutionMode executionMode,
+        final int expectedCollectCount
+    ) throws Exception {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
@@ -301,94 +344,84 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 document = new Document();
                 addFieldConsumer.apply(document, "string", "");
                 indexWriter.addDocument(document);
+
+                if (includeDeletedDocumentsInSegment) {
+                    document = new Document();
+                    ADD_SORTED_SET_FIELD_INDEXED.apply(document, "string", "e");
+                    indexWriter.addDocument(document);
+                    indexWriter.deleteDocuments(new Term("string", "e"));
+                    assertEquals(5, indexWriter.getDocStats().maxDoc);
+                }
+                assertEquals(4, indexWriter.getDocStats().numDocs);
+
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    for (TermsAggregatorFactory.ExecutionMode executionMode : TermsAggregatorFactory.ExecutionMode.values()) {
-                        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(
-                            ValueType.STRING
-                        ).executionHint(executionMode.toString()).field("string").order(BucketOrder.key(true));
-                        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string");
 
-                        TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-                        aggregator.preCollection();
-                        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-                        postCollectionConsumer.accept(aggregator);
-                        Terms result = reduce(aggregator);
-                        assertEquals(5, result.getBuckets().size());
-                        assertEquals("", result.getBuckets().get(0).getKeyAsString());
-                        assertEquals(2L, result.getBuckets().get(0).getDocCount());
-                        assertEquals("a", result.getBuckets().get(1).getKeyAsString());
-                        assertEquals(2L, result.getBuckets().get(1).getDocCount());
-                        assertEquals("b", result.getBuckets().get(2).getKeyAsString());
-                        assertEquals(2L, result.getBuckets().get(2).getDocCount());
-                        assertEquals("c", result.getBuckets().get(3).getKeyAsString());
-                        assertEquals(1L, result.getBuckets().get(3).getDocCount());
-                        assertEquals("d", result.getBuckets().get(4).getKeyAsString());
-                        assertEquals(1L, result.getBuckets().get(4).getDocCount());
-                        assertTrue(AggregationInspectionHelper.hasValue((InternalTerms) result));
-                    }
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.STRING)
+                        .executionHint(executionMode.toString())
+                        .field("string")
+                        .order(BucketOrder.key(true));
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string");
+
+                    TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = collectSegmentOrds;
+                    TermsAggregatorFactory.REMAP_GLOBAL_ORDS = false;
+                    CountingAggregator aggregator = createCountingAggregator(aggregationBuilder, indexSearcher, false, fieldType);
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+                    Terms result = reduce(aggregator);
+                    assertEquals(5, result.getBuckets().size());
+                    assertEquals("", result.getBuckets().get(0).getKeyAsString());
+                    assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                    assertEquals("a", result.getBuckets().get(1).getKeyAsString());
+                    assertEquals(2L, result.getBuckets().get(1).getDocCount());
+                    assertEquals("b", result.getBuckets().get(2).getKeyAsString());
+                    assertEquals(2L, result.getBuckets().get(2).getDocCount());
+                    assertEquals("c", result.getBuckets().get(3).getKeyAsString());
+                    assertEquals(1L, result.getBuckets().get(3).getDocCount());
+                    assertEquals("d", result.getBuckets().get(4).getKeyAsString());
+                    assertEquals(1L, result.getBuckets().get(4).getDocCount());
+                    assertTrue(AggregationInspectionHelper.hasValue((InternalTerms) result));
+
+                    assertEquals(expectedCollectCount, aggregator.getCollectCount().get());
                 }
             }
         }
     }
 
-    /**
-     * This test case utilizes the default implementation of GlobalOrdinalsStringTermsAggregator.
-     * In this case, the segment terms will not get initialized and will run without LeafBucketCollector#termDocFreqCollector optimization
-     */
     public void testStringIncludeExclude() throws Exception {
-        testStringIncludeExclude(
-            (document, field, value) -> document.add(new SortedSetDocValuesField(field, new BytesRef(value))),
-            DEFAULT_POST_COLLECTION
-        );
-    }
-
-    /**
-     * This test case utilizes the default implementation of GlobalOrdinalsStringTermsAggregator.
-     * In this case, the segment terms will get initialized and will use LeafBucketCollector#termDocFreqCollector optimization
-     */
-    public void testStringIncludeExcludeWithStoredValues() throws Exception {
-        // aggregator.postCollection() is not required when LeafBucketCollector#termDocFreqCollector optimization is used
-        // This also verifies that the bucket count is completed without running postCollection()
-        testStringIncludeExclude((document, field, value) -> {
-            document.add(new SortedSetDocValuesField(field, new BytesRef(value)));
-            document.add(new StringField(field, value, Field.Store.NO));
-        }, NOOP_POST_COLLECTION);
-    }
-
-    private void testStringIncludeExclude(TriConsumer<Document, String, String> addField, Consumer<Aggregator> postCollectionConsumer)
-        throws Exception {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
-                addField.apply(document, "mv_field", "val000");
-                addField.apply(document, "mv_field", "val001");
-                addField.apply(document, "sv_field", "val001");
+                document.add(new SortedSetDocValuesField("mv_field", new BytesRef("val000")));
+                document.add(new SortedSetDocValuesField("mv_field", new BytesRef("val001")));
+                document.add(new SortedDocValuesField("sv_field", new BytesRef("val001")));
                 indexWriter.addDocument(document);
                 document = new Document();
-                addField.apply(document, "mv_field", "val002");
-                addField.apply(document, "mv_field", "val003");
-                addField.apply(document, "sv_field", "val003");
+                document.add(new SortedSetDocValuesField("mv_field", new BytesRef("val002")));
+                document.add(new SortedSetDocValuesField("mv_field", new BytesRef("val003")));
+                document.add(new SortedDocValuesField("sv_field", new BytesRef("val003")));
                 indexWriter.addDocument(document);
                 document = new Document();
-                addField.apply(document, "mv_field", "val004");
-                addField.apply(document, "mv_field", "val005");
-                addField.apply(document, "sv_field", "val005");
+                document.add(new SortedSetDocValuesField("mv_field", new BytesRef("val004")));
+                document.add(new SortedSetDocValuesField("mv_field", new BytesRef("val005")));
+                document.add(new SortedDocValuesField("sv_field", new BytesRef("val005")));
                 indexWriter.addDocument(document);
                 document = new Document();
-                addField.apply(document, "mv_field", "val006");
-                addField.apply(document, "mv_field", "val007");
-                addField.apply(document, "sv_field", "val007");
+                document.add(new SortedSetDocValuesField("mv_field", new BytesRef("val006")));
+                document.add(new SortedSetDocValuesField("mv_field", new BytesRef("val007")));
+                document.add(new SortedDocValuesField("sv_field", new BytesRef("val007")));
                 indexWriter.addDocument(document);
                 document = new Document();
-                addField.apply(document, "mv_field", "val008");
-                addField.apply(document, "mv_field", "val009");
-                addField.apply(document, "sv_field", "val009");
+                document.add(new SortedSetDocValuesField("mv_field", new BytesRef("val008")));
+                document.add(new SortedSetDocValuesField("mv_field", new BytesRef("val009")));
+                document.add(new SortedDocValuesField("sv_field", new BytesRef("val009")));
                 indexWriter.addDocument(document);
                 document = new Document();
-                addField.apply(document, "mv_field", "val010");
-                addField.apply(document, "mv_field", "val011");
-                addField.apply(document, "sv_field", "val011");
+                document.add(new SortedSetDocValuesField("mv_field", new BytesRef("val010")));
+                document.add(new SortedSetDocValuesField("mv_field", new BytesRef("val011")));
+                document.add(new SortedDocValuesField("sv_field", new BytesRef("val011")));
                 indexWriter.addDocument(document);
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
@@ -405,7 +438,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-                    postCollectionConsumer.accept(aggregator);
+                    aggregator.postCollection();
                     Terms result = reduce(aggregator);
                     assertEquals(10, result.getBuckets().size());
                     assertEquals("val000", result.getBuckets().get(0).getKeyAsString());
@@ -440,7 +473,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType2);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-                    postCollectionConsumer.accept(aggregator);
+                    aggregator.postCollection();
                     result = reduce(aggregator);
                     assertEquals(5, result.getBuckets().size());
                     assertEquals("val001", result.getBuckets().get(0).getKeyAsString());
@@ -464,7 +497,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-                    postCollectionConsumer.accept(aggregator);
+                    aggregator.postCollection();
                     result = reduce(aggregator);
                     assertEquals(8, result.getBuckets().size());
                     assertEquals("val002", result.getBuckets().get(0).getKeyAsString());
@@ -493,7 +526,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-                    postCollectionConsumer.accept(aggregator);
+                    aggregator.postCollection();
                     result = reduce(aggregator);
                     assertEquals(2, result.getBuckets().size());
                     assertEquals("val010", result.getBuckets().get(0).getKeyAsString());
@@ -510,7 +543,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-                    postCollectionConsumer.accept(aggregator);
+                    aggregator.postCollection();
                     result = reduce(aggregator);
                     assertEquals(2, result.getBuckets().size());
                     assertEquals("val000", result.getBuckets().get(0).getKeyAsString());
@@ -542,7 +575,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-                    postCollectionConsumer.accept(aggregator);
+                    aggregator.postCollection();
                     result = reduce(aggregator);
                     assertEquals(2, result.getBuckets().size());
                     assertEquals("val000", result.getBuckets().get(0).getKeyAsString());

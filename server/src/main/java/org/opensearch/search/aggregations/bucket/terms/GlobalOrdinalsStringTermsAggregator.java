@@ -40,6 +40,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -162,7 +163,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      @param ctx The LeafReaderContext to collect terms from
      @param globalOrds The SortedSetDocValues for the field's ordinals
      @param ordCountConsumer A consumer to accept collected term frequencies
-     @return A no-operation LeafBucketCollector implementation, since collection is complete
+     @return A LeafBucketCollector implementation with collection termination, since collection is complete
      @throws IOException If an I/O error occurs during reading
      */
     LeafBucketCollector termDocFreqCollector(
@@ -217,7 +218,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 ordinalTerm = globalOrdinalTermsEnum.next();
             }
         }
-        return LeafBucketCollector.NO_OP_COLLECTOR;
+        return new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                throw new CollectionTerminatedException();
+            }
+        };
     }
 
     @Override
