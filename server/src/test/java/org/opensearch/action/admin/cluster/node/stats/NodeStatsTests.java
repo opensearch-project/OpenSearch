@@ -65,6 +65,7 @@ import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.AdaptiveSelectionStats;
+import org.opensearch.node.IoUsageStats;
 import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.ResponseCollectorService;
@@ -881,7 +882,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         nodeId,
                         System.currentTimeMillis(),
                         randomDoubleBetween(1.0, 100.0, true),
-                        randomDoubleBetween(1.0, 100.0, true)
+                        randomDoubleBetween(1.0, 100.0, true),
+                        new IoUsageStats(100.0)
                     );
                     resourceUsageStatsMap.put(nodeId, stats);
                 }
