@@ -158,7 +158,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         );
         this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
         List<String> dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
-        this.statsHolder = new StatsHolder(dimensionNames, builder.getSettings());
+        this.statsHolder = new StatsHolder(dimensionNames, builder.getSettings(), StatsHolder.TrackingMode.ALL_COMBINATIONS);
     }
 
     @SuppressWarnings({ "rawtypes" })

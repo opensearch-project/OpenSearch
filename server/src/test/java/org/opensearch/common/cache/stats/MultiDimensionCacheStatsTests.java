@@ -29,7 +29,11 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2");
-        StatsHolder statsHolder = new StatsHolder(dimensionNames, StatsHolderTests.getSettings(20_000));
+        StatsHolder statsHolder = new StatsHolder(
+            dimensionNames,
+            StatsHolderTests.getSettings(20_000),
+            StatsHolder.TrackingMode.ALL_COMBINATIONS
+        );
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
         populateStats(statsHolder, usedDimensionValues, 100, 10);
         MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder, tierDimensionValue);
@@ -45,7 +49,11 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
 
     public void testAddAndGet() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
-        StatsHolder statsHolder = new StatsHolder(dimensionNames, StatsHolderTests.getSettings(20_000));
+        StatsHolder statsHolder = new StatsHolder(
+            dimensionNames,
+            StatsHolderTests.getSettings(20_000),
+            StatsHolder.TrackingMode.ALL_COMBINATIONS
+        );
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
 
         Map<Set<CacheStatsDimension>, CacheStatsResponse> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
@@ -107,7 +115,11 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
 
     public void testEmptyDimsList() throws Exception {
         // If the dimension list is empty, the map should have only one entry, from the empty set -> the total stats.
-        StatsHolder statsHolder = new StatsHolder(List.of(), StatsHolderTests.getSettings(20_000));
+        StatsHolder statsHolder = new StatsHolder(
+            List.of(),
+            StatsHolderTests.getSettings(20_000),
+            StatsHolder.TrackingMode.ALL_COMBINATIONS
+        );
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 100);
         populateStats(statsHolder, usedDimensionValues, 10, 100);
         MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder, tierDimensionValue);
@@ -123,7 +135,11 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
 
     public void testTierLogic() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
-        StatsHolder statsHolder = new StatsHolder(dimensionNames, StatsHolderTests.getSettings(20_000));
+        StatsHolder statsHolder = new StatsHolder(
+            dimensionNames,
+            StatsHolderTests.getSettings(20_000),
+            StatsHolder.TrackingMode.ALL_COMBINATIONS
+        );
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
         Map<Set<CacheStatsDimension>, CacheStatsResponse> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
         MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder, tierDimensionValue);
@@ -155,6 +171,107 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         }
         assertEquals(stats.getTotalStats(), stats.getStatsByDimensions(List.of(tierDim)));
         assertEquals(new CacheStatsResponse(), stats.getStatsByDimensions(List.of(wrongTierDim)));
+    }
+
+    public void testSeparateDimensionOnlyTrackingMode() throws Exception {
+        List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
+        StatsHolder statsHolder = new StatsHolder(
+            dimensionNames,
+            StatsHolderTests.getSettings(20_000),
+            StatsHolder.TrackingMode.SEPARATE_DIMENSIONS_ONLY
+        );
+
+        Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
+        Map<Set<CacheStatsDimension>, CacheStatsResponse> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
+        MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder, tierDimensionValue);
+
+        Random rand = Randomness.get();
+
+        for (String dimName : dimensionNames) {
+            for (int i = 0; i < 20; i++) {
+                // pick a random already used value
+                List<String> usedValues = usedDimensionValues.get(dimName);
+                String dimValue = usedValues.get(rand.nextInt(usedValues.size()));
+                CacheStatsDimension dimension = new CacheStatsDimension(dimName, dimValue);
+
+                CacheStatsResponse expectedResponse = new CacheStatsResponse();
+                for (Set<CacheStatsDimension> combination : expected.keySet()) {
+                    if (combination.contains(dimension)) {
+                        expectedResponse.add(expected.get(combination));
+                    }
+                }
+                assertEquals(expectedResponse, stats.getStatsByDimensions(List.of(dimension)));
+            }
+        }
+
+        List<CacheStatsDimension> illegalArgument = List.of(
+            new CacheStatsDimension(dimensionNames.get(0), "a"),
+            new CacheStatsDimension(dimensionNames.get(1), "b")
+        );
+        assertThrows(IllegalArgumentException.class, () -> stats.getStatsByDimensions(illegalArgument));
+    }
+
+    public void testSpecificCombinationsTrackingMode() throws Exception {
+        List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
+        Set<Set<String>> combinations = Set.of(Set.of("dim1", "dim2"), Set.of("dim3"), Set.of("dim4"));
+        assertThrows(AssertionError.class, () -> {
+            StatsHolder statsHolder = new StatsHolder(
+                dimensionNames,
+                StatsHolderTests.getSettings(20_000),
+                StatsHolder.TrackingMode.SPECIFIC_COMBINATIONS
+            );
+        });
+
+        StatsHolder statsHolder = new StatsHolder(
+            dimensionNames,
+            StatsHolderTests.getSettings(20_000),
+            StatsHolder.TrackingMode.SPECIFIC_COMBINATIONS,
+            combinations
+        );
+
+        Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 2);
+        Map<Set<CacheStatsDimension>, CacheStatsResponse> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
+        MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder, tierDimensionValue);
+
+        Random rand = Randomness.get();
+
+        for (Set<String> combination : combinations) {
+            for (int i = 0; i < 20; i++) {
+                // pick random already used values
+                Set<CacheStatsDimension> dimensionsToSearch = new HashSet<>();
+                for (String dimName : combination) {
+                    List<String> usedValues = usedDimensionValues.get(dimName);
+                    String dimValue = usedValues.get(rand.nextInt(usedValues.size()));
+                    dimensionsToSearch.add(new CacheStatsDimension(dimName, dimValue));
+                }
+
+                CacheStatsResponse expectedResponse = new CacheStatsResponse();
+                for (Set<CacheStatsDimension> expectedMapCombination : expected.keySet()) {
+                    boolean includesAll = true;
+                    for (CacheStatsDimension dimension : dimensionsToSearch) {
+                        if (!expectedMapCombination.contains(dimension)) {
+                            includesAll = false;
+                            break;
+                        }
+                    }
+                    if (includesAll) {
+                        expectedResponse.add(expected.get(expectedMapCombination));
+                    }
+                }
+                CacheStatsResponse actual = stats.getStatsByDimensions(new ArrayList<>(dimensionsToSearch));
+                assertEquals(expectedResponse, actual);
+            }
+        }
+
+        // check other groupings of dimension values throw errors
+        List<List<CacheStatsDimension>> invalidRequests = List.of(
+            List.of(new CacheStatsDimension("dim1", "a")),
+            List.of(new CacheStatsDimension("dim1", "a"), new CacheStatsDimension("dim3", "b")),
+            List.of(new CacheStatsDimension("dim3", "a"), new CacheStatsDimension("dim4", "b"))
+        );
+        for (List<CacheStatsDimension> invalidRequest : invalidRequests) {
+            assertThrows(IllegalArgumentException.class, () -> stats.getStatsByDimensions(invalidRequest));
+        }
     }
 
     static Map<String, List<String>> getUsedDimensionValues(StatsHolder statsHolder, int numValuesPerDim) {

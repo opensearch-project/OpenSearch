@@ -13,7 +13,9 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -22,11 +24,6 @@ import java.util.concurrent.ConcurrentMap;
  * Does not allow changes to the stats.
  */
 public class MultiDimensionCacheStats implements CacheStats {
-
-    /**
-     * For memory purposes, don't track stats for more than this many distinct combinations of dimension values.
-     */
-    public final static int DEFAULT_MAX_DIMENSION_VALUES = 20_000;
 
     // The value of the tier dimension for entries in this Stats object. This is handled separately for efficiency,
     // as it always has the same value for every entry in the stats object.
@@ -62,28 +59,31 @@ public class MultiDimensionCacheStats implements CacheStats {
 
     /**
      * Get the stats response aggregated by dimensions. If there are no values for the specified dimensions,
-     * returns an all-zero response.
+     * returns an all-zero response. If the specified dimensions don't form a valid key, as determined by the statsHolder's
+     * tracking mode, throws an IllegalArgumentException.
      */
     @Override
     public CacheStatsResponse getStatsByDimensions(List<CacheStatsDimension> dimensions) {
-        if (!checkDimensionNames(dimensions)) {
-            throw new IllegalArgumentException("Can't get stats for unrecognized dimensions");
+        List<CacheStatsDimension> modifiedDimensions = new ArrayList<>(dimensions);
+        CacheStatsDimension tierDim = getTierDimension(dimensions);
+        if (tierDim != null) {
+            modifiedDimensions.remove(tierDim);
         }
 
-        CacheStatsDimension tierDim = getTierDimension(dimensions);
+        if (!checkDimensions(modifiedDimensions)) {
+            throw new IllegalArgumentException("Can't retrieve stats for this combination of dimensions");
+        }
+
         if (tierDim == null || tierDim.dimensionValue.equals(tierDimensionValue)) {
             // If there is no tier dimension, or if the tier dimension value matches the one for this stats object, return an aggregated
             // response over the non-tier dimensions
-            List<CacheStatsDimension> modifiedDimensions = new ArrayList<>(dimensions);
-            if (tierDim != null) {
-                modifiedDimensions.remove(tierDim);
-            }
-
             ConcurrentMap<StatsHolder.Key, CacheStatsResponse> map = statsHolder.getStatsMap();
-
             CacheStatsResponse response = new CacheStatsResponse();
 
-            if (modifiedDimensions.size() == statsHolder.getDimensionNames().size()) {
+            // In the SEPARATE_DIMENSIONS_ONLY and SPECIFIC_COMBINATIONS cases, we don't do any adding; just return directly from the map.
+            // Also do this if mode is ALL_COMBINATIONS and our dimensions have a value for every dimension name.
+            if (statsHolder.mode != StatsHolder.TrackingMode.ALL_COMBINATIONS
+                || modifiedDimensions.size() == statsHolder.getDimensionNames().size()) {
                 CacheStatsResponse resultFromMap = map.getOrDefault(new StatsHolder.Key(modifiedDimensions), new CacheStatsResponse());
                 response.add(resultFromMap); // Again return a copy
                 return response;
@@ -111,15 +111,36 @@ public class MultiDimensionCacheStats implements CacheStats {
         return null;
     }
 
-    private boolean checkDimensionNames(List<CacheStatsDimension> dimensions) {
-        for (CacheStatsDimension dim : dimensions) {
-            if (!(statsHolder.getDimensionNames().contains(dim.dimensionName)
-                || dim.dimensionName.equals(CacheStatsDimension.TIER_DIMENSION_NAME))) {
-                // Reject dimension names that aren't in the list and aren't the tier dimension
-                return false;
-            }
+    // Check the dimensions passed in are a valid request, according to the stats holder's tracking mode
+    private boolean checkDimensions(List<CacheStatsDimension> dimensions) {
+        switch (statsHolder.mode) {
+            case SEPARATE_DIMENSIONS_ONLY:
+                if (!(dimensions.size() == 1 && statsHolder.getDimensionNames().contains(dimensions.get(0).dimensionName))) {
+                    return false;
+                }
+                break;
+            case ALL_COMBINATIONS:
+                for (CacheStatsDimension dim : dimensions) {
+                    if (!statsHolder.getDimensionNames().contains(dim.dimensionName)) {
+                        return false;
+                    }
+                }
+                break;
+            case SPECIFIC_COMBINATIONS:
+                if (!statsHolder.getSpecificCombinations().contains(getDimensionNamesSet(dimensions))) {
+                    return false;
+                }
+                break;
         }
         return true;
+    }
+
+    private Set<String> getDimensionNamesSet(List<CacheStatsDimension> dimensions) {
+        Set<String> dimSet = new HashSet<>();
+        for (CacheStatsDimension dim : dimensions) {
+            dimSet.add(dim.dimensionName);
+        }
+        return dimSet;
     }
 
     @Override

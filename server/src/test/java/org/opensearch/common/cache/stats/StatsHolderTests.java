@@ -26,11 +26,17 @@ import static org.opensearch.common.cache.stats.MultiDimensionCacheStatsTests.po
 
 public class StatsHolderTests extends OpenSearchTestCase {
     // Since StatsHolder does not expose getter methods for aggregating stats,
-    // we test the incrementing functionality in combination with MultiDimensionCacheStats,
+    // we test the incrementing functionality and the different tracking modes in combination with MultiDimensionCacheStats,
     // in MultiDimensionCacheStatsTests.java.
     public void testSerialization() throws Exception {
-        List<String> dimensionNames = List.of("dim1", "dim2");
-        StatsHolder statsHolder = new StatsHolder(dimensionNames, getSettings(10_000));
+        List<String> dimensionNames = List.of("dim1", "dim2", "dim3");
+        Set<Set<String>> specificCombinations = Set.of(Set.of("dim1"), Set.of("dim2", "dim3"));
+        StatsHolder statsHolder = new StatsHolder(
+            dimensionNames,
+            getSettings(10_000),
+            StatsHolder.TrackingMode.SPECIFIC_COMBINATIONS,
+            specificCombinations
+        );
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
         populateStats(statsHolder, usedDimensionValues, 100, 10);
 
@@ -61,14 +67,13 @@ public class StatsHolderTests extends OpenSearchTestCase {
 
     public void testReset() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2");
-        StatsHolder statsHolder = new StatsHolder(dimensionNames, getSettings(20_000));
+        StatsHolder statsHolder = new StatsHolder(dimensionNames, getSettings(20_000), StatsHolder.TrackingMode.ALL_COMBINATIONS);
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
         Map<Set<CacheStatsDimension>, CacheStatsResponse> expected = populateStats(statsHolder, usedDimensionValues, 100, 10);
 
         statsHolder.reset();
 
         for (Set<CacheStatsDimension> dimSet : expected.keySet()) {
-            List<CacheStatsDimension> dims = new ArrayList<>(dimSet);
             CacheStatsResponse originalResponse = expected.get(dimSet);
             originalResponse.memorySize = new CounterMetric();
             originalResponse.entries = new CounterMetric();
@@ -92,6 +97,8 @@ public class StatsHolderTests extends OpenSearchTestCase {
         assertEquals(statsHolder.getStatsMap(), deserialized.getStatsMap());
         assertEquals(statsHolder.getDimensionNames(), deserialized.getDimensionNames());
         assertEquals(statsHolder.totalStats, deserialized.totalStats);
+        assertEquals(statsHolder.mode, deserialized.mode);
+        assertEquals(statsHolder.getSpecificCombinations(), deserialized.getSpecificCombinations());
     }
 
     static Settings getSettings(int maxDimensionValues) {
