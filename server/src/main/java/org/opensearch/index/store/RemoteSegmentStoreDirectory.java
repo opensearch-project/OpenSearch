@@ -39,6 +39,7 @@ import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
@@ -900,28 +901,20 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         String indexUUID,
         ShardId shardId
     ) {
-        threadpool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
-            try {
-                try (
-                    RemoteSegmentStoreDirectory remoteDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
-                        remoteStoreRepoForIndex,
-                        indexUUID,
-                        shardId
-                    )
-                ) {
-                    remoteDirectory.deleteStaleSegmentsAsync(
-                        0,
-                        ActionListener.wrap(
-                            r -> remoteDirectory.deleteIfEmpty(),
-                            e -> staticLogger.error("Failed to cleanup remote directory")
-                        ),
-                        ThreadPool.Names.SAME
-                    );
-                }
-            } catch (IOException e) {
+        threadpool.executor(ThreadPool.Names.REMOTE_PURGE).execute(new BlobStoreRepository.RemoteStoreShardCleanupTask(() -> {
+            try (
+                RemoteSegmentStoreDirectory remoteDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
+                    remoteStoreRepoForIndex,
+                    indexUUID,
+                    shardId
+                )
+            ) {
+                remoteDirectory.deleteStaleSegments(0); // cleanup stale segments in sync.
+                remoteDirectory.deleteIfEmpty();
+            } catch (Exception e) {
                 staticLogger.error("Exception occurred while deleting directory", e);
             }
-        });
+        }, threadpool.executor(ThreadPool.Names.REMOTE_PURGE), indexUUID, shardId));
     }
 
     /*
