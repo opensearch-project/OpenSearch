@@ -112,7 +112,7 @@ public class SimpleQueryStringIT extends ParameterizedStaticSettingsOpenSearchIn
 
     @BeforeClass
     public static void createRandomClusterSetting() {
-        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(60, 100);
+        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(80, 100);
     }
 
     @Override
