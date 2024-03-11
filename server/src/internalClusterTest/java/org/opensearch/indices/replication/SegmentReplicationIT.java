@@ -401,44 +401,14 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testReplicationAfterForceMerge() throws Exception {
-        final String nodeA = internalCluster().startDataOnlyNode();
-        final String nodeB = internalCluster().startDataOnlyNode();
-        createIndex(INDEX_NAME);
-        ensureGreen(INDEX_NAME);
-
-        final int initialDocCount = scaledRandomIntBetween(0, 10);
-        final int additionalDocCount = scaledRandomIntBetween(0, 10);
-        final int expectedHitCount = initialDocCount + additionalDocCount;
-        try (
-            BackgroundIndexer indexer = new BackgroundIndexer(
-                INDEX_NAME,
-                "_doc",
-                client(),
-                -1,
-                RandomizedTest.scaledRandomIntBetween(2, 5),
-                false,
-                random()
-            )
-        ) {
-            indexer.start(initialDocCount);
-            waitForDocs(initialDocCount, indexer);
-
-            flush(INDEX_NAME);
-            waitForSearchableDocs(initialDocCount, nodeA, nodeB);
-
-            // Index a second set of docs so we can merge into one segment.
-            indexer.start(additionalDocCount);
-            waitForDocs(expectedHitCount, indexer);
-            waitForSearchableDocs(expectedHitCount, nodeA, nodeB);
-
-            // Force a merge here so that the in memory SegmentInfos does not reference old segments on disk.
-            client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(false).get();
-            refresh(INDEX_NAME);
-            verifyStoreContent();
-        }
+        performReplicationAfterForceMerge(false, SHARD_COUNT * (1 + REPLICA_COUNT));
     }
 
     public void testReplicationAfterForceMergeOnPrimaryShardsOnly() throws Exception {
+        performReplicationAfterForceMerge(true, SHARD_COUNT);
+    }
+
+    private void performReplicationAfterForceMerge(boolean primaryOnly, int expectedSuccessfulShards) throws Exception {
         final String nodeA = internalCluster().startDataOnlyNode();
         final String nodeB = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
@@ -473,12 +443,12 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             final ForceMergeResponse forceMergeResponse = client().admin()
                 .indices()
                 .prepareForceMerge(INDEX_NAME)
-                .setPrimaryOnly(true)
+                .setPrimaryOnly(primaryOnly)
                 .setMaxNumSegments(1)
                 .setFlush(false)
                 .get();
             assertThat(forceMergeResponse.getFailedShards(), is(0));
-            assertThat(forceMergeResponse.getSuccessfulShards(), is(1));
+            assertThat(forceMergeResponse.getSuccessfulShards(), is(expectedSuccessfulShards));
             refresh(INDEX_NAME);
             verifyStoreContent();
         }
