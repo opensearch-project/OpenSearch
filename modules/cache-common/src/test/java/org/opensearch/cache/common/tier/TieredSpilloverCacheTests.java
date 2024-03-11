@@ -129,9 +129,9 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setPolicyInfoWrapperFunction(new Function<String, CachePolicyInfoWrapper>() {
                     @Override
                     public CachePolicyInfoWrapper apply(String s) {
-                        return new CachePolicyInfoWrapper(10_000L);
+                        return new CachePolicyInfoWrapper(20_000_000L);
                     }
-                }) // Values will always appear to have taken 10_000 ns = 10 ms to compute
+                }) // Values will always appear to have taken 20_000_000 ns = 20 ms to compute
                 .build(),
             CacheType.INDICES_REQUEST_CACHE,
             Map.of(
