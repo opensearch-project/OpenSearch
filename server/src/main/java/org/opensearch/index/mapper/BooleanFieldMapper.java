@@ -227,11 +227,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             switch (sValue) {
                 case "true":
                     return Values.TRUE;
-                case "T":
-                    return Values.TRUE;
                 case "false":
-                    return Values.FALSE;
-                case "F":
                     return Values.FALSE;
                 default:
                     throw new IllegalArgumentException("Can't parse boolean value [" + sValue + "], expected [true] or [false]");
@@ -275,18 +271,12 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
+            if (!isSearchable()) {
+                return SortedNumericDocValuesField.newSlowExactQuery(name(), Values.TRUE.bytesEquals(indexedValueForSearch(value)) ? 1 : 0);
+            }
             Query query = new TermQuery(new Term(name(), indexedValueForSearch(value)));
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
-            }
-            if (isSearchable() && hasDocValues()) {
-                return new IndexOrDocValuesQuery(
-                    query,
-                    SortedNumericDocValuesField.newSlowExactQuery(name(), Values.TRUE.bytesEquals(indexedValueForSearch(value)) ? 1 : 0)
-                );
-            }
-            if (hasDocValues()) {
-                return SortedNumericDocValuesField.newSlowExactQuery(name(), Values.TRUE.bytesEquals(indexedValueForSearch(value)) ? 1 : 0);
             }
             return query;
         }
@@ -297,19 +287,25 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             boolean seenTrue = false;
             boolean seenFalse = false;
             for (Object value : values) {
-                if (Values.TRUE.equals(indexedValueForSearch(value))) seenTrue = true;
-                else seenFalse = true;
+                if (Values.TRUE.equals(indexedValueForSearch(value))) {
+                    seenTrue = true;
+                } else if (Values.FALSE.equals(indexedValueForSearch(value))) {
+                    seenFalse = true;
+                } else {
+                    return new MatchNoDocsQuery("Values did not contain True or False");
+                }
             }
             if (seenTrue) {
                 if (seenFalse) {
                     return new MatchAllDocsQuery();
                 }
-                return termQuery(Values.TRUE, context);
+                return termQuery("true", context);
             }
             if (seenFalse) {
-                return termQuery(Values.FALSE, context);
+                return termQuery("false", context);
             }
             return new MatchNoDocsQuery("Values did not contain True or False");
+
         }
 
         @Override
