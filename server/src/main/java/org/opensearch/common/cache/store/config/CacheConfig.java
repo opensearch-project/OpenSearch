@@ -11,6 +11,7 @@ package org.opensearch.common.cache.store.config;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 
 import java.util.function.ToLongBiFunction;
 
@@ -41,12 +42,24 @@ public class CacheConfig<K, V> {
 
     private final RemovalListener<K, V> removalListener;
 
+    /**
+     * Max size in bytes for the cache. This is needed for backward compatibility.
+     */
+    private final long maxSizeInBytes;
+
+    /**
+     * Defines the expiration time for a cache entry. This is needed for backward compatibility.
+     */
+    private final TimeValue expireAfterAccess;
+
     private CacheConfig(Builder<K, V> builder) {
         this.keyType = builder.keyType;
         this.valueType = builder.valueType;
         this.settings = builder.settings;
         this.removalListener = builder.removalListener;
         this.weigher = builder.weigher;
+        this.maxSizeInBytes = builder.maxSizeInBytes;
+        this.expireAfterAccess = builder.expireAfterAccess;
     }
 
     public Class<K> getKeyType() {
@@ -69,6 +82,14 @@ public class CacheConfig<K, V> {
         return weigher;
     }
 
+    public Long getMaxSizeInBytes() {
+        return maxSizeInBytes;
+    }
+
+    public TimeValue getExpireAfterAccess() {
+        return expireAfterAccess;
+    }
+
     /**
      * Builder class to build Cache config related parameters.
      * @param <K> Type of key.
@@ -85,6 +106,10 @@ public class CacheConfig<K, V> {
         private RemovalListener<K, V> removalListener;
 
         private ToLongBiFunction<K, V> weigher;
+
+        private long maxSizeInBytes;
+
+        private TimeValue expireAfterAccess;
 
         public Builder() {}
 
@@ -110,6 +135,16 @@ public class CacheConfig<K, V> {
 
         public Builder<K, V> setWeigher(ToLongBiFunction<K, V> weigher) {
             this.weigher = weigher;
+            return this;
+        }
+
+        public Builder<K, V> setMaxSizeInBytes(long sizeInBytes) {
+            this.maxSizeInBytes = sizeInBytes;
+            return this;
+        }
+
+        public Builder<K, V> setExpireAfterAccess(TimeValue expireAfterAccess) {
+            this.expireAfterAccess = expireAfterAccess;
             return this;
         }
 
