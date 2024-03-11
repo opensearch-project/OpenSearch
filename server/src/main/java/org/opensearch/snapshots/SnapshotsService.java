@@ -467,11 +467,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         indicesForSnapshot.add(indexId.getName());
                     }
                 }
-                final List<String> matchingIndices = filterIndices(
-                    indicesForSnapshot,
-                    request.indices(),
-                    request.indicesOptions()
-                );
+                final List<String> matchingIndices = filterIndices(indicesForSnapshot, request.indices(), request.indicesOptions());
                 if (matchingIndices.isEmpty()) {
                     throw new SnapshotException(
                         new Snapshot(repositoryName, sourceSnapshotId),

@@ -31,24 +31,15 @@
 
 package org.opensearch.snapshots;
 
-import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.common.regex.Regex;
 import org.opensearch.index.IndexModule;
-import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Snapshot utilities
