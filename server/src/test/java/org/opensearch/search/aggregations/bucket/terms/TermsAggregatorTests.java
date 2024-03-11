@@ -278,38 +278,54 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * This test case utilizes the default implementation of GlobalOrdinalsStringTermsAggregator.
+     * This test case utilizes the default implementation of GlobalOrdinalsStringTermsAggregator since collectSegmentOrds is false
      */
     public void testSimpleAggregation() throws Exception {
         // Fields not indexed: cannot use LeafBucketCollector#termDocFreqCollector - all documents are visited
-        testSimple(ADD_SORTED_SET_FIELD_NOT_INDEXED, false, false, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 4);
+        testSimple(ADD_SORTED_SET_FIELD_NOT_INDEXED, false, false, false, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 4);
 
         // Fields indexed, deleted documents in segment: cannot use LeafBucketCollector#termDocFreqCollector - all documents are visited
-        testSimple(ADD_SORTED_SET_FIELD_INDEXED, true, false, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 4);
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, true, false, false, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 4);
 
         // Fields indexed, no deleted documents in segment: will use LeafBucketCollector#termDocFreqCollector - no documents are visited
-        testSimple(ADD_SORTED_SET_FIELD_INDEXED, false, false, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 0);
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, false, false, false, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 0);
+
+        // Fields indexed, no deleted documents, but _doc_field value present in document:
+        // cannot use LeafBucketCollector#termDocFreqCollector - all documents are visited
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, false, true, false, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 4);
+
     }
 
     /**
-     * This test case utilizes the LowCardinality implementation of GlobalOrdinalsStringTermsAggregator.
+     * This test case utilizes the LowCardinality implementation of GlobalOrdinalsStringTermsAggregator since collectSegmentOrds is true
      */
     public void testSimpleAggregationLowCardinality() throws Exception {
         // Fields not indexed: cannot use LeafBucketCollector#termDocFreqCollector - all documents are visited
-        testSimple(ADD_SORTED_SET_FIELD_NOT_INDEXED, false, true, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 4);
+        testSimple(ADD_SORTED_SET_FIELD_NOT_INDEXED, false, false, true, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 4);
 
         // Fields indexed, deleted documents in segment: cannot use LeafBucketCollector#termDocFreqCollector - all documents are visited
-        testSimple(ADD_SORTED_SET_FIELD_INDEXED, true, true, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 4);
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, true, false, true, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 4);
 
         // Fields indexed, no deleted documents in segment: will use LeafBucketCollector#termDocFreqCollector - no documents are visited
-        testSimple(ADD_SORTED_SET_FIELD_INDEXED, false, true, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 0);
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, false, false, true, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 0);
+
+        // Fields indexed, no deleted documents, but _doc_field value present in document:
+        // cannot use LeafBucketCollector#termDocFreqCollector - all documents are visited
+        testSimple(ADD_SORTED_SET_FIELD_INDEXED, false, true, true, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS, 4);
     }
 
     /**
      * This test case utilizes the MapStringTermsAggregator.
      */
     public void testSimpleMapStringAggregation() throws Exception {
-        testSimple(ADD_SORTED_SET_FIELD_INDEXED, randomBoolean(), randomBoolean(), TermsAggregatorFactory.ExecutionMode.MAP, 4);
+        testSimple(
+            ADD_SORTED_SET_FIELD_INDEXED,
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            TermsAggregatorFactory.ExecutionMode.MAP,
+            4
+        );
     }
 
     /**
@@ -323,6 +339,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     private void testSimple(
         TriConsumer<Document, String, String> addFieldConsumer,
         final boolean includeDeletedDocumentsInSegment,
+        final boolean includeDocCountField,
         boolean collectSegmentOrds,
         TermsAggregatorFactory.ExecutionMode executionMode,
         final int expectedCollectCount
@@ -344,6 +361,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 indexWriter.addDocument(document);
                 document = new Document();
                 addFieldConsumer.apply(document, "string", "");
+                if (includeDocCountField) {
+                    // Adding _doc_count to one document
+                    document.add(new NumericDocValuesField("_doc_count", 10));
+                }
                 indexWriter.addDocument(document);
 
                 if (includeDeletedDocumentsInSegment) {
@@ -373,7 +394,11 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     Terms result = reduce(aggregator);
                     assertEquals(5, result.getBuckets().size());
                     assertEquals("", result.getBuckets().get(0).getKeyAsString());
-                    assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                    if (includeDocCountField) {
+                        assertEquals(11L, result.getBuckets().get(0).getDocCount());
+                    } else {
+                        assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                    }
                     assertEquals("a", result.getBuckets().get(1).getKeyAsString());
                     assertEquals(2L, result.getBuckets().get(1).getDocCount());
                     assertEquals("b", result.getBuckets().get(2).getKeyAsString());
