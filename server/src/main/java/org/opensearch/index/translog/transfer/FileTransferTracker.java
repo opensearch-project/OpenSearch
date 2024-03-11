@@ -64,10 +64,14 @@ public class FileTransferTracker implements FileTransferListener {
 
     @Override
     public void onSuccess(TransferFileSnapshot fileSnapshot) {
-        long durationInMillis = (System.nanoTime() - fileTransferStartTime) / 1_000_000L;
-        remoteTranslogTransferTracker.addUploadTimeInMillis(durationInMillis);
-        remoteTranslogTransferTracker.addUploadBytesSucceeded(bytesForTlogCkpFileToUpload.get(fileSnapshot.getName()));
-        add(fileSnapshot.getName(), TransferState.SUCCESS);
+        try {
+            long durationInMillis = (System.nanoTime() - fileTransferStartTime) / 1_000_000L;
+            remoteTranslogTransferTracker.addUploadTimeInMillis(durationInMillis);
+            remoteTranslogTransferTracker.addUploadBytesSucceeded(bytesForTlogCkpFileToUpload.get(fileSnapshot.getName()));
+            add(fileSnapshot.getName(), TransferState.SUCCESS);
+        } catch (Exception ex) {
+            throw new FileTransferException(fileSnapshot, ex);
+        }
     }
 
     void add(String file, boolean success) {
