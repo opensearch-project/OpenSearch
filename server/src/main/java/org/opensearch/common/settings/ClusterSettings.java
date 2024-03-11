@@ -667,6 +667,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Settings related to resource trackers
                 ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING,
                 ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING,
+                ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING,
 
                 // Settings related to Searchable Snapshots
                 Node.NODE_SEARCH_CACHE_SIZE_SETTING,
@@ -698,6 +699,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteClusterStateService.GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING,
                 RemoteClusterStateService.METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING,
                 RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
+                RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING,
                 IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
                 IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING,
                 AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE,

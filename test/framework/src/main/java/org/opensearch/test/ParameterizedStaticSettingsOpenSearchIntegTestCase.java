@@ -9,8 +9,13 @@
 package org.opensearch.test;
 
 import org.opensearch.common.settings.Settings;
+import org.opensearch.indices.replication.common.ReplicationType;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
+
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 
 /**
  * Base class for running the tests with parameterization with static settings: the cluster will be pre-created with the settings at startup, the method
@@ -24,6 +29,12 @@ import java.util.Objects;
  * </ul>
  */
 public abstract class ParameterizedStaticSettingsOpenSearchIntegTestCase extends ParameterizedOpenSearchIntegTestCase {
+
+    public static final List<Object[]> replicationSettings = Arrays.asList(
+        new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build() },
+        new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build() }
+    );
+
     public ParameterizedStaticSettingsOpenSearchIntegTestCase(Settings nodeSettings) {
         super(nodeSettings);
     }

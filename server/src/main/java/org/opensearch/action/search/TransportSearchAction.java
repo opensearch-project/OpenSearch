@@ -1220,8 +1220,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 timeProvider,
                 clusterState,
                 task,
-                (iter) -> {
-                    AbstractSearchAsyncAction<? extends SearchPhaseResult> action = searchAsyncAction(
+                (iter) -> new WrappingSearchAsyncActionPhase(
+                    searchAsyncAction(
                         task,
                         searchRequest,
                         executor,
@@ -1237,14 +1237,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         threadPool,
                         clusters,
                         searchRequestContext
-                    );
-                    return new SearchPhase("none") {
-                        @Override
-                        public void run() {
-                            action.start();
-                        }
-                    };
-                },
+                    )
+                ),
                 clusters,
                 searchRequestContext
             );

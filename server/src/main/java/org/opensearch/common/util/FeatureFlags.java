@@ -21,6 +21,11 @@ import org.opensearch.common.settings.Settings;
  */
 public class FeatureFlags {
     /**
+     * Gates the visibility of the remote store migration support from docrep .
+     */
+    public static final String REMOTE_STORE_MIGRATION_EXPERIMENTAL = "opensearch.experimental.feature.remote_store.migration.enabled";
+
+    /**
      * Gates the ability for Searchable Snapshots to read snapshots that are older than the
      * guaranteed backward compatibility for OpenSearch (one prior major version) on a best effort basis.
      */
@@ -97,6 +102,12 @@ public class FeatureFlags {
             return featureFlag.getDefault(Settings.EMPTY);
         }
     }
+
+    public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
+        REMOTE_STORE_MIGRATION_EXPERIMENTAL,
+        false,
+        Property.NodeScope
+    );
 
     public static final Setting<Boolean> EXTENSIONS_SETTING = Setting.boolSetting(EXTENSIONS, false, Property.NodeScope);
 

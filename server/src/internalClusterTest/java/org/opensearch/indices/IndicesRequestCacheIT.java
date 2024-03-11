@@ -81,6 +81,11 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         );
     }
 
+    @Override
+    protected boolean useRandomReplicationStrategy() {
+        return true;
+    }
+
     // One of the primary purposes of the query cache is to cache aggs results
     public void testCacheAggs() throws Exception {
         Client client = client();
@@ -180,7 +185,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refresh();
+        refreshAndWaitForReplication();
         ensureSearchable("index");
 
         assertCacheState(client, "index", 0, 0);
@@ -250,7 +255,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refresh();
+        refreshAndWaitForReplication();
         ensureSearchable("index");
 
         assertCacheState(client, "index", 0, 0);
@@ -316,7 +321,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refresh();
+        refreshAndWaitForReplication();
         ensureSearchable("index");
 
         assertCacheState(client, "index", 0, 0);
@@ -389,7 +394,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             .setFlush(true)
             .get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refresh();
+        refreshAndWaitForReplication();
         ensureSearchable("index-1", "index-2", "index-3");
 
         assertCacheState(client, "index-1", 0, 0);
@@ -460,7 +465,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refresh();
+        refreshAndWaitForReplication();
         ensureSearchable("index");
 
         assertCacheState(client, "index", 0, 0);
@@ -554,7 +559,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refresh();
+        refreshAndWaitForReplication();
 
         indexRandomForConcurrentSearch("index");
 
@@ -661,7 +666,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         assertCacheState(client, "index", 1, 1);
 
         // Explicit refresh would invalidate cache
-        refresh();
+        refreshAndWaitForReplication();
         // Hit same query again
         resp = client.prepareSearch("index").setRequestCache(true).setQuery(QueryBuilders.termQuery("k", "hello")).get();
         assertSearchResponse(resp);

@@ -237,6 +237,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         ScriptService scriptService
     ) {
         super(indexSettings);
+
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.documentParser = new DocumentMapperParser(
@@ -261,7 +262,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.idFieldDataEnabled = idFieldDataEnabled;
 
         if (INDEX_MAPPER_DYNAMIC_SETTING.exists(indexSettings.getSettings())) {
-            throw new IllegalArgumentException("Setting " + INDEX_MAPPER_DYNAMIC_SETTING.getKey() + " was removed after version 6.0.0");
+            deprecationLogger.deprecate(
+                index().getName() + INDEX_MAPPER_DYNAMIC_SETTING.getKey(),
+                "Index [{}] has setting [{}] that is not supported in OpenSearch, its value will be ignored.",
+                index().getName(),
+                INDEX_MAPPER_DYNAMIC_SETTING.getKey()
+            );
         }
     }
 
