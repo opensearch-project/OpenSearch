@@ -12,34 +12,24 @@ import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.gateway.AsyncShardFetch;
 
 import java.io.IOException;
 
 /**
- * This class contains information about the shard that needs to be sent as part of request in Transport Action implementing
- * {@link AsyncShardFetch.Lister} to fetch shard information in async manner
+ * This class contains Attributes related to Shards that are necessary for making the {@link org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch} transport requests
  *
  * @opensearch.internal
  */
 public class ShardAttributes implements Writeable {
-    private final ShardId shardId;
     @Nullable
     private final String customDataPath;
 
-    public ShardAttributes(ShardId shardId, String customDataPath) {
-        this.shardId = shardId;
+    public ShardAttributes(String customDataPath) {
         this.customDataPath = customDataPath;
     }
 
     public ShardAttributes(StreamInput in) throws IOException {
-        shardId = new ShardId(in);
         customDataPath = in.readString();
-    }
-
-    public ShardId getShardId() {
-        return shardId;
     }
 
     /**
@@ -53,7 +43,11 @@ public class ShardAttributes implements Writeable {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        shardId.writeTo(out);
         out.writeString(customDataPath);
+    }
+
+    @Override
+    public String toString() {
+        return "ShardAttributes{" + ", customDataPath='" + customDataPath + '\'' + '}';
     }
 }

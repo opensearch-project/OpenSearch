@@ -29,8 +29,9 @@ public class ShardBatchCacheTests extends OpenSearchAllocationTestCase {
     private static final String BATCH_ID = "b1";
     private final DiscoveryNode node1 = newNode("node1");
     private final DiscoveryNode node2 = newNode("node2");
+    // Compilation would pass once ShardsBatchGatewayAllocator is committed in main
     private final Map<ShardId, ShardsBatchGatewayAllocator.ShardEntry> batchInfo = new HashMap<>();
-    private ShardBatchCache<NodeGatewayStartedShardsBatch, NodeGatewayStartedShard> shardCache;
+    private AsyncShardBatchFetch.ShardBatchCache<NodeGatewayStartedShardsBatch, NodeGatewayStartedShard> shardCache;
     private List<ShardId> shardsInBatch = new ArrayList<>();
     private static final int NUMBER_OF_SHARDS_DEFAULT = 10;
 
@@ -44,7 +45,7 @@ public class ShardBatchCacheTests extends OpenSearchAllocationTestCase {
     public void setupShardBatchCache(String batchId, int numberOfShards) {
         Map<ShardId, ShardAttributes> shardAttributesMap = new HashMap<>();
         fillShards(shardAttributesMap, numberOfShards);
-        this.shardCache = new ShardBatchCache<>(
+        this.shardCache = new AsyncShardBatchFetch.ShardBatchCache<>(
             logger,
             "batch_shards_started",
             shardAttributesMap,
@@ -69,7 +70,7 @@ public class ShardBatchCacheTests extends OpenSearchAllocationTestCase {
                 .getNodeGatewayStartedShardsBatch()
                 .containsKey(shard)
         );
-        this.shardCache.deleteData(shard);
+        this.shardCache.deleteShard(shard);
         assertFalse(
             this.shardCache.getCacheData(DiscoveryNodes.builder().add(node1).build(), null)
                 .get(node1)

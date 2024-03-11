@@ -16,6 +16,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.store.ShardAttributes;
+import reactor.util.annotation.NonNull;
 
 import java.lang.reflect.Array;
 import java.util.ArrayList;
@@ -119,6 +120,7 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
         private final Function<T, Map<ShardId, V>> shardsBatchDataGetter;
         private final Supplier<V> emptyResponseBuilder;
         private final Consumer<ShardId> handleFailedShard;
+        private final Logger logger;
 
         public ShardBatchCache(
             Logger logger,
@@ -139,8 +141,10 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
             this.shardsBatchDataGetter = shardsBatchDataGetter;
             this.emptyResponseBuilder = emptyResponseBuilder;
             this.handleFailedShard = handleFailedShard;
+            this.logger = logger;
         }
 
+        @NonNull
         @Override
         public Map<String, ? extends BaseNodeEntry> getCache() {
             return cache;

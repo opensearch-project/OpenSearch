@@ -136,8 +136,8 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
     @Override
     protected NodeGatewayStartedShardsBatch nodeOperation(NodeRequest request) {
         Map<ShardId, NodeGatewayStartedShard> shardsOnNode = new HashMap<>();
-        for (ShardAttributes shardAttr : request.shardAttributes.values()) {
-            final ShardId shardId = shardAttr.getShardId();
+        for (Map.Entry<ShardId, ShardAttributes> shardAttr : request.shardAttributes.entrySet()) {
+            final ShardId shardId = shardAttr.getKey();
             try {
                 shardsOnNode.put(
                     shardId,
@@ -147,7 +147,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
                         namedXContentRegistry,
                         nodeEnv,
                         indicesService,
-                        shardAttr.getCustomDataPath(),
+                        shardAttr.getValue().getCustomDataPath(),
                         settings,
                         clusterService
                     )
