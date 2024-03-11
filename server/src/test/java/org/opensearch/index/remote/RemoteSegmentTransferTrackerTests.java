@@ -21,6 +21,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.index.remote.RemoteSegmentTransferTracker.currentTimeMsUsingSystemNanos;
@@ -149,6 +150,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         Thread.sleep(1);
         transferTracker.updateLocalRefreshTimeMs(currentTimeMsUsingSystemNanos());
 
+        transferTracker.updateLatestLocalFileNameLengthMap(List.of("test"), k -> 1L);
         // Sleep for 100ms and then the lag should be within 100ms +/- 20ms
         Thread.sleep(100);
         assertTrue(Math.abs(transferTracker.getTimeMsLag() - 100) <= 20);

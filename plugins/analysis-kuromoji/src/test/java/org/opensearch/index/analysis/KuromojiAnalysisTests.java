@@ -36,6 +36,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
+import org.apache.lucene.analysis.ja.JapaneseCompletionAnalyzer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.opensearch.Version;
@@ -85,6 +86,15 @@ public class KuromojiAnalysisTests extends OpenSearchTestCase {
         filterFactory = analysis.tokenFilter.get("kuromoji_number");
         assertThat(filterFactory, instanceOf(KuromojiNumberFilterFactory.class));
 
+        filterFactory = analysis.tokenFilter.get("kuromoji_completion");
+        assertThat(filterFactory, instanceOf(KuromojiCompletionFilterFactory.class));
+
+        filterFactory = analysis.tokenFilter.get("kuromoji_completion_index");
+        assertThat(filterFactory, instanceOf(KuromojiCompletionFilterFactory.class));
+
+        filterFactory = analysis.tokenFilter.get("kuromoji_completion_query");
+        assertThat(filterFactory, instanceOf(KuromojiCompletionFilterFactory.class));
+
         IndexAnalyzers indexAnalyzers = analysis.indexAnalyzers;
         NamedAnalyzer analyzer = indexAnalyzers.get("kuromoji");
         assertThat(analyzer.analyzer(), instanceOf(JapaneseAnalyzer.class));
@@ -92,6 +102,15 @@ public class KuromojiAnalysisTests extends OpenSearchTestCase {
         analyzer = indexAnalyzers.get("my_analyzer");
         assertThat(analyzer.analyzer(), instanceOf(CustomAnalyzer.class));
         assertThat(analyzer.analyzer().tokenStream(null, new StringReader("")), instanceOf(JapaneseTokenizer.class));
+
+        analyzer = indexAnalyzers.get("kuromoji_completion");
+        assertThat(analyzer.analyzer(), instanceOf(JapaneseCompletionAnalyzer.class));
+
+        analyzer = indexAnalyzers.get("kuromoji_completion_index");
+        assertThat(analyzer.analyzer(), instanceOf(JapaneseCompletionAnalyzer.class));
+
+        analyzer = indexAnalyzers.get("kuromoji_completion_query");
+        assertThat(analyzer.analyzer(), instanceOf(JapaneseCompletionAnalyzer.class));
 
         CharFilterFactory charFilterFactory = analysis.charFilter.get("kuromoji_iteration_mark");
         assertThat(charFilterFactory, instanceOf(KuromojiIterationMarkCharFilterFactory.class));
@@ -197,6 +216,32 @@ public class KuromojiAnalysisTests extends OpenSearchTestCase {
             "まし",
             "た" };
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens_katakana);
+    }
+
+    public void testJapaneseCompletionFilter() throws IOException {
+        TestAnalysis analysis = createTestAnalysis();
+
+        String source = "寿司がおいしいね";
+        String[] expected_tokens = new String[] { "寿司", "susi", "sushi", "が", "ga", "おいしい", "oisii", "oishii", "ね", "ne" };
+
+        // mode = INDEX(default)
+        Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("kuromoji_completion");
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens);
+
+        // mode = INDEX
+        tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
+        tokenFilter = analysis.tokenFilter.get("kuromoji_completion_index");
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens);
+
+        // mode = QUERY
+        tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
+        tokenFilter = analysis.tokenFilter.get("kuromoji_completion_query");
+        expected_tokens = new String[] { "寿司", "susi", "sushi", "がおいしいね", "gaoisiine", "gaoishiine" };
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens);
     }
 
     public void testIterationMarkCharFilter() throws IOException {
@@ -412,6 +457,30 @@ public class KuromojiAnalysisTests extends OpenSearchTestCase {
         Tokenizer tokenizer = tokenizerFactory.create();
         tokenizer.setReader(new StringReader(source));
         assertSimpleTSOutput(tokenizer, expected);
+    }
+
+    public void testJapaneseCompletionAnalyzer() throws Exception {
+        TestAnalysis analysis = createTestAnalysis();
+        IndexAnalyzers indexAnalyzers = analysis.indexAnalyzers;
+        NamedAnalyzer analyzer = indexAnalyzers.get("kuromoji_completion");
+
+        // mode = INDEX(default)
+        try (TokenStream stream = analyzer.tokenStream("", "寿司がおいしいね")) {
+            assertTokenStreamContents(stream, new String[] { "寿司", "susi", "sushi", "が", "ga", "おいしい", "oisii", "oishii", "ね", "ne" });
+        }
+
+        // mode = INDEX
+        analyzer = indexAnalyzers.get("kuromoji_completion_index");
+        try (TokenStream stream = analyzer.tokenStream("", "寿司がおいしいね")) {
+            assertTokenStreamContents(stream, new String[] { "寿司", "susi", "sushi", "が", "ga", "おいしい", "oisii", "oishii", "ね", "ne" });
+        }
+
+        // mode = QUERY
+        analyzer = indexAnalyzers.get("kuromoji_completion_query");
+        try (TokenStream stream = analyzer.tokenStream("", "寿司がおいしいね")) {
+            assertTokenStreamContents(stream, new String[] { "寿司", "susi", "sushi", "がおいしいね", "gaoisiine", "gaoishiine" });
+        }
+
     }
 
     private TestAnalysis createTestAnalysis(Settings analysisSettings) throws IOException {

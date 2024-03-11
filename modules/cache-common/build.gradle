@@ -1,0 +1,17 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+opensearchplugin {
+  description 'Module for caches which are optional and do not require additional security permission'
+  classname 'org.opensearch.cache.common.tier.TieredSpilloverCachePlugin'
+}
+
+test {
+  // TODO: Adding permission in plugin-security.policy doesn't seem to work.
+  systemProperty 'tests.security.manager', 'false'
+}
