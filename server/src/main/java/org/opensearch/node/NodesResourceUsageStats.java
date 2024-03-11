@@ -60,6 +60,9 @@ public class NodesResourceUsageStats implements Writeable, ToXContentFragment {
                     "memory_utilization_percent",
                     String.format(Locale.ROOT, "%.1f", resourceUsageStats.memoryUtilizationPercent)
                 );
+                if (resourceUsageStats.getIoUsageStats() != null) {
+                    builder.field("io_usage_stats", resourceUsageStats.getIoUsageStats());
+                }
             }
             builder.endObject();
         }
