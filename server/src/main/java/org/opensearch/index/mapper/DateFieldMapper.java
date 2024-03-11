@@ -568,6 +568,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             DateMathParser dateParser,
             QueryRewriteContext context
         ) throws IOException {
+            // if we have only doc_values enabled we do not look at the BKD so we return an INTERSECTS by default
             if (isSearchable() == false && hasDocValues()) {
                 return Relation.INTERSECTS;
             }
