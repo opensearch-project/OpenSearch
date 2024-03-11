@@ -250,15 +250,15 @@ public class TransportClusterManagerTermCheckTests extends OpenSearchTestCase {
         CapturingTransport.CapturedRequest termCheckRequest = transport.capturedRequests()[0];
         assertTrue(termCheckRequest.node.isClusterManagerNode());
         assertThat(termCheckRequest.action, equalTo("cluster:monitor/term"));
-        GetTermVersionResponse termVersionResponse = new GetTermVersionResponse(
+        GetTermVersionResponse noMatchResponse = new GetTermVersionResponse(
             new ClusterStateTermVersion(
                 clusterService.state().getClusterName(),
-                clusterService.state().stateUUID(),
+                clusterService.state().metadata().clusterUUID(),
                 clusterService.state().term(),
                 clusterService.state().version() - 1
             )
         );
-        transport.handleResponse(termCheckRequest.requestId, termVersionResponse);
+        transport.handleResponse(termCheckRequest.requestId, noMatchResponse);
         assertFalse(listener.isDone());
 
         assertThat(transport.capturedRequests().length, equalTo(2));

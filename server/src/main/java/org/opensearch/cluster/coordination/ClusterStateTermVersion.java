@@ -15,6 +15,9 @@ import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 
+/**
+ * Identifies a specific version of ClusterState at a node.
+ */
 public class ClusterStateTermVersion implements Writeable {
 
     private final ClusterName clusterName;
