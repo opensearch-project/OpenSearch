@@ -39,7 +39,6 @@ import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
-import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
@@ -860,7 +859,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     public void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep) {
-        deleteStaleSegmentsAsync(lastNMetadataFilesToKeep, ActionListener.wrap(r -> {}, e -> {}), ThreadPool.Names.REMOTE_PURGE);
+        deleteStaleSegmentsAsync(lastNMetadataFilesToKeep, ActionListener.wrap(r -> {}, e -> {}));
     }
 
     /**
@@ -869,10 +868,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      *
      * @param lastNMetadataFilesToKeep number of metadata files to keep
      */
-    public void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep, ActionListener<Void> listener, String threadPoolName) {
+    public void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep, ActionListener<Void> listener) {
         if (canDeleteStaleCommits.compareAndSet(true, false)) {
             try {
-                threadPool.executor(threadPoolName).execute(() -> {
+                threadPool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
                     try {
                         deleteStaleSegments(lastNMetadataFilesToKeep);
                         listener.onResponse(null);
@@ -894,27 +893,24 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
     }
 
-    public static void cleanupAsync(
+    public static void remoteDirectoryCleanup(
         RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
-        ThreadPool threadpool,
         String remoteStoreRepoForIndex,
         String indexUUID,
         ShardId shardId
     ) {
-        threadpool.executor(ThreadPool.Names.REMOTE_PURGE).execute(new BlobStoreRepository.RemoteStoreShardCleanupTask(() -> {
-            try (
-                RemoteSegmentStoreDirectory remoteDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
-                    remoteStoreRepoForIndex,
-                    indexUUID,
-                    shardId
-                )
-            ) {
-                remoteDirectory.deleteStaleSegments(0); // cleanup stale segments in sync.
-                remoteDirectory.deleteIfEmpty();
-            } catch (Exception e) {
-                staticLogger.error("Exception occurred while deleting directory", e);
-            }
-        }, threadpool.executor(ThreadPool.Names.REMOTE_PURGE), indexUUID, shardId));
+        try (
+            RemoteSegmentStoreDirectory remoteDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
+                remoteStoreRepoForIndex,
+                indexUUID,
+                shardId
+            )
+        ) {
+            remoteDirectory.deleteStaleSegments(0); // sync stale segments cleanup
+            remoteDirectory.deleteIfEmpty();
+        } catch (Exception e) {
+            staticLogger.error("Exception occurred while deleting directory", e);
+        }
     }
 
     /*
@@ -944,10 +940,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     @Override
     public void close() throws IOException {
-        deleteStaleSegmentsAsync(
-            0,
-            ActionListener.wrap(r -> deleteIfEmpty(), e -> logger.error("Failed to cleanup remote directory")),
-            ThreadPool.Names.REMOTE_PURGE
-        );
+        deleteStaleSegmentsAsync(0, ActionListener.wrap(r -> deleteIfEmpty(), e -> logger.error("Failed to cleanup remote directory")));
     }
 }

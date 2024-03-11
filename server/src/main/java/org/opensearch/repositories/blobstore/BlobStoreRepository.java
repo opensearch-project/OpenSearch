@@ -1102,6 +1102,32 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    public static void remoteDirectoryCleanupAsync(
+        RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
+        ThreadPool threadpool,
+        String remoteStoreRepoForIndex,
+        String indexUUID,
+        ShardId shardId
+    ) {
+        threadpool.executor(ThreadPool.Names.REMOTE_PURGE)
+            .execute(
+                new RemoteStoreShardCleanupTask(
+                    () -> RemoteSegmentStoreDirectory.remoteDirectoryCleanup(
+                        remoteDirectoryFactory,
+                        remoteStoreRepoForIndex,
+                        indexUUID,
+                        shardId
+                    ),
+                    threadpool.executor(ThreadPool.Names.REMOTE_PURGE),
+                    indexUUID,
+                    shardId
+                )
+            );
+    }
+
+    /**
+    A Runnable wrapper to make sure that for a given shard only one cleanup task runs at a time.
+     */
     public static class RemoteStoreShardCleanupTask implements Runnable {
         private final Runnable task;
         private final ExecutorService executor;
@@ -1121,20 +1147,25 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         @Override
         public void run() {
-            try {
-                if (ongoingRemoteDirectoryCleanups.add(shardIdentifier)) {
+            if (ongoingRemoteDirectoryCleanups.add(shardIdentifier)) {
+                try {
                     task.run();
-                    Runnable nextTask = shardCleanupPendingTasks.get(shardIdentifier).poll(0L, TimeUnit.MILLISECONDS);
-                    if (nextTask != null) {
-                        executor.execute(nextTask);
+                    BlockingQueue<Runnable> pendingTasks = shardCleanupPendingTasks.get(shardIdentifier);
+                    try {
+                        if (pendingTasks != null) {
+                            for (Runnable pendingTask = pendingTasks.poll(0L, TimeUnit.MILLISECONDS); pendingTask != null;) {
+                                pendingTask.run();
+                            }
+                        }
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
                     }
+                } finally {
                     ongoingRemoteDirectoryCleanups.remove(shardIdentifier);
-                } else {
-                    shardCleanupPendingTasks.putIfAbsent(shardIdentifier, new LinkedBlockingQueue<>());
-                    shardCleanupPendingTasks.get(shardIdentifier).add(task);
                 }
-            } catch (InterruptedException e) {
-                // todo: log exception..
+            } else {
+                shardCleanupPendingTasks.putIfAbsent(shardIdentifier, new LinkedBlockingQueue<>());
+                shardCleanupPendingTasks.get(shardIdentifier).add(task);
             }
         }
     }
@@ -1177,7 +1208,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 remoteStoreLockManagerFactory.getRepositoriesService(),
                 threadPool
             );
-            RemoteSegmentStoreDirectory.cleanupAsync(
+            remoteDirectoryCleanupAsync(
                 remoteDirectoryFactory,
                 threadPool,
                 remoteStoreRepoForIndex,
