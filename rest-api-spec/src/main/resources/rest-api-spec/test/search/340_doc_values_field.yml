@@ -671,7 +671,7 @@
       body:
         query:
           term:
-              boolean: true
+            boolean: true
 
   - match: { hits.total: 2 }
 
