@@ -378,28 +378,26 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
 
         public NodeGatewayStartedShardsBatch(StreamInput in) throws IOException {
             super(in);
-            this.nodeGatewayStartedShardsBatch = in.readMap(ShardId::new,
-                i -> {
-                    if (i.readBoolean()) {
-                        return new NodeGatewayStartedShard(i);
-                    } else {
-                        return null;
-                    }
-                });
+            this.nodeGatewayStartedShardsBatch = in.readMap(ShardId::new, i -> {
+                if (i.readBoolean()) {
+                    return new NodeGatewayStartedShard(i);
+                } else {
+                    return null;
+                }
+            });
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(nodeGatewayStartedShardsBatch, (o, k) -> k.writeTo(o),
-                (o, v) -> {
-                    if (v != null) {
-                        o.writeBoolean(true);
-                        v.writeTo(o);
-                    } else {
-                        o.writeBoolean(false);
-                    }
-                });
+            out.writeMap(nodeGatewayStartedShardsBatch, (o, k) -> k.writeTo(o), (o, v) -> {
+                if (v != null) {
+                    o.writeBoolean(true);
+                    v.writeTo(o);
+                } else {
+                    o.writeBoolean(false);
+                }
+            });
         }
 
         public NodeGatewayStartedShardsBatch(DiscoveryNode node, Map<ShardId, NodeGatewayStartedShard> nodeGatewayStartedShardsBatch) {

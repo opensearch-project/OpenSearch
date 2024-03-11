@@ -39,6 +39,7 @@ import java.io.IOException;
 public class TransportNodesGatewayStartedShardHelper {
 
     public static final String INDEX_NOT_FOUND = "node doesn't have meta data for index";
+
     public static TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard getShardInfoOnLocalNode(
         Logger logger,
         final ShardId shardId,

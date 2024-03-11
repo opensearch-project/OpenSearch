@@ -10,7 +10,6 @@ package org.opensearch.gateway;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
 
@@ -20,7 +19,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public abstract class BaseShardResponse extends TransportResponse {
+public abstract class BaseShardResponse {
 
     private Exception storeException;
 
@@ -42,7 +41,6 @@ public abstract class BaseShardResponse extends TransportResponse {
         }
     }
 
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (storeException != null) {
             out.writeBoolean(true);
