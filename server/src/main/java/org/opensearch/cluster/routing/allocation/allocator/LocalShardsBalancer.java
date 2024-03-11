@@ -28,6 +28,7 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.gateway.PriorityComparator;
 
@@ -69,6 +70,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final float avgPrimaryShardsPerNode;
     private final BalancedShardsAllocator.NodeSorter sorter;
     private final Set<RoutingNode> inEligibleTargetNode;
+    private final boolean preferRandomShardAllocation;
 
     public LocalShardsBalancer(
         Logger logger,
@@ -76,7 +78,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
         ShardMovementStrategy shardMovementStrategy,
         BalancedShardsAllocator.WeightFunction weight,
         float threshold,
-        boolean preferPrimaryBalance
+        boolean preferPrimaryBalance,
+        boolean preferRandomShardAllocation
     ) {
         this.logger = logger;
         this.allocation = allocation;
@@ -92,6 +95,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         inEligibleTargetNode = new HashSet<>();
         this.preferPrimaryBalance = preferPrimaryBalance;
         this.shardMovementStrategy = shardMovementStrategy;
+        this.preferRandomShardAllocation = preferRandomShardAllocation;
     }
 
     /**
@@ -888,6 +892,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         /* find an node with minimal weight we can allocate on*/
         float minWeight = Float.POSITIVE_INFINITY;
         BalancedShardsAllocator.ModelNode minNode = null;
+        List<BalancedShardsAllocator.ModelNode> minNodes = new ArrayList<>();
         Decision decision = null;
         /* Don't iterate over an identity hashset here the
          * iteration order is different for each run and makes testing hard */
@@ -931,11 +936,26 @@ public class LocalShardsBalancer extends ShardsBalancer {
                         final int minNodeHigh = minNode.highestPrimary(shard.getIndexName());
                         updateMinNode = ((((nodeHigh > repId && minNodeHigh > repId) || (nodeHigh < repId && minNodeHigh < repId))
                             && (nodeHigh < minNodeHigh)) || (nodeHigh > repId && minNodeHigh < repId));
+                        minNodes.add(node);
                     } else {
                         updateMinNode = currentDecision.type() == Decision.Type.YES;
+                        /* If updateMinNode is true, it means the earlier nodes had decision type THROTTLE. We will need to clear the list,
+                         * and add new nodes to the list.
+                         */
+                        if(updateMinNode) {
+                            minNodes.clear();
+                            minNodes.add(node);
+                        }
                     }
                 } else {
                     updateMinNode = currentWeight < minWeight;
+                    /* Since we have found nodes with less weight. We will need to clear the earlier minNodes list
+                     * and add the new nodes to the list.
+                     */
+                    if (updateMinNode) {
+                        minNodes.clear();
+                        minNodes.add(node);
+                    }
                 }
                 if (updateMinNode) {
                     minNode = node;
@@ -959,6 +979,11 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 nodeDecisions.add(new NodeAllocationResult(current.getNode(), current.getCanAllocateDecision(), ++weightRanking));
             }
         }
+
+        if(preferRandomShardAllocation && !minNodes.isEmpty()){
+            minNode = minNodes.get(Randomness.get().nextInt(minNodes.size()));
+        }
+
         return AllocateUnassignedDecision.fromDecision(decision, minNode != null ? minNode.getRoutingNode().node() : null, nodeDecisions);
     }
 

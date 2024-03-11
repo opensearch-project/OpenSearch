@@ -153,6 +153,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope
     );
 
+    /**
+     * This setting governs whether shards should be randomly allocated during assignment.
+     */
+    public static final Setting<Boolean> PREFER_RANDOM_SHARD_ALLOCATION = Setting.boolSetting(
+        "cluster.routing.allocation.balance.prefer_random_allocation",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     private volatile boolean movePrimaryFirst;
     private volatile ShardMovementStrategy shardMovementStrategy;
 
@@ -162,6 +172,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private volatile float shardBalanceFactor;
     private volatile WeightFunction weightFunction;
     private volatile float threshold;
+    private volatile boolean preferRandomShardAllocation;
 
     public BalancedShardsAllocator(Settings settings) {
         this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
@@ -180,6 +191,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         setThreshold(THRESHOLD_SETTING.get(settings));
         setPreferPrimaryShardBalance(PREFER_PRIMARY_SHARD_BALANCE.get(settings));
         setShardMovementStrategy(SHARD_MOVEMENT_STRATEGY_SETTING.get(settings));
+        setPreferRandomShardAllocation(PREFER_RANDOM_SHARD_ALLOCATION.get(settings));
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_BALANCE, this::setPreferPrimaryShardBalance);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVE_PRIMARY_FIRST_SETTING, this::setMovePrimaryFirst);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVEMENT_STRATEGY_SETTING, this::setShardMovementStrategy);
@@ -187,6 +199,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         clusterSettings.addSettingsUpdateConsumer(SHARD_BALANCE_FACTOR_SETTING, this::setShardBalanceFactor);
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_BALANCE_BUFFER, this::setPreferPrimaryShardBalanceBuffer);
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
+        clusterSettings.addSettingsUpdateConsumer(PREFER_RANDOM_SHARD_ALLOCATION, this::setPreferRandomShardAllocation);
     }
 
     /**
@@ -245,6 +258,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this.threshold = threshold;
     }
 
+    private void setPreferRandomShardAllocation(boolean preferRandomShardAllocation) {
+        this.preferRandomShardAllocation = preferRandomShardAllocation;
+    }
     @Override
     public void allocate(RoutingAllocation allocation) {
         if (allocation.routingNodes().size() == 0) {
@@ -257,7 +273,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             shardMovementStrategy,
             weightFunction,
             threshold,
-            preferPrimaryShardBalance
+            preferPrimaryShardBalance,
+            preferRandomShardAllocation
         );
         localShardsBalancer.allocateUnassigned();
         localShardsBalancer.moveShards();
@@ -278,7 +295,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             shardMovementStrategy,
             weightFunction,
             threshold,
-            preferPrimaryShardBalance
+            preferPrimaryShardBalance,
+            preferRandomShardAllocation
         );
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
@@ -533,7 +551,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             float threshold,
             boolean preferPrimaryBalance
         ) {
-            super(logger, allocation, shardMovementStrategy, weight, threshold, preferPrimaryBalance);
+            super(logger, allocation, shardMovementStrategy, weight, threshold, preferPrimaryBalance, false);
         }
     }
 
