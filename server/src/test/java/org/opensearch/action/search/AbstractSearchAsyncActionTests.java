@@ -151,6 +151,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             listener,
             controlled,
             false,
+            false,
             expected,
             new SearchShardIterator(null, null, Collections.emptyList(), null)
         );
@@ -162,6 +163,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         ActionListener<SearchResponse> listener,
         final boolean controlled,
         final boolean failExecutePhaseOnShard,
+        final boolean catchExceptionWhenExecutePhaseOnShard,
         final AtomicLong expected,
         final SearchShardIterator... shards
     ) {
@@ -221,7 +223,15 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
                 if (failExecutePhaseOnShard) {
                     listener.onFailure(new ShardNotFoundException(shardIt.shardId()));
                 } else {
-                    listener.onResponse(new QuerySearchResult());
+                    if (catchExceptionWhenExecutePhaseOnShard) {
+                        try {
+                            listener.onResponse(new QuerySearchResult());
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                        }
+                    } else {
+                        listener.onResponse(new QuerySearchResult());
+                    }
                 }
             }
 
@@ -509,6 +519,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             },
             false,
             true,
+            false,
             new AtomicLong(),
             shards
         );
@@ -555,6 +566,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             },
             false,
             false,
+            false,
             new AtomicLong(),
             shards
         );
@@ -570,7 +582,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertThat(searchResponse.getSuccessfulShards(), equalTo(shards.length));
     }
 
-    public void testExecutePhaseOnShardFailure() throws InterruptedException {
+    private void innerTestExecutePhaseOnShardFailure(boolean catchExceptionWhenExecutePhaseOnShard) throws InterruptedException {
         final Index index = new Index("test", UUID.randomUUID().toString());
 
         final SearchShardIterator[] shards = IntStream.range(0, 2 + randomInt(3))
@@ -606,6 +618,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             },
             false,
             false,
+            catchExceptionWhenExecutePhaseOnShard,
             new AtomicLong(),
             shards
         );
@@ -619,6 +632,14 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertSame(searchResponse.getProfileResults(), internalSearchResponse.profile());
         assertSame(searchResponse.getHits(), internalSearchResponse.hits());
         assertThat(searchResponse.getSuccessfulShards(), equalTo(shards.length));
+    }
+
+    public void testExecutePhaseOnShardFailure() throws InterruptedException {
+        innerTestExecutePhaseOnShardFailure(false);
+    }
+
+    public void testExecutePhaseOnShardFailureAndThrowException() throws InterruptedException {
+        innerTestExecutePhaseOnShardFailure(true);
     }
 
     public void testOnPhaseListenersWithQueryAndThenFetchType() throws InterruptedException {
