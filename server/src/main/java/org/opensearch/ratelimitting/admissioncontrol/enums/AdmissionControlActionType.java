@@ -15,7 +15,8 @@ import java.util.Locale;
  */
 public enum AdmissionControlActionType {
     INDEXING("indexing"),
-    SEARCH("search");
+    SEARCH("search"),
+    CLUSTER_INFO("cluster_info");
 
     private final String type;
 
