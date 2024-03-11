@@ -77,6 +77,14 @@ final class AzureStorageSettings {
         key -> SecureSetting.secureString(key, null)
     );
 
+    /** Azure token credentials such as Managed Identity */
+    public static final AffixSetting<TokenCredentialType> TOKEN_CREDENTIAL_TYPE_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "token_credential_type",
+        (key) -> new Setting<>(key, "not_applicable", s -> TokenCredentialType.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope),
+        () -> ACCOUNT_SETTING
+    );
+
     /** max_retries: Number of retries in case of Azure errors. Defaults to 3 (RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT). */
     public static final AffixSetting<Integer> MAX_RETRIES_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
@@ -196,6 +204,7 @@ final class AzureStorageSettings {
     private final String account;
     private final String connectString;
     private final String endpointSuffix;
+    private final TokenCredentialType tokenCredentialType;
     private final TimeValue timeout;
     private final int maxRetries;
     private final LocationMode locationMode;
@@ -209,6 +218,7 @@ final class AzureStorageSettings {
     private AzureStorageSettings(
         String account,
         String connectString,
+        TokenCredentialType tokenCredentialType,
         String endpointSuffix,
         TimeValue timeout,
         int maxRetries,
@@ -221,6 +231,7 @@ final class AzureStorageSettings {
     ) {
         this.account = account;
         this.connectString = connectString;
+        this.tokenCredentialType = tokenCredentialType;
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.maxRetries = maxRetries;
@@ -236,6 +247,7 @@ final class AzureStorageSettings {
         String account,
         String key,
         String sasToken,
+        TokenCredentialType tokenCredentialType,
         String endpointSuffix,
         TimeValue timeout,
         int maxRetries,
@@ -246,7 +258,8 @@ final class AzureStorageSettings {
         ProxySettings proxySettings
     ) {
         this.account = account;
-        this.connectString = buildConnectString(account, key, sasToken, endpointSuffix);
+        this.connectString = buildConnectString(account, key, sasToken, endpointSuffix, tokenCredentialType);
+        this.tokenCredentialType = tokenCredentialType;
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.maxRetries = maxRetries;
@@ -256,6 +269,10 @@ final class AzureStorageSettings {
         this.readTimeout = readTimeout;
         this.responseTimeout = responseTimeout;
         this.proxySettings = proxySettings;
+    }
+
+    public boolean usesManagedIdentityCredential() {
+        return tokenCredentialType.equals(TokenCredentialType.MANAGED_IDENTITY);
     }
 
     public String getEndpointSuffix() {
@@ -278,9 +295,24 @@ final class AzureStorageSettings {
         return connectString;
     }
 
-    private static String buildConnectString(String account, @Nullable String key, @Nullable String sasToken, String endpointSuffix) {
+    public String getAccount() {
+        return account;
+    }
+
+    private static String buildConnectString(
+        String account,
+        @Nullable String key,
+        @Nullable String sasToken,
+        String endpointSuffix,
+        TokenCredentialType tokenCredentialType
+    ) {
         final boolean hasSasToken = Strings.hasText(sasToken);
         final boolean hasKey = Strings.hasText(key);
+        final boolean hasTokenCredentialType = !tokenCredentialType.equals(TokenCredentialType.NOT_APPLICABLE);
+        // When a valid token credential type is declared, we are no longer using connection string
+        if (hasTokenCredentialType) {
+            return "";
+        }
         if (hasSasToken == false && hasKey == false) {
             throw new SettingsException("Neither a secret key nor a shared access token was set.");
         }
@@ -325,6 +357,7 @@ final class AzureStorageSettings {
         final StringBuilder sb = new StringBuilder("AzureStorageSettings{");
         sb.append("account='").append(account).append('\'');
         sb.append(", timeout=").append(timeout);
+        sb.append(", tokenCredentialType=").append(tokenCredentialType).append('\'');
         sb.append(", endpointSuffix='").append(endpointSuffix).append('\'');
         sb.append(", maxRetries=").append(maxRetries);
         sb.append(", proxySettings=").append(proxySettings != ProxySettings.NO_PROXY_SETTINGS ? "PROXY_SET" : "PROXY_NOT_SET");
@@ -370,6 +403,7 @@ final class AzureStorageSettings {
                 account.toString(),
                 key.toString(),
                 sasToken.toString(),
+                getValue(settings, clientName, TOKEN_CREDENTIAL_TYPE_SETTING),
                 getValue(settings, clientName, ENDPOINT_SUFFIX_SETTING),
                 getValue(settings, clientName, TIMEOUT_SETTING),
                 getValue(settings, clientName, MAX_RETRIES_SETTING),
@@ -431,6 +465,7 @@ final class AzureStorageSettings {
                 new AzureStorageSettings(
                     entry.getValue().account,
                     entry.getValue().connectString,
+                    entry.getValue().tokenCredentialType,
                     entry.getValue().endpointSuffix,
                     entry.getValue().timeout,
                     entry.getValue().maxRetries,

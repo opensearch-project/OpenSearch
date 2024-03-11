@@ -56,6 +56,10 @@ dependencies {
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
   implementation project(':modules:transport-netty4')
   api 'com.azure:azure-storage-blob:12.23.0'
+  api 'com.azure:azure-identity:1.11.2'
+  api 'com.microsoft.azure:msal4j:1.14.2'
+  api 'com.nimbusds:oauth2-oidc-sdk:11.10'
+  api 'net.minidev:json-smart:2.5.0'
   api "io.projectreactor.netty:reactor-netty-core:${versions.reactor_netty}"
   api "io.projectreactor.netty:reactor-netty-http:${versions.reactor_netty}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
