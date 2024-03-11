@@ -49,8 +49,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.common.util.IndexUtils.filterIndices;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
-import static org.opensearch.snapshots.SnapshotUtils.filterIndices;
 
 /**
  * Service responsible for restoring index data from remote store
