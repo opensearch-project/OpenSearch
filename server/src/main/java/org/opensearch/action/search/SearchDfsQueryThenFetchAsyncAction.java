@@ -55,7 +55,7 @@ import java.util.function.BiFunction;
  *
  * @opensearch.internal
  */
-class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSearchResult> {
+final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSearchResult> {
 
     private final SearchPhaseController searchPhaseController;
 

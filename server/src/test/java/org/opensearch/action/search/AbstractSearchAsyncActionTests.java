@@ -89,7 +89,6 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
 
 public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
 
@@ -646,8 +645,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertEquals(1, testListener.getPhaseCurrent(expandPhase.getSearchPhaseName()));
 
         action.executeNextPhase(expandPhase, fetchPhase);
+        action.onPhaseDone(); /* finish phase since we don't have reponse being sent */
 
-        action.sendSearchResponse(mock(InternalSearchResponse.class), mock(String.valueOf(QuerySearchResult.class)));
         assertThat(testListener.getPhaseMetric(expandPhase.getSearchPhaseName()), greaterThanOrEqualTo(delay));
         assertEquals(1, testListener.getPhaseTotal(expandPhase.getSearchPhaseName()));
         assertEquals(0, testListener.getPhaseCurrent(expandPhase.getSearchPhaseName()));
@@ -673,14 +672,15 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
 
         searchDfsQueryThenFetchAsyncAction.skipShard(searchShardIterator);
         searchDfsQueryThenFetchAsyncAction.executeNextPhase(searchDfsQueryThenFetchAsyncAction, fetchPhase);
+        searchDfsQueryThenFetchAsyncAction.onPhaseFailure(
+            fetchPhase,
+            "Something went wrong",
+            null
+        ); /* finalizing the fetch phase since we do adhoc phase lifecycle calls */
 
         assertThat(testListener.getPhaseMetric(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()), greaterThanOrEqualTo(delay));
         assertEquals(1, testListener.getPhaseTotal(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()));
         assertEquals(0, testListener.getPhaseCurrent(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()));
-        searchDfsQueryThenFetchAsyncAction.sendSearchResponse(
-            mock(InternalSearchResponse.class),
-            mock(String.valueOf(QuerySearchResult.class))
-        );
     }
 
     private SearchDfsQueryThenFetchAsyncAction createSearchDfsQueryThenFetchAsyncAction(
@@ -719,7 +719,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             null,
             null,
             null,
-            null,
+            controller,
             executor,
             resultConsumer,
             searchRequest,
@@ -734,18 +734,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
                 searchRequest
             ),
             NoopTracer.INSTANCE
-        ) {
-            @Override
-            public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-                new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger).onPhaseEnd(
-                    this,
-                    new SearchRequestContext(
-                        new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger),
-                        searchRequest
-                    )
-                );
-            }
-        };
+        );
     }
 
     private SearchQueryThenFetchAsyncAction createSearchQueryThenFetchAsyncAction(
@@ -807,13 +796,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
 
             @Override
             public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-                new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger).onPhaseEnd(
-                    this,
-                    new SearchRequestContext(
-                        new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger),
-                        searchRequest
-                    )
-                );
+                start();
             }
         };
     }
