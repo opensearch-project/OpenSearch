@@ -65,11 +65,9 @@ import static java.util.Collections.unmodifiableMap;
  * Allows to asynchronously fetch shard related data from other nodes for allocation, without blocking
  * the cluster update thread.
  * <p>
- * The async fetch logic maintains a map of which nodes are being fetched from in an async manner,
- * and once the results are back, it makes sure to schedule a reroute to make sure those results will
- * be taken into account.
+ * The async fetch logic maintains a cache {@link AsyncShardFetchCache} which is filled in async manner when nodes respond back.
+ * It also schedules a reroute to make sure those results will be taken into account.
  *
- * It comes in two modes, to single fetch a shard or fetch a batch of shards.
  * @opensearch.internal
  */
 public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Releasable {
@@ -86,7 +84,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     protected final String type;
     protected final Map<ShardId, ShardAttributes> shardAttributesMap;
     private final Lister<BaseNodesResponse<T>, T> action;
-    private final Map<String, NodeEntry<T>> cache = new HashMap<>();
+    final Map<String, NodeEntry<T>> cache = new HashMap<>();
     private final AtomicLong round = new AtomicLong();
     private boolean closed;
     protected final String reroutingKey;
