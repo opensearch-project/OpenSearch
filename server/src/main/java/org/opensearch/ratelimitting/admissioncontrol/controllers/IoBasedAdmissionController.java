@@ -23,6 +23,10 @@ import org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionCo
 import java.util.Locale;
 import java.util.Optional;
 
+/**
+ *  Class for IO Based Admission Controller in OpenSearch, which aims to provide IO utilisation admission control.
+ *  It provides methods to apply admission control if configured limit has been reached
+ */
 public class IoBasedAdmissionController extends AdmissionController {
     public static final String IO_BASED_ADMISSION_CONTROLLER = "global_io_usage";
     private static final Logger LOGGER = LogManager.getLogger(IoBasedAdmissionController.class);

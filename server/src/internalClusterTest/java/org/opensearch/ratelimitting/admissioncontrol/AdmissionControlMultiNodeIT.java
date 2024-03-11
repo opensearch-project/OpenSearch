@@ -45,7 +45,6 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
@@ -100,13 +99,14 @@ public class AdmissionControlMultiNodeIT extends OpenSearchIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(settings).build();
     }
 
-    public void testAdmissionControlRejectionOnEnforced() {
+    public void testAdmissionControlRejectionOnEnforced() throws Exception {
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames(INDEX_NAME);
         String primaryName = primaryReplicaNodeNames.v1();
         String replicaName = primaryReplicaNodeNames.v2();
         String coordinatingOnlyNode = getCoordinatingOnlyNode();
         AdmissionControlService admissionControlServicePrimary = internalCluster().getInstance(AdmissionControlService.class, primaryName);
         AdmissionControlService admissionControlServiceReplica = internalCluster().getInstance(AdmissionControlService.class, replicaName);
+        Thread.sleep(6000);
         final BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < 3; ++i) {
             IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
@@ -196,10 +196,10 @@ public class AdmissionControlMultiNodeIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testAdmissionControlEnforcedOnNonACEnabledActions() throws ExecutionException, InterruptedException {
+    public void testAdmissionControlEnforcedOnNonACEnabledActions() throws Exception {
         String coordinatingOnlyNode = getCoordinatingOnlyNode();
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-
+        Thread.sleep(6000);
         updateSettingsRequest.transientSettings(
             Settings.builder()
                 .put(
@@ -248,7 +248,7 @@ public class AdmissionControlMultiNodeIT extends OpenSearchIntegTestCase {
         assertFalse(nodesStatsResponse.hasFailures());
     }
 
-    public void testAdmissionControlRejectionOnMonitor() {
+    public void testAdmissionControlRejectionOnMonitor() throws Exception {
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames(INDEX_NAME);
         String primaryName = primaryReplicaNodeNames.v1();
         String replicaName = primaryReplicaNodeNames.v2();
@@ -256,6 +256,7 @@ public class AdmissionControlMultiNodeIT extends OpenSearchIntegTestCase {
 
         AdmissionControlService admissionControlServicePrimary = internalCluster().getInstance(AdmissionControlService.class, primaryName);
         AdmissionControlService admissionControlServiceReplica = internalCluster().getInstance(AdmissionControlService.class, replicaName);
+        Thread.sleep(6000);
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
 
@@ -337,7 +338,7 @@ public class AdmissionControlMultiNodeIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testAdmissionControlRejectionOnDisabled() {
+    public void testAdmissionControlRejectionOnDisabled() throws Exception {
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames(INDEX_NAME);
         String primaryName = primaryReplicaNodeNames.v1();
         String replicaName = primaryReplicaNodeNames.v2();
@@ -345,6 +346,7 @@ public class AdmissionControlMultiNodeIT extends OpenSearchIntegTestCase {
 
         AdmissionControlService admissionControlServicePrimary = internalCluster().getInstance(AdmissionControlService.class, primaryName);
         AdmissionControlService admissionControlServiceReplica = internalCluster().getInstance(AdmissionControlService.class, replicaName);
+        Thread.sleep(6000);
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
 

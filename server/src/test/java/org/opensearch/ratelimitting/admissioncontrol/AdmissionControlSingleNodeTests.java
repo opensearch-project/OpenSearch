@@ -77,6 +77,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
     public void testAdmissionControlRejectionEnforcedMode() throws Exception {
         ensureGreen();
         assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
+        Thread.sleep(6000);
         client().admin().indices().prepareCreate("index").execute().actionGet();
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < 3; i++) {
@@ -200,6 +201,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
 
     public void testAdmissionControlRejectionMonitorOnlyMode() throws Exception {
         assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
+        Thread.sleep(6000);
         // Verify that cluster state is updated
         ActionFuture<ClusterStateResponse> future2 = client().admin().cluster().state(new ClusterStateRequest());
         assertThat(future2.isDone(), is(true));
@@ -299,6 +301,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
 
     public void testAdmissionControlRejectionDisabledMode() throws Exception {
         assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
+        Thread.sleep(6000);
         // Verify that cluster state is updated
         ActionFuture<ClusterStateResponse> future2 = client().admin().cluster().state(new ClusterStateRequest());
         assertThat(future2.isDone(), is(true));
@@ -367,6 +370,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
 
     public void testAdmissionControlWithinLimits() throws Exception {
         assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
+        Thread.sleep(6000);
         // Verify that cluster state is updated
         ActionFuture<ClusterStateResponse> future2 = client().admin().cluster().state(new ClusterStateRequest());
         assertThat(future2.isDone(), is(true));
