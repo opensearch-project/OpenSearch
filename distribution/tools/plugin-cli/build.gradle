@@ -104,5 +104,22 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.tukaani.xz.MemoryLimitException',
   'org.tukaani.xz.UnsupportedOptionsException',
   'org.tukaani.xz.XZ',
-  'org.tukaani.xz.XZOutputStream'
+  'org.tukaani.xz.XZOutputStream',
+  'org.apache.commons.codec.Charsets',
+  'org.apache.commons.codec.digest.PureJavaCrc32C',
+  'org.apache.commons.codec.digest.XXHash32',
+  'org.apache.commons.io.Charsets',
+  'org.apache.commons.io.FileUtils',
+  'org.apache.commons.io.FilenameUtils',
+  'org.apache.commons.io.IOUtils',
+  'org.apache.commons.io.build.AbstractOrigin',
+  'org.apache.commons.io.build.AbstractStreamBuilder',
+  'org.apache.commons.io.file.attribute.FileTimes',
+  'org.apache.commons.io.input.BoundedInputStream',
+  'org.apache.commons.io.input.CloseShieldInputStream',
+  'org.apache.commons.io.input.CountingInputStream',
+  'org.apache.commons.io.input.NullInputStream',
+  'org.apache.commons.io.output.CountingOutputStream',
+  'org.apache.commons.io.output.NullOutputStream',
+  'org.apache.commons.lang3.reflect.FieldUtils'
 )
