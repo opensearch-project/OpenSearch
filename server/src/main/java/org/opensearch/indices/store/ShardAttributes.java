@@ -16,7 +16,8 @@ import org.opensearch.core.common.io.stream.Writeable;
 import java.io.IOException;
 
 /**
- * This class contains Attributes related to Shards that are necessary for making the {@link org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch} transport requests
+ * This class contains Attributes related to Shards that are necessary for making the
+ * {@link org.opensearch.gateway.TransportNodesListGatewayStartedShards} transport requests
  *
  * @opensearch.internal
  */
