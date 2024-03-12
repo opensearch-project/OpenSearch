@@ -52,6 +52,10 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'
 }
 
+dependencies {
+  api 'commons-io:commons-io:2.15.1'
+}
+
 test {
   // TODO: find a way to add permissions for the tests in this module
   systemProperty 'tests.security.manager', 'false'
