@@ -66,8 +66,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import reactor.util.annotation.NonNull;
-
+import static java.util.Objects.requireNonNull;
 import static org.opensearch.gateway.PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
@@ -85,6 +84,7 @@ public class RemoteClusterStateService implements Closeable {
     public static final int RETAINED_MANIFESTS = 10;
 
     public static final String DELIMITER = "__";
+    public static final String CUSTOM_DELIMITER = "--";
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterStateService.class);
 
@@ -471,7 +471,7 @@ public class RemoteClusterStateService implements Closeable {
             ? 1
             : 0) + (uploadTemplateMetadata ? 1 : 0);
         CountDownLatch latch = new CountDownLatch(totalUploadTasks);
-        List<CheckedRunnable<IOException>> uploadTasks = new ArrayList<>(totalUploadTasks);
+        Map<String, CheckedRunnable<IOException>> uploadTasks = new HashMap<>(totalUploadTasks);
         Map<String, ClusterMetadataManifest.UploadedMetadata> results = new HashMap<>(totalUploadTasks);
         List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(totalUploadTasks));
 
@@ -490,7 +490,8 @@ public class RemoteClusterStateService implements Closeable {
         );
 
         if (uploadSettingsMetadata) {
-            uploadTasks.add(
+            uploadTasks.put(
+                SETTING_METADATA,
                 getAsyncMetadataWriteAction(
                     clusterState,
                     SETTING_METADATA,
@@ -501,7 +502,8 @@ public class RemoteClusterStateService implements Closeable {
             );
         }
         if (uploadCoordinationMetadata) {
-            uploadTasks.add(
+            uploadTasks.put(
+                COORDINATION_METADATA,
                 getAsyncMetadataWriteAction(
                     clusterState,
                     COORDINATION_METADATA,
@@ -512,7 +514,8 @@ public class RemoteClusterStateService implements Closeable {
             );
         }
         if (uploadTemplateMetadata) {
-            uploadTasks.add(
+            uploadTasks.put(
+                TEMPLATES_METADATA,
                 getAsyncMetadataWriteAction(
                     clusterState,
                     TEMPLATES_METADATA,
@@ -523,20 +526,24 @@ public class RemoteClusterStateService implements Closeable {
             );
         }
         customToUpload.forEach(
-            (key, value) -> uploadTasks.add(
-                getAsyncMetadataWriteAction(
-                    clusterState,
-                    String.join(DELIMITER, CUSTOM_METADATA, key),
-                    CUSTOM_METADATA_FORMAT,
-                    value,
-                    listener
-                )
-            )
+            (key, value) -> {
+                String customComponent = String.join(CUSTOM_DELIMITER, CUSTOM_METADATA, key);
+                uploadTasks.put(
+                    customComponent,
+                    getAsyncMetadataWriteAction(
+                        clusterState,
+                        customComponent,
+                        CUSTOM_METADATA_FORMAT,
+                        value,
+                        listener
+                    )
+                );
+            }
         );
-        indexToUpload.forEach(indexMetadata -> { uploadTasks.add(getIndexMetadataAsyncAction(clusterState, indexMetadata, listener)); });
+        indexToUpload.forEach(indexMetadata -> { uploadTasks.put(indexMetadata.getIndexName(), getIndexMetadataAsyncAction(clusterState, indexMetadata, listener)); });
 
         // start async upload of all required metadata files
-        for (CheckedRunnable<IOException> uploadTask : uploadTasks) {
+        for (CheckedRunnable<IOException> uploadTask : uploadTasks.values()) {
             uploadTask.run();
         }
 
@@ -544,13 +551,23 @@ public class RemoteClusterStateService implements Closeable {
             if (latch.await(getGlobalMetadataUploadTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
                 // TODO: We should add metrics where transfer is timing out. [Issue: #10687]
                 RemoteStateTransferException ex = new RemoteStateTransferException(
-                    String.format(Locale.ROOT, "Timed out waiting for transfer of metadata to complete")
+                    String.format(
+                        Locale.ROOT,
+                        "Timed out waiting for transfer of following metadata to complete - %s",
+                            String.join(", ", uploadTasks.keySet())
+                    )
                 );
+                exceptionList.forEach(ex::addSuppressed);
                 throw ex;
             }
         } catch (InterruptedException ex) {
+            exceptionList.forEach(ex::addSuppressed);
             RemoteStateTransferException exception = new RemoteStateTransferException(
-                String.format(Locale.ROOT, "Timed out waiting for transfer of metadata to complete - %s"),
+                String.format(
+                    Locale.ROOT,
+                    "Timed out waiting for transfer of metadata to complete - %s",
+                    String.join(", ", uploadTasks.keySet())
+                ),
                 ex
             );
             Thread.currentThread().interrupt();
@@ -560,15 +577,8 @@ public class RemoteClusterStateService implements Closeable {
             RemoteStateTransferException exception = new RemoteStateTransferException(
                 String.format(
                     Locale.ROOT,
-                    "Exception during transfer of following metadata to Remote - %s, %s, %s",
-                    indexToUpload.stream().map(IndexMetadata::getIndexName).collect(Collectors.joining(",")),
-                    customToUpload.keySet().stream().collect(Collectors.joining(", ")),
-                    String.join(
-                        ", ",
-                        (uploadSettingsMetadata ? "settings" : ""),
-                        (uploadCoordinationMetadata ? "coordination" : ""),
-                        (uploadTemplateMetadata ? "templates" : "")
-                    )
+                    "Exception during transfer of following metadata to Remote - %s",
+                    String.join(", ", uploadTasks.keySet())
                 )
             );
             exceptionList.forEach(exception::addSuppressed);
@@ -579,8 +589,8 @@ public class RemoteClusterStateService implements Closeable {
             if (uploadedMetadata.getClass().equals(UploadedIndexMetadata.class)) {
                 response.uploadedIndexMetadata.add((UploadedIndexMetadata) uploadedMetadata);
             } else if (uploadedMetadata.getComponent().contains(CUSTOM_METADATA)) {
-                // component name for custom metadata will look like custom__<metadata-attribute>
-                String custom = name.split(DELIMITER)[1];
+                // component name for custom metadata will look like custom--<metadata-attribute>
+                String custom = name.split(DELIMITER)[0].split(CUSTOM_DELIMITER)[1];
                 response.uploadedCustomMetadataMap.put(custom,
                     new UploadedMetadataAttribute(custom, uploadedMetadata.getUploadedFilename()));
             } else if (COORDINATION_METADATA.equals(uploadedMetadata.getComponent())) {
@@ -1161,9 +1171,10 @@ public class RemoteClusterStateService implements Closeable {
     private Metadata.Custom getCustomsMetadata(
         String clusterName,
         String clusterUUID,
-        @NonNull String customMetadataFileName,
+        String customMetadataFileName,
         String custom
     ) {
+        requireNonNull(customMetadataFileName);
         try {
             // Fetch Custom metadata
             String[] splitPath = customMetadataFileName.split("/");

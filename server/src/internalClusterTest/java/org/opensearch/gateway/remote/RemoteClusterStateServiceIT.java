@@ -29,11 +29,20 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.COORDINATION_METADATA;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.CUSTOM_METADATA;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.DELIMITER;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.METADATA_FILE_PREFIX;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.SETTING_METADATA;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.TEMPLATES_METADATA;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
@@ -191,24 +200,33 @@ public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
 
     public void testRemoteRestoreOnClusterManagerRestartCorruptedLocal() throws IOException {
         initialTestSetup(1, 0, 1, 1);
-        String clusterManager = internalCluster().getClusterManagerName();
-        NodesStatsResponse response = client().admin()
-            .cluster().prepareNodesStats(clusterManager).addMetric(FS.metricName()).get();
 
-//        internalCluster().stopCurrentClusterManagerNode();
-//        for (FsInfo.Path info : response.getNodes().get(0).getFs()) {
-//            String path = info.getPath();
-//            Path state = PathUtils.get(path).resolve("_state");
-//            if (Files.exists(state)) {
-//                try (Directory dir = FSDirectory.open(state)) {
-//                    for (String file : dir.listAll()) {
-//                        dir.deleteFile(file);
-//                    }
-//                }
-//            }
-//        }
-        internalCluster().startClusterManagerOnlyNode();
-        ensureStableCluster(2);
+        RemoteClusterStateService remoteClusterStateService = internalCluster().getClusterManagerNodeInstance(
+            RemoteClusterStateService.class
+        );
+        RepositoriesService repositoriesService = internalCluster().getClusterManagerNodeInstance(RepositoriesService.class);
+        BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(REPOSITORY_NAME);
+        BlobPath globalMetadataPath = repository.basePath().add(
+            Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(getClusterState().getClusterName().value().getBytes(StandardCharsets.UTF_8))
+        ).add("cluster-state").add(getClusterState().metadata().clusterUUID()).add("global-metadata");
+
+        Map<String, Integer> metadataFiles = repository.blobStore().blobContainer(globalMetadataPath).listBlobs()
+            .keySet().stream()
+            .map(fileName -> {
+                logger.info(fileName);
+                return fileName.split(DELIMITER)[0];
+            })
+            .collect(Collectors.toMap(Function.identity(), key -> 1, Integer::sum));
+
+        assertTrue(metadataFiles.containsKey(COORDINATION_METADATA));
+        assertEquals(1, (int) metadataFiles.get(COORDINATION_METADATA));
+        assertTrue(metadataFiles.containsKey(SETTING_METADATA));
+        assertEquals(1, (int) metadataFiles.get(SETTING_METADATA));
+        assertTrue(metadataFiles.containsKey(TEMPLATES_METADATA));
+        assertEquals(1, (int) metadataFiles.get(TEMPLATES_METADATA));
+        assertTrue(metadataFiles.keySet().stream().anyMatch(key -> key.startsWith(CUSTOM_METADATA)));
+        assertFalse(metadataFiles.containsKey(METADATA_FILE_PREFIX));
     }
 
     private void validateNodesStatsResponse(NodesStatsResponse nodesStatsResponse) {

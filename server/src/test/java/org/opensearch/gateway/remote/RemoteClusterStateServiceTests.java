@@ -86,6 +86,7 @@ import org.mockito.ArgumentMatchers;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.COORDINATION_METADATA;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.CUSTOM_DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.CUSTOM_METADATA;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.FORMAT_PARAMS;
@@ -966,7 +967,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .coordinationMetadata(new UploadedMetadataAttribute(COORDINATION_METADATA, "mock-coordination-file"))
             .settingMetadata(new UploadedMetadataAttribute(SETTING_METADATA, "mock-setting-file"))
             .templatesMetadata(new UploadedMetadataAttribute(TEMPLATES_METADATA, "mock-templates-file"))
-            .put(IndexGraveyard.TYPE, new UploadedMetadataAttribute(CUSTOM_METADATA + DELIMITER + IndexGraveyard.TYPE, "mock-custom-" +IndexGraveyard.TYPE+ "-file"))
+            .put(IndexGraveyard.TYPE, new UploadedMetadataAttribute(CUSTOM_METADATA + CUSTOM_DELIMITER + IndexGraveyard.TYPE, "mock-custom-" +IndexGraveyard.TYPE+ "-file"))
             .nodeId("nodeA")
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
             .previousClusterUUID("prev-cluster-uuid")
