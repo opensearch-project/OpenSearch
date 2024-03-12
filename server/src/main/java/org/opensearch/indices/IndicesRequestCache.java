@@ -38,6 +38,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
@@ -51,6 +52,7 @@ import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.RatioValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -118,6 +120,17 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         new TimeValue(0),
         Property.NodeScope
     );
+    public static final Setting<TimeValue> INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING = Setting.positiveTimeSetting(
+        "indices.requests.cache.cleanup.interval",
+        TimeValue.timeValueMinutes(1),
+        Property.NodeScope
+    );
+    public static final Setting<String> INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING = new Setting<>(
+        "indices.requests.cache.cleanup.staleness_threshold",
+        "0%",
+        IndicesRequestCache::validateStalenessSetting,
+        Property.NodeScope
+    );
 
     private final static long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
 
@@ -132,6 +145,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
         long sizeInBytes = size.getBytes();
         ToLongBiFunction<Key, BytesReference> weigher = (k, v) -> k.ramBytesUsed() + v.ramBytesUsed();
+        this.cacheCleanupManager = new IndicesRequestCacheCleanupManager(getStalenessThreshold(settings));
         this.cacheEntityLookup = cacheEntityFunction;
         this.cache = cacheService.createCache(
             new CacheConfig.Builder<Key, BytesReference>().setSettings(settings)
@@ -157,6 +171,11 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     @Override
     public void close() {
         cache.invalidateAll();
+    }
+
+    private double getStalenessThreshold(Settings settings) {
+        String threshold = INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.get(settings);
+        return RatioValue.parseRatioValue(threshold).getAsRatio();
     }
 
     void clear(CacheEntity entity) {
@@ -666,5 +685,27 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
     int numRegisteredCloseListeners() { // for testing
         return registeredClosedListeners.size();
+    }
+
+    /**
+     * Validates the staleness setting for the cache cleanup threshold.
+     *
+     * <p>This method checks if the provided staleness threshold is a valid percentage or a valid double value.
+     * If the staleness threshold is not valid, it throws an OpenSearchParseException.
+     *
+     * @param staleThreshold The staleness threshold to validate.
+     * @return The validated staleness threshold.
+     * @throws OpenSearchParseException If the staleness threshold is not a valid percentage or double value.
+     *
+     * <p>package private for testing
+     */
+    static String validateStalenessSetting(String staleThreshold) {
+        try {
+            RatioValue.parseRatioValue(staleThreshold);
+        } catch (OpenSearchParseException e) {
+            e.addSuppressed(e);
+            throw e;
+        }
+        return staleThreshold;
     }
 }
