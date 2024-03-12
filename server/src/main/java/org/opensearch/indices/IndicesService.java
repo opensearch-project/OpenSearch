@@ -315,6 +315,17 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
+     * This setting is used to enable the optimisation in prefix path which helps in achieving higher throughput and lesser
+     * rate limiting by remote store providers. This setting is effective only for remote store enabled cluster.
+     */
+    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_PATH_PREFIX_OPTIMISED_SETTING = Setting.boolSetting(
+        "cluster.remote_store.index.path.prefix.optimised",
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
      * The node's settings.
      */
     private final Settings settings;
