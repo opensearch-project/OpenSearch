@@ -25,6 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.get.GetResponse;
@@ -400,6 +401,14 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testReplicationAfterForceMerge() throws Exception {
+        performReplicationAfterForceMerge(false, SHARD_COUNT * (1 + REPLICA_COUNT));
+    }
+
+    public void testReplicationAfterForceMergeOnPrimaryShardsOnly() throws Exception {
+        performReplicationAfterForceMerge(true, SHARD_COUNT);
+    }
+
+    private void performReplicationAfterForceMerge(boolean primaryOnly, int expectedSuccessfulShards) throws Exception {
         final String nodeA = internalCluster().startDataOnlyNode();
         final String nodeB = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
@@ -430,8 +439,16 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             waitForDocs(expectedHitCount, indexer);
             waitForSearchableDocs(expectedHitCount, nodeA, nodeB);
 
-            // Force a merge here so that the in memory SegmentInfos does not reference old segments on disk.
-            client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(false).get();
+            // Perform force merge only on the primary shards.
+            final ForceMergeResponse forceMergeResponse = client().admin()
+                .indices()
+                .prepareForceMerge(INDEX_NAME)
+                .setPrimaryOnly(primaryOnly)
+                .setMaxNumSegments(1)
+                .setFlush(false)
+                .get();
+            assertThat(forceMergeResponse.getFailedShards(), is(0));
+            assertThat(forceMergeResponse.getSuccessfulShards(), is(expectedSuccessfulShards));
             refresh(INDEX_NAME);
             verifyStoreContent();
         }
