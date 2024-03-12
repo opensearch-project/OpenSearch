@@ -45,6 +45,8 @@ import static org.hamcrest.Matchers.is;
  */
 public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
+    public static final String INDEX_NAME = "test_index";
+
     @Override
     protected boolean resetNodeAfterTest() {
         return true;
@@ -52,6 +54,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
 
     @After
     public void cleanup() {
+        client().admin().indices().prepareDelete(INDEX_NAME).get();
         assertAcked(
             client().admin()
                 .cluster()
@@ -77,11 +80,10 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
     public void testAdmissionControlRejectionEnforcedMode() throws Exception {
         ensureGreen();
         assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
-        Thread.sleep(6000);
-        client().admin().indices().prepareCreate("index").execute().actionGet();
+        client().admin().indices().prepareCreate(INDEX_NAME).execute().actionGet();
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < 3; i++) {
-            bulk.add(client().prepareIndex("index").setSource("foo", "bar " + i));
+            bulk.add(client().prepareIndex(INDEX_NAME).setSource("foo", "bar " + i));
         }
         // Verify that cluster state is updated
         ActionFuture<ClusterStateResponse> future2 = client().admin().cluster().state(new ClusterStateRequest());
@@ -108,10 +110,10 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         } else {
             assertNull(acStats.get(IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER));
         }
-        client().admin().indices().prepareRefresh("index").get();
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
 
         // verify search request hits 429
-        SearchRequest searchRequest = new SearchRequest("index");
+        SearchRequest searchRequest = new SearchRequest(INDEX_NAME);
         try {
             client().search(searchRequest).actionGet();
         } catch (Exception e) {
@@ -147,7 +149,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
 
         bulk = client().prepareBulk();
         for (int i = 0; i < 3; i++) {
-            bulk.add(client().prepareIndex("index").setSource("foo", "bar " + i));
+            bulk.add(client().prepareIndex(INDEX_NAME).setSource("foo", "bar " + i));
         }
         res = client().bulk(bulk.request()).actionGet();
         if (Constants.LINUX) {
@@ -171,10 +173,10 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         } else {
             assertNull(acStats.get(IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER));
         }
-        client().admin().indices().prepareRefresh("index").get();
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
 
         // verify search request hits 429
-        searchRequest = new SearchRequest("index");
+        searchRequest = new SearchRequest(INDEX_NAME);
         try {
             client().search(searchRequest).actionGet();
         } catch (Exception e) {
@@ -201,8 +203,6 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
 
     public void testAdmissionControlRejectionMonitorOnlyMode() throws Exception {
         assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
-        Thread.sleep(6000);
-        // Verify that cluster state is updated
         ActionFuture<ClusterStateResponse> future2 = client().admin().cluster().state(new ClusterStateRequest());
         assertThat(future2.isDone(), is(true));
 
@@ -216,7 +216,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
 
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < 3; i++) {
-            bulk.add(client().prepareIndex("index").setSource("foo", "bar " + i));
+            bulk.add(client().prepareIndex(INDEX_NAME).setSource("foo", "bar " + i));
         }
         // verify bulk request success but admission control having rejections stats
         BulkResponse res = client().bulk(bulk.request()).actionGet();
@@ -229,10 +229,10 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
                 .getRejectionCount()
                 .get(AdmissionControlActionType.INDEXING.getType())
         );
-        client().admin().indices().prepareRefresh("index").get();
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
 
         // verify search request success but admission control having rejections stats
-        SearchRequest searchRequest = new SearchRequest("index");
+        SearchRequest searchRequest = new SearchRequest(INDEX_NAME);
         SearchResponse searchResponse = client().search(searchRequest).actionGet();
         assertEquals(3, searchResponse.getHits().getHits().length);
         acStats = admissionControlService.getStats();
@@ -255,7 +255,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
         bulk = client().prepareBulk();
         for (int i = 0; i < 3; i++) {
-            bulk.add(client().prepareIndex("index").setSource("foo", "bar " + i));
+            bulk.add(client().prepareIndex(INDEX_NAME).setSource("foo", "bar " + i));
         }
         // verify bulk request success but admission control having rejections stats
         res = client().bulk(bulk.request()).actionGet();
@@ -277,7 +277,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         } else {
             assertNull(acStats.get(IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER));
         }
-        searchRequest = new SearchRequest("index");
+        searchRequest = new SearchRequest(INDEX_NAME);
         searchResponse = client().search(searchRequest).actionGet();
         assertEquals(3, searchResponse.getHits().getHits().length);
         acStats = admissionControlService.getStats();
@@ -301,8 +301,6 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
 
     public void testAdmissionControlRejectionDisabledMode() throws Exception {
         assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
-        Thread.sleep(6000);
-        // Verify that cluster state is updated
         ActionFuture<ClusterStateResponse> future2 = client().admin().cluster().state(new ClusterStateRequest());
         assertThat(future2.isDone(), is(true));
 
@@ -314,7 +312,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
 
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < 3; i++) {
-            bulk.add(client().prepareIndex("index").setSource("foo", "bar " + i));
+            bulk.add(client().prepareIndex(INDEX_NAME).setSource("foo", "bar " + i));
         }
         // verify bulk request success and no rejections
         BulkResponse res = client().bulk(bulk.request()).actionGet();
@@ -323,10 +321,10 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         Map<String, AdmissionControllerStats> acStats = admissionControlService.getStats();
 
         assertEquals(0, acStats.get(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER).getRejectionCount().size());
-        client().admin().indices().prepareRefresh("index").get();
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
 
         // verify search request success and no rejections
-        SearchRequest searchRequest = new SearchRequest("index");
+        SearchRequest searchRequest = new SearchRequest(INDEX_NAME);
         SearchResponse searchResponse = client().search(searchRequest).actionGet();
         assertEquals(3, searchResponse.getHits().getHits().length);
         acStats = admissionControlService.getStats();
@@ -343,7 +341,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
         bulk = client().prepareBulk();
         for (int i = 0; i < 3; i++) {
-            bulk.add(client().prepareIndex("index").setSource("foo", "bar " + i));
+            bulk.add(client().prepareIndex(INDEX_NAME).setSource("foo", "bar " + i));
         }
         // verify bulk request success but admission control having rejections stats
         res = client().bulk(bulk.request()).actionGet();
@@ -356,7 +354,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
             assertNull(acStats.get(IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER));
         }
 
-        searchRequest = new SearchRequest("index");
+        searchRequest = new SearchRequest(INDEX_NAME);
         searchResponse = client().search(searchRequest).actionGet();
         assertEquals(3, searchResponse.getHits().getHits().length);
         acStats = admissionControlService.getStats();
@@ -370,8 +368,6 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
 
     public void testAdmissionControlWithinLimits() throws Exception {
         assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
-        Thread.sleep(6000);
-        // Verify that cluster state is updated
         ActionFuture<ClusterStateResponse> future2 = client().admin().cluster().state(new ClusterStateRequest());
         assertThat(future2.isDone(), is(true));
 
@@ -389,7 +385,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
 
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < 3; i++) {
-            bulk.add(client().prepareIndex("index").setSource("foo", "bar " + i));
+            bulk.add(client().prepareIndex(INDEX_NAME).setSource("foo", "bar " + i));
         }
         // verify bulk request success and no rejections
         BulkResponse res = client().bulk(bulk.request()).actionGet();
@@ -402,10 +398,10 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         } else {
             assertNull(acStats.get(IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER));
         }
-        client().admin().indices().prepareRefresh("index").get();
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
 
         // verify search request success and no rejections
-        SearchRequest searchRequest = new SearchRequest("index");
+        SearchRequest searchRequest = new SearchRequest(INDEX_NAME);
         SearchResponse searchResponse = client().search(searchRequest).actionGet();
         assertEquals(3, searchResponse.getHits().getHits().length);
         acStats = admissionControlService.getStats();

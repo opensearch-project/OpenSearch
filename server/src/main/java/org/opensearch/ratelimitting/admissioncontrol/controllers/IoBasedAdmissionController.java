@@ -92,18 +92,18 @@ public class IoBasedAdmissionController extends AdmissionController {
     private boolean isLimitsBreached(String actionName, AdmissionControlActionType admissionControlActionType) {
         // check if cluster state is ready
         if (clusterService.state() != null && clusterService.state().nodes() != null) {
-            long maxIoLimit = this.getIoRejectionThreshold(admissionControlActionType);
+            long ioUsageThreshold = this.getIoRejectionThreshold(admissionControlActionType);
             Optional<NodeResourceUsageStats> nodePerformanceStatistics = this.resourceUsageCollectorService.getNodeStatistics(
                 this.clusterService.state().nodes().getLocalNodeId()
             );
             if (nodePerformanceStatistics.isPresent()) {
                 double ioUsage = nodePerformanceStatistics.get().getIoUsageStats().getIoUtilisationPercent();
-                if (ioUsage >= maxIoLimit) {
+                if (ioUsage >= ioUsageThreshold) {
                     LOGGER.warn(
                         "IoBasedAdmissionController limit reached as the current IO "
                             + "usage [{}] exceeds the allowed limit [{}] for transport action [{}] in admissionControlMode [{}]",
                         ioUsage,
-                        maxIoLimit,
+                        ioUsageThreshold,
                         actionName,
                         this.settings.getTransportLayerAdmissionControllerMode()
                     );
