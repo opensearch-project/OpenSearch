@@ -122,7 +122,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     private final static long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
 
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
-    private final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();
     private final ByteSizeValue size;
     private final TimeValue expire;
     private final ICache<Key, BytesReference> cache;
@@ -161,8 +160,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     }
 
     void clear(CacheEntity entity) {
-        keysToClean.add(new CleanupKey(entity, null));
-        cleanCache();
+        cacheCleanupManager.enqueueCleanupKey(new CleanupKey(entity, null));
+        cacheCleanupManager.forceCleanCache();
     }
 
     @Override
@@ -361,7 +360,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         public void onClose(IndexReader.CacheKey cacheKey) {
             Boolean remove = registeredClosedListeners.remove(this);
             if (remove != null) {
-                keysToClean.add(this);
+                cacheCleanupManager.enqueueCleanupKey(this);
             }
         }
 
