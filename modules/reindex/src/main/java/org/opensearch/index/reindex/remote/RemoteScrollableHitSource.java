@@ -199,7 +199,8 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         RejectAwareActionListener<Response> childListener
     ) {
         execute(request, parser, new RetryListener(logger, threadPool, backoffPolicy, r -> {
-            logger.trace("Retrying execute request");
+            logger.trace("Retrying execute request {}", request.getEndpoint());
+            countSearchRetry.run();
             execute(request, parser, r);
         }, childListener));
     }

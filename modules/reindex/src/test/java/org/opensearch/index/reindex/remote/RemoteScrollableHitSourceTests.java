@@ -523,7 +523,7 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
         Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("some_text.txt").start());
         assertEquals(
             "Error parsing the response, remote is likely not an OpenSearch instance",
-            e.getCause().getCause().getCause().getMessage()
+            e.getCause().getCause().getCause().getCause().getMessage()
         );
     }
 
@@ -532,7 +532,7 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
         Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("main/2_3_3.json").start());
         assertEquals(
             "Error parsing the response, remote is likely not an OpenSearch instance",
-            e.getCause().getCause().getCause().getMessage()
+            e.getCause().getCause().getCause().getCause().getMessage()
         );
     }
 

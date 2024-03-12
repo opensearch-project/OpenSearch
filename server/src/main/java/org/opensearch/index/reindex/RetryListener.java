@@ -84,7 +84,7 @@ public class RetryListener implements RejectAwareActionListener<ScrollableHitSou
         if (retries.hasNext()) {
             retryCount += 1;
             TimeValue delay = retries.next();
-            logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay, e.getMessage()));
+            logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
             schedule(() -> retryScrollHandler.accept(this), delay);
         } else {
             logger.warn(() -> new ParameterizedMessage("giving up on search because we retried [{}] times without success", retryCount), e);
