@@ -159,7 +159,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     /**
-     Collects term frequencies for a given field from a LeafReaderContext directly from stored segment terms
+     Read doc frequencies directly from indexed terms in the segment to skip iterating through individual documents
      @param ctx The LeafReaderContext to collect terms from
      @param globalOrds The SortedSetDocValues for the field's ordinals
      @param ordCountConsumer A consumer to accept collected term frequencies
