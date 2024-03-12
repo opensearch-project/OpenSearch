@@ -13,8 +13,6 @@ import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
-import org.opensearch.common.cache.policy.CachePolicyInfoWrapper;
-import org.opensearch.common.cache.policy.CacheTierPolicy;
 import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
@@ -36,6 +34,7 @@ import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES_KEY;
 
@@ -126,10 +125,10 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setWeigher((k, v) -> keyValueSize)
                 .setRemovalListener(removalListener)
                 .setSettings(settings)
-                .setPolicyInfoWrapperFunction(new Function<String, CachePolicyInfoWrapper>() {
+                .setCachedResultParser(new Function<String, Long>() {
                     @Override
-                    public CachePolicyInfoWrapper apply(String s) {
-                        return new CachePolicyInfoWrapper(20_000_000L);
+                    public Long apply(String s) {
+                        return 20_000_000L;
                     }
                 }) // Values will always appear to have taken 20_000_000 ns = 20 ms to compute
                 .build(),
@@ -842,7 +841,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
     public void testDiskTierPolicies() throws Exception {
         // For policy function, allow if what it receives starts with "a" and string is even length
-        ArrayList<CacheTierPolicy<String>> policies = new ArrayList<>();
+        ArrayList<Predicate<String>> policies = new ArrayList<>();
         policies.add(new AllowFirstLetterA());
         policies.add(new AllowEvenLengths());
 
@@ -963,10 +962,10 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setWeigher((k, v) -> keyValueSize)
                 .setRemovalListener(removalListener)
                 .setSettings(settings)
-                .setPolicyInfoWrapperFunction(new Function<String, CachePolicyInfoWrapper>() {
+                .setCachedResultParser(new Function<String, Long>() {
                     @Override
-                    public CachePolicyInfoWrapper apply(String s) {
-                        return new CachePolicyInfoWrapper(tookTimeMap.get(s));
+                    public Long apply(String s) {
+                        return tookTimeMap.get(s);
                     }
                 })
                 .build(),
@@ -1011,9 +1010,9 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         }
     }
 
-    private static class AllowFirstLetterA implements CacheTierPolicy<String> {
+    private static class AllowFirstLetterA implements Predicate<String> {
         @Override
-        public boolean checkData(String data) {
+        public boolean test(String data) {
             try {
                 return (data.charAt(0) == 'a');
             } catch (StringIndexOutOfBoundsException e) {
@@ -1022,9 +1021,9 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         }
     }
 
-    private static class AllowEvenLengths implements CacheTierPolicy<String> {
+    private static class AllowEvenLengths implements Predicate<String> {
         @Override
-        public boolean checkData(String data) {
+        public boolean test(String data) {
             return data.length() % 2 == 0;
         }
     }
@@ -1084,7 +1083,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         RemovalListener<String, String> removalListener,
         Settings settings,
         long diskDeliberateDelay,
-        List<CacheTierPolicy<String>> policies
+        List<Predicate<String>> policies
     ) {
         ICache.Factory onHeapCacheFactory = new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory();
         CacheConfig<String, String> cacheConfig = new CacheConfig.Builder<String, String>().setKeyType(String.class)
@@ -1104,7 +1103,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             .setDiskCacheFactory(mockDiskCacheFactory)
             .setCacheConfig(cacheConfig);
         if (policies != null) {
-            builder.setPolicies(policies);
+            builder.addPolicies(policies);
         }
         return builder.build();
     }
