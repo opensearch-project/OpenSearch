@@ -4,13 +4,35 @@
   # will return a task immediately and the merge process will run in background.
 
   - skip:
-      version: " - 2.6.99"
-      reason: "only available in 2.7+"
+      version: " - 2.6.99, 2.13.0 - "
+      reason: "wait_for_completion was introduced in in 2.7.0 and task description was changed in 2.13.0"
       features: allowed_warnings
 
   - do:
       indices.create:
         index: test_index
+
+  - do:
+      indices.forcemerge:
+        index: test_index
+        wait_for_completion: false
+        max_num_segments: 1
+  - match: { task: /^.+$/ }
+  - set: { task: taskId }
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $taskId
+  - match: { task.action: "indices:admin/forcemerge" }
+  - match: { task.description: "Force-merge indices [test_index], maxSegments[1], onlyExpungeDeletes[false], flush[true]" }
+
+---
+"Force merge index with wait_for_completion after task description changed":
+  - skip:
+      version: " - 2.12.99 "
+      reason: "task description was changed in 2.13.0"
+      features: allowed_warnings
 
   - do:
       indices.forcemerge:
