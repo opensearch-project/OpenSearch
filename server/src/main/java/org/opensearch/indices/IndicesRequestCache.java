@@ -358,8 +358,10 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
         @Override
         public void onClose(IndexReader.CacheKey cacheKey) {
-            Boolean remove = registeredClosedListeners.remove(this);
-            if (remove != null) {
+            // Remove the current CleanupKey from the registeredClosedListeners map
+            // If the key was present, enqueue it for cleanup
+            Boolean wasRegistered = registeredClosedListeners.remove(this);
+            if (wasRegistered != null) {
                 cacheCleanupManager.enqueueCleanupKey(this);
             }
         }
