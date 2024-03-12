@@ -154,10 +154,7 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
                 shardStoreMetadataMap.put(shardId, new NodeStoreFilesMetadata(storeFilesMetadata, null));
             } catch (Exception e) {
                 logger.debug(
-                    new ParameterizedMessage(
-                        "Faced following exception while trying to get Shard Metadata for {}: ",
-                        shardId.toString()
-                    ),
+                    new ParameterizedMessage("Faced following exception while trying to get Shard Metadata for {}: ", shardId.toString()),
                     e
                 );
                 shardStoreMetadataMap.put(
