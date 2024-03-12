@@ -65,7 +65,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.getListShardMetadataOnLocalNode;
+import static org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.listShardMetadataInternal;
 
 /**
  * Metadata for shard stores from a list of transport nodes
@@ -158,7 +158,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     private StoreFilesMetadata listStoreMetadata(NodeRequest request) throws IOException {
         final ShardId shardId = request.getShardId();
         try {
-            return getListShardMetadataOnLocalNode(
+            return listShardMetadataInternal(
                 logger,
                 shardId,
                 nodeEnv,

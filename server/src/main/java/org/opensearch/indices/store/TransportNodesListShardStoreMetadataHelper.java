@@ -48,7 +48,7 @@ import java.util.concurrent.TimeUnit;
  * @opensearch.internal
  */
 public class TransportNodesListShardStoreMetadataHelper {
-    public static StoreFilesMetadata getListShardMetadataOnLocalNode(
+    public static StoreFilesMetadata listShardMetadataInternal(
         Logger logger,
         final ShardId shardId,
         NodeEnvironment nodeEnv,

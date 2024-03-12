@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.store;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
@@ -141,7 +142,7 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
         for (ShardAttributes shardAttributes : request.getShardAttributes().values()) {
             final ShardId shardId = shardAttributes.getShardId();
             try {
-                StoreFilesMetadata storeFilesMetadata = TransportNodesListShardStoreMetadataHelper.getListShardMetadataOnLocalNode(
+                StoreFilesMetadata storeFilesMetadata = TransportNodesListShardStoreMetadataHelper.listShardMetadataInternal(
                     logger,
                     shardId,
                     nodeEnv,
@@ -151,7 +152,14 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
                     clusterService
                 );
                 shardStoreMetadataMap.put(shardId, new NodeStoreFilesMetadata(storeFilesMetadata, null));
-            } catch (IOException | OpenSearchException e) {
+            } catch (Exception e) {
+                logger.debug(
+                    new ParameterizedMessage(
+                        "Faced following exception while trying to get Shard Metadata for {}: ",
+                        shardId.toString()
+                    ),
+                    e
+                );
                 shardStoreMetadataMap.put(
                     shardId,
                     new NodeStoreFilesMetadata(new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList()), e)
