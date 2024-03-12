@@ -71,6 +71,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.function.ToLongBiFunction;
 
@@ -380,40 +385,274 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         }
     }
 
-    /**
-     * Logic to clean up in-memory cache.
-     */
-    synchronized void cleanCache() {
-        final Set<CleanupKey> currentKeysToClean = new HashSet<>();
-        final Set<Object> currentFullClean = new HashSet<>();
-        currentKeysToClean.clear();
-        currentFullClean.clear();
-        for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext();) {
-            CleanupKey cleanupKey = iterator.next();
-            iterator.remove();
-            if (cleanupKey.readerCacheKeyId == null || !cleanupKey.entity.isOpen()) {
-                // null indicates full cleanup, as does a closed shard
-                currentFullClean.add(((IndexShard) cleanupKey.entity.getCacheIdentity()).shardId());
-            } else {
-                currentKeysToClean.add(cleanupKey);
-            }
+    /*
+     * The IndicesRequestCacheCleanupManager manages the cleanup of stale keys in IndicesRequestCache.
+     *
+     * It also keeps track of the number of stale keys in the cache (staleKeysCount) and a staleness threshold,
+     * which is used to determine when the cache should be cleaned.
+     *
+     * If Staleness threshold is 0, we do not keep track of stale keys in the cache
+     * */
+    class IndicesRequestCacheCleanupManager {
+        private final Set<CleanupKey> keysToClean;
+        private final ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap;
+        private final AtomicInteger staleKeysCount;
+        private final double stalenessThreshold;
+        private final Lock readLock;
+        private final Lock writeLock;
+
+        IndicesRequestCacheCleanupManager(double stalenessThreshold) {
+            this.stalenessThreshold = stalenessThreshold;
+            this.keysToClean = ConcurrentCollections.newConcurrentSet();
+            this.cleanupKeyToCountMap = ConcurrentCollections.newConcurrentMap();
+            this.staleKeysCount = new AtomicInteger(0);
+            ReadWriteLock rwLock = new ReentrantReadWriteLock();
+            this.readLock = rwLock.readLock();
+            this.writeLock = rwLock.writeLock();
         }
-        if (!currentKeysToClean.isEmpty() || !currentFullClean.isEmpty()) {
-            for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext();) {
-                Key key = iterator.next();
-                if (currentFullClean.contains(key.shardId)) {
-                    iterator.remove();
+
+        /**
+         * Enqueue cleanup key.
+         *
+         * @param cleanupKey the cleanup key
+         */
+        void enqueueCleanupKey(CleanupKey cleanupKey) {
+            keysToClean.add(cleanupKey);
+            updateStaleKeysCount(cleanupKey);
+        }
+
+        /**
+         * Updates the cleanupKeyToCountMap with the given CleanupKey.
+         * If the ShardId associated with the CleanupKey does not exist in the map, a new entry is created.
+         * The method increments the count of the CleanupKey in the map.
+         * <p>
+         * Why use ShardID as the key ?
+         * CacheEntity mainly contains IndexShard, both of these classes do not override equals() and hashCode() methods.
+         * ShardID class properly overrides equals() and hashCode() methods.
+         * Therefore, to avoid modifying CacheEntity and IndexShard classes to override these methods, we use ShardID as the key.
+         *
+         * @param cleanupKey the CleanupKey to be updated in the map
+         */
+        private void updateCleanupKeyToCountMap(CleanupKey cleanupKey) {
+            if (stalenessThreshold == 0.0) {
+                return;
+            }
+            IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
+            if (indexShard == null) {
+                logger.warn("IndexShard is null for CleanupKey: {} while cleaning Indices Request Cache", cleanupKey.readerCacheKeyId);
+                return;
+            }
+            ShardId shardId = indexShard.shardId();
+
+            // If the key doesn't exist, it's added with a value of 1.
+            // If the key exists, its value is incremented by 1.
+            cleanupKeyToCountMap.computeIfAbsent(shardId, k -> ConcurrentCollections.newConcurrentMap())
+                .merge(cleanupKey.readerCacheKeyId, 1, Integer::sum);
+        }
+
+        /**
+         * Updates the count of stale keys in the cache.
+         * This method is called when a CleanupKey is added to the keysToClean set.
+         *
+         * It increments the staleKeysCount by the count of the CleanupKey in the cleanupKeyToCountMap.
+         * If the CleanupKey's readerCacheKeyId is null or the CleanupKey's entity is not open, it increments the staleKeysCount
+         * by the total count of keys associated with the CleanupKey's ShardId in the cleanupKeyToCountMap and removes the ShardId from the map.
+         *
+         * @param cleanupKey the CleanupKey that has been marked for cleanup
+         */
+        private void updateStaleKeysCount(CleanupKey cleanupKey) {
+            if (stalenessThreshold == 0.0) {
+                return;
+            }
+            IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
+            if (indexShard == null) {
+                logger.warn("IndexShard is null for CleanupKey: {}", cleanupKey.readerCacheKeyId);
+                return;
+            }
+            ShardId shardId = indexShard.shardId();
+
+            // Using computeIfPresent to atomically operate on the countMap for a given shardId
+            cleanupKeyToCountMap.computeIfPresent(shardId, (key, countMap) -> {
+                if (cleanupKey.readerCacheKeyId == null) {
+                    // Aggregate and add to staleKeysCount atomically if readerCacheKeyId is null
+                    int totalSum = countMap.values().stream().mapToInt(Integer::intValue).sum();
+                    staleKeysCount.addAndGet(totalSum);
+                    // Return null to automatically remove the mapping for shardId
+                    return null;
                 } else {
-                    // If the flow comes here, then we should have a open shard available on node.
-                    if (currentKeysToClean.contains(
-                        new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId)
-                    )) {
+                    // Update staleKeysCount based on specific readerCacheKeyId, then remove it from the countMap
+                    countMap.computeIfPresent(cleanupKey.readerCacheKeyId, (k, v) -> {
+                        staleKeysCount.addAndGet(v);
+                        // Return null to remove the key after updating staleKeysCount
+                        return null;
+                    });
+
+                    // Check if countMap is empty after removal to decide if we need to remove the shardId entry
+                    if (countMap.isEmpty()) {
+                        return null; // Returning null removes the entry for shardId
+                    }
+                }
+                return countMap; // Return the modified countMap to keep the mapping
+            });
+        }
+
+        /**
+         * Clean cache based on stalenessThreshold
+         */
+        void cleanCache() {
+            cleanCache(stalenessThreshold);
+        }
+
+        /**
+         * Force Clean cache without checking stalenessThreshold
+         */
+        private void forceCleanCache() {
+            cleanCache(0);
+        }
+
+        /**
+         * Cleans the cache based on the provided staleness threshold.
+         * <p>If the percentage of stale keys in the cache is less than this threshold,the cache cleanup process is skipped.
+         * @param threshold The staleness threshold as a double.
+         */
+        private void cleanCache(double threshold) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Cleaning Indices Request Cache with threshold : " + threshold);
+            }
+            writeLock.lock();
+            try {
+                if (canSkipCacheCleanup(threshold)) {
+                    return;
+                }
+                // Contains CleanupKey objects with open shard but invalidated readerCacheKeyId.
+                final Set<CleanupKey> cleanupKeysFromOutdatedReaders = new HashSet<>();
+                // Contains CleanupKey objects of a closed shard.
+                final Set<Object> cleanupKeysFromClosedShards = new HashSet<>();
+
+                processCleanupKeys(cleanupKeysFromOutdatedReaders, cleanupKeysFromClosedShards);
+
+                if (cleanupKeysFromOutdatedReaders.isEmpty() && cleanupKeysFromClosedShards.isEmpty()) {
+                    return;
+                }
+
+                for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext();) {
+                    Key key = iterator.next();
+                    if (shouldRemoveKey(key, cleanupKeysFromOutdatedReaders, cleanupKeysFromClosedShards)) {
                         iterator.remove();
                     }
                 }
+                cache.refresh();
+            } finally {
+                writeLock.unlock();
             }
         }
-        cache.refresh();
+
+        /**
+         * Processes the CleanupKeys in the keysToClean set and categorizes them into two sets:
+         * cleanupKeysFromOutdatedReaders and cleanupKeysFromClosedShards.
+         *
+         * <p>For each CleanupKey in keysToClean, if the readerCacheKeyId is null or the entity is not open,
+         * the shardId of the entity is added to cleanupKeysFromClosedShards. Otherwise, the CleanupKey is added
+         * to cleanupKeysFromOutdatedReaders.
+         *
+         * @param cleanupKeysFromOutdatedReaders A set to hold CleanupKeys with open shard but invalidated readerCacheKeyId.
+         * @param cleanupKeysFromClosedShards A set to hold CleanupKeys of a closed shard.
+         */
+        private void processCleanupKeys(Set<CleanupKey> cleanupKeysFromOutdatedReaders, Set<Object> cleanupKeysFromClosedShards) {
+            writeLock.lock();
+            try {
+                for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext();) {
+                    CleanupKey cleanupKey = iterator.next();
+                    iterator.remove();
+                    if (cleanupKey.readerCacheKeyId == null || !cleanupKey.entity.isOpen()) {
+                        // null indicates full cleanup, as does a closed shard
+                        cleanupKeysFromClosedShards.add(((IndexShard) cleanupKey.entity.getCacheIdentity()).shardId());
+                    } else {
+                        cleanupKeysFromOutdatedReaders.add(cleanupKey);
+                    }
+                }
+            } finally {
+                writeLock.unlock();
+            }
+        }
+
+        /**
+         * Determines whether a key should be removed from the cache.
+         *
+         * <p>This method checks if the key's shardId is present in the cleanupKeysFromClosedShards set,
+         * indicating that the shard has been closed and the key should be removed. If the shardId is not present,
+         * it checks if the key's readerCacheKeyId is present in the cleanupKeysFromOutdatedReaders set,
+         * indicating that the reader has been invalidated and the key should be removed.
+         *
+         * @param key The key to check for removal.
+         * @param cleanupKeysFromOutdatedReaders A set of CleanupKeys with open shard but invalidated readerCacheKeyId.
+         * @param cleanupKeysFromClosedShards A set of CleanupKeys of a closed shard.
+         * @return true if the key should be removed, false otherwise.
+         */
+        private boolean shouldRemoveKey(Key key, Set<CleanupKey> cleanupKeysFromOutdatedReaders, Set<Object> cleanupKeysFromClosedShards) {
+            readLock.lock();
+            try {
+                if (cleanupKeysFromClosedShards.contains(key.shardId)) {
+                    return true;
+                } else {
+                    Optional<CacheEntity> cacheEntity = cacheEntityLookup.apply(key.shardId);
+                    if (cacheEntity.isPresent()) {
+                        CleanupKey cleanupKey = new CleanupKey(cacheEntity.get(), key.readerCacheKeyId);
+                        return cleanupKeysFromOutdatedReaders.contains(cleanupKey);
+                    }
+                }
+                return false;
+            } finally {
+                readLock.unlock();
+            }
+        }
+
+        /**
+         * Determines whether the cache cleanup process can be skipped based on the staleness threshold.
+         *
+         * <p>If the percentage of stale keys is less than the provided staleness threshold returns true,
+         * indicating that the cache cleanup process can be skipped.
+         *
+         * @param cleanThresholdPercent The staleness threshold as a percentage.
+         * @return true if the cache cleanup process can be skipped, false otherwise.
+         */
+        private boolean canSkipCacheCleanup(double cleanThresholdPercent) {
+            if (cleanThresholdPercent == 0.0) {
+                return false;
+            }
+            readLock.lock();
+            try {
+                if (staleKeysInCachePercentage() < cleanThresholdPercent) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug(
+                            "Skipping disk cache keys cleanup since the percentage of stale keys in disk cache is less than the threshold"
+                        );
+                    }
+                    return true;
+                }
+            } finally {
+                readLock.unlock();
+            }
+            return false;
+        }
+
+        /**
+         * Calculates and returns the percentage of stale keys in the cache.
+         *
+         * @return The percentage of stale keys in the cache as a double. Returns 0 if there are no keys in the cache or no stale keys.
+         */
+        private double staleKeysInCachePercentage() {
+            readLock.lock();
+            try {
+                long totalKeysInCache = count();
+                if (totalKeysInCache == 0 || staleKeysCount.get() == 0) {
+                    return 0;
+                }
+                return ((double) staleKeysCount.get() / totalKeysInCache);
+            } finally {
+                readLock.unlock();
+            }
+        }
     }
 
     /**
