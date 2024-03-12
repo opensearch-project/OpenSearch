@@ -30,6 +30,7 @@ import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControllerSt
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.junit.After;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE;
@@ -93,7 +94,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         BulkResponse res = client().bulk(bulk.request()).actionGet();
         assertEquals(429, res.getItems()[0].getFailure().getStatus().getStatus());
         AdmissionControlService admissionControlService = getInstanceFromNode(AdmissionControlService.class);
-        Map<String, AdmissionControllerStats> acStats = admissionControlService.getStats();
+        Map<String, AdmissionControllerStats> acStats = this.getAdmissionControlStats(admissionControlService);
         assertEquals(
             1,
             (long) acStats.get(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
@@ -119,7 +120,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         } catch (Exception e) {
             assertTrue(((SearchPhaseExecutionException) e).getDetailedMessage().contains("OpenSearchRejectedExecutionException"));
         }
-        acStats = admissionControlService.getStats();
+        acStats = this.getAdmissionControlStats(admissionControlService);
         assertEquals(
             1,
             (long) acStats.get(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
@@ -156,7 +157,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
             assertEquals(429, res.getItems()[0].getFailure().getStatus().getStatus());
         }
         admissionControlService = getInstanceFromNode(AdmissionControlService.class);
-        acStats = admissionControlService.getStats();
+        acStats = this.getAdmissionControlStats(admissionControlService);
         assertEquals(
             1,
             (long) acStats.get(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
@@ -182,7 +183,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         } catch (Exception e) {
             assertTrue(((SearchPhaseExecutionException) e).getDetailedMessage().contains("OpenSearchRejectedExecutionException"));
         }
-        acStats = admissionControlService.getStats();
+        acStats = this.getAdmissionControlStats(admissionControlService);
         assertEquals(
             1,
             (long) acStats.get(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
@@ -222,7 +223,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         BulkResponse res = client().bulk(bulk.request()).actionGet();
         assertFalse(res.hasFailures());
         AdmissionControlService admissionControlService = getInstanceFromNode(AdmissionControlService.class);
-        Map<String, AdmissionControllerStats> acStats = admissionControlService.getStats();
+        Map<String, AdmissionControllerStats> acStats = this.getAdmissionControlStats(admissionControlService);
         assertEquals(
             1,
             (long) acStats.get(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
@@ -235,7 +236,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         SearchRequest searchRequest = new SearchRequest(INDEX_NAME);
         SearchResponse searchResponse = client().search(searchRequest).actionGet();
         assertEquals(3, searchResponse.getHits().getHits().length);
-        acStats = admissionControlService.getStats();
+        acStats = this.getAdmissionControlStats(admissionControlService);
         assertEquals(
             1,
             (long) acStats.get(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
@@ -260,7 +261,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         // verify bulk request success but admission control having rejections stats
         res = client().bulk(bulk.request()).actionGet();
         assertFalse(res.hasFailures());
-        acStats = admissionControlService.getStats();
+        acStats = this.getAdmissionControlStats(admissionControlService);
         assertEquals(
             1,
             (long) acStats.get(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
@@ -280,7 +281,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         searchRequest = new SearchRequest(INDEX_NAME);
         searchResponse = client().search(searchRequest).actionGet();
         assertEquals(3, searchResponse.getHits().getHits().length);
-        acStats = admissionControlService.getStats();
+        acStats = this.getAdmissionControlStats(admissionControlService);
         assertEquals(
             1,
             (long) acStats.get(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
@@ -318,7 +319,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         BulkResponse res = client().bulk(bulk.request()).actionGet();
         assertFalse(res.hasFailures());
         AdmissionControlService admissionControlService = getInstanceFromNode(AdmissionControlService.class);
-        Map<String, AdmissionControllerStats> acStats = admissionControlService.getStats();
+        Map<String, AdmissionControllerStats> acStats = this.getAdmissionControlStats(admissionControlService);
 
         assertEquals(0, acStats.get(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER).getRejectionCount().size());
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
@@ -327,7 +328,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         SearchRequest searchRequest = new SearchRequest(INDEX_NAME);
         SearchResponse searchResponse = client().search(searchRequest).actionGet();
         assertEquals(3, searchResponse.getHits().getHits().length);
-        acStats = admissionControlService.getStats();
+        acStats = this.getAdmissionControlStats(admissionControlService);
         assertEquals(0, acStats.get(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER).getRejectionCount().size());
         updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(
@@ -346,7 +347,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         // verify bulk request success but admission control having rejections stats
         res = client().bulk(bulk.request()).actionGet();
         assertFalse(res.hasFailures());
-        acStats = admissionControlService.getStats();
+        acStats = this.getAdmissionControlStats(admissionControlService);
         assertEquals(0, acStats.get(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER).getRejectionCount().size());
         if (Constants.LINUX) {
             assertEquals(0, acStats.get(IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER).getRejectionCount().size());
@@ -357,7 +358,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         searchRequest = new SearchRequest(INDEX_NAME);
         searchResponse = client().search(searchRequest).actionGet();
         assertEquals(3, searchResponse.getHits().getHits().length);
-        acStats = admissionControlService.getStats();
+        acStats = this.getAdmissionControlStats(admissionControlService);
         assertEquals(0, acStats.get(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER).getRejectionCount().size());
         if (Constants.LINUX) {
             assertEquals(0, acStats.get(IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER).getRejectionCount().size());
@@ -391,7 +392,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         BulkResponse res = client().bulk(bulk.request()).actionGet();
         assertFalse(res.hasFailures());
         AdmissionControlService admissionControlService = getInstanceFromNode(AdmissionControlService.class);
-        Map<String, AdmissionControllerStats> acStats = admissionControlService.getStats();
+        Map<String, AdmissionControllerStats> acStats = this.getAdmissionControlStats(admissionControlService);
         assertEquals(0, acStats.get(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER).getRejectionCount().size());
         if (Constants.LINUX) {
             assertEquals(0, acStats.get(IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER).getRejectionCount().size());
@@ -404,12 +405,20 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         SearchRequest searchRequest = new SearchRequest(INDEX_NAME);
         SearchResponse searchResponse = client().search(searchRequest).actionGet();
         assertEquals(3, searchResponse.getHits().getHits().length);
-        acStats = admissionControlService.getStats();
+        acStats = this.getAdmissionControlStats(admissionControlService);
         assertEquals(0, acStats.get(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER).getRejectionCount().size());
         if (Constants.LINUX) {
             assertEquals(0, acStats.get(IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER).getRejectionCount().size());
         } else {
             assertNull(acStats.get(IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER));
         }
+    }
+
+    Map<String, AdmissionControllerStats> getAdmissionControlStats(AdmissionControlService admissionControlService) {
+        Map<String, AdmissionControllerStats> acStats = new HashMap<>();
+        for (AdmissionControllerStats admissionControllerStats : admissionControlService.stats().getAdmissionControllerStatsList()) {
+            acStats.put(admissionControllerStats.getAdmissionControllerName(), admissionControllerStats);
+        }
+        return acStats;
     }
 }

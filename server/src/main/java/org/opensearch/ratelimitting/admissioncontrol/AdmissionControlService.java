@@ -23,9 +23,7 @@ import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControllerSt
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -63,16 +61,18 @@ public class AdmissionControlService {
         this.clusterService = clusterService;
         this.settings = settings;
         this.resourceUsageCollectorService = resourceUsageCollectorService;
-        this.initialise();
+        this.initialize();
     }
 
     /**
      * Initialise and Register all the admissionControllers
      */
-    private void initialise() {
+    private void initialize() {
         // Initialise different type of admission controllers
         registerAdmissionController(CPU_BASED_ADMISSION_CONTROLLER);
-        registerAdmissionController(IO_BASED_ADMISSION_CONTROLLER);
+        if (Constants.LINUX) {
+            registerAdmissionController(IO_BASED_ADMISSION_CONTROLLER);
+        }
     }
 
     /**
@@ -143,29 +143,11 @@ public class AdmissionControlService {
         List<AdmissionControllerStats> statsList = new ArrayList<>();
         if (!this.admissionControllers.isEmpty()) {
             this.admissionControllers.forEach((controllerName, admissionController) -> {
-                if (controllerName.equals(IO_BASED_ADMISSION_CONTROLLER)) {
-                    if (Constants.LINUX) {
-                        AdmissionControllerStats admissionControllerStats = new AdmissionControllerStats(admissionController);
-                        if (admissionControllerStats.rejectionCount != null) {
-                            statsList.add(admissionControllerStats);
-                        }
-                    }
-                } else {
-                    AdmissionControllerStats admissionControllerStats = new AdmissionControllerStats(admissionController);
-                    statsList.add(admissionControllerStats);
-                }
+                AdmissionControllerStats admissionControllerStats = new AdmissionControllerStats(admissionController);
+                statsList.add(admissionControllerStats);
             });
             return new AdmissionControlStats(statsList);
         }
         return null;
-    }
-
-    // used for testing
-    Map<String, AdmissionControllerStats> getStats() {
-        Map<String, AdmissionControllerStats> acStats = new HashMap<>();
-        for (AdmissionControllerStats admissionControllerStats : this.stats().getAdmissionControllerStatsList()) {
-            acStats.put(admissionControllerStats.getAdmissionControllerName(), admissionControllerStats);
-        }
-        return acStats;
     }
 }

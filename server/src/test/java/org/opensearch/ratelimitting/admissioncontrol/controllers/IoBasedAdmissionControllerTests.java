@@ -8,7 +8,6 @@
 
 package org.opensearch.ratelimitting.admissioncontrol.controllers;
 
-import org.apache.lucene.util.Constants;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -77,15 +76,7 @@ public class IoBasedAdmissionControllerTests extends OpenSearchTestCase {
         assertEquals(admissionController.getName(), IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER);
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
         assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
-        if (Constants.LINUX) {
-            assertTrue(
-                admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode())
-            );
-        } else {
-            assertFalse(
-                admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode())
-            );
-        }
+        assertTrue(admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode()));
     }
 
     public void testApplyControllerWithDefaultSettings() {
@@ -117,15 +108,7 @@ public class IoBasedAdmissionControllerTests extends OpenSearchTestCase {
             clusterService,
             settings
         );
-        if (Constants.LINUX) {
-            assertTrue(
-                admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode())
-            );
-        } else {
-            assertFalse(
-                admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode())
-            );
-        }
+        assertTrue(admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode()));
         assertTrue(
             admissionController.isAdmissionControllerEnforced(admissionController.settings.getTransportLayerAdmissionControllerMode())
         );

@@ -10,14 +10,12 @@ package org.opensearch.ratelimitting.admissioncontrol.controllers;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.Constants;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
-import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 import org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionControllerSettings;
 
 import java.util.Locale;
@@ -45,14 +43,6 @@ public class IoBasedAdmissionController extends AdmissionController {
     ) {
         super(admissionControllerName, resourceUsageCollectorService, clusterService);
         this.settings = new IoBasedAdmissionControllerSettings(clusterService.getClusterSettings(), settings);
-    }
-
-    @Override
-    public boolean isEnabledForTransportLayer(AdmissionControlMode admissionControlMode) {
-        if (Constants.LINUX) {
-            return super.isEnabledForTransportLayer(admissionControlMode);
-        }
-        return false;
     }
 
     /**
