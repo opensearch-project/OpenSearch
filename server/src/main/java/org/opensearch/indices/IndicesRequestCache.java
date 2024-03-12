@@ -197,6 +197,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                     OpenSearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
                 }
             }
+            cacheCleanupManager.updateCleanupKeyToCountMap(cleanupKey);
         } else {
             cacheEntity.onHit();
         }
