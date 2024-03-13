@@ -65,7 +65,7 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
         if (shardRouting.isSameAllocation(primaryRouting)) {
             return ReplicationMode.NO_REPLICATION;
         }
-        // Perform full replication during primary failover
+        // Perform full replication during primary relocation
         if (primaryRouting.relocating() && shardRouting.isSameAllocation(primaryRouting.getTargetRelocatingShard())) {
             return ReplicationMode.FULL_REPLICATION;
         }

@@ -253,8 +253,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
     private volatile ReplicationCheckpoint latestReplicationCheckpoint;
 
-    private boolean ongoingEngineMigration;
-
     /**
      * Get all retention leases tracked on this shard.
      *
@@ -676,10 +674,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert invariant();
     }
 
-    public void setOngoingEngineMigration(boolean ongoingEngineMigration) {
-        this.ongoingEngineMigration = ongoingEngineMigration;
-    }
-
     /**
     * The state of the lucene checkpoint
     *
@@ -1095,10 +1089,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             newVersion = replicationGroup.getVersion() + 1;
         }
 
-        assert indexSettings().isRemoteTranslogStoreEnabled() || ongoingEngineMigration == true
-            || checkpoints.entrySet().stream().filter(e -> e.getValue().tracked).allMatch(e -> e.getValue().replicated)
-            : "In absence of remote translog store and no-ongoing remote migration, all tracked shards must have replication mode as LOGICAL_REPLICATION";
-
         return new ReplicationGroup(
             routingTable,
             checkpoints.entrySet().stream().filter(e -> e.getValue().inSync).map(Map.Entry::getKey).collect(Collectors.toSet()),
@@ -1255,7 +1245,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     && replicationGroup.getUnavailableInSyncShards().contains(allocationId) == false
                     && isPrimaryRelocation(allocationId) == false
                     && latestReplicationCheckpoint.isAheadOf(cps.visibleReplicationCheckpoint)
-                    && (ongoingEngineMigration && routingTable.getByAllocationId(allocationId).isAssignedToRemoteStoreNode() == true)) {
+                    /*
+                     Handle remote store migration cases. Replication Lag timers would be created if the node on which primary is hosted is either:
+                     - Segrep enabled without remote store
+                     - Destination replica shard is hosted on a remote store enabled node (Remote store enabled nodes have segrep enabled implicitly)
+                    */
+                    && (indexSettings.isSegRepLocalEnabled() == true || routingTable.getByAllocationId(allocationId).isAssignedToRemoteStoreNode() == true)) {
                     cps.checkpointTimers.computeIfAbsent(latestReplicationCheckpoint, ignored -> new SegmentReplicationLagTimer());
                     logger.trace(
                         () -> new ParameterizedMessage(
@@ -1529,7 +1524,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
          - If remote translog is enabled, then returns true if given allocation id matches the primary or it's relocation target allocation primary and primary target allocation id.
          - During an ongoing remote migration, the above-mentioned checks are considered when the shard is assigned to a remote store backed node
          */
-        if (indexSettings().isRemoteTranslogStoreEnabled() || (ongoingEngineMigration == true && assignedToRemoteStoreNode == true)) {
+        if (indexSettings().isRemoteTranslogStoreEnabled() || assignedToRemoteStoreNode == true) {
             return (allocationId.equals(primaryAllocationId) || allocationId.equals(primaryTargetAllocationId));
         }
         // For other case which is local translog, return true as the requests are replicated to all shards in the replication group.

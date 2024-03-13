@@ -51,6 +51,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.indices.IndicesService;
@@ -85,6 +86,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
         return LOGGER;
     }
 
+    private final ClusterService clusterService;
     @Inject
     public RetentionLeaseBackgroundSyncAction(
         final Settings settings,
@@ -108,6 +110,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             Request::new,
             ThreadPool.Names.MANAGEMENT
         );
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -203,7 +206,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
         data consistency on remote to docrep shard copy failover during the
         migration process.
          */
-        if (indexShard.ongoingEngineMigration()) {
+        if (RemoteStoreUtils.isMigrationDirectionSet(clusterService)) {
             return ReplicationMode.FULL_REPLICATION;
         }
         return super.getReplicationMode(indexShard);

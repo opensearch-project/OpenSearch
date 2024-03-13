@@ -670,6 +670,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         try {
             final long primaryTerm = state.metadata().index(shardRouting.index()).primaryTerm(shardRouting.id());
             logger.debug("{} creating shard with primary term [{}]", shardRouting.shardId(), primaryTerm);
+            DiscoveryNode targetNode = nodes.getLocalNode();
+            // Set remote attributes on Shard routing if the target node for the shards has remote attributes
+            if (targetNode.isRemoteStoreNode()) {
+                shardRouting.setAssignedToRemoteStoreNode(true);
+            }
             indicesService.createShard(
                 shardRouting,
                 checkpointPublisher,
@@ -679,7 +684,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 failedShardHandler,
                 globalCheckpointSyncer,
                 retentionLeaseSyncer,
-                nodes.getLocalNode(),
+                targetNode,
                 sourceNode,
                 remoteStoreStatsTrackerFactory
             );

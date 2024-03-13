@@ -43,14 +43,7 @@ public class CheckpointRefreshListener extends ReleasableRetryableRefreshListene
         if (didRefresh
             && shard.state() == IndexShardState.STARTED
             && shard.getReplicationTracker().isPrimaryMode()
-            && !shard.indexSettings.isSegRepWithRemoteEnabled()
-            /*
-             During remote store migration, the isSegRepWithRemoteEnabled criteria would return false
-             since we do not alter the remote store based index settings at that stage. Explicitly
-             blocking checkpoint publication from this refresh listener since it ends up interfering
-             with the RemoteStoreRefreshListener invocation
-             */
-            && !shard.ongoingEngineMigration()) {
+            && !shard.indexSettings.isSegRepWithRemoteEnabled()) {
             publisher.publish(shard, shard.getLatestReplicationCheckpoint());
         }
         return true;
