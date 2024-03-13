@@ -567,7 +567,16 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                 // Contains CleanupKey objects of a closed shard.
                 final Set<Object> cleanupKeysFromClosedShards = new HashSet<>();
 
-                processCleanupKeys(cleanupKeysFromOutdatedReaders, cleanupKeysFromClosedShards);
+                for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext();) {
+                    CleanupKey cleanupKey = iterator.next();
+                    iterator.remove();
+                    if (cleanupKey.readerCacheKeyId == null || !cleanupKey.entity.isOpen()) {
+                        // null indicates full cleanup, as does a closed shard
+                        cleanupKeysFromClosedShards.add(((IndexShard) cleanupKey.entity.getCacheIdentity()).shardId());
+                    } else {
+                        cleanupKeysFromOutdatedReaders.add(cleanupKey);
+                    }
+                }
 
                 if (cleanupKeysFromOutdatedReaders.isEmpty() && cleanupKeysFromClosedShards.isEmpty()) {
                     return;
@@ -580,35 +589,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                     }
                 }
                 cache.refresh();
-            } finally {
-                writeLock.unlock();
-            }
-        }
-
-        /**
-         * Processes the CleanupKeys in the keysToClean set and categorizes them into two sets:
-         * cleanupKeysFromOutdatedReaders and cleanupKeysFromClosedShards.
-         *
-         * <p>For each CleanupKey in keysToClean, if the readerCacheKeyId is null or the entity is not open,
-         * the shardId of the entity is added to cleanupKeysFromClosedShards. Otherwise, the CleanupKey is added
-         * to cleanupKeysFromOutdatedReaders.
-         *
-         * @param cleanupKeysFromOutdatedReaders A set to hold CleanupKeys with open shard but invalidated readerCacheKeyId.
-         * @param cleanupKeysFromClosedShards A set to hold CleanupKeys of a closed shard.
-         */
-        private void processCleanupKeys(Set<CleanupKey> cleanupKeysFromOutdatedReaders, Set<Object> cleanupKeysFromClosedShards) {
-            writeLock.lock();
-            try {
-                for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext();) {
-                    CleanupKey cleanupKey = iterator.next();
-                    iterator.remove();
-                    if (cleanupKey.readerCacheKeyId == null || !cleanupKey.entity.isOpen()) {
-                        // null indicates full cleanup, as does a closed shard
-                        cleanupKeysFromClosedShards.add(((IndexShard) cleanupKey.entity.getCacheIdentity()).shardId());
-                    } else {
-                        cleanupKeysFromOutdatedReaders.add(cleanupKey);
-                    }
-                }
             } finally {
                 writeLock.unlock();
             }
