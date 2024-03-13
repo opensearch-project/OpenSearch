@@ -27,6 +27,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
@@ -58,6 +59,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     protected static Logger logger = LogManager.getLogger(PublishCheckpointAction.class);
 
     private final SegmentReplicationTargetService replicationService;
+    private final ClusterService clusterService;
 
     @Inject
     public PublishCheckpointAction(
@@ -84,6 +86,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
             ThreadPool.Names.REFRESH
         );
         this.replicationService = targetService;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -200,7 +203,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
         ActionListener.completeWith(listener, () -> {
             logger.trace(() -> new ParameterizedMessage("Checkpoint {} received on replica {}", request, replica.shardId()));
             // Ignore replica operation if there is an ongoing remote store migration and the replica copy is assigned to a docrep enabled node
-            if (replica.ongoingEngineMigration() == true && replica.routingEntry().isAssignedToRemoteStoreNode() == false) {
+            if (RemoteStoreUtils.isMigrationDirectionSet(clusterService) == true && replica.routingEntry().isAssignedToRemoteStoreNode() == false) {
                 logger.trace("Received segrep checkpoint on a docrep shard copy during an ongoing remote migration. NoOp.");
                 return new ReplicaResult();
             }

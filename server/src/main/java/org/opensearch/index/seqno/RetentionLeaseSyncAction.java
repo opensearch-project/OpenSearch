@@ -54,6 +54,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.indices.IndicesService;
@@ -87,6 +88,8 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
         return LOGGER;
     }
 
+    private final ClusterService clusterService;
+
     @Inject
     public RetentionLeaseSyncAction(
         final Settings settings,
@@ -117,6 +120,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
             systemIndices,
             tracer
         );
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -209,7 +213,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
     @Override
     public ReplicationMode getReplicationMode(IndexShard indexShard) {
         // Unblock PRRL publication during remote store migration
-        if (indexShard.ongoingEngineMigration()) {
+        if (RemoteStoreUtils.isMigrationDirectionSet(clusterService)) {
             return ReplicationMode.FULL_REPLICATION;
         }
         return super.getReplicationMode(indexShard);
