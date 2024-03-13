@@ -12,6 +12,8 @@ import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.monitor.fs.FsService;
+import org.opensearch.node.IoUsageStats;
 import org.opensearch.threadpool.ThreadPool;
 
 /**
@@ -22,10 +24,14 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
     private final ClusterSettings clusterSettings;
     private AverageCpuUsageTracker cpuUsageTracker;
     private AverageMemoryUsageTracker memoryUsageTracker;
+    private AverageIoUsageTracker ioUsageTracker;
 
     private ResourceTrackerSettings resourceTrackerSettings;
 
-    public NodeResourceUsageTracker(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
+    private final FsService fsService;
+
+    public NodeResourceUsageTracker(FsService fsService, ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
+        this.fsService = fsService;
         this.threadPool = threadPool;
         this.clusterSettings = clusterSettings;
         this.resourceTrackerSettings = new ResourceTrackerSettings(settings);
@@ -50,6 +56,13 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
             return memoryUsageTracker.getAverage();
         }
         return 0.0;
+    }
+
+    /**
+     * Return io stats average if we have enough datapoints, otherwise return 0
+     */
+    public IoUsageStats getIoUsageStats() {
+        return ioUsageTracker.getIoUsageStats();
     }
 
     /**
@@ -79,6 +92,17 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
             ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING,
             this::setMemoryWindowDuration
         );
+
+        ioUsageTracker = new AverageIoUsageTracker(
+            fsService,
+            threadPool,
+            resourceTrackerSettings.getIoPollingInterval(),
+            resourceTrackerSettings.getIoWindowDuration()
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING,
+            this::setIoWindowDuration
+        );
     }
 
     private void setMemoryWindowDuration(TimeValue windowDuration) {
@@ -89,6 +113,11 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
     private void setCpuWindowDuration(TimeValue windowDuration) {
         cpuUsageTracker.setWindowSize(windowDuration);
         resourceTrackerSettings.setCpuWindowDuration(windowDuration);
+    }
+
+    private void setIoWindowDuration(TimeValue windowDuration) {
+        ioUsageTracker.setWindowSize(windowDuration);
+        resourceTrackerSettings.setIoWindowDuration(windowDuration);
     }
 
     /**
@@ -102,17 +131,20 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
     protected void doStart() {
         cpuUsageTracker.doStart();
         memoryUsageTracker.doStart();
+        ioUsageTracker.doStart();
     }
 
     @Override
     protected void doStop() {
         cpuUsageTracker.doStop();
         memoryUsageTracker.doStop();
+        ioUsageTracker.doStop();
     }
 
     @Override
     protected void doClose() {
         cpuUsageTracker.doClose();
         memoryUsageTracker.doClose();
+        ioUsageTracker.doClose();
     }
 }
