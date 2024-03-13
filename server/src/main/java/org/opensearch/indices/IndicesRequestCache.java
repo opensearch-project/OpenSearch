@@ -77,9 +77,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.function.ToLongBiFunction;
 
@@ -437,8 +434,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         private final ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap;
         private final AtomicInteger staleKeysCount;
         private final double stalenessThreshold;
-        private final Lock readLock;
-        private final Lock writeLock;
         private final IndicesRequestCacheCleaner cacheCleaner;
 
         IndicesRequestCacheCleanupManager(ThreadPool threadpool, TimeValue cleanInterval, double stalenessThreshold) {
@@ -446,9 +441,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             this.keysToClean = ConcurrentCollections.newConcurrentSet();
             this.cleanupKeyToCountMap = ConcurrentCollections.newConcurrentMap();
             this.staleKeysCount = new AtomicInteger(0);
-            ReadWriteLock rwLock = new ReentrantReadWriteLock();
-            this.readLock = rwLock.readLock();
-            this.writeLock = rwLock.writeLock();
             this.cacheCleaner = new IndicesRequestCacheCleaner(this, threadpool, cleanInterval);
             threadpool.schedule(cacheCleaner, cleanInterval, ThreadPool.Names.SAME);
         }
@@ -492,7 +484,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                 .merge(cleanupKey.readerCacheKeyId, 1, Integer::sum);
         }
 
-        private void updateCleanupKeyToCountMapOnCacheEviction(CleanupKey cleanupKey) {
+        private synchronized void updateCleanupKeyToCountMapOnCacheEviction(CleanupKey cleanupKey) {
             if (stalenessThreshold == 0.0) {
                 return;
             }
@@ -503,15 +495,10 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             }
             ShardId shardId = indexShard.shardId();
 
-            writeLock.lock();
-            try {
-                // If the key doesn't exist, ignore
-                ConcurrentMap<String, Integer> keyCountMap = cleanupKeyToCountMap.get(shardId);
-                if (keyCountMap != null) {
-                    keyCountMap.computeIfPresent(cleanupKey.readerCacheKeyId, (key, value) -> value - 1);
-                }
-            } finally {
-                writeLock.unlock();
+            // If the key doesn't exist, ignore
+            ConcurrentMap<String, Integer> keyCountMap = cleanupKeyToCountMap.get(shardId);
+            if (keyCountMap != null) {
+                keyCountMap.computeIfPresent(cleanupKey.readerCacheKeyId, (key, value) -> value - 1);
             }
         }
 
@@ -584,41 +571,36 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             if (logger.isDebugEnabled()) {
                 logger.debug("Cleaning Indices Request Cache with threshold : " + threshold);
             }
-            writeLock.lock();
-            try {
-                if (canSkipCacheCleanup(threshold)) {
-                    return;
-                }
-                // Contains CleanupKey objects with open shard but invalidated readerCacheKeyId.
-                final Set<CleanupKey> cleanupKeysFromOutdatedReaders = new HashSet<>();
-                // Contains CleanupKey objects of a closed shard.
-                final Set<Object> cleanupKeysFromClosedShards = new HashSet<>();
-
-                for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext();) {
-                    CleanupKey cleanupKey = iterator.next();
-                    iterator.remove();
-                    if (cleanupKey.readerCacheKeyId == null || !cleanupKey.entity.isOpen()) {
-                        // null indicates full cleanup, as does a closed shard
-                        cleanupKeysFromClosedShards.add(((IndexShard) cleanupKey.entity.getCacheIdentity()).shardId());
-                    } else {
-                        cleanupKeysFromOutdatedReaders.add(cleanupKey);
-                    }
-                }
-
-                if (cleanupKeysFromOutdatedReaders.isEmpty() && cleanupKeysFromClosedShards.isEmpty()) {
-                    return;
-                }
-
-                for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext();) {
-                    Key key = iterator.next();
-                    if (shouldRemoveKey(key, cleanupKeysFromOutdatedReaders, cleanupKeysFromClosedShards)) {
-                        iterator.remove();
-                    }
-                }
-                cache.refresh();
-            } finally {
-                writeLock.unlock();
+            if (canSkipCacheCleanup(threshold)) {
+                return;
             }
+            // Contains CleanupKey objects with open shard but invalidated readerCacheKeyId.
+            final Set<CleanupKey> cleanupKeysFromOutdatedReaders = new HashSet<>();
+            // Contains CleanupKey objects of a closed shard.
+            final Set<Object> cleanupKeysFromClosedShards = new HashSet<>();
+
+            for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext(); ) {
+                CleanupKey cleanupKey = iterator.next();
+                iterator.remove();
+                if (cleanupKey.readerCacheKeyId == null || !cleanupKey.entity.isOpen()) {
+                    // null indicates full cleanup, as does a closed shard
+                    cleanupKeysFromClosedShards.add(((IndexShard) cleanupKey.entity.getCacheIdentity()).shardId());
+                } else {
+                    cleanupKeysFromOutdatedReaders.add(cleanupKey);
+                }
+            }
+
+            if (cleanupKeysFromOutdatedReaders.isEmpty() && cleanupKeysFromClosedShards.isEmpty()) {
+                return;
+            }
+
+            for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext(); ) {
+                Key key = iterator.next();
+                if (shouldRemoveKey(key, cleanupKeysFromOutdatedReaders, cleanupKeysFromClosedShards)) {
+                    iterator.remove();
+                }
+            }
+            cache.refresh();
         }
 
         /**
@@ -634,17 +616,12 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
          * @param cleanupKeysFromClosedShards A set of CleanupKeys of a closed shard.
          * @return true if the key should be removed, false otherwise.
          */
-        private boolean shouldRemoveKey(Key key, Set<CleanupKey> cleanupKeysFromOutdatedReaders, Set<Object> cleanupKeysFromClosedShards) {
-            readLock.lock();
-            try {
-                if (cleanupKeysFromClosedShards.contains(key.shardId)) {
-                    return true;
-                } else {
-                    CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId);
-                    return cleanupKeysFromOutdatedReaders.contains(cleanupKey);
-                }
-            } finally {
-                readLock.unlock();
+        private synchronized boolean shouldRemoveKey(Key key, Set<CleanupKey> cleanupKeysFromOutdatedReaders, Set<Object> cleanupKeysFromClosedShards) {
+            if (cleanupKeysFromClosedShards.contains(key.shardId)) {
+                return true;
+            } else {
+                CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId);
+                return cleanupKeysFromOutdatedReaders.contains(cleanupKey);
             }
         }
 
@@ -657,23 +634,18 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
          * @param cleanThresholdPercent The staleness threshold as a percentage.
          * @return true if the cache cleanup process can be skipped, false otherwise.
          */
-        private boolean canSkipCacheCleanup(double cleanThresholdPercent) {
+        private synchronized boolean canSkipCacheCleanup(double cleanThresholdPercent) {
             if (cleanThresholdPercent == 0.0) {
                 return false;
             }
-            readLock.lock();
-            try {
-                if (staleKeysInCachePercentage() < cleanThresholdPercent) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(
-                            "Skipping cache cleanup since the percentage of stale keys is less than the threshold : "
-                                + stalenessThreshold
-                        );
-                    }
-                    return true;
+            if (staleKeysInCachePercentage() < cleanThresholdPercent) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        "Skipping cache cleanup since the percentage of stale keys is less than the threshold : "
+                            + stalenessThreshold
+                    );
                 }
-            } finally {
-                readLock.unlock();
+                return true;
             }
             return false;
         }
@@ -683,17 +655,12 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
          *
          * @return The percentage of stale keys in the cache as a double. Returns 0 if there are no keys in the cache or no stale keys.
          */
-        private double staleKeysInCachePercentage() {
-            readLock.lock();
-            try {
-                long totalKeysInCache = count();
-                if (totalKeysInCache == 0 || staleKeysCount.get() == 0) {
-                    return 0;
-                }
-                return ((double) staleKeysCount.get() / totalKeysInCache);
-            } finally {
-                readLock.unlock();
+        private synchronized double staleKeysInCachePercentage() {
+            long totalKeysInCache = count();
+            if (totalKeysInCache == 0 || staleKeysCount.get() == 0) {
+                return 0;
             }
+            return ((double) staleKeysCount.get() / totalKeysInCache);
         }
 
         @Override
