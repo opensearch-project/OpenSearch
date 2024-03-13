@@ -64,7 +64,7 @@ public class CpuBasedAdmissionControllerSettings {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Long> CLUSTER_INFO_CPU_USAGE_LIMIT = Setting.longSetting(
+    public static final Setting<Long> CLUSTER_ADMIN_CPU_USAGE_LIMIT = Setting.longSetting(
         "admission_control.cluster.admin.cpu_usage.limit",
         Defaults.CPU_USAGE_LIMIT,
         Setting.Property.Dynamic,
@@ -77,10 +77,10 @@ public class CpuBasedAdmissionControllerSettings {
         clusterSettings.addSettingsUpdateConsumer(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE, this::setTransportLayerMode);
         this.searchCPULimit = SEARCH_CPU_USAGE_LIMIT.get(settings);
         this.indexingCPULimit = INDEXING_CPU_USAGE_LIMIT.get(settings);
-        this.clusterInfoCPULimit = CLUSTER_INFO_CPU_USAGE_LIMIT.get(settings);
+        this.clusterInfoCPULimit = CLUSTER_ADMIN_CPU_USAGE_LIMIT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(INDEXING_CPU_USAGE_LIMIT, this::setIndexingCPULimit);
         clusterSettings.addSettingsUpdateConsumer(SEARCH_CPU_USAGE_LIMIT, this::setSearchCPULimit);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_INFO_CPU_USAGE_LIMIT, this::setClusterInfoCPULimit);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ADMIN_CPU_USAGE_LIMIT, this::setClusterInfoCPULimit);
 
     }
 
@@ -100,7 +100,7 @@ public class CpuBasedAdmissionControllerSettings {
         return indexingCPULimit;
     }
 
-    public Long getClusterInfoCPULimit() {
+    public Long getClusterAdminCPULimit() {
         return clusterInfoCPULimit;
     }
 

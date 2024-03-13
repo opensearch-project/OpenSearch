@@ -63,7 +63,7 @@ public abstract class TransportClusterManagerNodeReadAction<
         this(
             actionName,
             true,
-            AdmissionControlActionType.CLUSTER_INFO,
+            AdmissionControlActionType.CLUSTER_ADMIN,
             transportService,
             clusterService,
             threadPool,

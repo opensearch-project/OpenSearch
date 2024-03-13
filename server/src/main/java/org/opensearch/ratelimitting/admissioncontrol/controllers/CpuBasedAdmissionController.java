@@ -113,8 +113,8 @@ public class CpuBasedAdmissionController extends AdmissionController {
                 return this.settings.getSearchCPULimit();
             case INDEXING:
                 return this.settings.getIndexingCPULimit();
-            case CLUSTER_INFO:
-                return this.settings.getClusterInfoCPULimit();
+            case CLUSTER_ADMIN:
+                return this.settings.getClusterAdminCPULimit();
             default:
                 throw new IllegalArgumentException(
                     String.format(

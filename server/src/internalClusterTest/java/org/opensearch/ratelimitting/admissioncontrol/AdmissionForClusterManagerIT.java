@@ -24,7 +24,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
 import static org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE;
-import static org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings.CLUSTER_INFO_CPU_USAGE_LIMIT;
+import static org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings.CLUSTER_ADMIN_CPU_USAGE_LIMIT;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -45,7 +45,7 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
     private static final Settings ENFORCE_ADMISSION_CONTROL = Settings.builder()
         .put(ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
         .put(ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED)
-        .put(CLUSTER_INFO_CPU_USAGE_LIMIT.getKey(), 50)
+        .put(CLUSTER_ADMIN_CPU_USAGE_LIMIT.getKey(), 50)
         .build();
 
     @Before
@@ -92,7 +92,7 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
             AdmissionControlService.class
         );
         AdmissionControllerStats admissionStats = admissionControlServicePrimary.stats().getAdmissionControllerStatsList().get(0);
-        assertEquals(admissionStats.rejectionCount.get(AdmissionControlActionType.CLUSTER_INFO.getType()).longValue(), 1);
+        assertEquals(admissionStats.rejectionCount.get(AdmissionControlActionType.CLUSTER_ADMIN.getType()).longValue(), 1);
         assertNull(admissionStats.rejectionCount.get(AdmissionControlActionType.SEARCH.getType()));
         assertNull(admissionStats.rejectionCount.get(AdmissionControlActionType.INDEXING.getType()));
     }

@@ -109,26 +109,16 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
     ) {
         super(actionName, actionFilters, transportService.getTaskManager());
 
-        if (admissionControlActionType != null) {
-            transportService.registerRequestHandler(
-                actionName,
-                executor,
-                false,
-                canTripCircuitBreaker,
-                admissionControlActionType,
-                requestReader,
-                new TransportHandler()
-            );
-        } else {
-            transportService.registerRequestHandler(
-                actionName,
-                executor,
-                false,
-                canTripCircuitBreaker,
-                requestReader,
-                new TransportHandler()
-            );
-        }
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            canTripCircuitBreaker,
+            admissionControlActionType,
+            requestReader,
+            new TransportHandler()
+        );
+
     }
 
     /**
