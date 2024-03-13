@@ -879,15 +879,18 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
     public void testShardStoreFetchCorruptedIndexUsingBatchAction() throws Exception {
         internalCluster().startNodes(2);
-        String indexName = "test";
-        prepareIndices(new String[] { indexName }, 1, 1);
-        Map<ShardId, ShardAttributes> shardAttributesMap = prepareRequestMap(new String[] { indexName }, 1);
-        Index index = resolveIndex(indexName);
-        ShardId shardId = new ShardId(index, 0);
-        ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards(indexName).get();
+        String index1Name = "test1";
+        String index2Name = "test2";
+        prepareIndices(new String[] { index1Name, index2Name }, 1, 1);
+        Map<ShardId, ShardAttributes> shardAttributesMap = prepareRequestMap(new String[] { index1Name, index2Name }, 1);
+        Index index1 = resolveIndex(index1Name);
+        ShardId shardId1 = new ShardId(index1, 0);
+        ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards(index1Name).get();
         assertEquals(2, searchShardsResponse.getNodes().length);
-        corruptShard(searchShardsResponse.getNodes()[0].getName(), shardId);
-        corruptShard(searchShardsResponse.getNodes()[1].getName(), shardId);
+
+        // corrupt test1 index shards
+        corruptShard(searchShardsResponse.getNodes()[0].getName(), shardId1);
+        corruptShard(searchShardsResponse.getNodes()[1].getName(), shardId1);
         ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setRetryFailed(false).get();
         DiscoveryNode[] discoveryNodes = getDiscoveryNodes();
         TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch response;
@@ -895,11 +898,17 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             internalCluster().getInstance(TransportNodesListShardStoreMetadataBatch.class),
             new TransportNodesListShardStoreMetadataBatch.Request(shardAttributesMap, discoveryNodes)
         );
-        TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata nodeStoreFilesMetadata = response.getNodesMap()
+        Map<ShardId, TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata> nodeStoreFilesMetadata = response.getNodesMap()
             .get(discoveryNodes[0].getId())
-            .getNodeStoreFilesMetadataBatch()
-            .get(shardId);
-        assertNodeStoreFilesMetadataFailureCase(nodeStoreFilesMetadata, shardId);
+            .getNodeStoreFilesMetadataBatch();
+        // We don't store exception in case of corrupt index, rather just return an empty response
+        assertNull(nodeStoreFilesMetadata.get(shardId1).getException());
+        assertEquals(shardId1, nodeStoreFilesMetadata.get(shardId1).storeFilesMetadata().shardId());
+        assertTrue(nodeStoreFilesMetadata.get(shardId1).storeFilesMetadata().isEmpty());
+
+        Index index2 = resolveIndex(index2Name);
+        ShardId shardId2 = new ShardId(index2, 0);
+        assertNodeStoreFilesMetadataSuccessCase(nodeStoreFilesMetadata.get(shardId2), shardId2);
     }
 
     private void prepareIndices(String[] indices, int numberOfPrimaryShards, int numberOfReplicaShards) {
@@ -928,16 +937,6 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             internalCluster().getInstance(TransportNodesListShardStoreMetadataBatch.class),
             new TransportNodesListShardStoreMetadataBatch.Request(shardAttributesMap, nodes)
         );
-    }
-
-    private void assertNodeStoreFilesMetadataFailureCase(
-        TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata nodeStoreFilesMetadata,
-        ShardId shardId
-    ) {
-        assertNotNull(nodeStoreFilesMetadata.getException());
-        TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata storeFileMetadata = nodeStoreFilesMetadata.storeFilesMetadata();
-        assertEquals(shardId, storeFileMetadata.shardId());
-        assertTrue(storeFileMetadata.peerRecoveryRetentionLeases().isEmpty());
     }
 
     private void assertNodeStoreFilesMetadataSuccessCase(
