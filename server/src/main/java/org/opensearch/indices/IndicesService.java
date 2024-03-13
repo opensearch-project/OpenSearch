@@ -63,6 +63,7 @@ import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.cache.policy.CachedQueryResult;
+import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
@@ -394,7 +395,8 @@ public class IndicesService extends AbstractLifecycleComponent
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        CacheService cacheService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -411,7 +413,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 return Optional.empty();
             }
             return Optional.of(new IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }));
+        }), cacheService);
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;

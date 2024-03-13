@@ -44,7 +44,7 @@ opensearchplugin {
 }
 
 dependencies {
-  api 'com.azure:azure-core:1.39.0'
+  api 'com.azure:azure-core:1.47.0'
   api 'com.azure:azure-json:1.0.1'
   api 'com.azure:azure-storage-common:12.21.2'
   api 'com.azure:azure-core-http-netty:1.12.8'
@@ -64,7 +64,7 @@ dependencies {
   api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
   api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
-  api 'org.codehaus.woodstox:stax2-api:4.2.1'
+  api 'org.codehaus.woodstox:stax2-api:4.2.2'
   implementation "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   api "org.apache.commons:commons-lang3:${versions.commonslang}"

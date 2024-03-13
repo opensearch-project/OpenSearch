@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 
 import java.util.function.Function;
 import java.util.function.ToLongBiFunction;
@@ -45,6 +46,15 @@ public class CacheConfig<K, V> {
 
     /** A function which extracts policy-relevant information, such as took time, from values, to allow inspection by policies if present. */
     private Function<V, CachedQueryResult.PolicyValues> cachedResultParser;
+    /**
+     * Max size in bytes for the cache. This is needed for backward compatibility.
+     */
+    private final long maxSizeInBytes;
+
+    /**
+     * Defines the expiration time for a cache entry. This is needed for backward compatibility.
+     */
+    private final TimeValue expireAfterAccess;
 
     private CacheConfig(Builder<K, V> builder) {
         this.keyType = builder.keyType;
@@ -53,6 +63,8 @@ public class CacheConfig<K, V> {
         this.removalListener = builder.removalListener;
         this.weigher = builder.weigher;
         this.cachedResultParser = builder.cachedResultParser;
+        this.maxSizeInBytes = builder.maxSizeInBytes;
+        this.expireAfterAccess = builder.expireAfterAccess;
     }
 
     public Class<K> getKeyType() {
@@ -78,6 +90,13 @@ public class CacheConfig<K, V> {
     public Function<V, CachedQueryResult.PolicyValues> getCachedResultParser() {
         return cachedResultParser;
     }
+    public Long getMaxSizeInBytes() {
+        return maxSizeInBytes;
+    }
+
+    public TimeValue getExpireAfterAccess() {
+        return expireAfterAccess;
+    }
 
     /**
      * Builder class to build Cache config related parameters.
@@ -96,6 +115,10 @@ public class CacheConfig<K, V> {
 
         private ToLongBiFunction<K, V> weigher;
         private Function<V, CachedQueryResult.PolicyValues> cachedResultParser;
+
+        private long maxSizeInBytes;
+
+        private TimeValue expireAfterAccess;
 
         public Builder() {}
 
@@ -126,6 +149,16 @@ public class CacheConfig<K, V> {
 
         public Builder<K, V> setCachedResultParser(Function<V, CachedQueryResult.PolicyValues> function) {
             this.cachedResultParser = function;
+            return this;
+        }
+
+        public Builder<K, V> setMaxSizeInBytes(long sizeInBytes) {
+            this.maxSizeInBytes = sizeInBytes;
+            return this;
+        }
+
+        public Builder<K, V> setExpireAfterAccess(TimeValue expireAfterAccess) {
+            this.expireAfterAccess = expireAfterAccess;
             return this;
         }
 

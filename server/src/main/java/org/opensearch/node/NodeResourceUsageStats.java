@@ -8,6 +8,7 @@
 
 package org.opensearch.node;
 
+import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -24,12 +25,20 @@ public class NodeResourceUsageStats implements Writeable {
     long timestamp;
     double cpuUtilizationPercent;
     double memoryUtilizationPercent;
+    private IoUsageStats ioUsageStats;
 
-    public NodeResourceUsageStats(String nodeId, long timestamp, double memoryUtilizationPercent, double cpuUtilizationPercent) {
+    public NodeResourceUsageStats(
+        String nodeId,
+        long timestamp,
+        double memoryUtilizationPercent,
+        double cpuUtilizationPercent,
+        IoUsageStats ioUsageStats
+    ) {
         this.nodeId = nodeId;
         this.timestamp = timestamp;
         this.cpuUtilizationPercent = cpuUtilizationPercent;
         this.memoryUtilizationPercent = memoryUtilizationPercent;
+        this.ioUsageStats = ioUsageStats;
     }
 
     public NodeResourceUsageStats(StreamInput in) throws IOException {
@@ -37,6 +46,11 @@ public class NodeResourceUsageStats implements Writeable {
         this.timestamp = in.readLong();
         this.cpuUtilizationPercent = in.readDouble();
         this.memoryUtilizationPercent = in.readDouble();
+        if (in.getVersion().onOrAfter(Version.V_2_13_0)) {
+            this.ioUsageStats = in.readOptionalWriteable(IoUsageStats::new);
+        } else {
+            this.ioUsageStats = null;
+        }
     }
 
     @Override
@@ -45,6 +59,9 @@ public class NodeResourceUsageStats implements Writeable {
         out.writeLong(this.timestamp);
         out.writeDouble(this.cpuUtilizationPercent);
         out.writeDouble(this.memoryUtilizationPercent);
+        if (out.getVersion().onOrAfter(Version.V_2_13_0)) {
+            out.writeOptionalWriteable(this.ioUsageStats);
+        }
     }
 
     @Override
@@ -52,8 +69,11 @@ public class NodeResourceUsageStats implements Writeable {
         StringBuilder sb = new StringBuilder("NodeResourceUsageStats[");
         sb.append(nodeId).append("](");
         sb.append("Timestamp: ").append(timestamp);
-        sb.append(", CPU utilization percent: ").append(String.format(Locale.ROOT, "%.1f", cpuUtilizationPercent));
-        sb.append(", Memory utilization percent: ").append(String.format(Locale.ROOT, "%.1f", memoryUtilizationPercent));
+        sb.append(", CPU utilization percent: ").append(String.format(Locale.ROOT, "%.1f", this.getCpuUtilizationPercent()));
+        sb.append(", Memory utilization percent: ").append(String.format(Locale.ROOT, "%.1f", this.getMemoryUtilizationPercent()));
+        if (this.ioUsageStats != null) {
+            sb.append(", ").append(this.getIoUsageStats());
+        }
         sb.append(")");
         return sb.toString();
     }
@@ -63,7 +83,8 @@ public class NodeResourceUsageStats implements Writeable {
             nodeResourceUsageStats.nodeId,
             nodeResourceUsageStats.timestamp,
             nodeResourceUsageStats.memoryUtilizationPercent,
-            nodeResourceUsageStats.cpuUtilizationPercent
+            nodeResourceUsageStats.cpuUtilizationPercent,
+            nodeResourceUsageStats.ioUsageStats
         );
     }
 
@@ -73,6 +94,14 @@ public class NodeResourceUsageStats implements Writeable {
 
     public double getCpuUtilizationPercent() {
         return cpuUtilizationPercent;
+    }
+
+    public IoUsageStats getIoUsageStats() {
+        return ioUsageStats;
+    }
+
+    public void setIoUsageStats(IoUsageStats ioUsageStats) {
+        this.ioUsageStats = ioUsageStats;
     }
 
     public long getTimestamp() {
