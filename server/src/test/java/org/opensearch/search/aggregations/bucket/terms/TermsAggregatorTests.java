@@ -44,6 +44,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -345,7 +346,13 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         final int expectedCollectCount
     ) throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (
+                RandomIndexWriter indexWriter = new RandomIndexWriter(
+                    random(),
+                    directory,
+                    newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+                )
+            ) {
                 Document document = new Document();
                 addFieldConsumer.apply(document, "string", "a");
                 addFieldConsumer.apply(document, "string", "b");
