@@ -24,12 +24,12 @@ import java.util.concurrent.atomic.AtomicReference;
 public abstract class AbstractAverageUsageTracker extends AbstractLifecycleComponent {
     private static final Logger LOGGER = LogManager.getLogger(AbstractAverageUsageTracker.class);
 
-    private final ThreadPool threadPool;
-    private final TimeValue pollingInterval;
+    protected final ThreadPool threadPool;
+    protected final TimeValue pollingInterval;
     private TimeValue windowDuration;
     private final AtomicReference<MovingAverage> observations = new AtomicReference<>();
 
-    private volatile Scheduler.Cancellable scheduledFuture;
+    protected volatile Scheduler.Cancellable scheduledFuture;
 
     public AbstractAverageUsageTracker(ThreadPool threadPool, TimeValue pollingInterval, TimeValue windowDuration) {
         this.threadPool = threadPool;
