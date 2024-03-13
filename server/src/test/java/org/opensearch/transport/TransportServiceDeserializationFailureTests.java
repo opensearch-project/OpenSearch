@@ -41,7 +41,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.transport.TransportResponse;
-import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskAwareRequest;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
@@ -49,8 +48,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
 
@@ -137,12 +134,6 @@ public class TransportServiceDeserializationFailureTests extends OpenSearchTestC
                     public String toString() {
                         return "test handler without parent";
                     }
-
-                    @Override
-                    public Empty read(InputStream in) throws IOException {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'read'");
-                    }
                 }
             );
 
@@ -198,12 +189,6 @@ public class TransportServiceDeserializationFailureTests extends OpenSearchTestC
                     @Override
                     public String toString() {
                         return "test handler with parent";
-                    }
-
-                    @Override
-                    public Empty read(InputStream in) throws IOException {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }
                 }
             );

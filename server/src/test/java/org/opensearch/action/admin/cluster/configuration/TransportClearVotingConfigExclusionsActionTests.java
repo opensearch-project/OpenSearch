@@ -63,7 +63,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -252,12 +251,6 @@ public class TransportClearVotingConfigExclusionsActionTests extends OpenSearchT
             @Override
             public ClearVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
                 return new ClearVotingConfigExclusionsResponse(in);
-            }
-
-            @Override
-            public ClearVotingConfigExclusionsResponse read(InputStream in) throws IOException {
-                // TODO Auto-generated method stub
-                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         };
     }

@@ -43,7 +43,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.io.stream.ProtobufWriteable;
+import org.opensearch.core.common.io.stream.BytesWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -248,7 +248,7 @@ public class SearchTransportService {
         final ActionListener handler = responseWrapper.apply(connection, listener);
         TransportResponseHandler transportResponseHandler;
         if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
-            ProtobufWriteable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
+            BytesWriteable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
             transportResponseHandler = new ProtobufConnectionCountingHandler<>(
                 handler,
                 reader,
@@ -797,7 +797,7 @@ public class SearchTransportService {
 
         ProtobufConnectionCountingHandler(
             final ActionListener<? super Response> listener,
-            final ProtobufWriteable.Reader<Response> responseReader,
+            final BytesWriteable.Reader<Response> responseReader,
             final Map<String, Long> clientConnections,
             final String nodeId
         ) {

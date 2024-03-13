@@ -13,6 +13,7 @@ syntax = "proto3";
 package org.opensearch.server.proto;
 
 import "server/search/QueryFetchSearchResultProto.proto";
+import "server/search/QuerySearchResultProto.proto";
 
 option java_outer_classname = "NodeToNodeMessageProto";
 
@@ -27,6 +28,7 @@ message NodeToNodeMessage {
   int64 requestId = 8;
   oneof message {
     QueryFetchSearchResult queryFetchSearchResult = 9;
+    QuerySearchResult querySearchResult = 10;
   }
   
   message Header {

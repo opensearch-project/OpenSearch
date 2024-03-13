@@ -74,7 +74,6 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -623,12 +622,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     @Override
                     public String executor() {
                         return ThreadPool.Names.SAME;
-                    }
-
-                    @Override
-                    public UpdateIndexShardSnapshotStatusResponse read(InputStream in) throws IOException {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }
                 }
             )

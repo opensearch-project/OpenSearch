@@ -34,7 +34,6 @@ package org.opensearch.action.support.replication;
 import org.opensearch.Version;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.block.ClusterBlock;
@@ -78,7 +77,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -224,12 +222,6 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                         @Override
                         public String executor() {
                             return ThreadPool.Names.SAME;
-                        }
-
-                        @Override
-                        public ReplicaResponse read(InputStream in) throws IOException {
-                            // TODO Auto-generated method stub
-                            throw new UnsupportedOperationException("Unimplemented method 'read'");
                         }
                     }
                 );

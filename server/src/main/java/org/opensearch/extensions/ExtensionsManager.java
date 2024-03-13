@@ -49,7 +49,6 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -384,12 +383,6 @@ public class ExtensionsManager {
             @Override
             public String executor() {
                 return ThreadPool.Names.GENERIC;
-            }
-
-            @Override
-            public InitializeExtensionResponse read(InputStream in) throws IOException {
-                // TODO Auto-generated method stub
-                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         };
 

@@ -57,7 +57,6 @@ import org.opensearch.transport.TransportService;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -234,12 +233,6 @@ public class DisruptableMockTransportTests extends OpenSearchTestCase {
             public String executor() {
                 return ThreadPool.Names.SAME;
             }
-
-            @Override
-            public TransportResponse read(InputStream in) throws IOException {
-                // TODO Auto-generated method stub
-                throw new UnsupportedOperationException("Unimplemented method 'read'");
-            }
         };
     }
 
@@ -264,12 +257,6 @@ public class DisruptableMockTransportTests extends OpenSearchTestCase {
             public String executor() {
                 return ThreadPool.Names.SAME;
             }
-
-            @Override
-            public TransportResponse read(InputStream in) throws IOException {
-                // TODO Auto-generated method stub
-                throw new UnsupportedOperationException("Unimplemented method 'read'");
-            }
         };
     }
 
@@ -293,12 +280,6 @@ public class DisruptableMockTransportTests extends OpenSearchTestCase {
             @Override
             public String executor() {
                 return ThreadPool.Names.SAME;
-            }
-
-            @Override
-            public TransportResponse read(InputStream in) throws IOException {
-                // TODO Auto-generated method stub
-                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         };
     }

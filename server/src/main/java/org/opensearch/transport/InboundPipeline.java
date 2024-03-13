@@ -41,6 +41,7 @@ import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.bytes.CompositeBytesReference;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -133,7 +134,7 @@ public class InboundPipeline implements Releasable {
         if (incomingMessageProtocol.equals(BaseInboundMessage.PROTOBUF_PROTOCOL) && this.version.onOrAfter(Version.V_3_0_0)) {
             // removing the first byte we added for protobuf message
             byte[] incomingBytes = BytesReference.toBytes(reference.slice(3, reference.length() - 3));
-            NodeToNodeMessage protobufMessage = new NodeToNodeMessage(incomingBytes);
+            NodeToNodeMessage protobufMessage = new NodeToNodeMessage(new ByteArrayInputStream(incomingBytes));
             protobufMessage.setProtocol();
             messageHandler.accept(channel, protobufMessage);
         } else {

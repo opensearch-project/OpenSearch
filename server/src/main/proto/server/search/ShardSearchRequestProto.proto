@@ -21,7 +21,7 @@ message ShardSearchRequest {
   SearchType searchType = 4;
   bytes source = 5;
   bool requestCache = 6;
-  bytes aliasFilter = 7;
+  AliasFilter aliasFilter = 7;
   float indexBoost = 8;
   bool allowPartialSearchResults = 9;
   repeated string indexRoutings = 10;
@@ -72,4 +72,8 @@ message OriginalIndices {
     bool ignoreAliases = 8;
     bool ignoreThrottled = 9;
   }
+}
+
+message AliasFilter {
+  repeated string aliases = 1;
 }

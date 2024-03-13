@@ -61,7 +61,6 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -229,12 +228,6 @@ public abstract class TransportBroadcastAction<
                                 @Override
                                 public void handleException(TransportException e) {
                                     onOperation(shard, shardIt, shardIndex, e);
-                                }
-
-                                @Override
-                                public ShardResponse read(InputStream in) throws IOException {
-                                    // TODO Auto-generated method stub
-                                    throw new UnsupportedOperationException("Unimplemented method 'read'");
                                 }
                             }
                         );

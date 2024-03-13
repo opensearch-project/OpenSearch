@@ -118,7 +118,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
     }
 
     public SearchHits hits() {
-        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING) && this.fetchSearchResultProto != null) {
             SearchHits hits;
             try {
                 hits = new SearchHits(this.fetchSearchResultProto.getHits().toByteArray());

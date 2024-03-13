@@ -52,6 +52,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.search.fetch.QueryFetchSearchResult;
+import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -149,21 +150,40 @@ final class OutboundHandler {
         Version version = Version.min(this.version, nodeVersion);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
         if ((response.getProtocol()).equals(BaseInboundMessage.PROTOBUF_PROTOCOL) && version.onOrAfter(Version.V_3_0_0)) {
-            QueryFetchSearchResult queryFetchSearchResult = (QueryFetchSearchResult) response;
-            if (queryFetchSearchResult.response() != null) {
-                byte[] bytes = new byte[1];
-                bytes[0] = 1;
-                NodeToNodeMessage protobufMessage = new NodeToNodeMessage(
-                    requestId,
-                    bytes,
-                    Version.CURRENT,
-                    threadPool.getThreadContext(),
-                    queryFetchSearchResult.response(),
-                    features,
-                    action
-                );
-                sendProtobufMessage(channel, protobufMessage, listener);
+            if (response instanceof QueryFetchSearchResult) {
+                QueryFetchSearchResult queryFetchSearchResult = (QueryFetchSearchResult) response;
+                if (queryFetchSearchResult.response() != null) {
+                    byte[] bytes = new byte[1];
+                    bytes[0] = 1;
+                    NodeToNodeMessage protobufMessage = new NodeToNodeMessage(
+                        requestId,
+                        bytes,
+                        Version.CURRENT,
+                        threadPool.getThreadContext(),
+                        queryFetchSearchResult.response(),
+                        features,
+                        action
+                    );
+                    sendProtobufMessage(channel, protobufMessage, listener);
+                }
+            } else if (response instanceof QuerySearchResult) {
+                QuerySearchResult querySearchResult = (QuerySearchResult) response;
+                if (querySearchResult.response() != null) {
+                    byte[] bytes = new byte[1];
+                    bytes[0] = 1;
+                    NodeToNodeMessage protobufMessage = new NodeToNodeMessage(
+                        requestId,
+                        bytes,
+                        Version.CURRENT,
+                        threadPool.getThreadContext(),
+                        querySearchResult.response(),
+                        features,
+                        action
+                    );
+                    sendProtobufMessage(channel, protobufMessage, listener);
+                }
             }
+
         } else {
             OutboundMessage.Response message = new OutboundMessage.Response(
                 threadPool.getThreadContext(),

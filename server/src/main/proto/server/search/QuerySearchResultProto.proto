@@ -34,6 +34,7 @@ message QuerySearchResult {
   optional int32 nodeQueueSize = 15;
   SearchShardTarget searchShardTarget = 17;
   ShardSearchRequest searchShardRequest = 18;
+  bool isNull = 19;
 
   message TopDocsAndMaxScore {
     TopDocs topDocs = 1;

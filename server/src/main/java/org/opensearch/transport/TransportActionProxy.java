@@ -40,7 +40,6 @@ import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.function.Function;
 
@@ -130,12 +129,6 @@ public final class TransportActionProxy {
         @Override
         public String executor() {
             return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        public T read(InputStream in) throws IOException {
-            // TODO Auto-generated method stub
-            throw new UnsupportedOperationException("Unimplemented method 'read'");
         }
     }
 

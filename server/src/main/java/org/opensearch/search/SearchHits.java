@@ -122,12 +122,14 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
             searchHitList.add(SearchHit.convertHitToProto(hit));
         }
         QuerySearchResultProto.TotalHits.Builder totalHitsBuilder = QuerySearchResultProto.TotalHits.newBuilder();
-        totalHitsBuilder.setValue(hits.getTotalHits().value);
-        totalHitsBuilder.setRelation(
-            hits.getTotalHits().relation == Relation.EQUAL_TO
-                ? QuerySearchResultProto.TotalHits.Relation.EQUAL_TO
-                : QuerySearchResultProto.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
-        );
+        if (hits.getTotalHits() != null) {
+            totalHitsBuilder.setValue(hits.getTotalHits().value);
+            totalHitsBuilder.setRelation(
+                hits.getTotalHits().relation == Relation.EQUAL_TO
+                    ? QuerySearchResultProto.TotalHits.Relation.EQUAL_TO
+                    : QuerySearchResultProto.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+            );
+        }
         FetchSearchResultProto.SearchHits.Builder searchHitsBuilder = FetchSearchResultProto.SearchHits.newBuilder();
         searchHitsBuilder.setMaxScore(hits.getMaxScore());
         searchHitsBuilder.addAllHits(searchHitList);
@@ -135,7 +137,9 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         if (hits.getSortFields() != null && hits.getSortFields().length > 0) {
             for (SortField sortField : hits.getSortFields()) {
                 FetchSearchResultProto.SortField.Builder sortFieldBuilder = FetchSearchResultProto.SortField.newBuilder();
-                sortFieldBuilder.setField(sortField.getField());
+                if (sortField.getField() != null) {
+                    sortFieldBuilder.setField(sortField.getField());
+                }
                 sortFieldBuilder.setType(FetchSearchResultProto.SortField.Type.valueOf(sortField.getType().name()));
                 searchHitsBuilder.addSortFields(sortFieldBuilder.build());
             }

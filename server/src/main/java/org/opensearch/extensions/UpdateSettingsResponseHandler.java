@@ -17,7 +17,6 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 /**
  * Response handler for {@link UpdateSettingsRequest}
@@ -48,11 +47,5 @@ public class UpdateSettingsResponseHandler implements TransportResponseHandler<A
     @Override
     public String executor() {
         return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    public AcknowledgedResponse read(InputStream in) throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'read'");
     }
 }

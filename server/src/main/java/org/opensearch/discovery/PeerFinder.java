@@ -54,7 +54,6 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -504,12 +503,6 @@ public abstract class PeerFinder {
                 @Override
                 public String executor() {
                     return Names.GENERIC;
-                }
-
-                @Override
-                public PeersResponse read(InputStream in) throws IOException {
-                    // TODO Auto-generated method stub
-                    throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
             };
             transportService.sendRequest(
