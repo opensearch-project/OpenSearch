@@ -118,6 +118,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final SearchRequestContext searchRequestContext;
 
     private SearchPhase currentPhase;
+    private boolean currentPhaseHasLifecycle;
 
     private final List<Releasable> releasables = new ArrayList<>();
 
@@ -285,6 +286,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             Runnable r = () -> {
                 final Thread thread = Thread.currentThread();
                 try {
+                    final SearchPhase phase = this;
                     executePhaseOnShard(shardIt, shard, new SearchActionListener<Result>(shard, shardIndex) {
                         @Override
                         public void innerOnResponse(Result result) {
@@ -298,7 +300,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                         @Override
                         public void onFailure(Exception t) {
                             try {
-                                onShardFailure(shardIndex, shard, shardIt, t);
+                                // It only happens when onPhaseDone() is called and executePhaseOnShard() fails hard with an exception.
+                                if (totalOps.get() == expectedTotalOps) {
+                                    onPhaseFailure(phase, "The phase has failed", t);
+                                } else {
+                                    onShardFailure(shardIndex, shard, shardIt, t);
+                                }
                             } finally {
                                 executeNext(pendingExecutions, thread);
                             }
@@ -432,16 +439,18 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void onPhaseEnd(SearchRequestContext searchRequestContext) {
-        if (getCurrentPhase() != null && SearchPhaseName.isValidName(getName())) {
+        if (getCurrentPhase() != null) {
             long tookInNanos = System.nanoTime() - getCurrentPhase().getStartTimeInNanos();
             searchRequestContext.updatePhaseTookMap(getCurrentPhase().getName(), TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+        }
+        if (currentPhaseHasLifecycle) {
             this.searchRequestContext.getSearchRequestOperationsListener().onPhaseEnd(this, searchRequestContext);
         }
     }
 
-    void onPhaseStart(SearchPhase phase) {
+    private void onPhaseStart(SearchPhase phase) {
         setCurrentPhase(phase);
-        if (SearchPhaseName.isValidName(phase.getName())) {
+        if (currentPhaseHasLifecycle) {
             this.searchRequestContext.getSearchRequestOperationsListener().onPhaseStart(this);
         }
     }
@@ -458,6 +467,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (logger.isDebugEnabled()) {
                 logger.debug(new ParameterizedMessage("Failed to execute [{}] while moving to [{}] phase", request, phase.getName()), e);
             }
+
             onPhaseFailure(phase, "", e);
         }
     }
@@ -637,6 +647,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private void setCurrentPhase(SearchPhase phase) {
         currentPhase = phase;
+        // The WrappingSearchAsyncActionPhase (see please CanMatchPreFilterSearchPhase as one example) is a special case
+        // of search phase that wraps SearchAsyncActionPhase as SearchPhase. The AbstractSearchAsyncAction manages own
+        // onPhaseStart / onPhaseFailure / OnPhaseDone callbacks and the wrapping SearchPhase is being abandoned
+        // (fe, has no onPhaseEnd callbacks called ever). To fix that, we would not send any notifications for this
+        // phase.
+        currentPhaseHasLifecycle = ((phase instanceof WrappingSearchAsyncActionPhase) == false);
     }
 
     @Override
@@ -716,7 +732,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
-        if (SearchPhaseName.isValidName(phase.getName())) {
+        if (currentPhaseHasLifecycle) {
             this.searchRequestContext.getSearchRequestOperationsListener().onPhaseFailure(this);
         }
         raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));

@@ -279,7 +279,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 searchPipelineSource = in.readMap();
             }
         }
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_13_0)) {
             includeNamedQueriesScore = in.readOptionalBoolean();
         }
     }
@@ -347,7 +347,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 out.writeMap(searchPipelineSource);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_13_0)) {
             out.writeOptionalBoolean(includeNamedQueriesScore);
         }
     }

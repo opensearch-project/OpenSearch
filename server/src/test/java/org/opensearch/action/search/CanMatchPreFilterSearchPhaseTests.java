@@ -32,6 +32,7 @@
 package org.opensearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
@@ -41,37 +42,84 @@ import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.collection.IsEmptyCollection.empty;
 
 public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
+    private SearchRequestOperationsListener assertingListener;
+    private Set<SearchPhase> phases;
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+
+        phases = Collections.newSetFromMap(new IdentityHashMap<>());
+        assertingListener = new SearchRequestOperationsListener() {
+            @Override
+            protected void onPhaseStart(SearchPhaseContext context) {
+                assertThat(phases.contains(context.getCurrentPhase()), is(false));
+                phases.add(context.getCurrentPhase());
+            }
+
+            @Override
+            protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+                assertThat(phases.contains(context.getCurrentPhase()), is(true));
+                phases.remove(context.getCurrentPhase());
+            }
+
+            @Override
+            protected void onPhaseFailure(SearchPhaseContext context) {
+                assertThat(phases.contains(context.getCurrentPhase()), is(true));
+                phases.remove(context.getCurrentPhase());
+            }
+        };
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        assertBusy(() -> assertThat(phases, empty()), 5, TimeUnit.SECONDS);
+    }
 
     public void testFilterShards() throws InterruptedException {
 
@@ -135,11 +183,12 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 public void run() throws IOException {
                     result.set(iter);
                     latch.countDown();
+                    assertingListener.onPhaseEnd(new MockSearchPhaseContext(1, searchRequest, this), null);
                 }
             },
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(
-                new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
                 searchRequest
             )
         );
@@ -230,11 +279,12 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 public void run() throws IOException {
                     result.set(iter);
                     latch.countDown();
+                    assertingListener.onPhaseEnd(new MockSearchPhaseContext(1, searchRequest, this), null);
                 }
             },
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(
-                new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
                 searchRequest
             )
         );
@@ -366,6 +416,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
 
         canMatchPhase.start();
         latch.await();
+
         executor.shutdown();
     }
 
@@ -443,17 +494,19 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                     public void run() {
                         result.set(iter);
                         latch.countDown();
+                        assertingListener.onPhaseEnd(new MockSearchPhaseContext(1, searchRequest, this), null);
                     }
                 },
                 SearchResponse.Clusters.EMPTY,
                 new SearchRequestContext(
-                    new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                    new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
                     searchRequest
                 )
             );
 
             canMatchPhase.start();
             latch.await();
+
             ShardId[] expected = IntStream.range(0, shardIds.size())
                 .boxed()
                 .sorted(Comparator.comparing(minAndMaxes::get, MinAndMax.getComparator(order)).thenComparing(shardIds::get))
@@ -546,17 +599,19 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                     public void run() {
                         result.set(iter);
                         latch.countDown();
+                        assertingListener.onPhaseEnd(new MockSearchPhaseContext(1, searchRequest, this), null);
                     }
                 },
                 SearchResponse.Clusters.EMPTY,
                 new SearchRequestContext(
-                    new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                    new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
                     searchRequest
                 )
             );
 
             canMatchPhase.start();
             latch.await();
+
             int shardId = 0;
             for (SearchShardIterator i : result.get()) {
                 assertThat(i.shardId().id(), equalTo(shardId++));
@@ -565,4 +620,190 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             assertThat(result.get().size(), equalTo(numShards));
         }
     }
+
+    public void testAsyncAction() throws InterruptedException {
+
+        final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
+            0,
+            System.nanoTime(),
+            System::nanoTime
+        );
+
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
+        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        lookup.put("node_1", new SearchAsyncActionTests.MockConnection(primaryNode));
+        lookup.put("node_2", new SearchAsyncActionTests.MockConnection(replicaNode));
+        final boolean shard1 = randomBoolean();
+        final boolean shard2 = randomBoolean();
+
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
+            @Override
+            public void sendCanMatch(
+                Transport.Connection connection,
+                ShardSearchRequest request,
+                SearchTask task,
+                ActionListener<SearchService.CanMatchResponse> listener
+            ) {
+                new Thread(
+                    () -> listener.onResponse(new SearchService.CanMatchResponse(request.shardId().id() == 0 ? shard1 : shard2, null))
+                ).start();
+            }
+        };
+
+        AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter(
+            "idx",
+            new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+            2,
+            randomBoolean(),
+            primaryNode,
+            replicaNode
+        );
+        final SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(true);
+
+        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
+        ExecutorService executor = OpenSearchExecutors.newDirectExecutorService();
+        SearchRequestContext searchRequestContext = new SearchRequestContext(
+            new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
+            searchRequest
+        );
+
+        SearchPhaseController controller = new SearchPhaseController(
+            writableRegistry(),
+            r -> InternalAggregationTestCase.emptyReduceContextBuilder()
+        );
+
+        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
+            searchRequest,
+            executor,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            controller,
+            task.getProgressListener(),
+            writableRegistry(),
+            shardsIter.size(),
+            exc -> {}
+        );
+
+        CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(
+            logger,
+            searchTransportService,
+            (clusterAlias, node) -> lookup.get(node),
+            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            executor,
+            searchRequest,
+            null,
+            shardsIter,
+            timeProvider,
+            ClusterState.EMPTY_STATE,
+            null,
+            (iter) -> {
+                AbstractSearchAsyncAction<? extends SearchPhaseResult> action = new SearchDfsQueryAsyncAction(
+                    logger,
+                    searchTransportService,
+                    (clusterAlias, node) -> lookup.get(node),
+                    Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                    Collections.emptyMap(),
+                    Collections.emptyMap(),
+                    controller,
+                    executor,
+                    resultConsumer,
+                    searchRequest,
+                    null,
+                    shardsIter,
+                    timeProvider,
+                    ClusterState.EMPTY_STATE,
+                    task,
+                    SearchResponse.Clusters.EMPTY,
+                    searchRequestContext
+                );
+                return new WrappingSearchAsyncActionPhase(action) {
+                    @Override
+                    public void run() {
+                        super.run();
+                        latch.countDown();
+                    }
+                };
+            },
+            SearchResponse.Clusters.EMPTY,
+            searchRequestContext
+        );
+
+        canMatchPhase.start();
+        latch.await();
+
+        assertThat(result.get(), is(nullValue()));
+    }
+
+    private static final class SearchDfsQueryAsyncAction extends AbstractSearchAsyncAction<DfsSearchResult> {
+        private final SearchRequestOperationsListener listener;
+
+        SearchDfsQueryAsyncAction(
+            final Logger logger,
+            final SearchTransportService searchTransportService,
+            final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
+            final Map<String, AliasFilter> aliasFilter,
+            final Map<String, Float> concreteIndexBoosts,
+            final Map<String, Set<String>> indexRoutings,
+            final SearchPhaseController searchPhaseController,
+            final Executor executor,
+            final QueryPhaseResultConsumer queryPhaseResultConsumer,
+            final SearchRequest request,
+            final ActionListener<SearchResponse> listener,
+            final GroupShardsIterator<SearchShardIterator> shardsIts,
+            final TransportSearchAction.SearchTimeProvider timeProvider,
+            final ClusterState clusterState,
+            final SearchTask task,
+            SearchResponse.Clusters clusters,
+            SearchRequestContext searchRequestContext
+        ) {
+            super(
+                SearchPhaseName.DFS_PRE_QUERY.getName(),
+                logger,
+                searchTransportService,
+                nodeIdToConnection,
+                aliasFilter,
+                concreteIndexBoosts,
+                indexRoutings,
+                executor,
+                request,
+                listener,
+                shardsIts,
+                timeProvider,
+                clusterState,
+                task,
+                new ArraySearchPhaseResults<>(shardsIts.size()),
+                request.getMaxConcurrentShardRequests(),
+                clusters,
+                searchRequestContext
+            );
+            this.listener = searchRequestContext.getSearchRequestOperationsListener();
+        }
+
+        @Override
+        protected void executePhaseOnShard(
+            final SearchShardIterator shardIt,
+            final SearchShardTarget shard,
+            final SearchActionListener<DfsSearchResult> listener
+        ) {
+            final DfsSearchResult response = new DfsSearchResult(shardIt.getSearchContextId(), shard, null);
+            response.setShardIndex(shard.getShardId().getId());
+            listener.innerOnResponse(response);
+        }
+
+        @Override
+        protected SearchPhase getNextPhase(SearchPhaseResults<DfsSearchResult> results, SearchPhaseContext context) {
+            return new SearchPhase("last") {
+                @Override
+                public void run() throws IOException {
+                    listener.onPhaseEnd(context, null);
+                }
+            };
+        }
+    }
+
 }

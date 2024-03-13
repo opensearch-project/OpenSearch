@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication;
 
+import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -16,10 +17,11 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.SegmentReplicationShardStats;
@@ -28,12 +30,14 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -176,17 +180,6 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Fetch IndexShard by shardId, multiple shards per node allowed.
-     */
-    protected IndexShard getIndexShard(String node, ShardId shardId, String indexName) {
-        final Index index = resolveIndex(indexName);
-        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-        IndexService indexService = indicesService.indexServiceSafe(index);
-        final Optional<Integer> id = indexService.shardIds().stream().filter(sid -> sid == shardId.id()).findFirst();
-        return indexService.getShard(id.get());
-    }
-
-    /**
      * Fetch IndexShard, assumes only a single shard per node.
      */
     protected IndexShard getIndexShard(String node, String indexName) {
@@ -241,5 +234,15 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
                 assertEquals(0, shardStat.getCheckpointsBehindCount());
             }
         }, 30, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Returns the latest SIS for a shard but does not incref the segments.
+     */
+    protected SegmentInfos getLatestSegmentInfos(IndexShard shard) throws IOException {
+        final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> tuple = shard.getLatestSegmentInfosAndCheckpoint();
+        try (final GatedCloseable<SegmentInfos> closeable = tuple.v1()) {
+            return closeable.get();
+        }
     }
 }

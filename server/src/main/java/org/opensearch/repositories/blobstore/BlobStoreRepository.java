@@ -1116,10 +1116,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 String indexId = fileToDeletePath[1];
                                 String shardId = fileToDeletePath[2];
                                 String shallowSnapBlob = fileToDeletePath[3];
-                                String snapshotUUID = shallowSnapBlob.substring(
-                                    SHALLOW_SNAPSHOT_PREFIX.length(),
-                                    shallowSnapBlob.length() - ".dat".length()
-                                );
+                                String snapshotUUID = extractShallowSnapshotUUID(shallowSnapBlob).orElseThrow();
                                 BlobContainer shardContainer = blobStore().blobContainer(indicesPath().add(indexId).add(shardId));
                                 RemoteStoreShardShallowCopySnapshot remoteStoreShardShallowCopySnapshot =
                                     REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.read(
@@ -1586,44 +1583,43 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try {
                     logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
                     if (remoteStoreLockManagerFactory != null) {
-                        Map<String, BlobContainer> shardBlobs = indexEntry.getValue().children();
-                        if (!shardBlobs.isEmpty()) {
-                            for (Map.Entry<String, BlobContainer> shardBlob : shardBlobs.entrySet()) {
-                                Map<String, BlobMetadata> shardLevelBlobs = shardBlob.getValue().listBlobs();
-                                for (Map.Entry<String, BlobMetadata> shardLevelBlob : shardLevelBlobs.entrySet()) {
-                                    String blob = shardLevelBlob.getKey();
-                                    String snapshotUUID = blob.substring(SHALLOW_SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length());
-                                    if (blob.startsWith(SHALLOW_SNAPSHOT_PREFIX) && blob.endsWith(".dat")) {
-                                        RemoteStoreShardShallowCopySnapshot remoteStoreShardShallowCopySnapshot =
-                                            REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.read(
-                                                shardBlob.getValue(),
-                                                snapshotUUID,
-                                                namedXContentRegistry
-                                            );
-                                        String indexUUID = remoteStoreShardShallowCopySnapshot.getIndexUUID();
-                                        String remoteStoreRepoForIndex = remoteStoreShardShallowCopySnapshot.getRemoteStoreRepository();
-                                        // Releasing lock files before deleting the shallow-snap-UUID file because in case of any failure
-                                        // while releasing the lock file, we would still have the corresponding shallow-snap-UUID file
-                                        // and that would be used during next delete operation for releasing this stale lock file
-                                        RemoteStoreLockManager remoteStoreMetadataLockManager = remoteStoreLockManagerFactory
-                                            .newLockManager(remoteStoreRepoForIndex, indexUUID, shardBlob.getKey());
-                                        remoteStoreMetadataLockManager.release(
-                                            FileLockInfo.getLockInfoBuilder().withAcquirerId(snapshotUUID).build()
+                        final Map<String, BlobContainer> shardBlobs = indexEntry.getValue().children();
+                        for (Map.Entry<String, BlobContainer> shardBlob : shardBlobs.entrySet()) {
+                            for (String blob : shardBlob.getValue().listBlobs().keySet()) {
+                                final Optional<String> snapshotUUID = extractShallowSnapshotUUID(blob);
+                                if (snapshotUUID.isPresent()) {
+                                    RemoteStoreShardShallowCopySnapshot remoteStoreShardShallowCopySnapshot =
+                                        REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.read(
+                                            shardBlob.getValue(),
+                                            snapshotUUID.get(),
+                                            namedXContentRegistry
                                         );
-                                        if (!isIndexPresent(clusterService, indexUUID)) {
-                                            // this is a temporary solution where snapshot deletion triggers remote store side
-                                            // cleanup if index is already deleted. We will add a poller in future to take
-                                            // care of remote store side cleanup.
-                                            // see https://github.com/opensearch-project/OpenSearch/issues/8469
-                                            new RemoteSegmentStoreDirectoryFactory(
-                                                remoteStoreLockManagerFactory.getRepositoriesService(),
-                                                threadPool
-                                            ).newDirectory(
-                                                remoteStoreRepoForIndex,
-                                                indexUUID,
-                                                new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.valueOf(shardBlob.getKey()))
-                                            ).close();
-                                        }
+                                    String indexUUID = remoteStoreShardShallowCopySnapshot.getIndexUUID();
+                                    String remoteStoreRepoForIndex = remoteStoreShardShallowCopySnapshot.getRemoteStoreRepository();
+                                    // Releasing lock files before deleting the shallow-snap-UUID file because in case of any failure
+                                    // while releasing the lock file, we would still have the corresponding shallow-snap-UUID file
+                                    // and that would be used during next delete operation for releasing this stale lock file
+                                    RemoteStoreLockManager remoteStoreMetadataLockManager = remoteStoreLockManagerFactory.newLockManager(
+                                        remoteStoreRepoForIndex,
+                                        indexUUID,
+                                        shardBlob.getKey()
+                                    );
+                                    remoteStoreMetadataLockManager.release(
+                                        FileLockInfo.getLockInfoBuilder().withAcquirerId(snapshotUUID.get()).build()
+                                    );
+                                    if (!isIndexPresent(clusterService, indexUUID)) {
+                                        // this is a temporary solution where snapshot deletion triggers remote store side
+                                        // cleanup if index is already deleted. We will add a poller in future to take
+                                        // care of remote store side cleanup.
+                                        // see https://github.com/opensearch-project/OpenSearch/issues/8469
+                                        new RemoteSegmentStoreDirectoryFactory(
+                                            remoteStoreLockManagerFactory.getRepositoriesService(),
+                                            threadPool
+                                        ).newDirectory(
+                                            remoteStoreRepoForIndex,
+                                            indexUUID,
+                                            new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt(shardBlob.getKey()))
+                                        ).close();
                                     }
                                 }
                             }
@@ -3362,12 +3358,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())
                         ) == false)
                     || (remoteStoreLockManagerFactory != null
-                        ? (blob.startsWith(SHALLOW_SNAPSHOT_PREFIX)
-                            && blob.endsWith(".dat")
-                            && survivingSnapshotUUIDs.contains(
-                                blob.substring(SHALLOW_SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())
-                            ) == false)
-                        : false)
+                        && extractShallowSnapshotUUID(blob).map(survivingSnapshotUUIDs::contains).orElse(false))
                     || (blob.startsWith(UPLOADED_DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
                     || FsBlobContainer.isTempBlobName(blob)
             )
@@ -3507,6 +3498,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.warn("store cannot be marked as corrupted", inner);
             }
         }
+    }
+
+    private static Optional<String> extractShallowSnapshotUUID(String blobName) {
+        if (blobName.startsWith(SHALLOW_SNAPSHOT_PREFIX)) {
+            return Optional.of(blobName.substring(SHALLOW_SNAPSHOT_PREFIX.length(), blobName.length() - ".dat".length()));
+        }
+        return Optional.empty();
     }
 
     /**

@@ -52,6 +52,7 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -67,11 +68,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.test.VersionUtils.allVersions;
 import static org.opensearch.test.VersionUtils.maxCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
@@ -393,6 +397,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
     }
 
     public void testPreventJoinClusterWithRemoteStoreNodeJoiningNonRemoteStoreCluster() {
+
         final DiscoveryNode existingNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
@@ -404,6 +409,62 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
         );
         assertTrue(e.getMessage().equals("a remote store node [" + joiningNode + "] is trying to join a non remote " + "store cluster"));
+    }
+
+    public void testRemoteStoreNodeJoiningNonRemoteStoreClusterMixedMode() {
+        final DiscoveryNode existingNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        final Settings settings = Settings.builder()
+            .put(MIGRATION_DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE)
+            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed")
+            .build();
+        final Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
+        FeatureFlags.initializeFeatureFlags(nodeSettings);
+        Metadata metadata = Metadata.builder().persistentSettings(settings).build();
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
+            .metadata(metadata)
+            .build();
+
+        DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata());
+    }
+
+    public void testAllTypesNodeJoiningRemoteStoreClusterMixedMode() {
+        final DiscoveryNode docrepNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode remoteNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        final Settings settings = Settings.builder()
+            .put(MIGRATION_DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE)
+            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed")
+            .build();
+        final Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
+        FeatureFlags.initializeFeatureFlags(nodeSettings);
+        Metadata metadata = Metadata.builder().persistentSettings(settings).build();
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(docrepNode)
+                    .localNodeId(docrepNode.getId())
+                    .add(remoteNode)
+                    .localNodeId(remoteNode.getId())
+                    .build()
+            )
+            .metadata(metadata)
+            .build();
+
+        // compatible remote node should not be able to join a mixed mode having a remote node
+        DiscoveryNode goodRemoteNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        JoinTaskExecutor.ensureNodesCompatibility(goodRemoteNode, currentState.getNodes(), currentState.metadata());
+
+        // incompatible node should not be able to join a mixed mode
+        DiscoveryNode badRemoteNode = newDiscoveryNode(remoteStoreNodeAttributes(TRANSLOG_REPO, TRANSLOG_REPO));
+        assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureNodesCompatibility(badRemoteNode, currentState.getNodes(), currentState.metadata())
+        );
+
+        // DocRep node should be able to join a mixed mode
+        DiscoveryNode docrepNode2 = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        JoinTaskExecutor.ensureNodesCompatibility(docrepNode2, currentState.getNodes(), currentState.metadata());
     }
 
     public void testJoinClusterWithRemoteStoreNodeJoiningRemoteStoreCluster() {

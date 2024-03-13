@@ -44,6 +44,7 @@ public class RemoteIndexPrimaryRelocationIT extends IndexPrimaryRelocationIT {
             .build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9191")
     public void testPrimaryRelocationWhileIndexing() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         super.testPrimaryRelocationWhileIndexing();

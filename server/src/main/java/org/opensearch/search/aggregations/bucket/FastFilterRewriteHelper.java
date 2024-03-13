@@ -269,12 +269,15 @@ public final class FastFilterRewriteHelper {
             }
         }
 
-        public void buildFastFilter(LeafReaderContext leaf) throws IOException {
-            assert filters == null : "Filters should only be built once, but they are already built";
-            this.filters = this.aggregationType.buildFastFilter(leaf, context);
+        /**
+         * Built filters for a segment
+         */
+        public Weight[] buildFastFilter(LeafReaderContext leaf) throws IOException {
+            Weight[] filters = this.aggregationType.buildFastFilter(leaf, context);
             if (filters != null) {
                 logger.debug("Fast filter built for shard {} segment {}", context.indexShard().shardId(), leaf.ord);
             }
+            return filters;
         }
     }
 
@@ -340,7 +343,6 @@ public final class FastFilterRewriteHelper {
 
         private Weight[] buildFastFilter(SearchContext context, long[] bounds) throws IOException {
             bounds = processHardBounds(bounds);
-            logger.debug("Bounds are {} for shard {} with hard bound", bounds, context.indexShard().shardId());
             if (bounds == null) {
                 return null;
             }
@@ -447,8 +449,7 @@ public final class FastFilterRewriteHelper {
                 fastFilterContext.context.indexShard().shardId(),
                 ctx.ord
             );
-            fastFilterContext.buildFastFilter(ctx);
-            filters = fastFilterContext.filters;
+            filters = fastFilterContext.buildFastFilter(ctx);
             if (filters == null) {
                 return false;
             }
@@ -480,20 +481,17 @@ public final class FastFilterRewriteHelper {
                 incrementDocCount.accept(bucketKey, counts[i]);
                 s++;
                 if (s > size) {
-                    logger.debug("Fast filter optimization applied to composite aggregation with size {}", size);
-                    return true;
+                    break;
                 }
             }
         }
 
-        logger.debug("Fast filter optimization applied");
+        logger.debug("Fast filter optimization applied to shard {} segment {}", fastFilterContext.context.indexShard().shardId(), ctx.ord);
         return true;
     }
 
     private static boolean segmentMatchAll(SearchContext ctx, LeafReaderContext leafCtx) throws IOException {
         Weight weight = ctx.searcher().createWeight(ctx.query(), ScoreMode.COMPLETE_NO_SCORES, 1f);
-        assert weight != null;
-        int count = weight.count(leafCtx);
-        return count > 0 && count == leafCtx.reader().numDocs();
+        return weight != null && weight.count(leafCtx) == leafCtx.reader().numDocs();
     }
 }

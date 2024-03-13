@@ -19,6 +19,7 @@ import org.opensearch.common.annotation.InternalApi;
  */
 @InternalApi
 public interface XContentContraints {
+    final String DEFAULT_CODEPOINT_LIMIT_PROPERTY = "opensearch.xcontent.codepoint.max";
     final String DEFAULT_MAX_STRING_LEN_PROPERTY = "opensearch.xcontent.string.length.max";
     final String DEFAULT_MAX_NAME_LEN_PROPERTY = "opensearch.xcontent.name.length.max";
     final String DEFAULT_MAX_DEPTH_PROPERTY = "opensearch.xcontent.depth.max";
@@ -32,4 +33,6 @@ public interface XContentContraints {
     final int DEFAULT_MAX_DEPTH = Integer.parseInt(
         System.getProperty(DEFAULT_MAX_DEPTH_PROPERTY, "1000" /* StreamReadConstraints.DEFAULT_MAX_DEPTH */)
     );
+
+    final int DEFAULT_CODEPOINT_LIMIT = Integer.parseInt(System.getProperty(DEFAULT_CODEPOINT_LIMIT_PROPERTY, "52428800" /* ~50 Mb */));
 }
