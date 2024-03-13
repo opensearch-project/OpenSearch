@@ -46,9 +46,12 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedSupplier;
+import org.opensearch.common.cache.module.CacheModule;
+import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.bytes.AbstractBytesReference;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -67,6 +70,7 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
@@ -80,7 +84,69 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         IndexShard indexShard = createIndex("test").getShard(0);
         IndicesRequestCache cache = new IndicesRequestCache(
             Settings.EMPTY,
-            (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard)))
+            (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
+            new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService()
+        );
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
+
+        // initial cache
+        IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
+        Loader loader = new Loader(reader, 0);
+        BytesReference value = cache.getOrCompute(entity, loader, reader, termBytes);
+        assertEquals("foo", value.streamInput().readString());
+        ShardRequestCache requestCacheStats = indexShard.requestCache();
+        assertEquals(0, requestCacheStats.stats().getHitCount());
+        assertEquals(1, requestCacheStats.stats().getMissCount());
+        assertEquals(0, requestCacheStats.stats().getEvictions());
+        assertFalse(loader.loadedFromCache);
+        assertEquals(1, cache.count());
+
+        // cache hit
+        entity = new IndicesService.IndexShardCacheEntity(indexShard);
+        loader = new Loader(reader, 0);
+        value = cache.getOrCompute(entity, loader, reader, termBytes);
+        assertEquals("foo", value.streamInput().readString());
+        requestCacheStats = indexShard.requestCache();
+        assertEquals(1, requestCacheStats.stats().getHitCount());
+        assertEquals(1, requestCacheStats.stats().getMissCount());
+        assertEquals(0, requestCacheStats.stats().getEvictions());
+        assertTrue(loader.loadedFromCache);
+        assertEquals(1, cache.count());
+        assertTrue(requestCacheStats.stats().getMemorySize().bytesAsInt() > value.length());
+        assertEquals(1, cache.numRegisteredCloseListeners());
+
+        // Closing the cache doesn't modify an already returned CacheEntity
+        if (randomBoolean()) {
+            reader.close();
+        } else {
+            indexShard.close("test", true, true); // closed shard but reader is still open
+            cache.clear(entity);
+        }
+        cache.cleanCache();
+        assertEquals(1, requestCacheStats.stats().getHitCount());
+        assertEquals(1, requestCacheStats.stats().getMissCount());
+        assertEquals(0, requestCacheStats.stats().getEvictions());
+        assertTrue(loader.loadedFromCache);
+        assertEquals(0, cache.count());
+        assertEquals(0, requestCacheStats.stats().getMemorySize().bytesAsInt());
+
+        IOUtils.close(reader, writer, dir, cache);
+        assertEquals(0, cache.numRegisteredCloseListeners());
+    }
+
+    public void testBasicOperationsCacheWithFeatureFlag() throws Exception {
+        IndexShard indexShard = createIndex("test").getShard(0);
+        CacheService cacheService = new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService();
+        IndicesRequestCache cache = new IndicesRequestCache(
+            Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.PLUGGABLE_CACHE, "true").build(),
+            (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
+            cacheService
         );
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -146,7 +212,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 return Optional.empty();
             }
             return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }));
+        }), new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService());
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
@@ -247,7 +313,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             IndexShard indexShard = createIndex("test").getShard(0);
             IndicesRequestCache cache = new IndicesRequestCache(
                 Settings.EMPTY,
-                (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard)))
+                (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
+                new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService()
             );
             Directory dir = newDirectory();
             IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -274,7 +341,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         IndexShard indexShard = createIndex("test1").getShard(0);
         IndicesRequestCache cache = new IndicesRequestCache(
             Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.getBytes() + 1 + "b").build(),
-            (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard)))
+            (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
+            new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService()
         );
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -319,7 +387,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 return Optional.empty();
             }
             return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }));
+        }), new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService());
 
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -414,7 +482,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 return Optional.empty();
             }
             return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }));
+        }), new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService());
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
