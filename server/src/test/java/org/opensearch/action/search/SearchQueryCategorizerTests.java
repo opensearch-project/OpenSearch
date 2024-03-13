@@ -81,8 +81,8 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.boolCounter).add(eq(1.0d), any(Tags.class));
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.matchCounter).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("bool")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("match")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testFunctionScoreQuery() {
@@ -92,7 +92,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.functionScoreCounter).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("function_score")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testMatchQuery() {
@@ -102,7 +102,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.matchCounter).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("match")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testMatchPhraseQuery() {
@@ -112,7 +112,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.matchPhrasePrefixCounter).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("match_phrase")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testMultiMatchQuery() {
@@ -122,7 +122,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.multiMatchCounter).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("multi_match")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testOtherQuery() {
@@ -136,8 +136,9 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.otherQueryCounter, times(2)).add(eq(1.0d), any(Tags.class));
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.termCounter).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("boosting")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("match_none")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("term")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testQueryStringQuery() {
@@ -148,7 +149,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.queryStringQueryCounter).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("query_string")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testRangeQuery() {
@@ -160,7 +161,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.rangeCounter).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("range")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testRegexQuery() {
@@ -169,7 +170,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.regexCounter).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("regexp")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testSortQuery() {
@@ -180,8 +181,8 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.matchCounter).add(eq(1.0d), any(Tags.class));
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.sortCounter, times(2)).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("match")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.sortCounter, times(2)).add(eq(1.0d), any(Tags.class));
     }
 
     public void testTermQuery() {
@@ -191,7 +192,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.termCounter).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("term")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testWildcardQuery() {
@@ -201,7 +202,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.wildcardCounter).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("wildcard")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testComplexQuery() {
@@ -219,10 +220,10 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.termCounter).add(eq(1.0d), any(Tags.class));
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.matchCounter).add(eq(1.0d), any(Tags.class));
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.regexCounter).add(eq(1.0d), any(Tags.class));
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.boolCounter).add(eq(1.0d), any(Tags.class));
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.aggCounter).add(eq(1.0d));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("term")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("match")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("regexp")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("bool")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.aggCounter).add(eq(1.0d), any(Tags.class));
     }
 }
