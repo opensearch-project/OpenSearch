@@ -44,16 +44,12 @@ dependencies {
   testRuntimeOnly("com.google.guava:guava:${versions.guava}") {
     transitive = false
   }
-
+  api "commons-io:commons-io:2.15.1"
   implementation "org.apache.commons:commons-compress:${versions.commonscompress}"
 }
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'
-}
-
-dependencies {
-  api 'commons-io:commons-io:2.15.1'
 }
 
 test {
