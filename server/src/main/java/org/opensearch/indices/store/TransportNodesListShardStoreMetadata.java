@@ -52,7 +52,6 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.gateway.AsyncShardFetch;
-import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
 import org.opensearch.threadpool.ThreadPool;
@@ -60,7 +59,6 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -157,19 +155,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
     private StoreFilesMetadata listStoreMetadata(NodeRequest request) throws IOException {
         final ShardId shardId = request.getShardId();
-        try {
-            return listShardMetadataInternal(
-                logger,
-                shardId,
-                nodeEnv,
-                indicesService,
-                request.getCustomDataPath(),
-                settings,
-                clusterService
-            );
-        } catch (IOException e) {
-            return new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList());
-        }
+        return listShardMetadataInternal(logger, shardId, nodeEnv, indicesService, request.getCustomDataPath(), settings, clusterService);
     }
 
     /**

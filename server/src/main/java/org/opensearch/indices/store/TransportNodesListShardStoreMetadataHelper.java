@@ -48,6 +48,9 @@ import java.util.concurrent.TimeUnit;
  * @opensearch.internal
  */
 public class TransportNodesListShardStoreMetadataHelper {
+
+    public static final String INDEX_NOT_FOUND = "node doesn't have meta data for index ";
+
     public static StoreFilesMetadata listShardMetadataInternal(
         Logger logger,
         final ShardId shardId,
@@ -75,10 +78,10 @@ public class TransportNodesListShardStoreMetadataHelper {
                         return storeFilesMetadata;
                     } catch (org.apache.lucene.index.IndexNotFoundException e) {
                         logger.trace(new ParameterizedMessage("[{}] node is missing index, responding with empty", shardId), e);
-                        throw e;
+                        return new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList());
                     } catch (IOException e) {
                         logger.warn(new ParameterizedMessage("[{}] can't read metadata from store, responding with empty", shardId), e);
-                        throw e;
+                        return new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList());
                     }
                 }
             }
@@ -93,7 +96,7 @@ public class TransportNodesListShardStoreMetadataHelper {
                         customDataPath = new IndexSettings(metadata, settings).customDataPath();
                     } else {
                         logger.trace("{} node doesn't have meta data for the requests index", shardId);
-                        throw new OpenSearchException("node doesn't have meta data for index " + shardId.getIndex());
+                        throw new OpenSearchException(INDEX_NOT_FOUND + shardId.getIndex());
                     }
                 }
             }
