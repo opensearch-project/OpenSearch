@@ -579,7 +579,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             // Contains CleanupKey objects of a closed shard.
             final Set<Object> cleanupKeysFromClosedShards = new HashSet<>();
 
-            for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext(); ) {
+            for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext();) {
                 CleanupKey cleanupKey = iterator.next();
                 iterator.remove();
                 if (cleanupKey.readerCacheKeyId == null || !cleanupKey.entity.isOpen()) {
@@ -594,7 +594,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                 return;
             }
 
-            for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext(); ) {
+            for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext();) {
                 Key key = iterator.next();
                 if (shouldRemoveKey(key, cleanupKeysFromOutdatedReaders, cleanupKeysFromClosedShards)) {
                     iterator.remove();
@@ -616,7 +616,11 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
          * @param cleanupKeysFromClosedShards A set of CleanupKeys of a closed shard.
          * @return true if the key should be removed, false otherwise.
          */
-        private synchronized boolean shouldRemoveKey(Key key, Set<CleanupKey> cleanupKeysFromOutdatedReaders, Set<Object> cleanupKeysFromClosedShards) {
+        private synchronized boolean shouldRemoveKey(
+            Key key,
+            Set<CleanupKey> cleanupKeysFromOutdatedReaders,
+            Set<Object> cleanupKeysFromClosedShards
+        ) {
             if (cleanupKeysFromClosedShards.contains(key.shardId)) {
                 return true;
             } else {
@@ -641,8 +645,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             if (staleKeysInCachePercentage() < cleanThresholdPercent) {
                 if (logger.isDebugEnabled()) {
                     logger.debug(
-                        "Skipping cache cleanup since the percentage of stale keys is less than the threshold : "
-                            + stalenessThreshold
+                        "Skipping cache cleanup since the percentage of stale keys is less than the threshold : " + stalenessThreshold
                     );
                 }
                 return true;
