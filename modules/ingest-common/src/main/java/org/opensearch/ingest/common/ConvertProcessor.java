@@ -32,6 +32,7 @@
 
 package org.opensearch.ingest.common;
 
+import org.opensearch.common.network.InetAddresses;
 import org.opensearch.ingest.AbstractProcessor;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.ingest.IngestDocument;
@@ -116,6 +117,16 @@ public final class ConvertProcessor extends AbstractProcessor {
             @Override
             public Object convert(Object value) {
                 return value.toString();
+            }
+        },
+        IP {
+            @Override
+            public Object convert(Object value) {
+                if (value instanceof String && InetAddresses.isInetAddress(value.toString())) {
+                    return value;
+                } else {
+                    throw new IllegalArgumentException("[" + value + "] is not a valid ipv4/ipv6 address");
+                }
             }
         },
         AUTO {
