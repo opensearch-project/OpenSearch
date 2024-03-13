@@ -160,9 +160,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -175,7 +173,6 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 import static org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
 import static org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS;
 
@@ -239,6 +236,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         false,
         Setting.Property.Deprecated
     );
+
+    private static final Logger staticLogger = LogManager.getLogger(BlobStoreRepository.class);
 
     /**
      * Setting to disable caching of the latest repository data.
@@ -1107,9 +1106,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ThreadPool threadpool,
         String remoteStoreRepoForIndex,
         String indexUUID,
-        ShardId shardId
+        ShardId shardId,
+        String threadPoolName
     ) {
-        threadpool.executor(ThreadPool.Names.REMOTE_PURGE)
+        threadpool.executor(threadPoolName)
             .execute(
                 new RemoteStoreShardCleanupTask(
                     () -> RemoteSegmentStoreDirectory.remoteDirectoryCleanup(
@@ -1118,56 +1118,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         indexUUID,
                         shardId
                     ),
-                    threadpool.executor(ThreadPool.Names.REMOTE_PURGE),
                     indexUUID,
                     shardId
                 )
             );
-    }
-
-    /**
-    A Runnable wrapper to make sure that for a given shard only one cleanup task runs at a time.
-     */
-    public static class RemoteStoreShardCleanupTask implements Runnable {
-        private final Runnable task;
-        private final ExecutorService executor;
-        private final String shardIdentifier;
-        final static Set<String> ongoingRemoteDirectoryCleanups = newConcurrentSet();
-        final static ConcurrentMap<String, BlockingQueue<Runnable>> shardCleanupPendingTasks = new ConcurrentHashMap<>();
-
-        public RemoteStoreShardCleanupTask(Runnable task, ExecutorService executor, String indexUUID, ShardId shardId) {
-            this.task = task;
-            this.shardIdentifier = indexShardIdentifier(indexUUID, shardId);
-            this.executor = executor;
-        }
-
-        private static String indexShardIdentifier(String indexUUID, ShardId shardId) {
-            return String.join("/", indexUUID, String.valueOf(shardId.id()));
-        }
-
-        @Override
-        public void run() {
-            if (ongoingRemoteDirectoryCleanups.add(shardIdentifier)) {
-                try {
-                    task.run();
-                    BlockingQueue<Runnable> pendingTasks = shardCleanupPendingTasks.get(shardIdentifier);
-                    try {
-                        if (pendingTasks != null) {
-                            for (Runnable pendingTask = pendingTasks.poll(0L, TimeUnit.MILLISECONDS); pendingTask != null;) {
-                                pendingTask.run();
-                            }
-                        }
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                } finally {
-                    ongoingRemoteDirectoryCleanups.remove(shardIdentifier);
-                }
-            } else {
-                shardCleanupPendingTasks.putIfAbsent(shardIdentifier, new LinkedBlockingQueue<>());
-                shardCleanupPendingTasks.get(shardIdentifier).add(task);
-            }
-        }
     }
 
     protected void releaseRemoteStoreLockAndCleanup(
@@ -1213,7 +1167,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 threadPool,
                 remoteStoreRepoForIndex,
                 indexUUID,
-                new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt(shardId))
+                new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt(shardId)),
+                ThreadPool.Names.REMOTE_PURGE
             );
         }
     }

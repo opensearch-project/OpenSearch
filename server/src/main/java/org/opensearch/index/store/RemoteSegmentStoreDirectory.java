@@ -899,15 +899,14 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         String indexUUID,
         ShardId shardId
     ) {
-        try (
-            RemoteSegmentStoreDirectory remoteDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
+        try {
+            RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
                 remoteStoreRepoForIndex,
                 indexUUID,
                 shardId
-            )
-        ) {
-            remoteDirectory.deleteStaleSegments(0); // sync stale segments cleanup
-            remoteDirectory.deleteIfEmpty();
+            );
+            remoteSegmentStoreDirectory.deleteStaleSegments(0);
+            remoteSegmentStoreDirectory.deleteIfEmpty();
         } catch (Exception e) {
             staticLogger.error("Exception occurred while deleting directory", e);
         }
