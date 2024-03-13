@@ -102,7 +102,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
     @Override
     protected void doStart(RejectAwareActionListener<Response> searchListener) {
-        logger.trace("Starting remote reindex for {}", Arrays.toString(searchRequest.indices()));
+        logger.info("Starting remote reindex for {}", Arrays.toString(searchRequest.indices()));
         lookupRemoteVersion(RejectAwareActionListener.wrap(version -> {
             remoteVersion = version;
             logger.trace("Starting initial search");
@@ -126,7 +126,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     private void onStartResponse(RejectAwareActionListener<Response> searchListener, Response response) {
         logger.trace("On initial search response");
         if (Strings.hasLength(response.getScrollId()) && response.getHits().isEmpty()) {
-            logger.trace("First response looks like a scan response. Jumping right to the second. scroll=[{}]", response.getScrollId());
+            logger.debug("First response looks like a scan response. Jumping right to the second. scroll=[{}]", response.getScrollId());
             doStartNextScroll(response.getScrollId(), timeValueMillis(0), searchListener);
         } else {
             searchListener.onResponse(response);
@@ -142,11 +142,11 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
     @Override
     protected void clearScroll(String scrollId, Runnable onCompletion) {
-        logger.trace("Clearing the scrollID {}", scrollId);
+        logger.debug("Clearing the scrollID {}", scrollId);
         client.performRequestAsync(RemoteRequestBuilders.clearScroll(scrollId, remoteVersion), new ResponseListener() {
             @Override
             public void onSuccess(org.opensearch.client.Response response) {
-                logger.trace("Successfully cleared [{}]", scrollId);
+                logger.debug("Successfully cleared [{}]", scrollId);
                 onCompletion.run();
             }
 
@@ -184,7 +184,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         threadPool.generic().submit(() -> {
             try {
                 client.close();
-                logger.trace("Shut down remote connection");
+                logger.debug("Shut down remote connection");
             } catch (IOException e) {
                 logger.error("Failed to shutdown the remote connection", e);
             } finally {
@@ -199,7 +199,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         RejectAwareActionListener<Response> childListener
     ) {
         execute(request, parser, new RetryListener(logger, threadPool, backoffPolicy, r -> {
-            logger.trace("Retrying execute request {}", request.getEndpoint());
+            logger.debug("Retrying execute request {}", request.getEndpoint());
             countSearchRetry.run();
             execute(request, parser, r);
         }, childListener));
@@ -210,7 +210,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         BiFunction<XContentParser, MediaType, T> parser,
         RejectAwareActionListener<? super T> listener
     ) {
-        logger.trace("Executing http request to remote cluster");
+        logger.trace("Executing http request to remote cluster {}", request.getEndpoint());
         // Preserve the thread context so headers survive after the call
         java.util.function.Supplier<ThreadContext.StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(true);
         try {
@@ -264,7 +264,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                 public void onFailure(Exception e) {
                     try (ThreadContext.StoredContext ctx = contextSupplier.get()) {
                         assert ctx != null; // eliminates compiler warning
-                        logger.trace("Received response failure {}", e.getMessage());
+                        logger.debug("Received response failure {}", e.getMessage());
                         if (e instanceof ResponseException) {
                             ResponseException re = (ResponseException) e;
                             int statusCode = re.getResponse().getStatusLine().getStatusCode();
