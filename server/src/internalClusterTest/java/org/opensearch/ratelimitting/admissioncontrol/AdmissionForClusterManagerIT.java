@@ -15,6 +15,7 @@ import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.node.IoUsageStats;
 import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
@@ -68,7 +69,7 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
     }
 
     public void testAdmissionControlEnforced() throws InterruptedException {
-        cMResourceCollector.collectNodeResourceUsageStats(clusterManagerNodeId, System.currentTimeMillis(), 97, 99);
+        cMResourceCollector.collectNodeResourceUsageStats(clusterManagerNodeId, System.currentTimeMillis(), 97, 99, new IoUsageStats(98));
 
         // Write API on ClusterManager
         assertAcked(prepareCreate("test").setMapping("field", "type=text").setAliases("{\"alias1\" : {}}"));
@@ -99,7 +100,7 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
 
     public void testAdmissionControlEnabledOnNoBreach() throws InterruptedException {
         // CPU usage is less than threshold 50%
-        cMResourceCollector.collectNodeResourceUsageStats(clusterManagerNodeId, System.currentTimeMillis(), 97, 35);
+        cMResourceCollector.collectNodeResourceUsageStats(clusterManagerNodeId, System.currentTimeMillis(), 97, 35, new IoUsageStats(98));
 
         // Write API on ClusterManager
         assertAcked(prepareCreate("test").setMapping("field", "type=text").setAliases("{\"alias1\" : {}}").execute().actionGet());
@@ -114,7 +115,7 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
     public void testAdmissionControlDisabledOnBreach() throws InterruptedException {
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(DISABLE_ADMISSION_CONTROL).execute().actionGet();
 
-        cMResourceCollector.collectNodeResourceUsageStats(clusterManagerNodeId, System.currentTimeMillis(), 97, 97);
+        cMResourceCollector.collectNodeResourceUsageStats(clusterManagerNodeId, System.currentTimeMillis(), 97, 97, new IoUsageStats(98));
 
         // Write API on ClusterManager
         assertAcked(prepareCreate("test").setMapping("field", "type=text").setAliases("{\"alias1\" : {}}").execute().actionGet());
