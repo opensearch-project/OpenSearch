@@ -201,7 +201,11 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     public void onRemoval(RemovalNotification<Key, BytesReference> notification) {
         // In case this event happens for an old shard, we can safely ignore this as we don't keep track for old
         // shards as part of request cache.
-        cacheEntityLookup.apply(notification.getKey().shardId).ifPresent(entity -> entity.onRemoval(notification));
+        Key key = notification.getKey();
+        cacheEntityLookup.apply(key.shardId).ifPresent(entity -> entity.onRemoval(notification));
+        cacheCleanupManager.updateCleanupKeyToCountMapOnCacheEviction(
+            new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId)
+        );
     }
 
     BytesReference getOrCompute(
@@ -230,7 +234,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                     OpenSearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
                 }
             }
-            cacheCleanupManager.updateCleanupKeyToCountMap(cleanupKey);
+            cacheCleanupManager.updateCleanupKeyToCountMapOnCacheInsertion(cleanupKey);
         } else {
             cacheEntity.onHit();
         }
@@ -471,7 +475,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
          *
          * @param cleanupKey the CleanupKey to be updated in the map
          */
-        private void updateCleanupKeyToCountMap(CleanupKey cleanupKey) {
+        private void updateCleanupKeyToCountMapOnCacheInsertion(CleanupKey cleanupKey) {
             if (stalenessThreshold == 0.0) {
                 return;
             }
@@ -486,6 +490,29 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             // If the key exists, its value is incremented by 1.
             cleanupKeyToCountMap.computeIfAbsent(shardId, k -> ConcurrentCollections.newConcurrentMap())
                 .merge(cleanupKey.readerCacheKeyId, 1, Integer::sum);
+        }
+
+        private void updateCleanupKeyToCountMapOnCacheEviction(CleanupKey cleanupKey) {
+            if (stalenessThreshold == 0.0) {
+                return;
+            }
+            IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
+            if (indexShard == null) {
+                logger.warn("IndexShard is null for CleanupKey: {} while cleaning Indices Request Cache", cleanupKey.readerCacheKeyId);
+                return;
+            }
+            ShardId shardId = indexShard.shardId();
+
+            writeLock.lock();
+            try {
+                // If the key doesn't exist, ignore
+                ConcurrentMap<String, Integer> keyCountMap = cleanupKeyToCountMap.get(shardId);
+                if (keyCountMap != null) {
+                    keyCountMap.computeIfPresent(cleanupKey.readerCacheKeyId, (key, value) -> value - 1);
+                }
+            } finally {
+                writeLock.unlock();
+            }
         }
 
         /**
