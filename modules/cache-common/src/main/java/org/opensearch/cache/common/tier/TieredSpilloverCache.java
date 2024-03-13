@@ -15,6 +15,7 @@ import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -254,7 +255,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             TimeValue diskPolicyThreshold = TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_TOOKTIME_THRESHOLD
                 .getConcreteSettingForNamespace(cacheType.getSettingPrefix())
                 .get(settings);
-            Function<V, Long> cachedResultParser = Objects.requireNonNull(
+            Function<V, CachedQueryResult.PolicyValues> cachedResultParser = Objects.requireNonNull(
                 config.getCachedResultParser(),
                 "Cached result parser fn can't be null"
             );

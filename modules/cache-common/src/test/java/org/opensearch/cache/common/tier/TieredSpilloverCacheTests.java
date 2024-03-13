@@ -13,6 +13,7 @@ import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
@@ -125,10 +126,10 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setWeigher((k, v) -> keyValueSize)
                 .setRemovalListener(removalListener)
                 .setSettings(settings)
-                .setCachedResultParser(new Function<String, Long>() {
+                .setCachedResultParser(new Function<String, CachedQueryResult.PolicyValues>() {
                     @Override
-                    public Long apply(String s) {
-                        return 20_000_000L;
+                    public CachedQueryResult.PolicyValues apply(String s) {
+                        return new CachedQueryResult.PolicyValues(20_000_000L);
                     }
                 }) // Values will always appear to have taken 20_000_000 ns = 20 ms to compute
                 .build(),
@@ -962,10 +963,10 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setWeigher((k, v) -> keyValueSize)
                 .setRemovalListener(removalListener)
                 .setSettings(settings)
-                .setCachedResultParser(new Function<String, Long>() {
+                .setCachedResultParser(new Function<String, CachedQueryResult.PolicyValues>() {
                     @Override
-                    public Long apply(String s) {
-                        return tookTimeMap.get(s);
+                    public CachedQueryResult.PolicyValues apply(String s) {
+                        return new CachedQueryResult.PolicyValues(tookTimeMap.get(s));
                     }
                 })
                 .build(),

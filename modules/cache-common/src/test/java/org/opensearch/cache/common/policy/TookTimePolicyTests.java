@@ -27,9 +27,9 @@ import java.util.Random;
 import java.util.function.Function;
 
 public class TookTimePolicyTests extends OpenSearchTestCase {
-    private final Function<BytesReference, Long> transformationFunction = (data) -> {
+    private final Function<BytesReference, CachedQueryResult.PolicyValues> transformationFunction = (data) -> {
         try {
-            return CachedQueryResult.getTookTimeNanos(data);
+            return CachedQueryResult.getPolicyValues(data);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -69,8 +69,8 @@ public class TookTimePolicyTests extends OpenSearchTestCase {
     }
 
     private BytesReference getValidPolicyInput(Long tookTimeNanos) throws IOException {
-        // When it's used in the cache, the policy will receive BytesReferences which have a CachePolicyInfoWrapper
-        // at the beginning of them, followed by the actual QSR.
+        // When it's used in the cache, the policy will receive BytesReferences which come from
+        // serializing a CachedQueryResult.
         CachedQueryResult cachedQueryResult = new CachedQueryResult(getQSR(), tookTimeNanos);
         BytesStreamOutput out = new BytesStreamOutput();
         cachedQueryResult.writeToNoId(out);

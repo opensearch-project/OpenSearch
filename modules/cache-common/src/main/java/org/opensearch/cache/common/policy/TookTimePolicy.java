@@ -13,6 +13,7 @@
 
 package org.opensearch.cache.common.policy;
 
+import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.function.Function;
@@ -20,9 +21,8 @@ import java.util.function.Predicate;
 
 /**
  * A cache tier policy which accepts queries whose took time is greater than some threshold.
- * The threshold should be set to approximately
- * the time it takes to get a result from the cache tier.
- * The policy accepts values of type V and decodes them into CachePolicyInfoWrapper, which has the data needed
+ * The threshold should be set to approximately the time it takes to get a result from the cache tier.
+ * The policy accepts values of type V and decodes them into CachedQueryResult.PolicyValues, which has the data needed
  * to decide whether to admit the value.
  * @param <V> The type of data consumed by test().
  */
@@ -33,16 +33,16 @@ public class TookTimePolicy<V> implements Predicate<V> {
     private final TimeValue threshold;
 
     /**
-     * Function which extracts took time in nanoseconds from a serialized CachedQueryResult
+     * Function which extracts the relevant PolicyValues from a serialized CachedQueryResult
      */
-    private final Function<V, Long> cachedResultParser; //
+    private final Function<V, CachedQueryResult.PolicyValues> cachedResultParser;
 
     /**
      * Constructs a took time policy.
      * @param threshold the threshold
-     * @param cachedResultParser the function providing took time
+     * @param cachedResultParser the function providing policy values
      */
-    public TookTimePolicy(TimeValue threshold, Function<V, Long> cachedResultParser) {
+    public TookTimePolicy(TimeValue threshold, Function<V, CachedQueryResult.PolicyValues> cachedResultParser) {
         this.threshold = threshold;
         this.cachedResultParser = cachedResultParser;
     }
@@ -53,24 +53,15 @@ public class TookTimePolicy<V> implements Predicate<V> {
      * @return whether to admit the data
      */
     public boolean test(V data) {
-        Long tookTimeNanos;
+        long tookTimeNanos;
         try {
-            tookTimeNanos = cachedResultParser.apply(data);
+            tookTimeNanos = cachedResultParser.apply(data).getTookTimeNanos();
         } catch (Exception e) {
-            // If we can't read a CachePolicyInfoWrapper from the BytesReference, reject the data
+            // If we can't read a CachedQueryResult.PolicyValues from the BytesReference, reject the data
             return false;
         }
 
-        if (tookTimeNanos == null) {
-            // If the wrapper contains null took time, reject the data
-            // This can happen if no CachePolicyInfoWrapper was written to the BytesReference, as the wrapper's constructor
-            // reads an optional long, which will end up as null in this case. This is why we should reject it.
-            return false;
-        }
         TimeValue tookTime = TimeValue.timeValueNanos(tookTimeNanos);
-        if (tookTime.compareTo(threshold) < 0) { // negative -> tookTime is shorter than threshold
-            return false;
-        }
-        return true;
+        return tookTime.compareTo(threshold) >= 0;
     }
 }

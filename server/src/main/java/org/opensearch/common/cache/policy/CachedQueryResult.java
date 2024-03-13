@@ -13,6 +13,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.query.QuerySearchResult;
 
@@ -25,23 +26,18 @@ import java.io.IOException;
  * short-lived QuerySearchResult object just to read a few values.
  */
 public class CachedQueryResult {
-    private final long tookTimeNanos;
-
+    private final PolicyValues policyValues;
     private final QuerySearchResult qsr;
 
     public CachedQueryResult(QuerySearchResult qsr, long tookTimeNanos) {
         this.qsr = qsr;
-        this.tookTimeNanos = tookTimeNanos;
-    }
-
-    public long getTookTimeNanos() {
-        return tookTimeNanos;
+        this.policyValues = new PolicyValues(tookTimeNanos);
     }
 
     // Retrieve only took time from a serialized CQR, without creating a short-lived QuerySearchResult or CachedQueryResult object.
-    public static long getTookTimeNanos(BytesReference serializedCQR) throws IOException {
+    public static PolicyValues getPolicyValues(BytesReference serializedCQR) throws IOException {
         StreamInput in = serializedCQR.streamInput();
-        return in.readOptionalLong();
+        return new PolicyValues(in);
     }
 
     // Retrieve only the QSR from a serialized CQR, and load it into an existing QSR object discarding the took time which isn't needed
@@ -53,12 +49,34 @@ public class CachedQueryResult {
         NamedWriteableRegistry registry
     ) throws IOException {
         StreamInput in = new NamedWriteableAwareStreamInput(serializedCQR.streamInput(), registry);
-        in.readOptionalLong(); // Read and discard took time
+        PolicyValues pv = new PolicyValues(in); // Read and discard PolicyValues
         qsr.readFromWithId(id, in);
     }
 
     public void writeToNoId(StreamOutput out) throws IOException {
-        out.writeOptionalLong(tookTimeNanos);
+        policyValues.writeTo(out);
         qsr.writeToNoId(out);
+    }
+
+    public static class PolicyValues implements Writeable {
+        final long tookTimeNanos;
+        // More values can be added here as they're needed for future policies
+
+        public PolicyValues(long tookTimeNanos) {
+            this.tookTimeNanos = tookTimeNanos;
+        }
+
+        public PolicyValues(StreamInput in) throws IOException {
+            this.tookTimeNanos = in.readOptionalLong();
+        }
+
+        public long getTookTimeNanos() {
+            return tookTimeNanos;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalLong(tookTimeNanos);
+        }
     }
 }
