@@ -55,20 +55,16 @@ final class SearchQueryCounters {
     public void incrementCounter(QueryBuilder queryBuilder, int level) {
         String uniqueQueryCounterName = queryBuilder.getName();
 
-        if (!nameToQueryTypeCounters.contains(uniqueQueryCounterName)) {
-            createQueryCounter(uniqueQueryCounterName);
-        }
-
-        Counter counter = nameToQueryTypeCounters.getOrDefault(uniqueQueryCounterName, otherQueryCounter);
+        Counter counter = nameToQueryTypeCounters.computeIfAbsent(uniqueQueryCounterName, k -> createQueryCounter(k));
         counter.add(1, Tags.create().addTag(LEVEL_TAG, level));
     }
 
-    private void createQueryCounter(String counterName) {
+    private Counter createQueryCounter(String counterName) {
         Counter counter = metricsRegistry.createCounter(
             "search.query.type." + counterName + ".count",
             "Counter for the number of top level and nested " + counterName + " search queries",
             UNIT
         );
-        nameToQueryTypeCounters.put(counterName, counter);
+        return counter;
     }
 }
