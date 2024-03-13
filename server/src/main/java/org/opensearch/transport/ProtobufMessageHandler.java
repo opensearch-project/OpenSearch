@@ -21,6 +21,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.server.proto.QueryFetchSearchResultProto.QueryFetchSearchResult;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -108,6 +109,19 @@ public class ProtobufMessageHandler {
                 org.opensearch.search.fetch.QueryFetchSearchResult queryFetchSearchResult2 =
                     new org.opensearch.search.fetch.QueryFetchSearchResult(queryFetchSearchResult);
                 final T response = (T) queryFetchSearchResult2;
+                response.remoteAddress(new TransportAddress(remoteAddress));
+
+                final String executor = handler.executor();
+                if (ThreadPool.Names.SAME.equals(executor)) {
+                    doHandleResponse(handler, response);
+                } else {
+                    threadPool.executor(executor).execute(() -> doHandleResponse(handler, response));
+                }
+            } else if (receivedMessage.hasQuerySearchResult()) {
+                final org.opensearch.server.proto.QuerySearchResultProto.QuerySearchResult querySearchResult = receivedMessage
+                    .getQuerySearchResult();
+                QuerySearchResult querySearchResult2 = new QuerySearchResult(querySearchResult);
+                final T response = (T) querySearchResult2;
                 response.remoteAddress(new TransportAddress(remoteAddress));
 
                 final String executor = handler.executor();

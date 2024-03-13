@@ -50,7 +50,6 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
@@ -217,12 +216,6 @@ public class PreVoteCollector {
                         @Override
                         public String toString() {
                             return "TransportResponseHandler{" + PreVoteCollector.this + ", node=" + n + '}';
-                        }
-
-                        @Override
-                        public PreVoteResponse read(InputStream in) throws IOException {
-                            // TODO Auto-generated method stub
-                            throw new UnsupportedOperationException("Unimplemented method 'read'");
                         }
                     }
                 )

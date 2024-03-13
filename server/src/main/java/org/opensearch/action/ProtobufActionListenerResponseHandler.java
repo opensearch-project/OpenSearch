@@ -9,7 +9,7 @@
 package org.opensearch.action;
 
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.io.stream.ProtobufWriteable;
+import org.opensearch.core.common.io.stream.BytesWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.threadpool.ThreadPool;
@@ -29,12 +29,12 @@ import java.util.Objects;
 public class ProtobufActionListenerResponseHandler<Response extends TransportResponse> implements TransportResponseHandler<Response> {
 
     private final ActionListener<? super Response> listener;
-    private final ProtobufWriteable.Reader<Response> reader;
+    private final BytesWriteable.Reader<Response> reader;
     private final String executor;
 
     public ProtobufActionListenerResponseHandler(
         ActionListener<? super Response> listener,
-        ProtobufWriteable.Reader<Response> reader,
+        BytesWriteable.Reader<Response> reader,
         String executor
     ) {
         this.listener = Objects.requireNonNull(listener);
@@ -42,7 +42,7 @@ public class ProtobufActionListenerResponseHandler<Response extends TransportRes
         this.executor = Objects.requireNonNull(executor);
     }
 
-    public ProtobufActionListenerResponseHandler(ActionListener<? super Response> listener, ProtobufWriteable.Reader<Response> reader) {
+    public ProtobufActionListenerResponseHandler(ActionListener<? super Response> listener, BytesWriteable.Reader<Response> reader) {
         this(listener, reader, ThreadPool.Names.SAME);
     }
 

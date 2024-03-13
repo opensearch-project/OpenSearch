@@ -69,7 +69,6 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -392,13 +391,6 @@ public abstract class TransportBroadcastByNodeAction<
                         @Override
                         public String executor() {
                             return ThreadPool.Names.SAME;
-                        }
-
-                        @Override
-                        public TransportBroadcastByNodeAction<Request, Response, ShardOperationResult>.NodeResponse read(InputStream in)
-                            throws IOException {
-                            // TODO Auto-generated method stub
-                            throw new UnsupportedOperationException("Unimplemented method 'read'");
                         }
                     }
                 );

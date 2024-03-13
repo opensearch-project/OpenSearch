@@ -41,6 +41,7 @@ import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.bytes.CompositeBytesReference;
 import org.opensearch.transport.nativeprotocol.NativeInboundBytesHandler;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.List;

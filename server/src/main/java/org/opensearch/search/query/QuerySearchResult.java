@@ -58,6 +58,9 @@ import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.server.proto.QuerySearchResultProto;
 import org.opensearch.server.proto.ShardSearchRequestProto;
+import org.opensearch.server.proto.ShardSearchRequestProto.AliasFilter;
+import org.opensearch.server.proto.ShardSearchRequestProto.ShardSearchRequest.SearchType;
+import org.opensearch.transport.BaseInboundMessage;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -123,13 +126,20 @@ public final class QuerySearchResult extends SearchPhaseResult {
         super(in);
         assert FeatureFlags.isEnabled(FeatureFlags.PROTOBUF) : "protobuf feature flag is not enabled";
         this.querySearchResultProto = QuerySearchResultProto.QuerySearchResult.parseFrom(in);
-        isNull = false;
-        ShardSearchRequest shardSearchRequest;
-        try {
-            shardSearchRequest = new ShardSearchRequest(this.querySearchResultProto.getSearchShardRequest().toByteArray());
-            setShardSearchRequest(shardSearchRequest);
-        } catch (IOException e) {
-            logger.error("Error while setting shard search request", e);
+        isNull = this.querySearchResultProto.getIsNull();
+        if (!isNull) {
+            this.contextId = new ShardSearchContextId(
+                this.querySearchResultProto.getContextId().getSessionId(),
+                this.querySearchResultProto.getContextId().getId()
+            );
+            ShardSearchRequest shardSearchRequest;
+            hasAggs = false;
+            try {
+                shardSearchRequest = new ShardSearchRequest(this.querySearchResultProto.getSearchShardRequest().toByteArray());
+                setShardSearchRequest(shardSearchRequest);
+            } catch (IOException e) {
+                logger.error("Error while setting shard search request", e);
+            }
         }
     }
 
@@ -155,13 +165,40 @@ public final class QuerySearchResult extends SearchPhaseResult {
         ShardSearchRequestProto.ShardSearchRequest.Builder shardSearchRequestProto = ShardSearchRequestProto.ShardSearchRequest
             .newBuilder();
         if (shardSearchRequest != null) {
+            ShardSearchRequestProto.OriginalIndices.Builder originalIndices = ShardSearchRequestProto.OriginalIndices.newBuilder();
+            if (shardSearchRequest.indices() != null) {
+                for (String index : shardSearchRequest.indices()) {
+                    originalIndices.addIndices(index);
+                }
+                originalIndices.setIndicesOptions(
+                    ShardSearchRequestProto.OriginalIndices.IndicesOptions.newBuilder()
+                        .setIgnoreUnavailable(shardSearchRequest.indicesOptions().ignoreUnavailable())
+                        .setAllowNoIndices(shardSearchRequest.indicesOptions().allowNoIndices())
+                        .setExpandWildcardsOpen(shardSearchRequest.indicesOptions().expandWildcardsOpen())
+                        .setExpandWildcardsClosed(shardSearchRequest.indicesOptions().expandWildcardsClosed())
+                        .setExpandWildcardsHidden(shardSearchRequest.indicesOptions().expandWildcardsHidden())
+                        .setAllowAliasesToMultipleIndices(shardSearchRequest.indicesOptions().allowAliasesToMultipleIndices())
+                        .setForbidClosedIndices(shardSearchRequest.indicesOptions().forbidClosedIndices())
+                        .setIgnoreAliases(shardSearchRequest.indicesOptions().ignoreAliases())
+                        .setIgnoreThrottled(shardSearchRequest.indicesOptions().ignoreThrottled())
+                        .build()
+                );
+            }
+            AliasFilter.Builder aliasFilter = AliasFilter.newBuilder();
+            if (shardSearchRequest.getAliasFilter() != null) {
+                for (int i = 0; i < shardSearchRequest.getAliasFilter().getAliases().length; i++) {
+                    aliasFilter.addAliases(shardSearchRequest.getAliasFilter().getAliases()[i]);
+                }
+            }
             shardSearchRequestProto.setInboundNetworkTime(shardSearchRequest.getInboundNetworkTime())
                 .setOutboundNetworkTime(shardSearchRequest.getOutboundNetworkTime())
                 .setShardId(shardIdProto)
                 .setAllowPartialSearchResults(shardSearchRequest.allowPartialSearchResults())
                 .setNumberOfShards(shardSearchRequest.numberOfShards())
-                .setReaderId(shardSearchContextId);
-
+                .setReaderId(shardSearchContextId)
+                .setOriginalIndices(originalIndices)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setAliasFilter(aliasFilter);
             if (shardSearchRequest.keepAlive() != null) {
                 shardSearchRequestProto.setTimeValue(shardSearchRequest.keepAlive().getStringRep());
             }
@@ -175,6 +212,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
             .setContextId(shardSearchContextId)
             .setSearchShardTarget(searchShardTarget.build())
             .setSearchShardRequest(shardSearchRequestProto.build())
+            .setHasAggs(false)
+            .setIsNull(isNull)
             .build();
     }
 
@@ -520,7 +559,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     @Override
     public void writeTo(OutputStream out) throws IOException {
-        out.write(this.querySearchResultProto.toByteArray());
+        if (!isNull) {
+            out.write(this.querySearchResultProto.toByteArray());
+        }
     }
 
     public void writeToNoId(StreamOutput out) throws IOException {
@@ -570,7 +611,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public QuerySearchResult(QuerySearchResultProto.QuerySearchResult querySearchResult) {
         this.querySearchResultProto = querySearchResult;
-        this.isNull = false;
+        this.isNull = this.querySearchResultProto.getIsNull();
+        this.contextId = new ShardSearchContextId(
+            this.querySearchResultProto.getContextId().getSessionId(),
+            this.querySearchResultProto.getContextId().getId()
+        );
         ShardSearchRequest shardSearchRequest;
         try {
             shardSearchRequest = new ShardSearchRequest(this.querySearchResultProto.getSearchShardRequest().toByteArray());
@@ -578,5 +623,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
         } catch (IOException e) {
             logger.error("Error while setting shard search request", e);
         }
+    }
+
+    @Override
+    public String getProtocol() {
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+            return BaseInboundMessage.PROTOBUF_PROTOCOL;
+        }
+        return BaseInboundMessage.NATIVE_PROTOCOL;
     }
 }

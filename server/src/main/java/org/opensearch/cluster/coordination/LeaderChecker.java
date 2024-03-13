@@ -63,7 +63,6 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -349,12 +348,6 @@ public class LeaderChecker {
                     @Override
                     public String executor() {
                         return Names.SAME;
-                    }
-
-                    @Override
-                    public Empty read(InputStream in) throws IOException {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }
                 }
             );

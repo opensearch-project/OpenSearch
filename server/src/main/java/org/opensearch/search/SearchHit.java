@@ -171,6 +171,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.nestedIdentity = nestedIdentity;
         this.documentFields = documentFields == null ? emptyMap() : documentFields;
         this.metaFields = metaFields == null ? emptyMap() : metaFields;
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF)) {
+            this.searchHitProto = convertHitToProto(this);
+        }
     }
 
     public SearchHit(StreamInput in) throws IOException {
@@ -341,8 +344,12 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         searchHitBuilder.setSeqNo(hit.getSeqNo());
         searchHitBuilder.setPrimaryTerm(hit.getPrimaryTerm());
         searchHitBuilder.setVersion(hit.getVersion());
+        searchHitBuilder.setDocId(hit.docId);
         if (hit.getSourceRef() != null) {
             searchHitBuilder.setSource(ByteString.copyFrom(hit.getSourceRef().toBytesRef().bytes));
+        }
+        for (Map.Entry<String, DocumentField> entry : hit.getFields().entrySet()) {
+            searchHitBuilder.putDocumentFields(entry.getKey(), DocumentField.convertDocumentFieldToProto(entry.getValue()));
         }
         return searchHitBuilder.build();
     }
@@ -563,6 +570,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (fieldName == null || field == null) return;
         if (documentFields.isEmpty()) this.documentFields = new HashMap<>();
         this.documentFields.put(fieldName, field);
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF)) {
+            this.searchHitProto = convertHitToProto(this);
+        }
     }
 
     public DocumentField removeDocumentField(String fieldName) {

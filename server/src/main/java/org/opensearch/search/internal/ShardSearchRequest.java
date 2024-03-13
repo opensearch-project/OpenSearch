@@ -315,6 +315,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.keepAlive = searchRequestProto.hasTimeValue()
             ? TimeValue.parseTimeValue(searchRequestProto.getTimeValue(), "keepAlive")
             : null;
+        this.aliasFilter = searchRequestProto.hasAliasFilter()
+            ? new AliasFilter(null, searchRequestProto.getAliasFilter().getAliasesList().toArray(Strings.EMPTY_ARRAY))
+            : AliasFilter.EMPTY;
     }
 
     public ShardSearchRequest(ShardSearchRequest clone) {

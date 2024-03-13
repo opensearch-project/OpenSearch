@@ -9,7 +9,6 @@
 package org.opensearch.transport;
 
 import com.google.protobuf.ByteString;
-import com.google.protobuf.InvalidProtocolBufferException;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -18,8 +17,10 @@ import org.opensearch.server.proto.NodeToNodeMessageProto;
 import org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.Header;
 import org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.ResponseHandlersList;
 import org.opensearch.server.proto.QueryFetchSearchResultProto.QueryFetchSearchResult;
+import org.opensearch.server.proto.QuerySearchResultProto.QuerySearchResult;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -74,15 +75,51 @@ public class NodeToNodeMessage implements BaseInboundMessage {
             .setAction(action)
             .addAllFeatures(features)
             .build();
-
     }
 
-    public NodeToNodeMessage(byte[] in) throws InvalidProtocolBufferException {
+    public NodeToNodeMessage(
+        long requestId,
+        byte[] status,
+        Version version,
+        ThreadContext threadContext,
+        QuerySearchResult querySearchResult,
+        Set<String> features,
+        String action
+    ) {
+        Header header = Header.newBuilder()
+            .addAllPrefix(Arrays.asList(ByteString.copyFrom(PREFIX)))
+            .setRequestId(requestId)
+            .setStatus(ByteString.copyFrom(status))
+            .setVersionId(version.id)
+            .build();
+        Map<String, String> requestHeaders = threadContext.getHeaders();
+        Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+        Map<String, ResponseHandlersList> responseHandlers = new HashMap<>();
+        for (Map.Entry<String, List<String>> entry : responseHeaders.entrySet()) {
+            String key = entry.getKey();
+            List<String> value = entry.getValue();
+            ResponseHandlersList responseHandlersList = ResponseHandlersList.newBuilder().addAllSetOfResponseHandlers(value).build();
+            responseHandlers.put(key, responseHandlersList);
+        }
+        this.message = NodeToNodeMessageProto.NodeToNodeMessage.newBuilder()
+            .setHeader(header)
+            .putAllRequestHeaders(requestHeaders)
+            .putAllResponseHandlers(responseHandlers)
+            .setVersion(version.toString())
+            .setStatus(ByteString.copyFrom(status))
+            .setRequestId(requestId)
+            .setQuerySearchResult(querySearchResult)
+            .setAction(action)
+            .addAllFeatures(features)
+            .build();
+    }
+
+    public NodeToNodeMessage(InputStream in) throws IOException {
         this.message = NodeToNodeMessageProto.NodeToNodeMessage.parseFrom(in);
     }
 
     public void writeTo(OutputStream out) throws IOException {
-        out.write(this.message.toByteArray());
+        this.message.writeTo(out);
     }
 
     BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {

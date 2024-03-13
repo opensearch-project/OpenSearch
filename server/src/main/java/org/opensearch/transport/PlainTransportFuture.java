@@ -39,7 +39,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -125,11 +124,5 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
     @Override
     public String toString() {
         return "future(" + handler.toString() + ")";
-    }
-
-    @Override
-    public V read(InputStream in) throws IOException {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'read'");
     }
 }

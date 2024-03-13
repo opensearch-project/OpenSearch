@@ -71,6 +71,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -330,7 +331,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
 
         inboundPipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
         final BytesReference responseBytes = protobufMessage.get();
-        final NodeToNodeMessage message = new NodeToNodeMessage(responseBytes.toBytesRef().bytes);
+        final NodeToNodeMessage message = new NodeToNodeMessage(new ByteArrayInputStream(responseBytes.toBytesRef().bytes));
         assertEquals(version.toString(), message.getMessage().getVersion());
         assertEquals(requestId, message.getHeader().getRequestId());
         assertNotNull(message.getRequestHeaders());

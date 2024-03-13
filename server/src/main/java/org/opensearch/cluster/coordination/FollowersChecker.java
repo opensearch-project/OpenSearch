@@ -61,7 +61,6 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -408,12 +407,6 @@ public class FollowersChecker {
                     @Override
                     public String executor() {
                         return Names.SAME;
-                    }
-
-                    @Override
-                    public Empty read(InputStream in) throws IOException {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }
                 }
             );

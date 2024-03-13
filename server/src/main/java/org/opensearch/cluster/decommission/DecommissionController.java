@@ -36,7 +36,6 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -257,12 +256,6 @@ public class DecommissionController {
                 @Override
                 public NodesStatsResponse read(StreamInput in) throws IOException {
                     return new NodesStatsResponse(in);
-                }
-
-                @Override
-                public NodesStatsResponse read(InputStream in) throws IOException {
-                    // TODO Auto-generated method stub
-                    throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
             }
         );

@@ -69,7 +69,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -685,12 +684,6 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
             @Override
             public AddVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
                 return new AddVotingConfigExclusionsResponse(in);
-            }
-
-            @Override
-            public AddVotingConfigExclusionsResponse read(InputStream in) throws IOException {
-                // TODO Auto-generated method stub
-                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         };
     }

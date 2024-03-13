@@ -74,7 +74,6 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -422,12 +421,6 @@ public class JoinHelper {
                     public String executor() {
                         return Names.SAME;
                     }
-
-                    @Override
-                    public Empty read(InputStream in) throws IOException {
-                        // TODO Auto-generated method stub
-                        throw new UnsupportedOperationException("Unimplemented method 'read'");
-                    }
                 }
             );
         } else {
@@ -457,12 +450,6 @@ public class JoinHelper {
             @Override
             public String executor() {
                 return ThreadPool.Names.SAME;
-            }
-
-            @Override
-            public Empty read(InputStream in) throws IOException {
-                // TODO Auto-generated method stub
-                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         });
     }

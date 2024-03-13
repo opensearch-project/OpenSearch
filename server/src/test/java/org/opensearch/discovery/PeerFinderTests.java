@@ -59,7 +59,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -547,12 +546,6 @@ public class PeerFinderTests extends OpenSearchTestCase {
                 @Override
                 public String executor() {
                     return Names.SAME;
-                }
-
-                @Override
-                public PeersResponse read(InputStream in) throws IOException {
-                    // TODO Auto-generated method stub
-                    throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
             }
         );

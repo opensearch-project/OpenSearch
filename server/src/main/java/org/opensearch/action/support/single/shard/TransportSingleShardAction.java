@@ -65,7 +65,6 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 import static org.opensearch.action.support.TransportActions.isShardNotAvailableException;
 
@@ -226,12 +225,6 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                         public void handleException(TransportException exp) {
                             listener.onFailure(exp);
                         }
-
-                        @Override
-                        public Response read(InputStream in) throws IOException {
-                            // TODO Auto-generated method stub
-                            throw new UnsupportedOperationException("Unimplemented method 'read'");
-                        }
                     }
                 );
             } else {
@@ -308,12 +301,6 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                         @Override
                         public void handleException(TransportException exp) {
                             onFailure(finalShardRouting, exp);
-                        }
-
-                        @Override
-                        public Response read(InputStream in) throws IOException {
-                            // TODO Auto-generated method stub
-                            throw new UnsupportedOperationException("Unimplemented method 'read'");
                         }
                     }
                 );

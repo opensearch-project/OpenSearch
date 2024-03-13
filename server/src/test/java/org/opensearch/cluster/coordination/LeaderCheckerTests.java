@@ -57,8 +57,6 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -550,12 +548,6 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         @Override
         public TransportResponse.Empty read(StreamInput in) {
             return TransportResponse.Empty.INSTANCE;
-        }
-
-        @Override
-        public Empty read(InputStream in) throws IOException {
-            // TODO Auto-generated method stub
-            throw new UnsupportedOperationException("Unimplemented method 'read'");
         }
     }
 

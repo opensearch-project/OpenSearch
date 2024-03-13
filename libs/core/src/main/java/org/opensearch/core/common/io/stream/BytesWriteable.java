@@ -26,7 +26,7 @@ import java.io.OutputStream;
  * @opensearch.api
  */
 @ExperimentalApi
-public interface ProtobufWriteable {
+public interface BytesWriteable {
 
     /**
      * Write this into the {@linkplain OutputStream}.

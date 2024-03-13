@@ -32,7 +32,7 @@
 
 package org.opensearch.core.transport;
 
-import org.opensearch.core.common.io.stream.ProtobufWriteable;
+import org.opensearch.core.common.io.stream.BytesWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -44,7 +44,7 @@ import java.io.InputStream;
  *
  * @opensearch.internal
  */
-public abstract class TransportMessage implements Writeable, ProtobufWriteable {
+public abstract class TransportMessage implements Writeable, BytesWriteable {
 
     private TransportAddress remoteAddress;
 

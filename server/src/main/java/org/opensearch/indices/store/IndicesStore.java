@@ -75,7 +75,6 @@ import org.opensearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -351,12 +350,6 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                         e
                     )
                 );
-        }
-
-        @Override
-        public ShardActiveResponse read(InputStream in) throws IOException {
-            // TODO Auto-generated method stub
-            throw new UnsupportedOperationException("Unimplemented method 'read'");
         }
 
     }

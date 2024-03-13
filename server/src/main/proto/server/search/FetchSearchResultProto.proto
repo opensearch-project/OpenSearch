@@ -62,7 +62,7 @@ message SearchHit {
 
   message DocumentField {
     string name = 1;
-    repeated bytes values = 2;
+    repeated DocumentFieldValue values = 2;
   }
 
   message HighlightField {
@@ -113,5 +113,21 @@ message CollapseValue {
   optional double collapseDouble = 5;
   optional bytes collapseBytes = 6;
   optional bool collapseBool = 7;
+}
+
+message DocumentFieldValue {
+  optional string valueString = 1;
+  optional int32 valueInt = 2;
+  optional int64 valueLong = 3;
+  optional float valueFloat = 4;
+  optional double valueDouble = 5;
+  optional bool valueBool = 6;
+  repeated bytes valueByteArray = 7;
+  repeated DocumentFieldValue valueArrayList = 8;
+  map<string, DocumentFieldValue> valueMap = 9;
+  optional int64 valueDate = 10;
+  optional string valueZonedDate = 11;
+  optional int64 valueZonedTime = 12;
+  optional string valueText = 13;
 }
 
