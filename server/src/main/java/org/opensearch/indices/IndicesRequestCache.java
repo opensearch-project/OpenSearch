@@ -222,7 +222,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         BytesReference value = cache.computeIfAbsent(key, cacheLoader);
         if (cacheLoader.isLoaded()) {
             cacheEntity.onMiss();
-            // see if its the first time we see this reader, and make sure to register a cleanup key
+            // see if it's the first time we see this reader, and make sure to register a cleanup key
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, readerCacheKeyId);
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
                 Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
@@ -639,7 +639,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                 if (staleKeysInCachePercentage() < cleanThresholdPercent) {
                     if (logger.isDebugEnabled()) {
                         logger.debug(
-                            "Skipping disk cache keys cleanup since the percentage of stale keys in disk cache is less than the threshold"
+                            "Skipping cache cleanup since the percentage of stale keys is less than the threshold : "
+                                + stalenessThreshold
                         );
                     }
                     return true;
