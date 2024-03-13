@@ -49,7 +49,6 @@ import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -99,10 +98,7 @@ import java.util.function.ToLongBiFunction;
  *
  * @opensearch.internal
  */
-public final class IndicesRequestCache extends AbstractLifecycleComponent
-    implements
-        RemovalListener<IndicesRequestCache.Key, BytesReference>,
-        Closeable {
+public final class IndicesRequestCache implements RemovalListener<IndicesRequestCache.Key, BytesReference>, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndicesRequestCache.class);
 
@@ -147,9 +143,6 @@ public final class IndicesRequestCache extends AbstractLifecycleComponent
     private final Function<ShardId, Optional<CacheEntity>> cacheEntityLookup;
     // pkg-private for testing
     final IndicesRequestCacheCleanupManager cacheCleanupManager;
-    private final IndicesRequestCacheCleaner cacheCleaner;
-    private final TimeValue cleanInterval;
-    private final ThreadPool threadpool;
 
     IndicesRequestCache(
         Settings settings,
@@ -159,12 +152,13 @@ public final class IndicesRequestCache extends AbstractLifecycleComponent
     ) {
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
-        this.cleanInterval = INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
         long sizeInBytes = size.getBytes();
         ToLongBiFunction<Key, BytesReference> weigher = (k, v) -> k.ramBytesUsed() + v.ramBytesUsed();
-        this.cacheCleanupManager = new IndicesRequestCacheCleanupManager(getStalenessThreshold(settings));
-        this.threadpool = threadPool;
-        this.cacheCleaner = new IndicesRequestCacheCleaner(this, this.threadpool, this.cleanInterval);
+        this.cacheCleanupManager = new IndicesRequestCacheCleanupManager(
+            threadPool,
+            INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING.get(settings),
+            getStalenessThreshold(settings)
+        );
         this.cacheEntityLookup = cacheEntityFunction;
         this.cache = cacheService.createCache(
             new CacheConfig.Builder<Key, BytesReference>().setSettings(settings)
@@ -188,21 +182,9 @@ public final class IndicesRequestCache extends AbstractLifecycleComponent
     }
 
     @Override
-    protected void doStart() {
-        threadpool.schedule(this.cacheCleaner, this.cleanInterval, ThreadPool.Names.SAME);
-    }
-
-    @Override
-    protected void doStop() {
-        cacheCleaner.close();
-    }
-
-    @Override
-    protected void doClose() throws IOException {}
-
-    @Override
     public void close() {
         cache.invalidateAll();
+        cacheCleanupManager.close();
     }
 
     private double getStalenessThreshold(Settings settings) {
@@ -269,39 +251,6 @@ public final class IndicesRequestCache extends AbstractLifecycleComponent
             readerCacheKeyId = ((OpenSearchDirectoryReader.DelegatingCacheHelper) cacheHelper).getDelegatingCacheKey().getId();
         }
         cache.invalidate(new Key(((IndexShard) cacheEntity.getCacheIdentity()).shardId(), cacheKey, readerCacheKeyId));
-    }
-
-    private final class IndicesRequestCacheCleaner implements Runnable, Releasable {
-
-        private final IndicesRequestCache indicesRequestCache;
-        private final ThreadPool threadPool;
-        private final TimeValue interval;
-
-        IndicesRequestCacheCleaner(IndicesRequestCache indicesRequestCache, ThreadPool threadPool, TimeValue interval) {
-            this.indicesRequestCache = indicesRequestCache;
-            this.threadPool = threadPool;
-            this.interval = interval;
-        }
-
-        private final AtomicBoolean closed = new AtomicBoolean(false);
-
-        @Override
-        public void run() {
-            try {
-                this.indicesRequestCache.cacheCleanupManager.cleanCache();
-            } catch (Exception e) {
-                logger.warn("Exception during periodic indices request cache cleanup:", e);
-            }
-            // Reschedule itself to run again if not closed
-            if (closed.get() == false) {
-                threadPool.scheduleUnlessShuttingDown(interval, ThreadPool.Names.SAME, this);
-            }
-        }
-
-        @Override
-        public void close() {
-            closed.compareAndSet(false, true);
-        }
     }
 
     /**
@@ -479,15 +428,16 @@ public final class IndicesRequestCache extends AbstractLifecycleComponent
      *
      * If Staleness threshold is 0, we do not keep track of stale keys in the cache
      * */
-    class IndicesRequestCacheCleanupManager {
+    class IndicesRequestCacheCleanupManager implements Closeable {
         private final Set<CleanupKey> keysToClean;
         private final ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap;
         private final AtomicInteger staleKeysCount;
         private final double stalenessThreshold;
         private final Lock readLock;
         private final Lock writeLock;
+        private final IndicesRequestCacheCleaner cacheCleaner;
 
-        IndicesRequestCacheCleanupManager(double stalenessThreshold) {
+        IndicesRequestCacheCleanupManager(ThreadPool threadpool, TimeValue cleanInterval, double stalenessThreshold) {
             this.stalenessThreshold = stalenessThreshold;
             this.keysToClean = ConcurrentCollections.newConcurrentSet();
             this.cleanupKeyToCountMap = ConcurrentCollections.newConcurrentMap();
@@ -495,6 +445,8 @@ public final class IndicesRequestCache extends AbstractLifecycleComponent
             ReadWriteLock rwLock = new ReentrantReadWriteLock();
             this.readLock = rwLock.readLock();
             this.writeLock = rwLock.writeLock();
+            this.cacheCleaner = new IndicesRequestCacheCleaner(this, threadpool, cleanInterval);
+            threadpool.schedule(cacheCleaner, cleanInterval, ThreadPool.Names.SAME);
         }
 
         /**
@@ -681,13 +633,9 @@ public final class IndicesRequestCache extends AbstractLifecycleComponent
                 if (cleanupKeysFromClosedShards.contains(key.shardId)) {
                     return true;
                 } else {
-                    Optional<CacheEntity> cacheEntity = cacheEntityLookup.apply(key.shardId);
-                    if (cacheEntity.isPresent()) {
-                        CleanupKey cleanupKey = new CleanupKey(cacheEntity.get(), key.readerCacheKeyId);
-                        return cleanupKeysFromOutdatedReaders.contains(cleanupKey);
-                    }
+                    CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId);
+                    return cleanupKeysFromOutdatedReaders.contains(cleanupKey);
                 }
-                return false;
             } finally {
                 readLock.unlock();
             }
@@ -737,6 +685,44 @@ public final class IndicesRequestCache extends AbstractLifecycleComponent
                 return ((double) staleKeysCount.get() / totalKeysInCache);
             } finally {
                 readLock.unlock();
+            }
+        }
+
+        @Override
+        public void close() {
+            this.cacheCleaner.close();
+        }
+
+        private final class IndicesRequestCacheCleaner implements Runnable, Releasable {
+
+            private final IndicesRequestCacheCleanupManager cacheCleanupManager;
+            private final ThreadPool threadPool;
+            private final TimeValue interval;
+
+            IndicesRequestCacheCleaner(IndicesRequestCacheCleanupManager cacheCleanupManager, ThreadPool threadPool, TimeValue interval) {
+                this.cacheCleanupManager = cacheCleanupManager;
+                this.threadPool = threadPool;
+                this.interval = interval;
+            }
+
+            private final AtomicBoolean closed = new AtomicBoolean(false);
+
+            @Override
+            public void run() {
+                try {
+                    this.cacheCleanupManager.cleanCache();
+                } catch (Exception e) {
+                    logger.warn("Exception during periodic indices request cache cleanup:", e);
+                }
+                // Reschedule itself to run again if not closed
+                if (closed.get() == false) {
+                    threadPool.scheduleUnlessShuttingDown(interval, ThreadPool.Names.SAME, this);
+                }
+            }
+
+            @Override
+            public void close() {
+                closed.compareAndSet(false, true);
             }
         }
     }
