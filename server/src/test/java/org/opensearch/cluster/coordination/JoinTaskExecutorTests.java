@@ -377,7 +377,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
     }
 
     public void testJoinClusterWithRemoteStoreNodeJoining() {
-        DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        Map<String, String> map = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO);
+        DiscoveryNode joiningNode = newDiscoveryNode(map);
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(joiningNode).build())
             .build();

@@ -13,12 +13,12 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.Strings;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.node.Node;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * This is an abstraction for validating and storing information specific to remote backed storage nodes.
@@ -132,16 +131,8 @@ public class RemoteStoreNodeAttribute {
     }
 
     private RepositoriesMetadata buildRepositoriesMetadata(DiscoveryNode node) {
-        validateDataRepositoryAttributes(node);
+        Set<String> repositoryNames = getValidatedRepositoryNames(node);
         List<RepositoryMetadata> repositoryMetadataList = new ArrayList<>();
-        Set<String> repositoryNames = Stream.of(
-            REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
-            REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY,
-            REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY
-        )
-            .map(repoKey -> node.getAttributes().get(repoKey))
-            .filter(repositoryName -> Strings.isNullOrEmpty(repositoryName) == false)
-            .collect(Collectors.toSet());
 
         for (String repositoryName : repositoryNames) {
             repositoryMetadataList.add(buildRepositoryMetadata(node, repositoryName));
@@ -150,12 +141,17 @@ public class RemoteStoreNodeAttribute {
         return new RepositoriesMetadata(repositoryMetadataList);
     }
 
-    private void validateDataRepositoryAttributes(DiscoveryNode node) {
+    private Set<String> getValidatedRepositoryNames(DiscoveryNode node) {
+        Set<String> repositoryNames = new HashSet<>();
         if (node.getAttributes().containsKey(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY)
             || node.getAttributes().containsKey(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY)) {
-            validateAttributeNonNull(node, REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY);
-            validateAttributeNonNull(node, REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY);
+            repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY));
+            repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY));
+            repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY));
+        } else if (node.getAttributes().containsKey(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY)) {
+            repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY));
         }
+        return repositoryNames;
     }
 
     public static boolean isRemoteStoreAttributePresent(Settings settings) {
