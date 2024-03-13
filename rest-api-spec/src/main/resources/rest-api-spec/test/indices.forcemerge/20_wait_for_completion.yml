@@ -5,7 +5,7 @@
 
   - skip:
       version: " - 2.6.99, 2.13.0 - "
-      reason: "wait_for_completion was introduced in in 2.7.0 and task description was changed in 2.13.0"
+      reason: "wait_for_completion was introduced in 2.7.0 and task description was changed in 2.13.0"
       features: allowed_warnings, node_selector
 
   - do:
@@ -34,9 +34,11 @@
   - skip:
       version: " - 2.12.99 "
       reason: "task description was changed in 2.13.0"
-      features: allowed_warnings
+      features: allowed_warnings, node_selector
 
   - do:
+      node_selector:
+        version: " 2.13.0 - "
       indices.forcemerge:
         index: test_index
         wait_for_completion: false
