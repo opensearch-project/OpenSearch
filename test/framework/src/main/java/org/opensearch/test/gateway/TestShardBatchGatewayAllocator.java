@@ -24,6 +24,7 @@ import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -36,8 +37,8 @@ public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator 
     PrimaryShardBatchAllocator primaryBatchShardAllocator = new PrimaryShardBatchAllocator() {
         @Override
         protected AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch> fetchData(
-            Set<ShardRouting> shardsEligibleForFetch,
-            Set<ShardRouting> inEligibleShards,
+            List<ShardRouting> eligibleShards,
+            List<ShardRouting> inEligibleShards,
             RoutingAllocation allocation
         ) {
             Map<DiscoveryNode, TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch> foundShards = new HashMap<>();
@@ -47,7 +48,7 @@ public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator 
                 Map<ShardId, ShardRouting> shardsOnNode = entry.getValue();
                 HashMap<ShardId, TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard> adaptedResponse = new HashMap<>();
 
-                for (ShardRouting shardRouting : shardsEligibleForFetch) {
+                for (ShardRouting shardRouting : eligibleShards) {
                     ShardId shardId = shardRouting.shardId();
                     Set<String> ignoreNodes = allocation.getIgnoreNodes(shardId);
 
@@ -78,8 +79,8 @@ public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator 
 
         @Override
         protected AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch> fetchData(
-            Set<ShardRouting> shardsEligibleForFetch,
-            Set<ShardRouting> inEligibleShards,
+            List<ShardRouting> eligibleShards,
+            List<ShardRouting> inEligibleShards,
             RoutingAllocation allocation
         ) {
             return new AsyncShardFetch.FetchResult<>(Collections.emptyMap(), Collections.emptyMap());
