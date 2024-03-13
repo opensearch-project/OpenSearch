@@ -934,7 +934,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata nodeStoreFilesMetadata,
         ShardId shardId
     ) {
-        assertNotNull(nodeStoreFilesMetadata.getStoreFileFetchException());
+        assertNotNull(nodeStoreFilesMetadata.getException());
         TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata storeFileMetadata = nodeStoreFilesMetadata.storeFilesMetadata();
         assertEquals(shardId, storeFileMetadata.shardId());
         assertTrue(storeFileMetadata.peerRecoveryRetentionLeases().isEmpty());
@@ -944,7 +944,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata nodeStoreFilesMetadata,
         ShardId shardId
     ) {
-        assertNull(nodeStoreFilesMetadata.getStoreFileFetchException());
+        assertNull(nodeStoreFilesMetadata.getException());
         TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata storeFileMetadata = nodeStoreFilesMetadata.storeFilesMetadata();
         assertFalse(storeFileMetadata.isEmpty());
         assertEquals(shardId, storeFileMetadata.shardId());
