@@ -32,31 +32,31 @@ public class StatsAwareReplicationCollection<T extends ReplicationTarget> extend
 
     @Override
     public boolean cancelForShard(ShardId shardId, String reason) {
-        tracker.incrementTotalCancelledRelocation(1);
+        tracker.incrementTotalCancelledRecoveries(1);
         return super.cancelForShard(shardId, reason);
     }
 
     @Override
     public long start(T target, TimeValue activityTimeout) {
-        tracker.incrementTotalStartedRelocation(1);
+        tracker.incrementTotalStartedRecoveries(1);
         return super.start(target, activityTimeout);
     }
 
     @Override
     public T reset(final long id, final TimeValue activityTimeout) {
-        tracker.incrementTotalRetriedRelocation(1);
+        tracker.incrementTotalRetriedRecoveries(1);
         return super.reset(id, activityTimeout);
     }
 
     @Override
     public void fail(long id, ReplicationFailedException e, boolean sendShardFailure) {
-        tracker.incrementTotalFailedRelocation(1);
+        tracker.incrementTotalFailedRecoveries(1);
         super.fail(id, e, sendShardFailure);
     }
 
     @Override
     public void markAsDone(long id) {
-        tracker.incrementTotalCompletedRelocation(1);
+        tracker.incrementTotalCompletedRecoveries(1);
         super.markAsDone(id);
     }
 

@@ -16,57 +16,57 @@ import java.util.concurrent.atomic.AtomicLong;
  * @opensearch.internal
  */
 public class PeerRecoveryStatsTracker {
-    private final AtomicLong total_started_recoveries;
-    private final AtomicLong total_failed_recoveries;
-    private final AtomicLong total_completed_recoveries;
-    private final AtomicLong total_retried_recoveries;
-    private final AtomicLong total_cancelled_recoveries;
+    private final AtomicLong totalStartedRecoveries;
+    private final AtomicLong totalFailedRecoveries;
+    private final AtomicLong totalCompletedRecoveries;
+    private final AtomicLong totalRetriedRecoveries;
+    private final AtomicLong totalCancelledRecoveries;
 
     public PeerRecoveryStatsTracker() {
-        total_started_recoveries = new AtomicLong();
-        total_failed_recoveries = new AtomicLong();
-        total_completed_recoveries = new AtomicLong();
-        total_retried_recoveries = new AtomicLong();
-        total_cancelled_recoveries = new AtomicLong();
+        totalStartedRecoveries = new AtomicLong();
+        totalFailedRecoveries = new AtomicLong();
+        totalCompletedRecoveries = new AtomicLong();
+        totalRetriedRecoveries = new AtomicLong();
+        totalCancelledRecoveries = new AtomicLong();
     }
 
-    public void incrementTotalStartedRelocation(long increment) {
-        total_started_recoveries.addAndGet(increment);
+    public void incrementTotalStartedRecoveries(long increment) {
+        totalStartedRecoveries.addAndGet(increment);
     }
 
-    public void incrementTotalFailedRelocation(long increment) {
-        total_failed_recoveries.addAndGet(increment);
+    public void incrementTotalFailedRecoveries(long increment) {
+        totalFailedRecoveries.addAndGet(increment);
     }
 
-    public void incrementTotalCompletedRelocation(long increment) {
-        total_completed_recoveries.addAndGet(increment);
+    public void incrementTotalCompletedRecoveries(long increment) {
+        totalCompletedRecoveries.addAndGet(increment);
     }
 
-    public void incrementTotalRetriedRelocation(long increment) {
-        total_retried_recoveries.addAndGet(increment);
+    public void incrementTotalRetriedRecoveries(long increment) {
+        totalRetriedRecoveries.addAndGet(increment);
     }
 
-    public void incrementTotalCancelledRelocation(long increment) {
-        total_cancelled_recoveries.addAndGet(increment);
+    public void incrementTotalCancelledRecoveries(long increment) {
+        totalCancelledRecoveries.addAndGet(increment);
     }
 
     public long getTotalCancelledRecoveries() {
-        return total_cancelled_recoveries.get();
+        return totalCancelledRecoveries.get();
     }
 
     public long getTotalStartedRecoveries() {
-        return total_started_recoveries.get();
+        return totalStartedRecoveries.get();
     }
 
     public long getTotalFailedRecoveries() {
-        return total_failed_recoveries.get();
+        return totalFailedRecoveries.get();
     }
 
     public long getTotalCompletedRecoveries() {
-        return total_completed_recoveries.get();
+        return totalCompletedRecoveries.get();
     }
 
     public long getTotalRetriedRecoveries() {
-        return total_retried_recoveries.get();
+        return totalRetriedRecoveries.get();
     }
 }
