@@ -87,7 +87,7 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
             for (ShardRouting shard : eligibleShards) {
                 Map<DiscoveryNode, StoreFilesMetadata> nodeShardStores = convertToNodeStoreFilesMetadataMap(shard, shardState);
 
-                Runnable cancellationAction = getShardCancellationAction(shard, allocation, nodeShardStores);
+                Runnable cancellationAction = cancelExistingRecoveryForBetterMatch(shard, allocation, nodeShardStores);
                 if (cancellationAction != null) {
                     shardCancellationActions.add(cancellationAction);
                 }
