@@ -33,12 +33,14 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.BucketOrder;
@@ -66,8 +68,9 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
     /**
      * Bucket count thresholds
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class BucketCountThresholds implements Writeable, ToXContentFragment {
         private long minDocCount;
         private long shardMinDocCount;
@@ -195,6 +198,30 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         }
     }
 
+    /**
+     * BucketCountThresholds type that throws an exception when shardMinDocCount or shardSize are accessed. This is used for
+     * deserialization on the coordinator during reduce as shardMinDocCount and shardSize should not be accessed this way on the
+     * coordinator.
+     *
+     * @opensearch.internal
+     */
+    public static class CoordinatorBucketCountThresholds extends BucketCountThresholds {
+
+        public CoordinatorBucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {
+            super(minDocCount, shardMinDocCount, requiredSize, shardSize);
+        }
+
+        @Override
+        public long getShardMinDocCount() {
+            throw new AggregationExecutionException("shard_min_doc_count should not be accessed via CoordinatorBucketCountThresholds");
+        }
+
+        @Override
+        public int getShardSize() {
+            throw new AggregationExecutionException("shard_size should not be accessed via CoordinatorBucketCountThresholds");
+        }
+    }
+
     protected final DocValueFormat format;
     protected final BucketCountThresholds bucketCountThresholds;
     protected final BucketOrder order;
@@ -219,10 +246,10 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         partiallyBuiltBucketComparator = order == null ? null : order.partiallyBuiltBucketComparator(b -> b.bucketOrd, this);
         this.format = format;
         if (subAggsNeedScore() && descendsFromNestedAggregator(parent)) {
-            /**
-             * Force the execution to depth_first because we need to access the score of
-             * nested documents in a sub-aggregation and we are not able to generate this score
-             * while replaying deferred documents.
+            /*
+              Force the execution to depth_first because we need to access the score of
+              nested documents in a sub-aggregation and we are not able to generate this score
+              while replaying deferred documents.
              */
             this.collectMode = SubAggCollectionMode.DEPTH_FIRST;
         } else {

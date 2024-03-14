@@ -43,12 +43,11 @@ import org.opensearch.cluster.routing.allocation.RerouteExplanation;
 import org.opensearch.cluster.routing.allocation.RoutingExplanations;
 import org.opensearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -165,7 +164,7 @@ public class ClusterRerouteResponseTests extends OpenSearchTestCase {
                     + "    }\n"
                     + "  }\n"
                     + "}",
-                Strings.toString(builder)
+                builder.toString()
             );
 
         }
@@ -204,7 +203,7 @@ public class ClusterRerouteResponseTests extends OpenSearchTestCase {
                     + "    }\n"
                     + "  ]\n"
                     + "}",
-                Strings.toString(builder)
+                builder.toString()
             );
         }
         {
@@ -262,7 +261,7 @@ public class ClusterRerouteResponseTests extends OpenSearchTestCase {
                     + "    }\n"
                     + "  }\n"
                     + "}",
-                Strings.toString(builder)
+                builder.toString()
             );
         }
     }

@@ -8,8 +8,8 @@
 
 package org.opensearch.index.store.remote.filecache;
 
-import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.cache.RemovalReason;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.index.store.remote.utils.cache.SegmentedCache;
 
 import java.nio.file.Files;

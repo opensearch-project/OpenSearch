@@ -13,14 +13,15 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,7 +31,10 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to make create point in time against one or more indices.
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.3.0")
 public class CreatePitRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContent {
 
     // keep alive for pit reader context

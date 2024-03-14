@@ -32,26 +32,18 @@
 
 package org.opensearch.common.geo.builders;
 
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.GeometryFactory;
-
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
-import org.opensearch.core.Assertions;
-import org.opensearch.common.Strings;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.parsers.GeoWKTParser;
+import org.opensearch.core.Assertions;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
-import org.locationtech.spatial4j.exception.InvalidShapeException;
-import org.locationtech.spatial4j.shape.Shape;
-import org.locationtech.spatial4j.shape.jts.JtsGeometry;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,6 +53,14 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Shape;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 /**
  * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc
@@ -521,6 +521,6 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.opensearch.geo
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
     }
 }

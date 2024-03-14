@@ -56,7 +56,7 @@ public interface ValueSource {
 
     /**
      * Returns a copy of the value this ValueSource holds and resolves templates if there're any.
-     *
+     * <p>
      * For immutable values only a copy of the reference to the value is made.
      *
      * @param model The model to be used when resolving any templates

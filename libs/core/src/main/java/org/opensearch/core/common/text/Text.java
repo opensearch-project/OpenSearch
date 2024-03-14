@@ -32,6 +32,7 @@
 package org.opensearch.core.common.text;
 
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -44,8 +45,9 @@ import java.nio.charset.StandardCharsets;
  * Both {@link String} and {@link BytesReference} representation of the text. Starts with one of those, and if
  * the other is requests, caches the other one in a local reference so no additional conversion will be needed.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class Text implements Comparable<Text>, ToXContentFragment {
 
     public static final Text[] EMPTY_ARRAY = new Text[0];

@@ -32,8 +32,8 @@
 
 package org.opensearch.search.slice;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
@@ -49,7 +49,7 @@ import java.io.IOException;
 
 /**
  * A {@link SliceQuery} that uses the numeric doc values of a field to do the slicing.
- *
+ * <p>
  * <b>NOTE</b>: With deterministic field values this query can be used across different readers safely.
  * If updates are accepted on the field you must ensure that the same reader is used for all `slice` queries.
  *

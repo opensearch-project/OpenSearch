@@ -35,6 +35,7 @@ package org.opensearch.action.ingest;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -49,8 +50,9 @@ import java.util.Objects;
 /**
  * transport request to put a pipeline
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> implements ToXContentObject {
 
     private String id;
@@ -70,7 +72,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         super(in);
         id = in.readString();
         source = in.readBytesReference();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
             mediaType = in.readMediaType();
         } else {
             mediaType = in.readEnum(XContentType.class);
@@ -101,7 +103,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         super.writeTo(out);
         out.writeString(id);
         out.writeBytesReference(source);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             mediaType.writeTo(out);
         } else {
             out.writeEnum((XContentType) mediaType);

@@ -32,9 +32,9 @@
 
 package org.opensearch.common.util;
 
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.lease.Releasables;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 

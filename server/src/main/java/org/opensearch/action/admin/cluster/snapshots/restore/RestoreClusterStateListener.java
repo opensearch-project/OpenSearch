@@ -34,12 +34,12 @@ package org.opensearch.action.admin.cluster.snapshots.restore;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.snapshots.RestoreInfo;
 import org.opensearch.snapshots.RestoreService;

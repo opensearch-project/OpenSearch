@@ -34,9 +34,9 @@ package org.opensearch.search.aggregations;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.breaker.CircuitBreakingException;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -135,7 +135,7 @@ public abstract class AggregatorBase extends Aggregator {
      * Returns a converter for point values if it's safe to use the indexed data instead of
      * doc values.  Generally, this means that the query has no filters or scripts, the aggregation is
      * top level, and the underlying field is indexed, and the index is sorted in the right order.
-     *
+     * <p>
      * If those conditions aren't met, return <code>null</code> to indicate a point reader cannot
      * be used in this case.
      *

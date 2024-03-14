@@ -37,15 +37,16 @@ import org.opensearch.cluster.Diffable;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.RemoteStoreRecoverySource;
+import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.core.index.Index;
-import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
@@ -66,8 +67,9 @@ import static org.opensearch.cluster.metadata.MetadataIndexStateService.isIndexV
  *
  * @see IndexRoutingTable
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<RoutingTable> {
 
     public static final RoutingTable EMPTY_ROUTING_TABLE = builder().build();
@@ -295,6 +297,26 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return allShardsSatisfyingPredicate(indices, shardRouting -> true, true);
     }
 
+    /**
+     * All the shards on the node which match the predicate
+     * @param predicate condition to match
+     * @return iterator over shards matching the predicate
+     */
+    public ShardsIterator allShardsSatisfyingPredicate(Predicate<ShardRouting> predicate) {
+        String[] indices = indicesRouting.keySet().toArray(new String[0]);
+        return allShardsSatisfyingPredicate(indices, predicate, false);
+    }
+
+    /**
+     * All the shards for the provided indices on the node which match the predicate
+     * @param indices indices to return all the shards.
+     * @param predicate condition to match
+     * @return iterator over shards matching the predicate for the specific indices
+     */
+    public ShardsIterator allShardsSatisfyingPredicate(String[] indices, Predicate<ShardRouting> predicate) {
+        return allShardsSatisfyingPredicate(indices, predicate, false);
+    }
+
     private ShardsIterator allShardsSatisfyingPredicate(
         String[] indices,
         Predicate<ShardRouting> predicate,
@@ -423,8 +445,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     /**
      * Builder for the routing table. Note that build can only be called one time.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
         private long version;
@@ -565,10 +588,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         public Builder addAsRemoteStoreRestore(
             IndexMetadata indexMetadata,
             RemoteStoreRecoverySource recoverySource,
-            Map<ShardId, ShardRouting> activeInitializingShards
+            Map<ShardId, IndexShardRoutingTable> indexShardRoutingTableMap,
+            boolean forceRecoveryPrimary
         ) {
             IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetadata.getIndex())
-                .initializeAsRemoteStoreRestore(indexMetadata, recoverySource, activeInitializingShards);
+                .initializeAsRemoteStoreRestore(indexMetadata, recoverySource, indexShardRoutingTableMap, forceRecoveryPrimary);
             add(indexRoutingBuilder);
             return this;
         }

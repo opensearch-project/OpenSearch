@@ -202,3 +202,79 @@ teardown:
         id: 1
   - match: { _source.source_field: "foo%20bar" }
   - match: { _source.target_field: "foo bar" }
+
+---
+"Test self referencing source with ignore failure":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "ctx.foo['foo']=ctx.foo;ctx['test-field']='test-value'",
+                  "ignore_failure": true
+                }
+              },
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "ctx.target_field = Processors.uppercase(ctx.source_field)"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {source_field: "fooBar", foo: {foo: "bar"}}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.source_field: "fooBar" }
+  - match: { _source.target_field: "FOOBAR"}
+  - match: { _source.test-field: null}
+
+---
+"Test self referencing source without ignoring failure":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "ctx.foo['foo']=ctx.foo;ctx['test-field']='test-value'"
+                }
+              },
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "ctx.target_field = Processors.uppercase(ctx.source_field)"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: bad_request
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {source_field: "fooBar", foo: {foo: "bar"}}
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Iterable object is self-referencing itself (ingest script)" }

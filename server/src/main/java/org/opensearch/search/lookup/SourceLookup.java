@@ -36,12 +36,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -58,8 +59,9 @@ import static java.util.Collections.emptyMap;
 /**
  * Orchestrator class for source lookups
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SourceLookup implements Map {
 
     private LeafReader reader;
@@ -180,7 +182,7 @@ public class SourceLookup implements Map {
 
     /**
      * For the provided path, return its value in the source.
-     *
+     * <p>
      * Note that in contrast with {@link SourceLookup#extractRawValues}, array and object values
      * can be returned.
      *

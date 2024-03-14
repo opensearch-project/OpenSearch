@@ -47,7 +47,7 @@ import static org.junit.Assert.fail;
 
 /**
  * Represents a lte assert section:
- *
+ * <p>
  *   - lte:     { fields._ttl: 0 }
  */
 public class LessThanOrEqualToAssertion extends Assertion {

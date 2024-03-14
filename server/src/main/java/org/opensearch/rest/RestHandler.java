@@ -108,7 +108,7 @@ public interface RestHandler {
     }
 
     /**
-     * Controls whether requests handled by this class are allowed to to access system indices by default.
+     * Controls whether requests handled by this class are allowed to access system indices by default.
      * @return {@code true} if requests handled by this class should be allowed to access system indices.
      */
     default boolean allowSystemIndexAccessByDefault() {

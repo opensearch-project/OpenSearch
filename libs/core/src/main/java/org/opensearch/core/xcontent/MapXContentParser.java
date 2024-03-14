@@ -45,7 +45,7 @@ import java.util.Map;
  */
 public class MapXContentParser extends AbstractXContentParser {
 
-    private MediaType xContentType;
+    private MediaType mediaType;
     private TokenIterator iterator;
     private boolean closed;
 
@@ -53,10 +53,10 @@ public class MapXContentParser extends AbstractXContentParser {
         NamedXContentRegistry xContentRegistry,
         DeprecationHandler deprecationHandler,
         Map<String, Object> map,
-        MediaType xContentType
+        MediaType mediaType
     ) {
         super(xContentRegistry, deprecationHandler);
-        this.xContentType = xContentType;
+        this.mediaType = mediaType;
         this.iterator = new MapIterator(null, null, map);
     }
 
@@ -105,7 +105,7 @@ public class MapXContentParser extends AbstractXContentParser {
 
     @Override
     public MediaType contentType() {
-        return xContentType;
+        return mediaType;
     }
 
     @Override
@@ -277,7 +277,7 @@ public class MapXContentParser extends AbstractXContentParser {
 
         /**
          * field name that the child element needs to inherit.
-         *
+         * <p>
          * In most cases this is the same as currentName() except with embedded arrays. In "foo": [[42]] the first START_ARRAY
          * token will have the name "foo", but the second START_ARRAY will have no name.
          */

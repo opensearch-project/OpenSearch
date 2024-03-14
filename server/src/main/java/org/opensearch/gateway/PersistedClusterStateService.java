@@ -67,29 +67,29 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.bytes.RecyclingBytesStreamOutput;
 import org.opensearch.common.io.Streams;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.core.common.util.ByteArray;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.util.ByteArray;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeMetadata;
-import org.opensearch.core.index.Index;
 
 import java.io.Closeable;
 import java.io.IOError;
@@ -111,16 +111,16 @@ import java.util.function.Supplier;
  * Stores cluster metadata in a bare Lucene index (per data path) split across a number of documents. This is used by cluster-manager-eligible nodes
  * to record the last-accepted cluster state during publication. The metadata is written incrementally where possible, leaving alone any
  * documents that have not changed. The index has the following fields:
- *
+ * <p>
  * +------------------------------+-----------------------------+----------------------------------------------+
  * | "type" (string field)        | "index_uuid" (string field) | "data" (stored binary field in SMILE format) |
  * +------------------------------+-----------------------------+----------------------------------------------+
  * | GLOBAL_TYPE_NAME == "global" | (omitted)                   | Global metadata                              |
  * | INDEX_TYPE_NAME  == "index"  | Index UUID                  | Index metadata                               |
  * +------------------------------+-----------------------------+----------------------------------------------+
- *
+ * <p>
  * Additionally each commit has the following user data:
- *
+ * <p>
  * +---------------------------+-------------------------+-------------------------------------------------------------------------------+
  * |        Key symbol         |       Key literal       |                                     Value                                     |
  * +---------------------------+-------------------------+-------------------------------------------------------------------------------+
@@ -129,7 +129,7 @@ import java.util.function.Supplier;
  * | NODE_ID_KEY               | "node_id"               | The (persistent) ID of the node that wrote this metadata                      |
  * | NODE_VERSION_KEY          | "node_version"          | The (ID of the) version of the node that wrote this metadata                  |
  * +---------------------------+-------------------------+-------------------------------------------------------------------------------+
- *
+ * <p>
  * (the last-accepted term is recorded in Metadata → CoordinationMetadata so does not need repeating here)
  *
  * @opensearch.internal
@@ -448,7 +448,7 @@ public class PersistedClusterStateService {
         final SetOnce<Metadata.Builder> builderReference = new SetOnce<>();
         consumeFromType(searcher, GLOBAL_TYPE_NAME, bytes -> {
             final Metadata metadata = Metadata.Builder.fromXContent(
-                XContentFactory.xContent(XContentType.SMILE)
+                XContentType.SMILE.xContent()
                     .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length)
             );
             logger.trace("found global metadata with last-accepted term [{}]", metadata.coordinationMetadata().term());
@@ -468,7 +468,7 @@ public class PersistedClusterStateService {
         final Set<String> indexUUIDs = new HashSet<>();
         consumeFromType(searcher, INDEX_TYPE_NAME, bytes -> {
             final IndexMetadata indexMetadata = IndexMetadata.fromXContent(
-                XContentFactory.xContent(XContentType.SMILE)
+                XContentType.SMILE.xContent()
                     .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length)
             );
             logger.trace("found index metadata for {}", indexMetadata.getIndex());
@@ -921,7 +921,7 @@ public class PersistedClusterStateService {
 
             try (RecyclingBytesStreamOutput streamOutput = documentBuffer.streamOutput()) {
                 try (
-                    XContentBuilder xContentBuilder = XContentFactory.contentBuilder(
+                    XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(
                         XContentType.SMILE,
                         Streams.flushOnCloseStream(streamOutput)
                     )

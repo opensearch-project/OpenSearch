@@ -32,6 +32,7 @@
 
 package org.opensearch.index.seqno;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -39,9 +40,9 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.xcontent.XContent;
 import org.opensearch.gateway.MetadataStateFormat;
 
 import java.io.IOException;
@@ -57,8 +58,9 @@ import java.util.stream.Collectors;
  * Represents a versioned collection of retention leases. We version the collection of retention leases to ensure that sync requests that
  * arrive out of order on the replica, using the version to ensure that older sync requests are rejected.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RetentionLeases implements ToXContentFragment, Writeable {
 
     private final long primaryTerm;

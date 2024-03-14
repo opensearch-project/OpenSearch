@@ -31,17 +31,17 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -73,7 +73,7 @@ public class IndexTemplateMetadataTests extends OpenSearchTestCase {
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 templateBytes,
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         ) {
             indexTemplateMetadata = IndexTemplateMetadata.Builder.fromXContent(parser, "test");
@@ -93,7 +93,7 @@ public class IndexTemplateMetadataTests extends OpenSearchTestCase {
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 templateBytesRoundTrip,
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         ) {
             indexTemplateMetadataRoundTrip = IndexTemplateMetadata.Builder.fromXContent(parser, "test");
@@ -142,7 +142,7 @@ public class IndexTemplateMetadataTests extends OpenSearchTestCase {
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 new BytesArray(templateWithEmptyPattern),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         ) {
             final IllegalArgumentException ex = expectThrows(
@@ -166,7 +166,7 @@ public class IndexTemplateMetadataTests extends OpenSearchTestCase {
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 new BytesArray(templateWithoutPattern),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         ) {
             final IllegalArgumentException ex = expectThrows(
@@ -184,7 +184,7 @@ public class IndexTemplateMetadataTests extends OpenSearchTestCase {
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 new BytesArray(templateInJSON),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         ) {
             IndexTemplateMetadata template = IndexTemplateMetadata.Builder.fromXContent(parser, randomAlphaOfLengthBetween(1, 100));
@@ -222,7 +222,7 @@ public class IndexTemplateMetadataTests extends OpenSearchTestCase {
             templateBuilder.putMapping("doc", "{\"doc\":{\"properties\":{\"type\":\"text\"}}}");
         }
         IndexTemplateMetadata template = templateBuilder.build();
-        XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.JSON.xContent()));
+        XContentBuilder builder = XContentBuilder.builder(randomFrom(MediaTypeRegistry.JSON.xContent()));
         builder.startObject();
         IndexTemplateMetadata.Builder.toXContentWithTypes(template, builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();

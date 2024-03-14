@@ -32,10 +32,12 @@
 
 package org.opensearch.common.compress;
 
-import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.Assertions;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.Assertions;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.compress.Compressor;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -52,7 +54,8 @@ import java.util.zip.InflaterOutputStream;
 /**
  * {@link Compressor} implementation based on the DEFLATE compression algorithm.
  *
- * @opensearch.internal
+ * @opensearch.api - registered name requires BWC support
+ * @opensearch.experimental - class methods might change
  */
 public class DeflateCompressor implements Compressor {
 
@@ -61,6 +64,15 @@ public class DeflateCompressor implements Compressor {
     // enough so that no stream starting with these bytes could be detected as
     // a XContent
     private static final byte[] HEADER = new byte[] { 'D', 'F', 'L', '\0' };
+
+    /**
+     * The name to register the compressor by
+     *
+     * @opensearch.api - requires BWC support
+     */
+    @PublicApi(since = "2.10.0")
+    public static String NAME = "DEFLATE";
+
     // 3 is a good trade-off between speed and compression ratio
     private static final int LEVEL = 3;
     // We use buffering on the input and output of in/def-laters in order to

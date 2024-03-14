@@ -35,6 +35,7 @@ package org.opensearch.cluster.health;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -61,8 +62,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
 /**
  * Cluster Index Health Information
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Writeable, ToXContentFragment {
     private static final String STATUS = "status";
     private static final String NUMBER_OF_SHARDS = "number_of_shards";

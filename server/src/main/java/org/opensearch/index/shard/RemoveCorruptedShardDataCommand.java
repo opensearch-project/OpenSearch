@@ -54,20 +54,20 @@ import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAll
 import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeMetadata;
 import org.opensearch.gateway.PersistedClusterStateService;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -514,7 +514,7 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
         );
 
         terminal.println("");
-        terminal.println("POST /_cluster/reroute\n" + Strings.toString(XContentType.JSON, commands, true, true));
+        terminal.println("POST /_cluster/reroute\n" + Strings.toString(MediaTypeRegistry.JSON, commands, true, true));
         terminal.println("");
         terminal.println("You must accept the possibility of data loss by changing the `accept_data_loss` parameter to `true`.");
         terminal.println("");

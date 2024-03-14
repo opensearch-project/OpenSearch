@@ -33,6 +33,7 @@ package org.opensearch.action.admin.indices.template.delete;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -43,8 +44,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * A request to delete an index template.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DeleteIndexTemplateRequest extends ClusterManagerNodeRequest<DeleteIndexTemplateRequest> {
 
     private String name;

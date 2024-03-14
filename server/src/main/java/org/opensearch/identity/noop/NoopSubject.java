@@ -8,16 +8,16 @@
 
 package org.opensearch.identity.noop;
 
+import org.opensearch.identity.NamedPrincipal;
+import org.opensearch.identity.Subject;
+import org.opensearch.identity.tokens.AuthToken;
+
 import java.security.Principal;
 import java.util.Objects;
 
-import org.opensearch.identity.NamedPrincipal;
-import org.opensearch.identity.tokens.AuthToken;
-import org.opensearch.identity.Subject;
-
 /**
  * Implementation of subject that is always authenticated
- *
+ * <p>
  * This class and related classes in this package will not return nulls or fail permissions checks
  *
  * @opensearch.internal

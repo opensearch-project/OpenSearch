@@ -35,23 +35,23 @@ package org.opensearch.index.reindex;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.SearchHit;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -138,7 +138,7 @@ public abstract class ScrollableHitSource {
 
     public final void close(Runnable onCompletion) {
         String scrollId = this.scrollId.get();
-        if (org.opensearch.core.common.Strings.hasLength(scrollId)) {
+        if (Strings.hasLength(scrollId)) {
             clearScroll(scrollId, () -> cleanup(onCompletion));
         } else {
             cleanup(onCompletion);
@@ -499,7 +499,7 @@ public abstract class ScrollableHitSource {
 
         @Override
         public String toString() {
-            return Strings.toString(XContentType.JSON, this);
+            return Strings.toString(MediaTypeRegistry.JSON, this);
         }
     }
 }

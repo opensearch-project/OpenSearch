@@ -8,13 +8,6 @@
 
 package org.opensearch.index.store.remote.directory;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.function.Supplier;
-
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -31,6 +24,13 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.threadpool.ThreadPool;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.function.Supplier;
 
 /**
  * Factory for a Directory implementation that can read directly from index

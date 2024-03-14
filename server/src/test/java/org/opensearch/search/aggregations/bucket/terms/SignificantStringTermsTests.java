@@ -80,14 +80,13 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
         }
         return new SignificantStringTerms(
             name,
-            requiredSize,
-            1L,
             metadata,
             format,
             subsetSize,
             supersetSize,
             significanceHeuristic,
-            buckets
+            buckets,
+            new TermsAggregator.BucketCountThresholds(1L, 0, requiredSize, 0)
         );
     }
 
@@ -153,14 +152,13 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
             }
             return new SignificantStringTerms(
                 name,
-                requiredSize,
-                minDocCount,
                 metadata,
                 format,
                 subsetSize,
                 supersetSize,
                 significanceHeuristic,
-                buckets
+                buckets,
+                new TermsAggregator.BucketCountThresholds(minDocCount, 0, requiredSize, 0)
             );
         } else {
             String name = instance.getName();
@@ -188,7 +186,7 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
                 default:
                     throw new AssertionError("Illegal randomisation branch");
             }
-            return new UnmappedSignificantTerms(name, requiredSize, minDocCount, metadata);
+            return new UnmappedSignificantTerms(name, new TermsAggregator.BucketCountThresholds(minDocCount, 0, requiredSize, 0), metadata);
         }
     }
 }

@@ -32,14 +32,12 @@
 
 package org.opensearch.client.sniff;
 
+import org.apache.hc.core5.http.HttpHost;
 import org.opensearch.client.Node;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientTestCase;
 import org.opensearch.client.sniff.Sniffer.DefaultScheduler;
 import org.opensearch.client.sniff.Sniffer.Scheduler;
-import org.apache.hc.core5.http.HttpHost;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,6 +58,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;

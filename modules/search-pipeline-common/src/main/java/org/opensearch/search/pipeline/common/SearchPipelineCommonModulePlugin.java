@@ -38,12 +38,21 @@ public class SearchPipelineCommonModulePlugin extends Plugin implements SearchPi
             FilterQueryRequestProcessor.TYPE,
             new FilterQueryRequestProcessor.Factory(parameters.namedXContentRegistry),
             ScriptRequestProcessor.TYPE,
-            new ScriptRequestProcessor.Factory(parameters.scriptService)
+            new ScriptRequestProcessor.Factory(parameters.scriptService),
+            OversampleRequestProcessor.TYPE,
+            new OversampleRequestProcessor.Factory()
         );
     }
 
     @Override
     public Map<String, Processor.Factory<SearchResponseProcessor>> getResponseProcessors(Parameters parameters) {
-        return Map.of(RenameFieldResponseProcessor.TYPE, new RenameFieldResponseProcessor.Factory());
+        return Map.of(
+            RenameFieldResponseProcessor.TYPE,
+            new RenameFieldResponseProcessor.Factory(),
+            TruncateHitsResponseProcessor.TYPE,
+            new TruncateHitsResponseProcessor.Factory(),
+            CollapseResponseProcessor.TYPE,
+            new CollapseResponseProcessor.Factory()
+        );
     }
 }

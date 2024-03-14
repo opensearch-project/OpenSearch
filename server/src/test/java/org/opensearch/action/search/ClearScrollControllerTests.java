@@ -32,13 +32,14 @@
 package org.opensearch.action.search;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
@@ -46,7 +47,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.transport.NodeNotConnectedException;
 import org.opensearch.transport.Transport;
-import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.Arrays;

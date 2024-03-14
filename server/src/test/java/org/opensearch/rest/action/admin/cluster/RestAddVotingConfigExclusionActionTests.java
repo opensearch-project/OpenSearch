@@ -38,6 +38,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
+
 import java.util.HashMap;
 import java.util.Map;
 

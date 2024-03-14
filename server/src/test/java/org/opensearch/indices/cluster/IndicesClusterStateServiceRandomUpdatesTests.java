@@ -62,14 +62,15 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
@@ -545,7 +546,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(

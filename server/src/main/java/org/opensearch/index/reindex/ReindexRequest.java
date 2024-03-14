@@ -36,24 +36,24 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.CompositeIndicesRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.ParseField;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.script.Script;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -356,7 +356,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 request.getSearchRequest().indices(indices);
             }
             request.setRemoteInfo(buildRemoteInfo(source));
-            XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(parser.contentType());
             builder.map(source);
             try (
                 InputStream stream = BytesReference.bytes(builder).streamInput();

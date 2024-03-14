@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.opensearch.action.admin.indices.shards.IndicesShardStoresRequest;
@@ -59,8 +58,9 @@ import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 

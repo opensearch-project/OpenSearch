@@ -41,13 +41,13 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
+import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -691,7 +691,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         /**
          * Constructor
-         *
+         * <p>
          * {@code flags} is Lucene's <a href="https://github.com/apache/lucene/blob/main/lucene/core/src/java/org/apache/lucene/util/automaton/RegExp.java#L391-L411">syntax flags</a>
          * and {@code caseInsensitive} enables Lucene's only <a href="https://github.com/apache/lucene/blob/main/lucene/core/src/java/org/apache/lucene/util/automaton/RegExp.java#L416">matching flag</a>.
          */

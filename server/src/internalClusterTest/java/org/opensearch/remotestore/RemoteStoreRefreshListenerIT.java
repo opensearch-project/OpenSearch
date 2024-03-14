@@ -22,15 +22,19 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.opensearch.index.remote.RemoteRefreshSegmentPressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED;
+import static org.opensearch.index.remote.RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreRefreshListenerIT extends AbstractRemoteStoreMockRepositoryIntegTestCase {
 
     public void testRemoteRefreshRetryOnFailure() throws Exception {
-
         Path location = randomRepoPath().toAbsolutePath();
         setup(location, randomDoubleBetween(0.1, 0.15, true), "metadata", 10L);
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.getKey(), false))
+            .get();
 
         // Here we are having flush/refresh after each iteration of indexing. However, the refresh will not always succeed
         // due to IOExceptions that are thrown while doing uploadBlobs.
@@ -56,7 +60,7 @@ public class RemoteStoreRefreshListenerIT extends AbstractRemoteStoreMockReposit
             logger.info("Local files = {}, Repo files = {}", sortedFilesInLocal, sortedFilesInRepo);
             assertTrue(filesInRepo.containsAll(filesInLocal));
         }, 90, TimeUnit.SECONDS);
-        deleteRepo();
+        cleanupRepo();
     }
 
     public void testRemoteRefreshSegmentPressureSettingChanged() {

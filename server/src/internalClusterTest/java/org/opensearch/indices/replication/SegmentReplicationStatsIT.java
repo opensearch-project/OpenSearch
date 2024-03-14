@@ -8,9 +8,15 @@
 
 package org.opensearch.indices.replication;
 
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
+import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.shard.IndexShard;
@@ -262,12 +268,12 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
         internalCluster().startClusterManagerOnlyNode();
         final String index_2 = "tst-index-2";
         List<String> nodes = new ArrayList<>();
-        final String primaryNode = internalCluster().startNode();
+        final String primaryNode = internalCluster().startDataOnlyNode();
         nodes.add(primaryNode);
         createIndex(INDEX_NAME, index_2);
 
         ensureYellowAndNoInitializingShards(INDEX_NAME, index_2);
-        nodes.add(internalCluster().startNode());
+        nodes.add(internalCluster().startDataOnlyNode());
         ensureGreen(INDEX_NAME, index_2);
 
         final long numDocs = scaledRandomIntBetween(50, 100);
@@ -278,6 +284,7 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
         refresh(INDEX_NAME, index_2);
         waitForSearchableDocs(INDEX_NAME, numDocs, nodes);
         waitForSearchableDocs(index_2, numDocs, nodes);
+        ensureSearchable(INDEX_NAME, index_2);
 
         final IndexShard index_1_primary = getIndexShard(primaryNode, INDEX_NAME);
         final IndexShard index_2_primary = getIndexShard(primaryNode, index_2);
@@ -285,37 +292,39 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
         assertTrue(index_1_primary.routingEntry().primary());
         assertTrue(index_2_primary.routingEntry().primary());
 
-        // test both indices are returned in the response.
-        SegmentReplicationStatsResponse segmentReplicationStatsResponse = client().admin()
-            .indices()
-            .prepareSegmentReplicationStats()
-            .execute()
-            .actionGet();
+        assertBusy(() -> {
+            // test both indices are returned in the response.
+            SegmentReplicationStatsResponse segmentReplicationStatsResponse = dataNodeClient().admin()
+                .indices()
+                .prepareSegmentReplicationStats()
+                .execute()
+                .actionGet();
 
-        Map<String, List<SegmentReplicationPerGroupStats>> replicationStats = segmentReplicationStatsResponse.getReplicationStats();
-        assertEquals(2, replicationStats.size());
-        List<SegmentReplicationPerGroupStats> replicationPerGroupStats = replicationStats.get(INDEX_NAME);
-        assertEquals(1, replicationPerGroupStats.size());
-        SegmentReplicationPerGroupStats perGroupStats = replicationPerGroupStats.get(0);
-        assertEquals(perGroupStats.getShardId(), index_1_primary.shardId());
-        Set<SegmentReplicationShardStats> replicaStats = perGroupStats.getReplicaStats();
-        assertEquals(1, replicaStats.size());
-        for (SegmentReplicationShardStats replica : replicaStats) {
-            assertNotNull(replica.getCurrentReplicationState());
-        }
+            Map<String, List<SegmentReplicationPerGroupStats>> replicationStats = segmentReplicationStatsResponse.getReplicationStats();
+            assertEquals(2, replicationStats.size());
+            List<SegmentReplicationPerGroupStats> replicationPerGroupStats = replicationStats.get(INDEX_NAME);
+            assertEquals(1, replicationPerGroupStats.size());
+            SegmentReplicationPerGroupStats perGroupStats = replicationPerGroupStats.get(0);
+            assertEquals(perGroupStats.getShardId(), index_1_primary.shardId());
+            Set<SegmentReplicationShardStats> replicaStats = perGroupStats.getReplicaStats();
+            assertEquals(1, replicaStats.size());
+            for (SegmentReplicationShardStats replica : replicaStats) {
+                assertNotNull(replica.getCurrentReplicationState());
+            }
 
-        replicationPerGroupStats = replicationStats.get(index_2);
-        assertEquals(1, replicationPerGroupStats.size());
-        perGroupStats = replicationPerGroupStats.get(0);
-        assertEquals(perGroupStats.getShardId(), index_2_primary.shardId());
-        replicaStats = perGroupStats.getReplicaStats();
-        assertEquals(1, replicaStats.size());
-        for (SegmentReplicationShardStats replica : replicaStats) {
-            assertNotNull(replica.getCurrentReplicationState());
-        }
+            replicationPerGroupStats = replicationStats.get(index_2);
+            assertEquals(1, replicationPerGroupStats.size());
+            perGroupStats = replicationPerGroupStats.get(0);
+            assertEquals(perGroupStats.getShardId(), index_2_primary.shardId());
+            replicaStats = perGroupStats.getReplicaStats();
+            assertEquals(1, replicaStats.size());
+            for (SegmentReplicationShardStats replica : replicaStats) {
+                assertNotNull(replica.getCurrentReplicationState());
+            }
+        }, 30, TimeUnit.SECONDS);
 
         // test only single index queried.
-        segmentReplicationStatsResponse = client().admin()
+        SegmentReplicationStatsResponse segmentReplicationStatsResponse = dataNodeClient().admin()
             .indices()
             .prepareSegmentReplicationStats()
             .setIndices(index_2)
@@ -357,4 +366,71 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
             .actionGet();
         assertTrue(segmentReplicationStatsResponse.getReplicationStats().isEmpty());
     }
+
+    public void testSegmentReplicationNodeAndIndexStats() throws Exception {
+        logger.info("--> start primary node");
+        final String primaryNode = internalCluster().startNode();
+
+        logger.info("--> create index on node: {}", primaryNode);
+        assertAcked(prepareCreate(INDEX_NAME, Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)));
+
+        ensureYellow();
+        logger.info("--> start first replica node");
+        final String replicaNode1 = internalCluster().startNode();
+
+        logger.info("--> start second replica node");
+        final String replicaNode2 = internalCluster().startNode();
+
+        ensureGreen();
+        CountDownLatch latch = new CountDownLatch(1);
+        // block replication
+        try (final Releasable ignored = blockReplication(List.of(replicaNode1, replicaNode2), latch)) {
+            // index another doc while blocked, this would not get replicated to the replicas.
+            Thread indexingThread = new Thread(() -> {
+                client().prepareIndex(INDEX_NAME).setId("2").setSource("foo2", randomInt()).get();
+                refresh(INDEX_NAME);
+            });
+
+            indexingThread.start();
+            indexingThread.join();
+            latch.await();
+
+            NodesStatsResponse nodesStatsResponse = client().admin()
+                .cluster()
+                .prepareNodesStats()
+                .clear()
+                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Segments))
+                .get();
+
+            for (NodeStats nodeStats : nodesStatsResponse.getNodes()) {
+                ReplicationStats replicationStats = nodeStats.getIndices().getSegments().getReplicationStats();
+                // primary node - should hold replication statistics
+                if (nodeStats.getNode().getName().equals(primaryNode)) {
+                    assertTrue(replicationStats.getMaxBytesBehind() > 0);
+                    assertTrue(replicationStats.getTotalBytesBehind() > 0);
+                    assertTrue(replicationStats.getMaxReplicationLag() > 0);
+                    // 2 replicas so total bytes should be double of max
+                    assertEquals(replicationStats.getMaxBytesBehind() * 2, replicationStats.getTotalBytesBehind());
+                }
+                // replica nodes - should hold empty replication statistics
+                if (nodeStats.getNode().getName().equals(replicaNode1) || nodeStats.getNode().getName().equals(replicaNode2)) {
+                    assertEquals(0, replicationStats.getMaxBytesBehind());
+                    assertEquals(0, replicationStats.getTotalBytesBehind());
+                    assertEquals(0, replicationStats.getMaxReplicationLag());
+                }
+            }
+            // get replication statistics at index level
+            IndicesStatsResponse stats = client().admin().indices().prepareStats().execute().actionGet();
+
+            // stats should be of non-zero value when aggregated at index level
+            ReplicationStats indexReplicationStats = stats.getIndex(INDEX_NAME).getTotal().getSegments().getReplicationStats();
+            assertNotNull(indexReplicationStats);
+            assertTrue(indexReplicationStats.getMaxBytesBehind() > 0);
+            assertTrue(indexReplicationStats.getTotalBytesBehind() > 0);
+            assertTrue(indexReplicationStats.getMaxReplicationLag() > 0);
+            assertEquals(2 * indexReplicationStats.getMaxBytesBehind(), indexReplicationStats.getTotalBytesBehind());
+        }
+
+    }
+
 }

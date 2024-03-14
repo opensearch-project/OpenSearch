@@ -35,17 +35,17 @@ package org.opensearch.search.suggest;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
@@ -59,8 +59,8 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.suggest.SuggestionSearchContext.SuggestionContext;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -146,7 +146,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     public void testFromXContent() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB suggestionBuilder = randomTestBuilder();
-            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
                 xContentBuilder.prettyPrint();
             }

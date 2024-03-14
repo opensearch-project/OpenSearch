@@ -32,13 +32,12 @@
 
 package org.opensearch.search.profile.query;
 
-import org.opensearch.common.Strings;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -46,7 +45,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
@@ -144,7 +143,7 @@ public class CollectorResultTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  ]\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
 
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
@@ -170,7 +169,7 @@ public class CollectorResultTests extends OpenSearchTestCase {
                 + "    }\n"
                 + "  ]\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
 
         result = new CollectorResult("collectorName", "some reason", 12345678L, Collections.emptyList());
@@ -183,7 +182,7 @@ public class CollectorResultTests extends OpenSearchTestCase {
                 + "  \"time\" : \"12.3ms\",\n"
                 + "  \"time_in_nanos\" : 12345678\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
 
         result = new CollectorResult("collectorName", "some reason", 1234567890L, Collections.emptyList());
@@ -196,7 +195,7 @@ public class CollectorResultTests extends OpenSearchTestCase {
                 + "  \"time\" : \"1.2s\",\n"
                 + "  \"time_in_nanos\" : 1234567890\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
 
         result = new CollectorResult(
@@ -224,7 +223,7 @@ public class CollectorResultTests extends OpenSearchTestCase {
                 + "  \"avg_slice_time_in_nanos\" : 123456789,\n"
                 + "  \"slice_count\" : 3\n"
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
     }
 }

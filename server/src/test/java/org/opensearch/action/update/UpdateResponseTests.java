@@ -35,18 +35,19 @@ package org.opensearch.action.update;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.index.IndexResponseTests;
 import org.opensearch.action.support.replication.ReplicationResponse;
-import org.opensearch.common.Strings;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.get.GetResultTests;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
 
@@ -60,7 +61,7 @@ import static org.opensearch.action.DocWriteResponse.Result.DELETED;
 import static org.opensearch.action.DocWriteResponse.Result.NOT_FOUND;
 import static org.opensearch.action.DocWriteResponse.Result.UPDATED;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
@@ -69,7 +70,7 @@ public class UpdateResponseTests extends OpenSearchTestCase {
     public void testToXContent() throws IOException {
         {
             UpdateResponse updateResponse = new UpdateResponse(new ShardId("index", "index_uuid", 0), "id", -2, 0, 0, NOT_FOUND);
-            String output = Strings.toString(XContentType.JSON, updateResponse);
+            String output = Strings.toString(MediaTypeRegistry.JSON, updateResponse);
             assertEquals(
                 "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":0,\"result\":\"not_found\","
                     + "\"_shards\":{\"total\":0,\"successful\":0,\"failed\":0}}",
@@ -86,7 +87,7 @@ public class UpdateResponseTests extends OpenSearchTestCase {
                 1,
                 DELETED
             );
-            String output = Strings.toString(XContentType.JSON, updateResponse);
+            String output = Strings.toString(MediaTypeRegistry.JSON, updateResponse);
             assertEquals(
                 "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"result\":\"deleted\","
                     + "\"_shards\":{\"total\":10,\"successful\":6,\"failed\":0},\"_seq_no\":3,\"_primary_term\":17}",
@@ -110,7 +111,7 @@ public class UpdateResponseTests extends OpenSearchTestCase {
             );
             updateResponse.setGetResult(new GetResult("books", "1", 0, 1, 2, true, source, fields, null));
 
-            String output = Strings.toString(XContentType.JSON, updateResponse);
+            String output = Strings.toString(MediaTypeRegistry.JSON, updateResponse);
             assertEquals(
                 "{\"_index\":\"books\",\"_id\":\"1\",\"_version\":2,\"result\":\"updated\","
                     + "\"_shards\":{\"total\":3,\"successful\":2,\"failed\":0},\"_seq_no\":7,\"_primary_term\":17,\"get\":{"
@@ -136,13 +137,13 @@ public class UpdateResponseTests extends OpenSearchTestCase {
     }
 
     private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-        final XContentType xContentType = randomFrom(XContentType.JSON);
-        final Tuple<UpdateResponse, UpdateResponse> tuple = randomUpdateResponse(xContentType);
+        final MediaType mediaType = randomFrom(MediaTypeRegistry.JSON);
+        final Tuple<UpdateResponse, UpdateResponse> tuple = randomUpdateResponse(mediaType);
         UpdateResponse updateResponse = tuple.v1();
         UpdateResponse expectedUpdateResponse = tuple.v2();
 
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(updateResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(updateResponse, mediaType, ToXContent.EMPTY_PARAMS, humanReadable);
 
         BytesReference mutated;
         if (addRandomFields) {
@@ -155,12 +156,12 @@ public class UpdateResponseTests extends OpenSearchTestCase {
             // object since this is where GetResult's metadata fields are rendered out and they would be parsed back as
             // extra metadata fields.
             Predicate<String> excludeFilter = path -> path.contains("reason") || path.contains("get");
-            mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
+            mutated = insertRandomFields(mediaType, originalBytes, excludeFilter, random());
         } else {
             mutated = originalBytes;
         }
         UpdateResponse parsedUpdateResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
+        try (XContentParser parser = createParser(mediaType.xContent(), mutated)) {
             parsedUpdateResponse = UpdateResponse.fromXContent(parser);
             assertNull(parser.nextToken());
         }
@@ -173,9 +174,9 @@ public class UpdateResponseTests extends OpenSearchTestCase {
         // Prints out the parsed UpdateResponse object to verify that it is the same as the expected output.
         // If random fields have been inserted, it checks that they have been filtered out and that they do
         // not alter the final output of the parsed object.
-        BytesReference parsedBytes = toXContent(parsedUpdateResponse, xContentType, humanReadable);
-        BytesReference expectedBytes = toXContent(expectedUpdateResponse, xContentType, humanReadable);
-        assertToXContentEquivalent(expectedBytes, parsedBytes, xContentType);
+        BytesReference parsedBytes = toXContent(parsedUpdateResponse, mediaType, humanReadable);
+        BytesReference expectedBytes = toXContent(expectedUpdateResponse, mediaType, humanReadable);
+        assertToXContentEquivalent(expectedBytes, parsedBytes, mediaType);
     }
 
     /**
@@ -184,8 +185,8 @@ public class UpdateResponseTests extends OpenSearchTestCase {
      * The left element is the actual {@link UpdateResponse} to serialize while the right element is the
      * expected {@link UpdateResponse} after parsing.
      */
-    public static Tuple<UpdateResponse, UpdateResponse> randomUpdateResponse(XContentType xContentType) {
-        Tuple<GetResult, GetResult> getResults = GetResultTests.randomGetResult(xContentType);
+    public static Tuple<UpdateResponse, UpdateResponse> randomUpdateResponse(MediaType mediaType) {
+        Tuple<GetResult, GetResult> getResults = GetResultTests.randomGetResult(mediaType);
         GetResult actualGetResult = getResults.v1();
         GetResult expectedGetResult = getResults.v2();
 

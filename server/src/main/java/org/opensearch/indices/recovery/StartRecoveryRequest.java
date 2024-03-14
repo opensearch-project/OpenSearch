@@ -33,10 +33,11 @@
 package org.opensearch.indices.recovery;
 
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
 import org.opensearch.transport.TransportRequest;
 
@@ -45,8 +46,9 @@ import java.io.IOException;
 /**
  * Represents a request for starting a peer recovery.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class StartRecoveryRequest extends TransportRequest {
 
     private long recoveryId;

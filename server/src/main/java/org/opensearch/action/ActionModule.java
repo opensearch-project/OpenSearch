@@ -40,10 +40,10 @@ import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusio
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
-import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateAction;
-import org.opensearch.action.admin.cluster.decommission.awareness.get.TransportGetDecommissionStateAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.TransportDeleteDecommissionStateAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.TransportGetDecommissionStateAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.TransportDecommissionAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
@@ -56,9 +56,7 @@ import org.opensearch.action.admin.cluster.node.liveness.TransportLivenessAction
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsAction;
 import org.opensearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
-import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsAction;
 import org.opensearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
-import org.opensearch.action.admin.cluster.remotestore.stats.TransportRemoteStoreStatsAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction;
@@ -71,6 +69,8 @@ import org.opensearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.opensearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreAction;
 import org.opensearch.action.admin.cluster.remotestore.restore.TransportRestoreRemoteStoreAction;
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsAction;
+import org.opensearch.action.admin.cluster.remotestore.stats.TransportRemoteStoreStatsAction;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.opensearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
 import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
@@ -175,11 +175,11 @@ import org.opensearch.action.admin.indices.recovery.RecoveryAction;
 import org.opensearch.action.admin.indices.recovery.TransportRecoveryAction;
 import org.opensearch.action.admin.indices.refresh.RefreshAction;
 import org.opensearch.action.admin.indices.refresh.TransportRefreshAction;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsAction;
+import org.opensearch.action.admin.indices.replication.TransportSegmentReplicationStatsAction;
 import org.opensearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.opensearch.action.admin.indices.rollover.RolloverAction;
 import org.opensearch.action.admin.indices.rollover.TransportRolloverAction;
-import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsAction;
-import org.opensearch.action.admin.indices.replication.TransportSegmentReplicationStatsAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
 import org.opensearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
@@ -224,6 +224,12 @@ import org.opensearch.action.admin.indices.upgrade.post.UpgradeAction;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeSettingsAction;
 import org.opensearch.action.admin.indices.validate.query.TransportValidateQueryAction;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.opensearch.action.admin.indices.view.CreateViewAction;
+import org.opensearch.action.admin.indices.view.DeleteViewAction;
+import org.opensearch.action.admin.indices.view.GetViewAction;
+import org.opensearch.action.admin.indices.view.ListViewNamesAction;
+import org.opensearch.action.admin.indices.view.SearchViewAction;
+import org.opensearch.action.admin.indices.view.UpdateViewAction;
 import org.opensearch.action.bulk.BulkAction;
 import org.opensearch.action.bulk.TransportBulkAction;
 import org.opensearch.action.bulk.TransportShardBulkAction;
@@ -256,10 +262,10 @@ import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.DeletePitAction;
 import org.opensearch.action.search.DeleteSearchPipelineAction;
 import org.opensearch.action.search.DeleteSearchPipelineTransportAction;
+import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.GetSearchPipelineAction;
 import org.opensearch.action.search.GetSearchPipelineTransportAction;
 import org.opensearch.action.search.MultiSearchAction;
-import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.PutSearchPipelineAction;
 import org.opensearch.action.search.PutSearchPipelineTransportAction;
 import org.opensearch.action.search.SearchAction;
@@ -294,14 +300,16 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.action.ExtensionProxyAction;
 import org.opensearch.extensions.action.ExtensionProxyTransportAction;
 import org.opensearch.extensions.rest.RestInitializeExtensionAction;
-import org.opensearch.index.seqno.RetentionLeaseActions;
+import org.opensearch.extensions.rest.RestSendToExtensionAction;
 import org.opensearch.identity.IdentityService;
+import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.indices.SystemIndices;
-import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.persistent.CompletionPersistentTaskAction;
 import org.opensearch.persistent.RemovePersistentTaskAction;
 import org.opensearch.persistent.StartPersistentTaskAction;
@@ -331,6 +339,7 @@ import org.opensearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterStatsAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction;
 import org.opensearch.rest.action.admin.cluster.RestCreateSnapshotAction;
+import org.opensearch.rest.action.admin.cluster.RestDecommissionAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteDecommissionStateAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
@@ -348,7 +357,6 @@ import org.opensearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.opensearch.rest.action.admin.cluster.RestNodesStatsAction;
 import org.opensearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.opensearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
-import org.opensearch.rest.action.admin.cluster.RestDecommissionAction;
 import org.opensearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.opensearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
@@ -407,16 +415,17 @@ import org.opensearch.rest.action.admin.indices.RestUpdateSettingsAction;
 import org.opensearch.rest.action.admin.indices.RestUpgradeAction;
 import org.opensearch.rest.action.admin.indices.RestUpgradeStatusAction;
 import org.opensearch.rest.action.admin.indices.RestValidateQueryAction;
+import org.opensearch.rest.action.admin.indices.RestViewAction;
 import org.opensearch.rest.action.cat.AbstractCatAction;
 import org.opensearch.rest.action.cat.RestAliasAction;
 import org.opensearch.rest.action.cat.RestAllocationAction;
 import org.opensearch.rest.action.cat.RestCatAction;
 import org.opensearch.rest.action.cat.RestCatRecoveryAction;
 import org.opensearch.rest.action.cat.RestCatSegmentReplicationAction;
+import org.opensearch.rest.action.cat.RestClusterManagerAction;
 import org.opensearch.rest.action.cat.RestFielddataAction;
 import org.opensearch.rest.action.cat.RestHealthAction;
 import org.opensearch.rest.action.cat.RestIndicesAction;
-import org.opensearch.rest.action.cat.RestClusterManagerAction;
 import org.opensearch.rest.action.cat.RestNodeAttrsAction;
 import org.opensearch.rest.action.cat.RestNodesAction;
 import org.opensearch.rest.action.cat.RestPitSegmentsAction;
@@ -455,7 +464,6 @@ import org.opensearch.rest.action.search.RestMultiSearchAction;
 import org.opensearch.rest.action.search.RestPutSearchPipelineAction;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
-import org.opensearch.extensions.rest.RestSendToExtensionAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
@@ -720,6 +728,14 @@ public class ActionModule extends AbstractModule {
         actions.register(ResolveIndexAction.INSTANCE, ResolveIndexAction.TransportAction.class);
         actions.register(DataStreamsStatsAction.INSTANCE, DataStreamsStatsAction.TransportAction.class);
 
+        // Views:
+        actions.register(CreateViewAction.INSTANCE, CreateViewAction.TransportAction.class);
+        actions.register(DeleteViewAction.INSTANCE, DeleteViewAction.TransportAction.class);
+        actions.register(GetViewAction.INSTANCE, GetViewAction.TransportAction.class);
+        actions.register(UpdateViewAction.INSTANCE, UpdateViewAction.TransportAction.class);
+        actions.register(ListViewNamesAction.INSTANCE, ListViewNamesAction.TransportAction.class);
+        actions.register(SearchViewAction.INSTANCE, SearchViewAction.TransportAction.class);
+
         // Persistent tasks:
         actions.register(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class);
         actions.register(UpdatePersistentTaskStatusAction.INSTANCE, UpdatePersistentTaskStatusAction.TransportAction.class);
@@ -914,6 +930,14 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestResolveIndexAction());
         registerHandler.accept(new RestDataStreamsStatsAction());
 
+        // View API
+        registerHandler.accept(new RestViewAction.CreateViewHandler());
+        registerHandler.accept(new RestViewAction.DeleteViewHandler());
+        registerHandler.accept(new RestViewAction.GetViewHandler());
+        registerHandler.accept(new RestViewAction.UpdateViewHandler());
+        registerHandler.accept(new RestViewAction.SearchViewHandler());
+        registerHandler.accept(new RestViewAction.ListViewNamesHandler());
+
         // CAT API
         registerHandler.accept(new RestAllocationAction());
         registerHandler.accept(new RestCatSegmentReplicationAction());
@@ -971,12 +995,8 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCatAction(catActions));
         registerHandler.accept(new RestDecommissionAction());
         registerHandler.accept(new RestGetDecommissionStateAction());
-
-        // Remote Store APIs
-        if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)) {
-            registerHandler.accept(new RestRemoteStoreStatsAction());
-            registerHandler.accept(new RestRestoreRemoteStoreAction());
-        }
+        registerHandler.accept(new RestRemoteStoreStatsAction());
+        registerHandler.accept(new RestRestoreRemoteStoreAction());
     }
 
     @Override

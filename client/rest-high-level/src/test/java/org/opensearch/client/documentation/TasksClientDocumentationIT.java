@@ -33,7 +33,6 @@
 package org.opensearch.client.documentation;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.TaskOperationFailure;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
@@ -45,7 +44,8 @@ import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.client.tasks.CancelTasksRequest;
 import org.opensearch.client.tasks.CancelTasksResponse;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 
 import java.io.IOException;
@@ -66,15 +66,15 @@ import static org.hamcrest.Matchers.notNullValue;
  * You need to wrap your code between two tags like:
  * // tag::example
  * // end::example
- *
+ * <p>
  * Where example is your tag name.
- *
+ * <p>
  * Then in the documentation, you can extract what is between tag and end tags with
  * ["source","java",subs="attributes,callouts,macros"]
  * --------------------------------------------------
  * include-tagged::{doc-tests}/{@link TasksClientDocumentationIT}.java[example]
  * --------------------------------------------------
- *
+ * <p>
  * The column width of the code block is 84. If the code contains a line longer
  * than 84, the line will be cut and a horizontal scroll bar will be displayed.
  * (the code indentation of the tag is not included in the width)

@@ -42,19 +42,20 @@ import org.opensearch.client.Requests;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.engine.DocumentSourceMissingException;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.UpdateScript;
@@ -165,7 +166,7 @@ public class UpdateHelper {
                         DocWriteResponse.Result.NOOP
                     );
                     update.setGetResult(getResult);
-                    return new Result(update, DocWriteResponse.Result.NOOP, upsertResult.v2(), XContentType.JSON);
+                    return new Result(update, DocWriteResponse.Result.NOOP, upsertResult.v2(), MediaTypeRegistry.JSON);
                 default:
                     // It's fine to throw an exception here, the leniency is handled/logged by `executeScriptedUpsert`
                     throw new IllegalArgumentException("unknown upsert operation, got: " + upsertResult.v1());
@@ -401,13 +402,13 @@ public class UpdateHelper {
         private final Writeable action;
         private final DocWriteResponse.Result result;
         private final Map<String, Object> updatedSourceAsMap;
-        private final XContentType updateSourceContentType;
+        private final MediaType updateSourceContentType;
 
         public Result(
             Writeable action,
             DocWriteResponse.Result result,
             Map<String, Object> updatedSourceAsMap,
-            XContentType updateSourceContentType
+            MediaType updateSourceContentType
         ) {
             this.action = action;
             this.result = result;
@@ -428,7 +429,7 @@ public class UpdateHelper {
             return updatedSourceAsMap;
         }
 
-        public XContentType updateSourceContentType() {
+        public MediaType updateSourceContentType() {
             return updateSourceContentType;
         }
     }

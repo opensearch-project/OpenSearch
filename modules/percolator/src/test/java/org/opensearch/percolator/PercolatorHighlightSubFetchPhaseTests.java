@@ -38,16 +38,17 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.lucene.search.function.RandomScoreFunction;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.search.fetch.FetchContext;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.opensearch.test.OpenSearchTestCase;
-import org.mockito.Mockito;
 
 import java.util.Arrays;
 import java.util.Collections;
+
+import org.mockito.Mockito;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;

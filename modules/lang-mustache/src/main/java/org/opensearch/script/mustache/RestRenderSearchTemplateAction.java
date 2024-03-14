@@ -81,6 +81,6 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
             renderRequest.setScript(id);
         }
 
-        return channel -> client.execute(SearchTemplateAction.INSTANCE, renderRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(RenderSearchTemplateAction.INSTANCE, renderRequest, new RestToXContentListener<>(channel));
     }
 }

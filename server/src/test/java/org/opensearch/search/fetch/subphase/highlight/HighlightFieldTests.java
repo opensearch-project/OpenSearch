@@ -32,16 +32,15 @@
 
 package org.opensearch.search.fetch.subphase.highlight;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.text.Text;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.text.Text;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -82,7 +81,7 @@ public class HighlightFieldTests extends OpenSearchTestCase {
     public void testFromXContent() throws IOException {
         HighlightField highlightField = createTestItem();
         XContentType xcontentType = randomFrom(XContentType.values());
-        XContentBuilder builder = XContentFactory.contentBuilder(xcontentType);
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(xcontentType);
         if (randomBoolean()) {
             builder.prettyPrint();
         }
@@ -109,7 +108,7 @@ public class HighlightFieldTests extends OpenSearchTestCase {
         builder.startObject();
         field.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals("{\n" + "  \"foo\" : [\n" + "    \"bar\",\n" + "    \"baz\"\n" + "  ]\n" + "}", Strings.toString(builder));
+        assertEquals("{\n" + "  \"foo\" : [\n" + "    \"bar\",\n" + "    \"baz\"\n" + "  ]\n" + "}", builder.toString());
 
         field = new HighlightField("foo", null);
         builder = JsonXContent.contentBuilder();
@@ -117,7 +116,7 @@ public class HighlightFieldTests extends OpenSearchTestCase {
         builder.startObject();
         field.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals("{\n" + "  \"foo\" : null\n" + "}", Strings.toString(builder));
+        assertEquals("{\n" + "  \"foo\" : null\n" + "}", builder.toString());
     }
 
     /**

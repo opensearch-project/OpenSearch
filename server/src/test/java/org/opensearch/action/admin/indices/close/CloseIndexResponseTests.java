@@ -35,14 +35,15 @@ package org.opensearch.action.admin.indices.close;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
-import org.opensearch.common.Strings;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.opensearch.transport.ActionNotFoundTransportException;
 
@@ -151,7 +152,7 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
         CloseIndexResponse closeIndexResponse = new CloseIndexResponse(true, true, Collections.singletonList(indexResult));
         assertEquals(
             "{\"acknowledged\":true,\"shards_acknowledged\":true,\"indices\":{\"test\":{\"closed\":true}}}",
-            Strings.toString(XContentType.JSON, closeIndexResponse)
+            Strings.toString(MediaTypeRegistry.JSON, closeIndexResponse)
         );
 
         CloseIndexResponse.ShardResult[] shards = new CloseIndexResponse.ShardResult[1];
@@ -168,7 +169,7 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
                 + "\"failures\":[{\"node\":\"nodeId\",\"shard\":0,\"index\":\"test\",\"status\":\"INTERNAL_SERVER_ERROR\","
                 + "\"reason\":{\"type\":\"action_not_found_transport_exception\","
                 + "\"reason\":\"No handler for action [test]\"}}]}}}}}",
-            Strings.toString(XContentType.JSON, closeIndexResponse)
+            Strings.toString(MediaTypeRegistry.JSON, closeIndexResponse)
         );
     }
 

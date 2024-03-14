@@ -38,7 +38,6 @@ import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.Constants;
-
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
@@ -61,8 +60,8 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.query.TermsQueryBuilder;
@@ -347,7 +346,7 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
                         final int hash = Math.floorMod(Murmur3HashFunction.hash(s), numberOfShards);
                         if (hash == shardId) {
                             final IndexRequest request = new IndexRequest("source").id(s)
-                                .source("{ \"f\": \"" + s + "\"}", XContentType.JSON);
+                                .source("{ \"f\": \"" + s + "\"}", MediaTypeRegistry.JSON);
                             client().index(request).get();
                             break;
                         } else {
@@ -403,7 +402,7 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
         ).get();
         final int docs = randomIntBetween(0, 128);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
         }
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
         // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
@@ -487,7 +486,7 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
             }
 
             for (int i = docs; i < 2 * docs; i++) {
-                client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+                client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
             }
             flushAndRefresh();
             assertHitCount(
@@ -526,7 +525,7 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("source")
                 .setId(Integer.toString(i))
-                .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON)
+                .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", MediaTypeRegistry.JSON)
                 .get();
         }
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
@@ -582,7 +581,7 @@ public class SplitIndexIT extends OpenSearchIntegTestCase {
 
         // ... and that the index sort is also applied to updates
         for (int i = 20; i < 40; i++) {
-            client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+            client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
         }
         flushAndRefresh();
         assertSortedSegments("target", expectedIndexSort);

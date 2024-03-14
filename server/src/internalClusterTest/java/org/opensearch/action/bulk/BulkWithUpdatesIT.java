@@ -35,6 +35,8 @@ package org.opensearch.action.bulk;
 import org.opensearch.action.DocWriteRequest.OpType;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexRequest;
@@ -46,9 +48,9 @@ import org.opensearch.action.update.UpdateRequestBuilder;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.VersionType;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.plugins.Plugin;
@@ -56,8 +58,8 @@ import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptException;
 import org.opensearch.script.ScriptType;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -618,19 +620,19 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
     // issue 6630
     public void testThatFailedUpdateRequestReturnsCorrectType() throws Exception {
         BulkResponse indexBulkItemResponse = client().prepareBulk()
-            .add(new IndexRequest("test").id("3").source("{ \"title\" : \"Great Title of doc 3\" }", XContentType.JSON))
-            .add(new IndexRequest("test").id("4").source("{ \"title\" : \"Great Title of doc 4\" }", XContentType.JSON))
-            .add(new IndexRequest("test").id("5").source("{ \"title\" : \"Great Title of doc 5\" }", XContentType.JSON))
-            .add(new IndexRequest("test").id("6").source("{ \"title\" : \"Great Title of doc 6\" }", XContentType.JSON))
+            .add(new IndexRequest("test").id("3").source("{ \"title\" : \"Great Title of doc 3\" }", MediaTypeRegistry.JSON))
+            .add(new IndexRequest("test").id("4").source("{ \"title\" : \"Great Title of doc 4\" }", MediaTypeRegistry.JSON))
+            .add(new IndexRequest("test").id("5").source("{ \"title\" : \"Great Title of doc 5\" }", MediaTypeRegistry.JSON))
+            .add(new IndexRequest("test").id("6").source("{ \"title\" : \"Great Title of doc 6\" }", MediaTypeRegistry.JSON))
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .get();
         assertNoFailures(indexBulkItemResponse);
 
         BulkResponse bulkItemResponse = client().prepareBulk()
-            .add(new IndexRequest("test").id("1").source("{ \"title\" : \"Great Title of doc 1\" }", XContentType.JSON))
-            .add(new IndexRequest("test").id("2").source("{ \"title\" : \"Great Title of doc 2\" }", XContentType.JSON))
-            .add(new UpdateRequest("test", "3").doc("{ \"date\" : \"2014-01-30T23:59:57\"}", XContentType.JSON))
-            .add(new UpdateRequest("test", "4").doc("{ \"date\" : \"2014-13-30T23:59:57\"}", XContentType.JSON))
+            .add(new IndexRequest("test").id("1").source("{ \"title\" : \"Great Title of doc 1\" }", MediaTypeRegistry.JSON))
+            .add(new IndexRequest("test").id("2").source("{ \"title\" : \"Great Title of doc 2\" }", MediaTypeRegistry.JSON))
+            .add(new UpdateRequest("test", "3").doc("{ \"date\" : \"2014-01-30T23:59:57\"}", MediaTypeRegistry.JSON))
+            .add(new UpdateRequest("test", "4").doc("{ \"date\" : \"2014-13-30T23:59:57\"}", MediaTypeRegistry.JSON))
             .add(new DeleteRequest("test", "5"))
             .add(new DeleteRequest("test", "6"))
             .get();
@@ -732,7 +734,17 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
 
         final BulkItemResponse noopUpdate = bulkResponse.getItems()[0];
         assertThat(noopUpdate.getResponse().getResult(), equalTo(DocWriteResponse.Result.NOOP));
-        assertThat(Strings.toString(XContentType.JSON, noopUpdate), noopUpdate.getResponse().getShardInfo().getSuccessful(), equalTo(2));
+        assertThat(
+            Strings.toString(MediaTypeRegistry.JSON, noopUpdate),
+            noopUpdate.getResponse().getShardInfo().getSuccessful(),
+            equalTo(2)
+        );
+
+        // test noop_update_total metric in stats changed
+        IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest().indices(indexName).indexing(true);
+        final IndicesStatsResponse indicesStatsResponse = client().admin().indices().stats(indicesStatsRequest).actionGet();
+        assertThat(indicesStatsResponse.getIndex(indexName).getTotal().indexing.getTotal().getNoopUpdateCount(), equalTo(1L));
+        assertThat(indicesStatsResponse.getIndex(indexName).getPrimaries().indexing.getTotal().getNoopUpdateCount(), equalTo(1L));
 
         final BulkItemResponse notFoundUpdate = bulkResponse.getItems()[1];
         assertNotNull(notFoundUpdate.getFailure());
@@ -740,7 +752,7 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
         final BulkItemResponse notFoundDelete = bulkResponse.getItems()[2];
         assertThat(notFoundDelete.getResponse().getResult(), equalTo(DocWriteResponse.Result.NOT_FOUND));
         assertThat(
-            Strings.toString(XContentType.JSON, notFoundDelete),
+            Strings.toString(MediaTypeRegistry.JSON, notFoundDelete),
             notFoundDelete.getResponse().getShardInfo().getSuccessful(),
             equalTo(2)
         );

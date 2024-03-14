@@ -37,11 +37,12 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.common.Strings;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 
@@ -53,8 +54,9 @@ import java.util.Arrays;
  * <p>
  * The request requires the query to be set using {@link #query(QueryBuilder)}
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest> implements ToXContentObject {
 
     private QueryBuilder query = new MatchAllQueryBuilder();

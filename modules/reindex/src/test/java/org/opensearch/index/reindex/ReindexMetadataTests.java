@@ -32,8 +32,8 @@
 
 package org.opensearch.index.reindex;
 
-import org.opensearch.index.reindex.ScrollableHitSource.Hit;
 import org.opensearch.action.index.IndexRequest;
+import org.opensearch.index.reindex.ScrollableHitSource.Hit;
 
 /**
  * Index-by-search test for ttl, timestamp, and routing.

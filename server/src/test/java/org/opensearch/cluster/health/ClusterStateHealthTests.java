@@ -55,10 +55,11 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.opensearch.test.transport.CapturingTransport;
@@ -117,7 +118,8 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> clusterService.localNode(),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         transportService.start();
         transportService.acceptIncomingRequests();

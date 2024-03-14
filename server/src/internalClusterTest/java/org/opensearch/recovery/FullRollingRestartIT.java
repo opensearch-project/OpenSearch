@@ -32,6 +32,8 @@
 
 package org.opensearch.recovery;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
@@ -44,15 +46,27 @@ import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+
+import java.util.Collection;
 
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class FullRollingRestartIT extends OpenSearchIntegTestCase {
+public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public FullRollingRestartIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return replicationSettings;
+    }
+
     protected void assertTimeout(ClusterHealthRequestBuilder requestBuilder) {
         ClusterHealthResponse clusterHealth = requestBuilder.get();
         if (clusterHealth.isTimedOut()) {
@@ -121,7 +135,7 @@ public class FullRollingRestartIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> refreshing and checking data");
-        refresh();
+        refreshAndWaitForReplication();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
@@ -154,7 +168,7 @@ public class FullRollingRestartIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> stopped two nodes, verifying data");
-        refresh();
+        refreshAndWaitForReplication();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
@@ -188,7 +202,7 @@ public class FullRollingRestartIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> one node left, verifying data");
-        refresh();
+        refreshAndWaitForReplication();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
@@ -198,11 +212,11 @@ public class FullRollingRestartIT extends OpenSearchIntegTestCase {
         // see https://github.com/elastic/elasticsearch/issues/14387
         internalCluster().startClusterManagerOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(3);
-        /**
-         * We start 3 nodes and a dedicated cluster-manager. Restart on of the data-nodes and ensure that we got no relocations.
-         * Yet we have 6 shards 0 replica so that means if the restarting node comes back both other nodes are subject
-         * to relocating to the restarting node since all had 2 shards and now one node has nothing allocated.
-         * We have a fix for this to wait until we have allocated unallocated shards now so this shouldn't happen.
+        /*
+          We start 3 nodes and a dedicated cluster-manager. Restart on of the data-nodes and ensure that we got no relocations.
+          Yet we have 6 shards 0 replica so that means if the restarting node comes back both other nodes are subject
+          to relocating to the restarting node since all had 2 shards and now one node has nothing allocated.
+          We have a fix for this to wait until we have allocated unallocated shards now so this shouldn't happen.
          */
         prepareCreate("test").setSettings(
             Settings.builder()

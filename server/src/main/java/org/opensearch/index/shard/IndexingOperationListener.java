@@ -33,6 +33,7 @@ package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.Engine;
 
@@ -41,8 +42,9 @@ import java.util.List;
 /**
  * An indexing listener for indexing, delete, events.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface IndexingOperationListener {
 
     /**

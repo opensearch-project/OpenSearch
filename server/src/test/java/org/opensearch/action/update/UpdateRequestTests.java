@@ -37,22 +37,23 @@ import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.replication.ReplicationRequest;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.document.DocumentField;
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.xcontent.XContentParseException;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
 import org.opensearch.index.get.GetResult;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptEngine;
@@ -71,7 +72,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.opensearch.script.MockScriptEngine.mockInlineScript;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
@@ -514,7 +515,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
         UpdateRequest updateRequest = new UpdateRequest("index", "id");
         updateRequest.setIfSeqNo(1L);
         updateRequest.setIfPrimaryTerm(1L);
-        updateRequest.doc("{}", XContentType.JSON);
+        updateRequest.doc("{}", MediaTypeRegistry.JSON);
         updateRequest.upsert(new IndexRequest("index").id("id"));
         assertThat(
             updateRequest.validate().validationErrors(),
@@ -524,7 +525,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
 
     public void testToValidateUpsertRequestWithVersion() {
         UpdateRequest updateRequest = new UpdateRequest("index", "id");
-        updateRequest.doc("{}", XContentType.JSON);
+        updateRequest.doc("{}", MediaTypeRegistry.JSON);
         updateRequest.upsert(new IndexRequest("index").id("1").version(1L));
         assertThat(updateRequest.validate().validationErrors(), contains("can't provide version in upsert request"));
     }
@@ -532,7 +533,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
     public void testValidate() {
         {
             UpdateRequest request = new UpdateRequest("index", "id");
-            request.doc("{}", XContentType.JSON);
+            request.doc("{}", MediaTypeRegistry.JSON);
             ActionRequestValidationException validate = request.validate();
 
             assertThat(validate, nullValue());
@@ -540,7 +541,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
         {
             // Null types are defaulted to "_doc"
             UpdateRequest request = new UpdateRequest("index", null);
-            request.doc("{}", XContentType.JSON);
+            request.doc("{}", MediaTypeRegistry.JSON);
             ActionRequestValidationException validate = request.validate();
 
             assertThat(validate, not(nullValue()));

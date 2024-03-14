@@ -16,9 +16,6 @@
  */
 package org.apache.lucene.util.packed;
 
-import java.io.EOFException;
-import java.io.IOException;
-import java.util.Arrays;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
@@ -32,11 +29,15 @@ import org.apache.lucene.util.packed.PackedInts.Reader;
 import org.apache.lucene.util.packed.PackedInts.ReaderIterator;
 import org.apache.lucene.util.packed.PackedInts.Writer;
 
+import java.io.EOFException;
+import java.io.IOException;
+import java.util.Arrays;
+
 /**
  * Forked from Lucene 8.x; removed in Lucene 8.9
- *
+ * <p>
  * Todo: further investigate a better alternative
- *
+ * <p>
  * Simplistic compression for array of unsigned long values. Each value is {@code >= 0} and {@code
  * <=} a specified maximum value. The values are stored as packed ints, with each value consuming a
  * fixed number of bits.

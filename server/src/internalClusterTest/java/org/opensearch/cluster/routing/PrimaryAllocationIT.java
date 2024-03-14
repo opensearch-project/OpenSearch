@@ -46,22 +46,22 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.opensearch.test.transport.MockTransportService;
@@ -136,7 +136,7 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         assertThat(bulkResponse.getItems().length, equalTo(2));
 
-        logger.info(Strings.toString(XContentType.JSON, bulkResponse, true, true));
+        logger.info(Strings.toString(MediaTypeRegistry.JSON, bulkResponse, true, true));
 
         internalCluster().assertSeqNos();
 

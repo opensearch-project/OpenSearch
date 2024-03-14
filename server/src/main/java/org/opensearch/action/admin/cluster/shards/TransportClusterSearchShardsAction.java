@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.shards;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
@@ -45,6 +44,7 @@ import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;

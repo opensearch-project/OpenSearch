@@ -34,11 +34,11 @@ package org.opensearch.action.admin.indices.segments;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.MergePolicyConfig;
+import org.opensearch.index.MergePolicyProvider;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -56,7 +56,7 @@ public class IndicesSegmentsRequestTests extends OpenSearchSingleNodeTestCase {
     public void setupIndex() {
         Settings settings = Settings.builder()
             // don't allow any merges so that the num docs is the expected segments
-            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            .put(MergePolicyProvider.INDEX_MERGE_ENABLED, false)
             .build();
         createIndex("test", settings);
 

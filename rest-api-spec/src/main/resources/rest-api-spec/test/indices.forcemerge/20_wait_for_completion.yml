@@ -25,7 +25,7 @@
         wait_for_completion: true
         task_id: $taskId
   - match: { task.action: "indices:admin/forcemerge" }
-  - match: { task.description: "Force-merge indices [test_index], maxSegments[1], onlyExpungeDeletes[false], flush[true]" }
+  - match: { task.description: "Force-merge indices [test_index], maxSegments[1], onlyExpungeDeletes[false], flush[true], primaryOnly[false]" }
 
   # .tasks index is created when the force-merge operation completes, so we should delete .tasks index finally,
   # if not, the .tasks index may introduce unexpected warnings and then cause other test cases to fail.

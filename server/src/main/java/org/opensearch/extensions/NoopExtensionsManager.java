@@ -8,20 +8,21 @@
 
 package org.opensearch.extensions;
 
-import java.io.IOException;
-import java.util.Optional;
-import java.util.Set;
-
 import org.opensearch.action.ActionModule;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
-
 import org.opensearch.extensions.action.ExtensionActionRequest;
 import org.opensearch.extensions.action.ExtensionActionResponse;
 import org.opensearch.extensions.action.RemoteExtensionActionResponse;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.transport.TransportService;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * Noop class for ExtensionsManager
@@ -31,7 +32,7 @@ import org.opensearch.transport.TransportService;
 public class NoopExtensionsManager extends ExtensionsManager {
 
     public NoopExtensionsManager() throws IOException {
-        super(Set.of());
+        super(Set.of(), new IdentityService(Settings.EMPTY, List.of()));
     }
 
     @Override
@@ -41,7 +42,8 @@ public class NoopExtensionsManager extends ExtensionsManager {
         TransportService transportService,
         ClusterService clusterService,
         Settings initialEnvironmentSettings,
-        NodeClient client
+        NodeClient client,
+        IdentityService identityService
     ) {
         // no-op
     }

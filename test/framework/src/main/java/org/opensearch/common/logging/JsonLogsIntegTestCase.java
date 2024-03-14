@@ -52,11 +52,11 @@ import static org.hamcrest.Matchers.not;
  * Fields available upon process startup: <code>type</code>, <code>timestamp</code>, <code>level</code>, <code>component</code>,
  * <code>message</code>, <code>node.name</code>, <code>cluster.name</code>.
  * Whereas <code>node.id</code> and <code>cluster.uuid</code> are available later once the first clusterState has been received.
- *
+ * <p>
  *
  * <code>node.name</code>, <code>cluster.name</code>, <code>node.id</code>, <code>cluster.uuid</code>
  * should not change across all log lines
- *
+ * <p>
  * Note that this won't pass for nodes in clusters that don't have the node name defined in opensearch.yml <strong>and</strong> start
  * with DEBUG or TRACE level logging. Those nodes log a few lines before the node.name is set by <code>LogConfigurator.setNodeName</code>.
  */

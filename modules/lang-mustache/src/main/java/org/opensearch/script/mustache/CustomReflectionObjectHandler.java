@@ -33,16 +33,17 @@
 package org.opensearch.script.mustache;
 
 import com.github.mustachejava.reflect.ReflectionObjectHandler;
-import org.opensearch.common.util.CollectionUtils;
+
 import org.opensearch.common.util.iterable.Iterables;
+import org.opensearch.core.common.util.CollectionUtils;
 
 import java.lang.reflect.Array;
 import java.util.AbstractMap;
 import java.util.Collection;
-import java.util.Set;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.HashMap;
+import java.util.Set;
 
 final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
 

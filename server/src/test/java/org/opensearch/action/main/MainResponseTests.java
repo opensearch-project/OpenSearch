@@ -35,11 +35,10 @@ package org.opensearch.action.main;
 import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
-import org.opensearch.common.Strings;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
 import org.opensearch.test.VersionUtils;
@@ -133,7 +132,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                 + TAGLINE
                 + "\""
                 + "}",
-            Strings.toString(builder)
+            builder.toString()
         );
     }
 

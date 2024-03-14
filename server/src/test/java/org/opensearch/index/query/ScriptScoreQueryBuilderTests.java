@@ -43,7 +43,9 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -139,5 +141,12 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
         ScriptScoreQueryBuilder queryBuilder = doCreateTestQueryBuilder();
         OpenSearchException e = expectThrows(OpenSearchException.class, () -> queryBuilder.toQuery(queryShardContext));
         assertEquals("[script score] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", e.getMessage());
+    }
+
+    public void testVisit() {
+        ScriptScoreQueryBuilder scriptQueryBuilder = doCreateTestQueryBuilder();
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        scriptQueryBuilder.visit(createTestVisitor(visitedQueries));
+        assertEquals(2, visitedQueries.size());
     }
 }

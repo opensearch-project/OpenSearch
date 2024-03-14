@@ -124,9 +124,9 @@ public abstract class AbstractWireTestCase<T> extends OpenSearchTestCase {
 
     /**
      * Get the {@link NamedWriteableRegistry} to use when de-serializing the object.
-     *
+     * <p>
      * Override this method if you need to register {@link NamedWriteable}s for the test object to de-serialize.
-     *
+     * <p>
      * By default this will return a {@link NamedWriteableRegistry} with no registered {@link NamedWriteable}s
      */
     protected NamedWriteableRegistry getNamedWriteableRegistry() {

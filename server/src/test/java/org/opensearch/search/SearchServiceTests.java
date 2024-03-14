@@ -37,7 +37,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollRequest;
@@ -55,16 +54,18 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
@@ -80,12 +81,10 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchPlugin;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
@@ -227,7 +226,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put("search.default_search_timeout", "5s").put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, true).build();
+        return Settings.builder().put("search.default_search_timeout", "5s").build();
     }
 
     public void testClearOnClose() {
@@ -1184,7 +1183,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
     public void testConcurrentSegmentSearchSearchContext() throws IOException {
         Boolean[][] scenarios = {
             // cluster setting, index setting, concurrent search enabled?
-            { null, null, true },
+            { null, null, false },
             { null, false, false },
             { null, true, true },
             { true, null, true },
@@ -1269,9 +1268,80 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                         .get()
                         .getSetting(index, IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey())
                 );
-                assertEquals(concurrentSearchEnabled, searchContext.isConcurrentSegmentSearchEnabled());
+                searchContext.evaluateRequestShouldUseConcurrentSearch();
+                assertEquals(concurrentSearchEnabled, searchContext.shouldUseConcurrentSearch());
+                // verify executor nullability with concurrent search enabled/disabled
+                if (concurrentSearchEnabled) {
+                    assertNotNull(searchContext.searcher().getExecutor());
+                } else {
+                    assertNull(searchContext.searcher().getExecutor());
+                }
             }
         }
+        // Cleanup
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey()))
+            .get();
+    }
+
+    /**
+     * Test that the Search Context for concurrent segment search enabled is set correctly at the time of construction.
+     * The same is used throughout the context object lifetime even if cluster setting changes before the request completion.
+     */
+    public void testConcurrentSegmentSearchIsSetOnceDuringContextCreation() throws IOException {
+        String index = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
+        IndexService indexService = createIndex(index);
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        ShardId shardId = new ShardId(indexService.index(), 0);
+        long nowInMillis = System.currentTimeMillis();
+        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(randomBoolean());
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            shardId,
+            indexService.numberOfShards(),
+            AliasFilter.EMPTY,
+            1f,
+            nowInMillis,
+            clusterAlias,
+            Strings.EMPTY_ARRAY
+        );
+
+        Boolean[] concurrentSearchStates = new Boolean[] { true, false };
+        for (Boolean concurrentSearchSetting : concurrentSearchStates) {
+            // update concurrent search cluster setting and create search context
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder().put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), concurrentSearchSetting)
+                )
+                .get();
+            try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
+                // verify concurrent search state in context
+                searchContext.evaluateRequestShouldUseConcurrentSearch();
+                assertEquals(concurrentSearchSetting, searchContext.shouldUseConcurrentSearch());
+                // verify executor state in searcher
+                assertEquals(concurrentSearchSetting, (searchContext.searcher().getExecutor() != null));
+
+                // update cluster setting to flip the concurrent segment search state
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(
+                        Settings.builder().put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), !concurrentSearchSetting)
+                    )
+                    .get();
+
+                // verify that concurrent segment search is still set to same expected value for the context
+                assertEquals(concurrentSearchSetting, searchContext.shouldUseConcurrentSearch());
+            }
+        }
+
         // Cleanup
         client().admin()
             .cluster()
@@ -1680,7 +1750,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.ASC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), false);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), false);
     }
 
     /**
@@ -1693,7 +1763,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.ASC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
     }
 
     /**
@@ -1706,7 +1776,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.ASC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
     }
 
     /**
@@ -1719,7 +1789,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
     }
 
     /**
@@ -1732,7 +1802,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), false);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), false);
     }
 
     /**
@@ -1745,7 +1815,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
     }
 
     /**
@@ -1759,9 +1829,24 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.DESC);
         // Should be false without missing values
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), false);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), false);
         primarySort.missing("_last");
         // Should be true with missing values
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
+    }
+
+    /**
+     * Test for DESC order search_after query with track_total_hits=true.
+     * Min = 0L, Max = 9L, search_after = -1L
+     * With above min/max and search_after, it should not match, but since
+     * track_total_hits = true,
+     * Expected result is canMatch = true
+     */
+    public void testCanMatchSearchAfterDescLessThanMinWithTrackTotalhits() throws IOException {
+        FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { -1L });
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        FieldSortBuilder primarySort = new FieldSortBuilder("test");
+        primarySort.order(SortOrder.DESC);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, 1000), true);
     }
 }

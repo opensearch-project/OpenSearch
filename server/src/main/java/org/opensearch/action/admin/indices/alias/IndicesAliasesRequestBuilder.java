@@ -35,6 +35,7 @@ package org.opensearch.action.admin.indices.alias;
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.query.QueryBuilder;
 
 import java.util.Map;
@@ -42,8 +43,9 @@ import java.util.Map;
 /**
  * Builder for request to modify many aliases at once.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<
     IndicesAliasesRequest,
     AcknowledgedResponse,

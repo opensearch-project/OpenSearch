@@ -35,15 +35,15 @@ package org.opensearch.index.query;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.DeprecationHandler;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.support.QueryParsers;
@@ -398,8 +398,8 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     }
 
     @Deprecated
-    /**
-     * Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO".
+    /*
+      Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO".
      */
     public MultiMatchQueryBuilder fuzziness(Object fuzziness) {
         if (fuzziness != null) {

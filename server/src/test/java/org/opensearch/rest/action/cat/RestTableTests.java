@@ -34,6 +34,7 @@ package org.opensearch.rest.action.cat;
 
 import org.opensearch.common.Table;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.test.OpenSearchTestCase;
@@ -55,7 +56,7 @@ import static org.hamcrest.Matchers.not;
 
 public class RestTableTests extends OpenSearchTestCase {
 
-    private static final String APPLICATION_JSON = XContentType.JSON.mediaType();
+    private static final String APPLICATION_JSON = MediaTypeRegistry.JSON.mediaType();
     private static final String APPLICATION_YAML = XContentType.YAML.mediaType();
     private static final String APPLICATION_SMILE = XContentType.SMILE.mediaType();
     private static final String APPLICATION_CBOR = XContentType.CBOR.mediaType();

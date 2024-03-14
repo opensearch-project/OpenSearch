@@ -93,7 +93,7 @@ public final class PathUtils {
 
     /**
      * Tries to resolve the given path against the list of available roots.
-     *
+     * <p>
      * If path starts with one of the listed roots, it returned back by this method, otherwise null is returned.
      */
     public static Path get(Path[] roots, String path) {
@@ -109,7 +109,7 @@ public final class PathUtils {
 
     /**
      * Tries to resolve the given file uri against the list of available roots.
-     *
+     * <p>
      * If uri starts with one of the listed roots, it returned back by this method, otherwise null is returned.
      */
     public static Path get(Path[] roots, URI uri) {

@@ -32,6 +32,8 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
@@ -40,13 +42,14 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.client.Client;
 import org.opensearch.common.collect.EvictingQueue;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -58,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
@@ -72,7 +76,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class MovAvgIT extends OpenSearchIntegTestCase {
+public class MovAvgIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     private static final String INTERVAL_FIELD = "l_value";
     private static final String VALUE_FIELD = "v_value";
     private static final String VALUE_FIELD2 = "v_value2";
@@ -126,6 +130,18 @@ public class MovAvgIT extends OpenSearchIntegTestCase {
         public String toString() {
             return name;
         }
+    }
+
+    public MovAvgIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
     }
 
     @Override
@@ -1146,7 +1162,7 @@ public class MovAvgIT extends OpenSearchIntegTestCase {
      * the default settings.  Which means our mock histo will match the generated result (which it won't
      * if the minimizer is actually working, since the coefficients will be different and thus generate different
      * data)
-     *
+     * <p>
      * We can simulate this by setting the window size == size of histo
      */
     public void testMinimizeNotEnoughData() {
@@ -1298,6 +1314,7 @@ public class MovAvgIT extends OpenSearchIntegTestCase {
                     .setSource(jsonBuilder().startObject().field(INTERVAL_FIELD, i).field(VALUE_FIELD2, 10).endObject())
             );
         }
+        indexRandomForConcurrentSearch("predict_non_empty");
 
         bulkBuilder.get();
         ensureSearchable();
@@ -1342,6 +1359,7 @@ public class MovAvgIT extends OpenSearchIntegTestCase {
                 assertThat(movAvgAgg, nullValue());
             }
         }
+        internalCluster().wipeIndices("predict_non_empty");
     }
 
     private void assertValidIterators(Iterator expectedBucketIter, Iterator expectedCountsIter, Iterator expectedValuesIter) {

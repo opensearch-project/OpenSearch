@@ -30,6 +30,13 @@
  * GitHub history for details.
  */
 
+/*
+ * This code is based on code from SFL4J 1.5.11
+ * Copyright (c) 2004-2007 QOS.ch
+ * All rights reserved.
+ * SPDX-License-Identifier: MIT
+ */
+
 package org.opensearch.core.common.logging;
 
 import java.util.HashSet;
@@ -37,6 +44,10 @@ import java.util.Set;
 
 /**
  * Format string for OpenSearch log messages.
+ * <p>
+ * This class is almost a copy of {@code org.slf4j.helpers.MessageFormatter}<p>
+ * The original code is licensed under the MIT License and is available at :
+ * <a href="https://github.com/qos-ch/slf4j/blob/7c164fab8d54f823dd55c01a5a839c153f578297/slf4j-api/src/main/java/org/slf4j/helpers/MessageFormatter.java">MessageFormatter.java</a>
  *
  * @opensearch.internal
  */
@@ -51,6 +62,17 @@ public class LoggerMessageFormat {
         return format(null, messagePattern, argArray);
     }
 
+    /**
+     * (this is almost a copy of {@code org.slf4j.helpers.MessageFormatter.arrayFormat})
+     *
+     * @param prefix the prefix to prepend to the formatted message (can be null)
+     * @param messagePattern the message pattern which will be parsed and formatted
+     * @param argArray an array of arguments to be substituted in place of formatting anchors
+     * @return null if messagePattern is null <p>
+     *         messagePattern if argArray is (null or empty) and prefix is null <p>
+     *         prefix + messagePattern if argArray is (null or empty) and prefix is not null <p>
+     *         formatted message otherwise (even if prefix is null)
+     */
     public static String format(final String prefix, final String messagePattern, final Object... argArray) {
         if (messagePattern == null) {
             return null;
@@ -110,6 +132,13 @@ public class LoggerMessageFormat {
         return sbuf.toString();
     }
 
+    /**
+     * Checks if (delimterStartIndex - 1) in messagePattern is an escape character.
+     * @param messagePattern the message pattern
+     * @param delimiterStartIndex the index of the character to check
+     * @return true if there is an escape char before the character at delimiterStartIndex.<p>
+     *         Always returns false if delimiterStartIndex == 0 (edge case)
+     */
     static boolean isEscapedDelimiter(String messagePattern, int delimiterStartIndex) {
 
         if (delimiterStartIndex == 0) {
@@ -119,6 +148,13 @@ public class LoggerMessageFormat {
         return potentialEscape == ESCAPE_CHAR;
     }
 
+    /**
+     * Checks if (delimterStartIndex - 2) in messagePattern is an escape character.
+     * @param messagePattern the message pattern
+     * @param delimiterStartIndex the index of the character to check
+     * @return true if (delimterStartIndex - 2) in messagePattern is an escape character.
+     *         Always returns false if delimiterStartIndex is less than 2 (edge case)
+     */
     static boolean isDoubleEscaped(String messagePattern, int delimiterStartIndex) {
         return delimiterStartIndex >= 2 && messagePattern.charAt(delimiterStartIndex - 2) == ESCAPE_CHAR;
     }

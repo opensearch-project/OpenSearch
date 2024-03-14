@@ -1,0 +1,58 @@
+name: ✨ Meta Issue
+description: An issue that collects other issues together to describe a larger project or activity.
+title: '[META] <title>'
+labels: ['Meta, untriaged']
+body:
+  - type: textarea
+    attributes:
+      label: Please describe the end goal of this project
+      description: A clear and concise description of this project/endeavor.  This should be understandable to someone with no context.
+      placeholder: Ex. Views is a way to project indices in OpenSearch, these views act as a focal point for describing the underlying data and how the data is accessed. It allows for restricting the scope and filtering the response consistently.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Supporting References
+      description: Please provide links (and descriptions!) to RFCs, design docs, etc
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Issues
+      description: Please create a list of issues that should be tracked by this meta issue, including a short description.  The purpose is to provide everyone on the project with an "at a glance" update of the state us the work being tracked.  If you use the format "- [ ]" it will put your list into a checklist.
+      placeholder: Ex. - [ ] https://github.com/opensearch-project/security/issues/3888 Add views to the cluster metadata schema
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Related component
+      description: Choose a specific OpenSearch component your project belongs to.  If you are unsure of which component to select or if the component is not present, select "Other".
+      multiple: false
+      options:
+        - # Empty first option to force selection
+        - Build
+        - Clients
+        - Cluster Manager
+        - Extensions
+        - Indexing:Performance
+        - Indexing:Replication
+        - Indexing
+        - Libraries
+        - Other
+        - Plugins
+        - Search:Aggregations
+        - Search:Performance
+        - Search:Query Capabilities
+        - Search:Query Insights
+        - Search:Relevance
+        - Search:Remote Search
+        - Search:Resiliency
+        - Search:Searchable Snapshots
+        - Search
+        - Storage:Durability
+        - Storage:Performance
+        - Storage:Remote
+        - Storage:Snapshots
+        - Storage
+    validations:
+      required: true

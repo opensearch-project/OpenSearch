@@ -47,7 +47,7 @@ import static org.opensearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
 
 /**
  * A shell script to run within a vagrant VM.
- *
+ * <p>
  * The script is run as root within the VM.
  */
 public abstract class VagrantShellTask extends DefaultTask {

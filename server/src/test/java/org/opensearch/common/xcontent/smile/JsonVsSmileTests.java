@@ -33,11 +33,11 @@
 package org.opensearch.common.xcontent.smile;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.xcontent.XContentGenerator;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentGenerator;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -48,10 +48,10 @@ import static org.hamcrest.Matchers.nullValue;
 public class JsonVsSmileTests extends OpenSearchTestCase {
     public void testCompareParsingTokens() throws IOException {
         BytesStreamOutput xsonOs = new BytesStreamOutput();
-        XContentGenerator xsonGen = XContentFactory.xContent(XContentType.SMILE).createGenerator(xsonOs);
+        XContentGenerator xsonGen = XContentType.SMILE.xContent().createGenerator(xsonOs);
 
         BytesStreamOutput jsonOs = new BytesStreamOutput();
-        XContentGenerator jsonGen = XContentFactory.xContent(XContentType.JSON).createGenerator(jsonOs);
+        XContentGenerator jsonGen = MediaTypeRegistry.JSON.xContent().createGenerator(jsonOs);
 
         xsonGen.writeStartObject();
         jsonGen.writeStartObject();

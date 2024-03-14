@@ -34,6 +34,8 @@ package org.opensearch.ingest;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.metrics.OperationMetrics;
+import org.opensearch.script.ScriptService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,9 +44,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
-
-import org.opensearch.common.metrics.OperationMetrics;
-import org.opensearch.script.ScriptService;
 
 /**
  * A pipeline is a list of {@link Processor} instances grouped under a unique id.
@@ -124,8 +123,8 @@ public final class Pipeline {
 
     /**
      * Modifies the data of a document to be indexed based on the processor this pipeline holds
-     *
-     * If <code>null</code> is returned then this document will be dropped and not indexed, otherwise
+     * <p>
+     * If {@code null} is returned then this document will be dropped and not indexed, otherwise
      * this document will be kept and indexed.
      */
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {

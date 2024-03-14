@@ -32,7 +32,7 @@
 
 package org.opensearch.painless.api;
 
-import org.opensearch.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.regex.Pattern;

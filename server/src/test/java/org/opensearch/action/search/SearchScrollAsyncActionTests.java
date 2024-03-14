@@ -32,13 +32,13 @@
 package org.opensearch.action.search;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.SearchShardTarget;

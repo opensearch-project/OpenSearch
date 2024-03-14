@@ -33,10 +33,7 @@ package org.opensearch.action.support.clustermanager;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionFuture;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.ThreadedActionListener;
@@ -54,15 +51,19 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.node.NodeClosedException;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
@@ -79,10 +80,10 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
@@ -117,7 +118,8 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> clusterService.localNode(),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         transportService.start();
         transportService.acceptIncomingRequests();

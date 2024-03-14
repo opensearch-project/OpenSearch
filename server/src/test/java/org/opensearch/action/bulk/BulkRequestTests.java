@@ -39,14 +39,14 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.client.Requests;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.Script;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -71,7 +71,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
     public void testSimpleBulk1() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
         assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }")));
         assertThat(bulkRequest.requests().get(1), instanceOf(DeleteRequest.class));
@@ -81,13 +81,13 @@ public class BulkRequestTests extends OpenSearchTestCase {
     public void testSimpleBulkWithCarriageReturn() throws Exception {
         String bulkAction = "{ \"index\":{\"_index\":\"test\",\"_id\":\"1\"} }\r\n{ \"field1\" : \"value1\" }\r\n";
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(1));
         assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }")));
         Map<String, Object> sourceMap = XContentHelper.convertToMap(
             ((IndexRequest) bulkRequest.requests().get(0)).source(),
             false,
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         ).v2();
         assertEquals("value1", sourceMap.get("field1"));
     }
@@ -95,21 +95,21 @@ public class BulkRequestTests extends OpenSearchTestCase {
     public void testSimpleBulk2() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk2.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
     }
 
     public void testSimpleBulk3() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk3.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
     }
 
     public void testSimpleBulk4() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk4.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(4));
         assertThat(bulkRequest.requests().get(0).id(), equalTo("1"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(0)).retryOnConflict(), equalTo(2));
@@ -131,12 +131,12 @@ public class BulkRequestTests extends OpenSearchTestCase {
         String bulkAction1 = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk.json");
         Exception ex = expectThrows(
             Exception.class,
-            () -> new BulkRequest().add(new BytesArray(bulkAction1.getBytes(StandardCharsets.UTF_8)), null, false, XContentType.JSON)
+            () -> new BulkRequest().add(new BytesArray(bulkAction1.getBytes(StandardCharsets.UTF_8)), null, false, MediaTypeRegistry.JSON)
         );
         assertEquals("explicit index in bulk is not allowed", ex.getMessage());
 
         String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk5.json");
-        new BulkRequest().add(new BytesArray(bulkAction.getBytes(StandardCharsets.UTF_8)), "test", false, XContentType.JSON);
+        new BulkRequest().add(new BytesArray(bulkAction.getBytes(StandardCharsets.UTF_8)), "test", false, MediaTypeRegistry.JSON);
     }
 
     public void testBulkAddIterable() {
@@ -157,7 +157,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         ParsingException exc = expectThrows(
             ParsingException.class,
-            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON)
         );
         assertThat(exc.getMessage(), containsString("Unknown key for a VALUE_STRING in [hello]"));
     }
@@ -167,7 +167,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON)
         );
         assertThat(
             exc.getMessage(),
@@ -180,7 +180,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON)
         );
         assertThat(exc.getMessage(), containsString("Action/metadata line [3] contains an unknown parameter [_foo]"));
     }
@@ -190,7 +190,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON)
         );
         assertThat(
             exc.getMessage(),
@@ -201,7 +201,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
     public void testSimpleBulk10() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk10.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(9));
     }
 
@@ -210,7 +210,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON)
         );
         assertEquals(
             exc.getMessage(),
@@ -240,7 +240,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON)
         );
         assertThat(
             exc.getMessage(),
@@ -256,8 +256,8 @@ public class BulkRequestTests extends OpenSearchTestCase {
         // We force here a "type is missing" validation error
         bulkRequest.add(new DeleteRequest("index", "id"));
         bulkRequest.add(new DeleteRequest("index", "id").setRefreshPolicy(RefreshPolicy.IMMEDIATE));
-        bulkRequest.add(new UpdateRequest("index", "id").doc("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE));
-        bulkRequest.add(new IndexRequest("index").id("id").source("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE));
+        bulkRequest.add(new UpdateRequest("index", "id").doc("{}", MediaTypeRegistry.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE));
+        bulkRequest.add(new IndexRequest("index").id("id").source("{}", MediaTypeRegistry.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE));
         ActionRequestValidationException validate = bulkRequest.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.validationErrors(), not(empty()));
@@ -340,7 +340,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         XContentType xContentType = XContentType.SMILE;
         BytesReference data;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
+            try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(xContentType, out)) {
                 builder.startObject();
                 builder.startObject("index");
                 builder.field("_index", "index");
@@ -349,7 +349,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
                 builder.endObject();
             }
             out.write(xContentType.xContent().streamSeparator());
-            try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
+            try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(xContentType, out)) {
                 builder.startObject();
                 builder.field("field", "value");
                 builder.endObject();
@@ -375,7 +375,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         XContentType xContentType = XContentType.SMILE;
         BytesReference data;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
+            try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(xContentType, out)) {
                 builder.startObject();
                 builder.startObject("update");
                 builder.field("_index", "index");
@@ -386,7 +386,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
                 builder.endObject();
             }
             out.write(xContentType.xContent().streamSeparator());
-            try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
+            try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(xContentType, out)) {
                 builder.startObject();
                 builder.startObject("doc").endObject();
                 Map<String, Object> values = new HashMap<>();
@@ -408,7 +408,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
         String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk11.json");
         IllegalArgumentException expectThrows = expectThrows(
             IllegalArgumentException.class,
-            () -> new BulkRequest().add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
+            () -> new BulkRequest().add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON)
         );
         assertEquals("The bulk request must be terminated by a newline [\\n]", expectThrows.getMessage());
 
@@ -419,7 +419,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
             0,
             bulkActionWithNewLine.length(),
             null,
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         assertEquals(3, bulkRequestWithNewLine.numberOfActions());
     }

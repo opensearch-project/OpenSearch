@@ -34,13 +34,14 @@ package org.opensearch.cluster;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 
 import java.io.IOException;
@@ -56,8 +57,9 @@ import java.util.Set;
  * <code>InternalClusterInfoService.shardIdentifierFromRouting(String)</code>
  * for the key used in the shardSizes map
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterInfo implements ToXContentFragment, Writeable {
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
@@ -110,7 +112,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         this.shardSizes = Collections.unmodifiableMap(sizeMap);
         this.routingToDataPath = Collections.unmodifiableMap(routingMap);
         this.reservedSpace = Collections.unmodifiableMap(reservedSpaceMap);
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
             this.nodeFileCacheStats = in.readMap(StreamInput::readString, FileCacheStats::new);
         } else {
             this.nodeFileCacheStats = Map.of();
@@ -124,7 +126,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         out.writeMap(this.shardSizes, StreamOutput::writeString, (o, v) -> out.writeLong(v == null ? -1 : v));
         out.writeMap(this.routingToDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
         out.writeMap(this.reservedSpace, (o, v) -> v.writeTo(o), (o, v) -> v.writeTo(o));
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeMap(this.nodeFileCacheStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         }
     }
@@ -287,8 +289,9 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     /**
      * Represents the total amount of "reserved" space on a particular data path, together with the set of shards considered.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ReservedSpace implements Writeable {
 
         public static final ReservedSpace EMPTY = new ReservedSpace(0, new HashSet<>());

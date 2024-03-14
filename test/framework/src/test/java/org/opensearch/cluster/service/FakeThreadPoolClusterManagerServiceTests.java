@@ -32,7 +32,6 @@
 package org.opensearch.cluster.service;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -42,6 +41,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 

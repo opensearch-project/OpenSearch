@@ -34,11 +34,10 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.opensearch.common.Strings;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.ArrayList;
@@ -85,9 +84,14 @@ public class FieldNamesFieldMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testFieldType() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_field_names").endObject().endObject().endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("_field_names")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper docMapper = createIndex("test").mapperService()
             .documentMapperParser()
@@ -102,7 +106,7 @@ public class FieldNamesFieldMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testInjectIntoDocDuringParsing() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().toString();
         DocumentMapper defaultMapper = createIndex("test").mapperService()
             .documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
@@ -114,7 +118,7 @@ public class FieldNamesFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder().startObject().field("a", "100").startObject("b").field("c", 42).endObject().endObject()
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 
@@ -122,22 +126,21 @@ public class FieldNamesFieldMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testExplicitEnabled() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("_field_names")
-                .field("enabled", true)
-                .endObject()
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "keyword")
-                .field("doc_values", false)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("_field_names")
+            .field("enabled", true)
+            .endObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "keyword")
+            .field("doc_values", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         DocumentMapper docMapper = createIndex("test").mapperService()
             .documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
@@ -149,7 +152,7 @@ public class FieldNamesFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 
@@ -158,16 +161,15 @@ public class FieldNamesFieldMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testDisabled() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("_field_names")
-                .field("enabled", false)
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("_field_names")
+            .field("enabled", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         DocumentMapper docMapper = createIndex("test").mapperService()
             .documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
@@ -179,7 +181,7 @@ public class FieldNamesFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 
@@ -188,26 +190,24 @@ public class FieldNamesFieldMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testMergingMappings() throws Exception {
-        String enabledMapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("_field_names")
-                .field("enabled", true)
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-        String disabledMapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("_field_names")
-                .field("enabled", false)
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String enabledMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("_field_names")
+            .field("enabled", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        String disabledMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("_field_names")
+            .field("enabled", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         MapperService mapperService = createIndex("test").mapperService();
 
         mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);

@@ -36,9 +36,9 @@ import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.List;

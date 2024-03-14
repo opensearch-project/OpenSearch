@@ -34,10 +34,11 @@ package org.opensearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.DelayableWriteable;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.SearchPhaseResult;
@@ -58,8 +59,9 @@ import static org.opensearch.common.lucene.Lucene.writeTopDocs;
 /**
  * The result of the query search
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class QuerySearchResult extends SearchPhaseResult {
 
     private int from;
@@ -123,7 +125,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns true if the result doesn't contain any useful information.
      * It is used by the search action to avoid creating an empty response on
      * shard request that rewrites to match_no_docs.
-     *
+     * <p>
      * TODO: Currently we need the concrete aggregators to build empty responses. This means that we cannot
      *       build an empty response in the coordinating node so we rely on this hack to ensure that at least one shard
      *       returns a valid empty response. We should move the ability to create empty responses to aggregation builders

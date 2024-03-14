@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.cluster.node.tasks.list;
 
 import org.opensearch.action.support.tasks.BaseTasksRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -41,8 +42,9 @@ import java.io.IOException;
 /**
  * A request to get node tasks
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
 
     private boolean detailed = false;

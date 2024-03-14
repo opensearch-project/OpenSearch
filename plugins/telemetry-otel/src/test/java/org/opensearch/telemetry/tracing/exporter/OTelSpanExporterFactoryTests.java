@@ -8,11 +8,12 @@
 
 package org.opensearch.telemetry.tracing.exporter;
 
-import io.opentelemetry.exporter.logging.LoggingSpanExporter;
-import io.opentelemetry.sdk.trace.export.SpanExporter;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.test.OpenSearchTestCase;
+
+import io.opentelemetry.exporter.logging.LoggingSpanExporter;
+import io.opentelemetry.sdk.trace.export.SpanExporter;
 
 public class OTelSpanExporterFactoryTests extends OpenSearchTestCase {
 
@@ -60,6 +61,17 @@ public class OTelSpanExporterFactoryTests extends OpenSearchTestCase {
         assertEquals("SpanExporter instantiation failed for class [java.lang.String]", exception.getMessage());
         assertTrue(exception.getCause() instanceof NoSuchMethodError);
 
+    }
+
+    public void testSpanExporterGetDefaultMethod() {
+        Settings settings = Settings.builder()
+            .put(
+                OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(),
+                "org.opensearch.telemetry.tracing.exporter.DummySpanExporterWithGetDefault"
+            )
+            .build();
+
+        assertTrue(OTelSpanExporterFactory.create(settings) instanceof DummySpanExporterWithGetDefault);
     }
 
 }

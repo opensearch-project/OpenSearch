@@ -104,7 +104,7 @@ public class JarHell {
 
     /**
      * Parses the classpath into an array of URLs
-     * @return array of URLs
+     * @return collection of URLs
      * @throws IllegalStateException if the classpath contains empty elements
      */
     public static Set<URL> parseClassPath() {
@@ -114,7 +114,7 @@ public class JarHell {
     /**
      * Parses the classpath into a set of URLs. For testing.
      * @param classPath classpath to parse (typically the system property {@code java.class.path})
-     * @return array of URLs
+     * @return collection of URLs
      * @throws IllegalStateException if the classpath contains empty elements
      */
     @SuppressForbidden(reason = "resolves against CWD because that is how classpaths work")

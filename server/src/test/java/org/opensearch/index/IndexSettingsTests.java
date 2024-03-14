@@ -41,9 +41,9 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.search.pipeline.SearchPipelineService;
@@ -60,10 +60,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
-import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 
 public class IndexSettingsTests extends OpenSearchTestCase {
 
@@ -779,6 +779,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             "index",
             Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
                 .build()
         );
@@ -793,22 +794,6 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertFalse(settings.isRemoteTranslogStoreEnabled());
-    }
-
-    public void testUpdateRemoteStoreFails() {
-        Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
-        remoteStoreSettingSet.add(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING);
-        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, remoteStoreSettingSet);
-        SettingsException error = expectThrows(
-            SettingsException.class,
-            () -> settings.updateSettings(
-                Settings.builder().put("index.remote_store.enabled", randomBoolean()).build(),
-                Settings.builder(),
-                Settings.builder(),
-                "index"
-            )
-        );
-        assertEquals(error.getMessage(), "final index setting [index.remote_store.enabled], not updateable");
     }
 
     public void testEnablingRemoteStoreFailsWhenReplicationTypeIsDocument() {
@@ -846,31 +831,13 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             "index",
             Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
                 .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "repo1")
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals("repo1", settings.getRemoteStoreRepository());
-    }
-
-    public void testUpdateRemoteRepositoryFails() {
-        Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
-        remoteStoreSettingSet.add(IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING);
-        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, remoteStoreSettingSet);
-        SettingsException error = expectThrows(
-            SettingsException.class,
-            () -> settings.updateSettings(
-                Settings.builder().put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, randomUnicodeOfLength(10)).build(),
-                Settings.builder(),
-                Settings.builder(),
-                "index"
-            )
-        );
-        assertEquals(
-            error.getMessage(),
-            String.format(Locale.ROOT, "final index setting [%s], not updateable", IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY)
-        );
     }
 
     public void testSetRemoteRepositoryFailsWhenRemoteStoreIsNotEnabled() {
@@ -881,7 +848,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             .build();
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING.get(indexSettings)
+            () -> IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals(
             String.format(
@@ -902,7 +869,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             .build();
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING.get(indexSettings)
+            () -> IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals(
             String.format(

@@ -47,12 +47,12 @@
 
 package org.opensearch.http;
 
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.core.common.Strings;
-import org.opensearch.rest.RestRequest;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestUtils;
 
 import java.time.ZoneOffset;
@@ -81,7 +81,7 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
  * This file is forked from the https://netty.io project. In particular it combines the following three
  * files: io.netty.handler.codec.http.cors.CorsHandler, io.netty.handler.codec.http.cors.CorsConfig, and
  * io.netty.handler.codec.http.cors.CorsConfigBuilder.
- *
+ * <p>
  * It modifies the original netty code to operate on OpenSearch http request/response abstractions.
  * Additionally, it removes CORS features that are not used by OpenSearch.
  *

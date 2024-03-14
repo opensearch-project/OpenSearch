@@ -33,6 +33,7 @@
 package org.opensearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -47,8 +48,9 @@ import java.util.function.Supplier;
 /**
  * Orchestrator class for search phase lookups
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SearchLookup {
     /**
      * The maximum depth of field dependencies.
@@ -57,6 +59,12 @@ public class SearchLookup {
      * make a very deep stack, which we want to limit.
      */
     private static final int MAX_FIELD_CHAIN_DEPTH = 5;
+
+    /**
+     * This constant should be used in cases when shard id is unknown.
+     * Mostly it should be used in tests.
+     */
+    public static final int UNKNOWN_SHARD_ID = -1;
 
     /**
      * The chain of fields for which this lookup was created, used for detecting
@@ -72,14 +80,27 @@ public class SearchLookup {
     private final SourceLookup sourceLookup;
     private final FieldsLookup fieldsLookup;
     private final BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup;
+    private final int shardId;
 
     /**
-     * Create the top level field lookup for a search request. Provides a way to look up fields from  doc_values,
+     * Constructor for backwards compatibility. Use the one with explicit shardId argument.
+     */
+    @Deprecated
+    public SearchLookup(
+        MapperService mapperService,
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup
+    ) {
+        this(mapperService, fieldDataLookup, UNKNOWN_SHARD_ID);
+    }
+
+    /**
+     * Create the top level field lookup for a search request. Provides a way to look up fields from doc_values,
      * stored fields, or _source.
      */
     public SearchLookup(
         MapperService mapperService,
-        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup,
+        int shardId
     ) {
         this.fieldChain = Collections.emptySet();
         docMap = new DocLookup(
@@ -89,6 +110,7 @@ public class SearchLookup {
         sourceLookup = new SourceLookup();
         fieldsLookup = new FieldsLookup(mapperService);
         this.fieldDataLookup = fieldDataLookup;
+        this.shardId = shardId;
     }
 
     /**
@@ -107,6 +129,7 @@ public class SearchLookup {
         this.sourceLookup = searchLookup.sourceLookup;
         this.fieldsLookup = searchLookup.fieldsLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
+        this.shardId = searchLookup.shardId;
     }
 
     /**
@@ -140,5 +163,12 @@ public class SearchLookup {
 
     public SourceLookup source() {
         return sourceLookup;
+    }
+
+    public int shardId() {
+        if (shardId == UNKNOWN_SHARD_ID) {
+            throw new IllegalStateException("Shard id is unknown for this lookup");
+        }
+        return shardId;
     }
 }

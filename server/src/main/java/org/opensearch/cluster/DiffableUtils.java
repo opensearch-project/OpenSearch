@@ -182,7 +182,7 @@ public final class DiffableUtils {
 
     /**
      * Represents differences between two maps of objects and is used as base class for different map implementations.
-     *
+     * <p>
      * Implements serialization. How differences are applied is left to subclasses.
      *
      * @param <K> the type of map keys
@@ -381,9 +381,9 @@ public final class DiffableUtils {
     /**
      * Provides read and write operations to serialize map values.
      * Reading of values can be made dependent on map key.
-     *
+     * <p>
      * Also provides operations to distinguish whether map values are diffable.
-     *
+     * <p>
      * Should not be directly implemented, instead implement either
      * {@link DiffableValueSerializer} or {@link NonDiffableValueSerializer}.
      *
@@ -517,7 +517,7 @@ public final class DiffableUtils {
 
     /**
      * Implementation of the ValueSerializer that wraps value and diff readers.
-     *
+     * <p>
      * Note: this implementation is ignoring the key.
      *
      * @opensearch.internal

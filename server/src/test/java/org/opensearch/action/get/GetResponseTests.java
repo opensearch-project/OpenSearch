@@ -32,15 +32,16 @@
 
 package org.opensearch.action.get;
 
-import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.Strings;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -48,7 +49,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Predicate;
 
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.opensearch.index.get.GetResultTests.copyGetResult;
 import static org.opensearch.index.get.GetResultTests.mutateGetResult;
 import static org.opensearch.index.get.GetResultTests.randomGetResult;
@@ -118,7 +119,7 @@ public class GetResponseTests extends OpenSearchTestCase {
                     null
                 )
             );
-            String output = Strings.toString(XContentType.JSON, getResponse);
+            String output = Strings.toString(MediaTypeRegistry.JSON, getResponse);
             assertEquals(
                 "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1,"
                     + "\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}",
@@ -127,7 +128,7 @@ public class GetResponseTests extends OpenSearchTestCase {
         }
         {
             GetResponse getResponse = new GetResponse(new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null));
-            String output = Strings.toString(XContentType.JSON, getResponse);
+            String output = Strings.toString(MediaTypeRegistry.JSON, getResponse);
             assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"found\":false}", output);
         }
     }
@@ -155,7 +156,7 @@ public class GetResponseTests extends OpenSearchTestCase {
 
     public void testEqualsAndHashcode() {
         checkEqualsAndHashCode(
-            new GetResponse(randomGetResult(XContentType.JSON).v1()),
+            new GetResponse(randomGetResult(MediaTypeRegistry.JSON).v1()),
             GetResponseTests::copyGetResponse,
             GetResponseTests::mutateGetResponse
         );

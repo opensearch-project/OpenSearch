@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.correlation.core.index.mapper;
 
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.StoredField;
@@ -23,8 +24,6 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Optional;
 
-import static org.apache.lucene.index.FloatVectorValues.MAX_DIMENSIONS;
-
 /**
  * Field mapper for the correlation vector type
  *
@@ -32,7 +31,7 @@ import static org.apache.lucene.index.FloatVectorValues.MAX_DIMENSIONS;
  */
 public class CorrelationVectorFieldMapper extends VectorFieldMapper {
 
-    private static final int LUCENE_MAX_DIMENSION = MAX_DIMENSIONS;
+    private static final int LUCENE_MAX_DIMENSION = KnnVectorsFormat.DEFAULT_MAX_DIMENSIONS;
 
     private final FieldType vectorFieldType;
 

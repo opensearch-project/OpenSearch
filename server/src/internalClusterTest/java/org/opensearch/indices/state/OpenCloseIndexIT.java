@@ -44,12 +44,11 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -301,16 +300,15 @@ public class OpenCloseIndexIT extends OpenSearchIntegTestCase {
     }
 
     public void testOpenCloseWithDocs() throws IOException, ExecutionException, InterruptedException {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("test")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("test")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         assertAcked(client().admin().indices().prepareCreate("test").setMapping(mapping));
         ensureGreen();

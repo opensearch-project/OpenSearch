@@ -31,11 +31,11 @@
 
 package org.opensearch.action.support.tasks;
 
-import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.action.ActionType;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 
 /**
  * Builder for task-based requests

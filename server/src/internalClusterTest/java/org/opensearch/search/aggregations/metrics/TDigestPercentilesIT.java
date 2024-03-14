@@ -34,7 +34,7 @@ package org.opensearch.search.aggregations.metrics;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
@@ -73,6 +73,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class TDigestPercentilesIT extends AbstractNumericTestCase {
+
+    public TDigestPercentilesIT(Settings staticSettings) {
+        super(staticSettings);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -597,5 +601,6 @@ public class TDigestPercentilesIT extends AbstractNumericTestCase {
                 .getMissCount(),
             equalTo(2L)
         );
+        internalCluster().wipeIndices("cache_test_idx");
     }
 }

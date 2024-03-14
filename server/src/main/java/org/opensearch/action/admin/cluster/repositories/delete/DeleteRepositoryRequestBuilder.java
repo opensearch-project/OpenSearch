@@ -35,12 +35,14 @@ package org.opensearch.action.admin.cluster.repositories.delete;
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Builder for unregister repository request
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DeleteRepositoryRequestBuilder extends AcknowledgedRequestBuilder<
     DeleteRepositoryRequest,
     AcknowledgedResponse,

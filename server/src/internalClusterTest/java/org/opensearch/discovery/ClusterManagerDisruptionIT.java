@@ -39,9 +39,10 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.service.ClusterStateStats;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.BlockClusterManagerServiceOnClusterManager;
 import org.opensearch.test.disruption.IntermittentLongGCDisruption;
@@ -199,6 +200,8 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
                 }
 
             }
+            ClusterStateStats clusterStateStats = internalCluster().clusterService().getClusterManagerService().getClusterStateStats();
+            assertTrue(clusterStateStats.getUpdateFailed() > 0);
         });
     }
 
@@ -326,9 +329,9 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         disruption.startDisrupting();
 
         BulkRequestBuilder bulk = client().prepareBulk();
-        bulk.add(client().prepareIndex("test").setId("2").setSource("{ \"f\": 1 }", XContentType.JSON));
-        bulk.add(client().prepareIndex("test").setId("3").setSource("{ \"g\": 1 }", XContentType.JSON));
-        bulk.add(client().prepareIndex("test").setId("4").setSource("{ \"f\": 1 }", XContentType.JSON));
+        bulk.add(client().prepareIndex("test").setId("2").setSource("{ \"f\": 1 }", MediaTypeRegistry.JSON));
+        bulk.add(client().prepareIndex("test").setId("3").setSource("{ \"g\": 1 }", MediaTypeRegistry.JSON));
+        bulk.add(client().prepareIndex("test").setId("4").setSource("{ \"f\": 1 }", MediaTypeRegistry.JSON));
         BulkResponse bulkResponse = bulk.get();
         assertTrue(bulkResponse.hasFailures());
 

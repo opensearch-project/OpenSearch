@@ -49,15 +49,15 @@ import java.util.stream.Stream;
 
 /**
  * An immutable map whose writes result in a new copy of the map to be created.
- *
+ * <p>
  * This is essentially a hash array mapped trie: inner nodes use a bitmap in
  * order to map hashes to slots by counting ones. In case of a collision (two
  * values having the same 32-bits hash), a leaf node is created which stores
  * and searches for values sequentially.
- *
+ * <p>
  * Reads and writes both perform in logarithmic time. Null keys and values are
  * not supported.
- *
+ * <p>
  * This structure might need to perform several object creations per write so
  * it is better suited for work-loads that are not too write-intensive.
  *
@@ -250,7 +250,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
      * and use a bitmap in order to associate hashes to them. For example, if
      * an inner node contains 5 values, then 5 bits will be set in the bitmap
      * and the ordinal of the bit set in this bit map will be the slot number.
-     *
+     * <p>
      * As a consequence, the number of slots in an inner node is equal to the
      * number of one bits in the bitmap.
      *

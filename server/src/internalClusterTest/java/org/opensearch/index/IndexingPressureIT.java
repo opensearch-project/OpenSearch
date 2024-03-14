@@ -31,7 +31,6 @@
 
 package org.opensearch.index;
 
-import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.bulk.BulkRequest;
@@ -43,14 +42,15 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;

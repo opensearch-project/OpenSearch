@@ -41,11 +41,12 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.logging.MockAppender;
+import org.opensearch.common.logging.SlowLogLevel;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
@@ -337,7 +338,7 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
             assertNotNull(ex.getCause());
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
             final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
-            assertThat(cause, hasToString(containsString("No enum constant org.opensearch.index.SlowLogLevel.NOT A LEVEL")));
+            assertThat(cause, hasToString(containsString("No enum constant org.opensearch.common.logging.SlowLogLevel.NOT A LEVEL")));
         }
         assertEquals(SlowLogLevel.TRACE, log.getLevel());
 

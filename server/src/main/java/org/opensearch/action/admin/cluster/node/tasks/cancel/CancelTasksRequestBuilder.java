@@ -34,12 +34,14 @@ package org.opensearch.action.admin.cluster.node.tasks.cancel;
 
 import org.opensearch.action.support.tasks.TasksRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Builder for the request to cancel tasks running on the specified nodes
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class CancelTasksRequestBuilder extends TasksRequestBuilder<CancelTasksRequest, CancelTasksResponse, CancelTasksRequestBuilder> {
 
     public CancelTasksRequestBuilder(OpenSearchClient client, CancelTasksAction action) {

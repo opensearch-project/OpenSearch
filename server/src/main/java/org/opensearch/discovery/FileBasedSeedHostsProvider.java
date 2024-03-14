@@ -35,7 +35,7 @@ package org.opensearch.discovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -48,12 +48,12 @@ import java.util.stream.Stream;
 /**
  * An implementation of {@link SeedHostsProvider} that reads hosts/ports
  * from {@link #UNICAST_HOSTS_FILE}.
- *
+ * <p>
  * Each host/port that is part of the discovery process must be listed on
  * a separate line. If the port is left off an entry, we default to the
  * first port in the {@code transport.port} range.
  * An example unicast hosts file could read:
- *
+ * <p>
  * 67.81.244.10
  * 67.81.244.11:9305
  * 67.81.244.15:9400

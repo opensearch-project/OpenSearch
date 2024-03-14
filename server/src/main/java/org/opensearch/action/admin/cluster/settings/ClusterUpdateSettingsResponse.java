@@ -33,10 +33,11 @@
 package org.opensearch.action.admin.cluster.settings;
 
 import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -49,8 +50,9 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
 /**
  * A response for a cluster update settings action.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
 
     private static final ParseField PERSISTENT = new ParseField("persistent");

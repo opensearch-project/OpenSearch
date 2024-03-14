@@ -50,7 +50,7 @@ import java.util.List;
 /**
  * An abstract class that implements basic functionality for allocating
  * shards to nodes based on shard copies that already exist in the cluster.
- *
+ * <p>
  * Individual implementations of this class are responsible for providing
  * the logic to determine to which nodes (if any) those shards are allocated.
  *

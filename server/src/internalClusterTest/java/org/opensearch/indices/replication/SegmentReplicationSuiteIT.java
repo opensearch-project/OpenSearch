@@ -8,13 +8,15 @@
 
 package org.opensearch.indices.replication;
 
-import org.junit.Before;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.Before;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9499")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
 public class SegmentReplicationSuiteIT extends SegmentReplicationBaseIT {
 

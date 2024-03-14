@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.HdrHistogram.DoubleHistogram;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -46,6 +45,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.zip.DataFormatException;
+
+import org.HdrHistogram.DoubleHistogram;
 
 /**
  * Base implementation of HDR percentiles

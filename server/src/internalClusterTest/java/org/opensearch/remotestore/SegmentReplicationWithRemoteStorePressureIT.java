@@ -8,60 +8,46 @@
 
 package org.opensearch.remotestore;
 
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.SegmentReplicationPressureIT;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.index.SegmentReplicationPressureIT;
-import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
 
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 
 /**
  * This class executes the SegmentReplicationPressureIT suite with remote store integration enabled.
- * Setup is similar to SegmentReplicationPressureIT but this also enables the segment replication using remote store which
- * is behind SEGMENT_REPLICATION_EXPERIMENTAL flag.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationWithRemoteStorePressureIT extends SegmentReplicationPressureIT {
 
     private static final String REPOSITORY_NAME = "test-remote-store-repo";
+    protected Path absolutePath;
 
     @Override
-    public Settings indexSettings() {
-        return Settings.builder()
-            .put(super.indexSettings())
-            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, REPOSITORY_NAME)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, REPOSITORY_NAME)
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .build();
+    protected boolean segmentReplicationWithRemoteEnabled() {
+        return true;
     }
 
     @Override
-    protected Settings featureFlagSettings() {
+    protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.REMOTE_STORE, "true")
-            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(remoteStoreClusterSettings(REPOSITORY_NAME, absolutePath))
             .build();
     }
 
     @Before
     public void setup() {
+        absolutePath = randomRepoPath().toAbsolutePath();
         internalCluster().startClusterManagerOnlyNode();
-        Path absolutePath = randomRepoPath().toAbsolutePath();
-        assertAcked(
-            clusterAdmin().preparePutRepository(REPOSITORY_NAME).setType("fs").setSettings(Settings.builder().put("location", absolutePath))
-        );
     }
 
     @After
     public void teardown() {
-        assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
+        clusterAdmin().prepareCleanupRepository(REPOSITORY_NAME).get();
     }
 }

@@ -37,21 +37,20 @@ import org.opensearch.action.resync.ResyncReplicationRequest;
 import org.opensearch.action.resync.ResyncReplicationResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
-import org.opensearch.common.Strings;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -94,7 +93,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             shard.applyIndexOperationOnPrimary(
                 Versions.MATCH_ANY,
                 VersionType.INTERNAL,
-                new SourceToParse(shard.shardId().getIndexName(), Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
+                new SourceToParse(shard.shardId().getIndexName(), Integer.toString(i), new BytesArray("{}"), MediaTypeRegistry.JSON),
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 0,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
@@ -176,7 +175,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             shard.applyIndexOperationOnPrimary(
                 Versions.MATCH_ANY,
                 VersionType.INTERNAL,
-                new SourceToParse(shard.shardId().getIndexName(), Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
+                new SourceToParse(shard.shardId().getIndexName(), Integer.toString(i), new BytesArray("{}"), MediaTypeRegistry.JSON),
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 0,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
@@ -315,7 +314,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         PrimaryReplicaSyncer.ResyncTask.Status status = task.getStatus();
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         status.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-        String jsonString = Strings.toString(jsonBuilder);
+        String jsonString = jsonBuilder.toString();
         assertThat(jsonString, containsString("\"phase\":\"" + task.getPhase() + "\""));
         assertThat(jsonString, containsString("\"totalOperations\":" + task.getTotalOperations()));
         assertThat(jsonString, containsString("\"resyncedOperations\":" + task.getResyncedOperations()));

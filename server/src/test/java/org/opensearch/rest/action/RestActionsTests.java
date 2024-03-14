@@ -33,22 +33,22 @@
 package org.opensearch.rest.action;
 
 import com.fasterxml.jackson.core.io.JsonEOFException;
+
 import org.opensearch.action.OriginalIndices;
-import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.action.ShardOperationFailedException;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.test.OpenSearchTestCase;
@@ -138,7 +138,7 @@ public class RestActionsTests extends OpenSearchTestCase {
         RestActions.buildBroadcastShardsHeader(builder, ToXContent.EMPTY_PARAMS, 12, 3, 0, 9, failures);
         builder.endObject();
         assertThat(
-            Strings.toString(builder),
+            builder.toString(),
             equalTo(
                 "{\n"
                     + "  \"_shards\" : {\n"

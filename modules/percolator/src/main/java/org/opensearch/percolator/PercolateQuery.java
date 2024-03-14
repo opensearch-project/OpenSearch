@@ -32,8 +32,9 @@
 
 package org.opensearch.percolator;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -45,13 +46,11 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.core.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.util.List;
@@ -89,8 +88,8 @@ final class PercolateQuery extends Query implements Accountable {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten = candidateMatchesQuery.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewritten = candidateMatchesQuery.rewrite(searcher);
         if (rewritten != candidateMatchesQuery) {
             return new PercolateQuery(
                 name,

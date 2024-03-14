@@ -35,10 +35,9 @@ package org.opensearch.ingest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.OpenSearchParseException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.bulk.TransportBulkAction;
 import org.opensearch.action.index.IndexRequest;
@@ -66,12 +65,14 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.service.ReportingService;
 import org.opensearch.env.Environment;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.analysis.AnalysisRegistry;
-import org.opensearch.node.ReportingService;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -128,7 +129,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ScriptService scriptService,
         AnalysisRegistry analysisRegistry,
         List<IngestPlugin> ingestPlugins,
-        Client client
+        Client client,
+        IndicesService indicesService
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
@@ -143,7 +145,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC),
                 this,
                 client,
-                threadPool.generic()::execute
+                threadPool.generic()::execute,
+                indicesService
             )
         );
         this.threadPool = threadPool;
@@ -695,7 +698,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Adds a listener that gets invoked with the current cluster state before processor factories
      * get invoked.
-     *
+     * <p>
      * This is useful for components that are used by ingest processors, so that they have the opportunity to update
      * before these components get used by the ingest processor factory.
      */

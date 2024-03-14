@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.cluster.stats;
 
 import org.opensearch.action.admin.indices.stats.CommonStats;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.cache.query.QueryCacheStats;
@@ -50,8 +51,9 @@ import java.util.Map;
 /**
  * Cluster Stats per index
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterStatsIndices implements ToXContentFragment {
 
     private int indexCount;
@@ -180,8 +182,9 @@ public class ClusterStatsIndices implements ToXContentFragment {
     /**
      * Inner Shard Stats
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ShardStats implements ToXContentFragment {
 
         int indices;

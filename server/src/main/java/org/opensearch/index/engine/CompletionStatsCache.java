@@ -37,12 +37,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.FieldMemoryStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.regex.Regex;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.util.HashMap;

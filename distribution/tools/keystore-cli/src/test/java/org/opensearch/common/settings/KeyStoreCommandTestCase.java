@@ -32,6 +32,17 @@
 
 package org.opensearch.common.settings;
 
+import com.google.common.jimfs.Configuration;
+import com.google.common.jimfs.Jimfs;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.opensearch.cli.CommandTestCase;
+import org.opensearch.common.io.PathUtilsForTesting;
+import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.env.Environment;
+import org.opensearch.env.TestEnvironment;
+import org.junit.After;
+import org.junit.Before;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileSystem;
@@ -39,17 +50,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-
-import com.google.common.jimfs.Configuration;
-import com.google.common.jimfs.Jimfs;
-import org.opensearch.common.util.io.IOUtils;
-import org.apache.lucene.tests.util.LuceneTestCase;
-import org.opensearch.cli.CommandTestCase;
-import org.opensearch.common.io.PathUtilsForTesting;
-import org.opensearch.env.Environment;
-import org.opensearch.env.TestEnvironment;
-import org.junit.After;
-import org.junit.Before;
 
 /**
  * Base test case for manipulating the OpenSearch keystore.

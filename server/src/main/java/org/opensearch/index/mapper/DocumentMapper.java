@@ -40,14 +40,15 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchGenerationException;
-import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.text.Text;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.mapper.MapperService.MergeReason;
@@ -65,15 +66,17 @@ import java.util.stream.Stream;
 /**
  * The OpenSearch DocumentMapper
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DocumentMapper implements ToXContentFragment {
 
     /**
      * Builder for the Document Field Mapper
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
         private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
@@ -236,7 +239,7 @@ public class DocumentMapper implements ToXContentFragment {
         return this.fieldMappers;
     }
 
-    public FieldTypeLookup fieldTypes() {
+    FieldTypeLookup fieldTypes() {
         return mappers().fieldTypes();
     }
 
@@ -249,13 +252,13 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public ParsedDocument createDeleteTombstoneDoc(String index, String id) throws MapperParsingException {
-        final SourceToParse emptySource = new SourceToParse(index, id, new BytesArray("{}"), XContentType.JSON);
+        final SourceToParse emptySource = new SourceToParse(index, id, new BytesArray("{}"), MediaTypeRegistry.JSON);
         return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers).toTombstone();
     }
 
     public ParsedDocument createNoopTombstoneDoc(String index, String reason) throws MapperParsingException {
         final String id = ""; // _id won't be used.
-        final SourceToParse sourceToParse = new SourceToParse(index, id, new BytesArray("{}"), XContentType.JSON);
+        final SourceToParse sourceToParse = new SourceToParse(index, id, new BytesArray("{}"), MediaTypeRegistry.JSON);
         final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers).toTombstone();
         // Store the reason of a noop as a raw string in the _source field
         final BytesRef byteRef = new BytesRef(reason);

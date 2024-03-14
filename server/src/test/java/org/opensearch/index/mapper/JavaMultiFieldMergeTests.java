@@ -33,10 +33,10 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
@@ -56,7 +56,7 @@ public class JavaMultiFieldMergeTests extends OpenSearchSingleNodeTestCase {
         assertThat(mapperService.fieldType("name.indexed"), nullValue());
 
         BytesReference json = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject());
-        Document doc = mapperService.documentMapper().parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        Document doc = mapperService.documentMapper().parse(new SourceToParse("test", "1", json, MediaTypeRegistry.JSON)).rootDoc();
         IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
@@ -72,7 +72,7 @@ public class JavaMultiFieldMergeTests extends OpenSearchSingleNodeTestCase {
         assertThat(mapperService.fieldType("name.not_indexed2"), nullValue());
         assertThat(mapperService.fieldType("name.not_indexed3"), nullValue());
 
-        doc = mapperService.documentMapper().parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        doc = mapperService.documentMapper().parse(new SourceToParse("test", "1", json, MediaTypeRegistry.JSON)).rootDoc();
         f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
@@ -109,7 +109,7 @@ public class JavaMultiFieldMergeTests extends OpenSearchSingleNodeTestCase {
         assertThat(mapperService.fieldType("name.indexed"), nullValue());
 
         BytesReference json = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject());
-        Document doc = mapperService.documentMapper().parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        Document doc = mapperService.documentMapper().parse(new SourceToParse("test", "1", json, MediaTypeRegistry.JSON)).rootDoc();
         IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
@@ -125,7 +125,7 @@ public class JavaMultiFieldMergeTests extends OpenSearchSingleNodeTestCase {
         assertThat(mapperService.fieldType("name.not_indexed2"), nullValue());
         assertThat(mapperService.fieldType("name.not_indexed3"), nullValue());
 
-        doc = mapperService.documentMapper().parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        doc = mapperService.documentMapper().parse(new SourceToParse("test", "1", json, MediaTypeRegistry.JSON)).rootDoc();
         f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");

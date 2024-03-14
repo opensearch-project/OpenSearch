@@ -33,7 +33,6 @@
 package org.opensearch.cluster;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
@@ -47,29 +46,29 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
-
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 

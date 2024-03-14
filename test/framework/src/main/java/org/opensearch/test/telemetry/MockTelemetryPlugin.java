@@ -8,11 +8,12 @@
 
 package org.opensearch.test.telemetry;
 
-import java.util.Optional;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
+
+import java.util.Optional;
 
 /**
  * Mock {@link TelemetryPlugin} implementation for testing.

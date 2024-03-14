@@ -34,19 +34,18 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.opensearch.common.Strings;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -63,7 +62,7 @@ public class IdFieldMapperTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testIncludeInObjectNotAllowed() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().toString();
         DocumentMapper docMapper = createIndex("test").mapperService()
             .documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
@@ -74,7 +73,7 @@ public class IdFieldMapperTests extends OpenSearchSingleNodeTestCase {
                     "test",
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("_id", "1").endObject()),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             );
             fail("Expected failure to parse metadata field");
@@ -90,7 +89,7 @@ public class IdFieldMapperTests extends OpenSearchSingleNodeTestCase {
         Settings indexSettings = Settings.EMPTY;
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
-        ParsedDocument document = mapper.parse(new SourceToParse("index", "id", new BytesArray("{}"), XContentType.JSON));
+        ParsedDocument document = mapper.parse(new SourceToParse("index", "id", new BytesArray("{}"), MediaTypeRegistry.JSON));
         IndexableField[] fields = document.rootDoc().getFields(IdFieldMapper.NAME);
         assertEquals(1, fields.length);
         assertEquals(IndexOptions.DOCS, fields[0].fieldType().indexOptions());

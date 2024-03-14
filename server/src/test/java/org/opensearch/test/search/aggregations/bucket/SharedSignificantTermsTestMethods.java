@@ -34,7 +34,7 @@ package org.opensearch.test.search.aggregations.bucket;
 
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
@@ -48,12 +48,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static org.opensearch.search.aggregations.AggregationBuilders.significantTerms;
+import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.OpenSearchIntegTestCase.client;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
-import static org.opensearch.search.aggregations.AggregationBuilders.significantTerms;
-import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 
 public class SharedSignificantTermsTestMethods {
     public static final String INDEX_NAME = "testidx";
@@ -99,7 +99,7 @@ public class SharedSignificantTermsTestMethods {
         }
         assertAcked(
             testCase.prepareCreate(INDEX_NAME)
-                .setSettings(settings, XContentType.JSON)
+                .setSettings(settings, MediaTypeRegistry.JSON)
                 .setMapping("text", textMappings, CLASS_FIELD, "type=keyword")
         );
         String[] gb = { "0", "1" };
@@ -122,7 +122,7 @@ public class SharedSignificantTermsTestMethods {
         }
         assertAcked(
             testCase.prepareCreate(INDEX_NAME)
-                .setSettings(settings, XContentType.JSON)
+                .setSettings(settings, MediaTypeRegistry.JSON)
                 .setMapping("text", textMappings, CLASS_FIELD, "type=keyword")
         );
         String[] gb = { "0", "1" };

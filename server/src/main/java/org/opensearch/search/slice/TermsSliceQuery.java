@@ -32,19 +32,19 @@
 
 package org.opensearch.search.slice;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.StringHelper;
@@ -53,7 +53,7 @@ import java.io.IOException;
 
 /**
  * A {@link SliceQuery} that uses the terms dictionary of a field to do the slicing.
- *
+ * <p>
  * <b>NOTE</b>: The cost of this filter is O(N*M) where N is the number of unique terms in the dictionary
  * and M is the average number of documents per term.
  * For each segment this filter enumerates the terms dictionary, computes the hash code for each term and fills

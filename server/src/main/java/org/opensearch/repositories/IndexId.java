@@ -32,13 +32,14 @@
 
 package org.opensearch.repositories;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.index.Index;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -46,8 +47,9 @@ import java.util.Objects;
 /**
  * Represents a single snapshotted index in the repository.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class IndexId implements Writeable, ToXContentObject {
     protected static final String NAME = "name";
     protected static final String ID = "id";
@@ -80,7 +82,7 @@ public final class IndexId implements Writeable, ToXContentObject {
      * The unique ID for the index within the repository.  This is *not* the same as the
      * index's UUID, but merely a unique file/URL friendly identifier that a repository can
      * use to name blobs for the index.
-     *
+     * <p>
      * We could not use the index's actual UUID (See {@link Index#getUUID()}) because in the
      * case of snapshot/restore, the index UUID in the snapshotted index will be different
      * from the index UUID assigned to it when it is restored. Hence, the actual index UUID

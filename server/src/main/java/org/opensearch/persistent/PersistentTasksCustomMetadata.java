@@ -41,12 +41,12 @@ import org.opensearch.cluster.NamedDiff;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.NamedObjectParser;
 import org.opensearch.core.xcontent.ToXContent;
@@ -211,7 +211,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 
     public long getNumberOfTasksOnNode(String nodeId, String taskName) {
@@ -429,7 +429,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
         @Override
         public String toString() {
-            return Strings.toString(XContentType.JSON, this);
+            return Strings.toString(MediaTypeRegistry.JSON, this);
         }
 
         public String getId() {

@@ -50,7 +50,7 @@ import static org.apache.lucene.search.SortField.Type.SCORE;
  * A collector that groups documents based on field values and returns {@link CollapseTopFieldDocs}
  * output. The collapsing is done in a single pass by selecting only the top sorted document per collapse key.
  * The value used for the collapse key of each group can be found in {@link CollapseTopFieldDocs#collapseValues}.
- *
+ * <p>
  * TODO: If the sort is based on score we should propagate the mininum competitive score when <code>orderedGroups</code> is full.
  * This is safe for collapsing since the group <code>sort</code> is the same as the query sort.
  */

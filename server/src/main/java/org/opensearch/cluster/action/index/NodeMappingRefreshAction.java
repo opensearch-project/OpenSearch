@@ -42,13 +42,13 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.EmptyTransportResponseHandler;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
-import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;

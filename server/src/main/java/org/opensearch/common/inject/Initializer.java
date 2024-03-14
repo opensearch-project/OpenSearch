@@ -68,9 +68,8 @@ class Initializer {
     /**
      * Registers an instance for member injection when that step is performed.
      *
-     * @param instance an instance that optionally has members to be injected (each annotated with
-     * @param source   the source location that this injection was requested
-     * @Inject).
+     * @param instance an instance that optionally has members to be injected (each annotated with {@code @Inject}).
+     * @param source the source location that this injection was requested
      */
     public <T> Initializable<T> requestInjection(InjectorImpl injector, T instance, Object source, Set<InjectionPoint> injectionPoints) {
         Objects.requireNonNull(source);

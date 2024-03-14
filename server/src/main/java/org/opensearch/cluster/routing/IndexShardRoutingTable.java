@@ -39,10 +39,11 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.node.ResponseCollectorService;
@@ -73,8 +74,9 @@ import static java.util.Collections.emptyMap;
  * referred to as replicas of a shard. Given that, this class encapsulates all
  * replicas (instances) for a single index shard.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     final ShardShuffler shuffler;
@@ -463,7 +465,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      * OpenSearch, however, we do not have that sort of broadcast-to-all behavior. In order to prevent a node that gets a high score and
      * then never gets any more requests, we must ensure it eventually returns to a more normal score and can be a candidate for serving
      * requests.
-     *
+     * <p>
      * This adjustment takes the "winning" node's statistics and adds the average of those statistics with each non-winning node. Let's say
      * the winning node had a queue size of 10 and a non-winning node had a queue of 18. The average queue size is (10 + 18) / 2 = 14 so the
      * non-winning node will have statistics added for a queue size of 14. This is repeated for the response time and service times as well.
@@ -921,8 +923,9 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     /**
      * Key for WeightedRouting Shard Iterator
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "2.4.0")
     public static class WeightedRoutingKey {
         private final WeightedRouting weightedRouting;
 

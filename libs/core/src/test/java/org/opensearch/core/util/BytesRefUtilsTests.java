@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Counter;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.ByteBuffer;
@@ -90,8 +89,12 @@ public class BytesRefUtilsTests extends OpenSearchTestCase {
     }
 
     public void testBytesToLong() {
-        final long value = randomLong();
-        final BytesReference buffer = BytesReference.fromByteBuffer(ByteBuffer.allocate(8).putLong(value).flip());
-        assertThat(BytesRefUtils.bytesToLong(buffer.toBytesRef()), equalTo(value));
+        long value = randomLong();
+        int paddingStart = randomIntBetween(0, 10);
+        int paddingEnd = randomIntBetween(0, 10);
+        byte[] bytes = new byte[paddingStart + Long.BYTES + paddingEnd];
+        ByteBuffer.wrap(bytes).putLong(paddingStart, value);
+        BytesRef bytesRef = new BytesRef(bytes, paddingStart, Long.BYTES);
+        assertThat(BytesRefUtils.bytesToLong(bytesRef), equalTo(value));
     }
 }

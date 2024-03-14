@@ -31,8 +31,9 @@
 
 package org.opensearch.search.aggregations;
 
-import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -54,8 +55,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.parseTypedKeysObj
 /**
  * Represents a set of {@link Aggregation}s
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Aggregations implements Iterable<Aggregation>, ToXContentFragment {
 
     public static final String AGGREGATIONS_FIELD = "aggregations";
