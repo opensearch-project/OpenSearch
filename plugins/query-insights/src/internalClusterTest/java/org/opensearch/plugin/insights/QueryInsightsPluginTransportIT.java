@@ -14,19 +14,26 @@ import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.plugin.insights.rules.action.top_queries.TopQueries;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesAction;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesRequest;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesResponse;
+import org.opensearch.plugin.insights.rules.model.Attribute;
 import org.opensearch.plugin.insights.rules.model.MetricType;
+import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Assert;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -49,6 +56,8 @@ public class QueryInsightsPluginTransportIT extends OpenSearchIntegTestCase {
 
     private final int TOTAL_NUMBER_OF_NODES = 2;
     private final int TOTAL_SEARCH_REQUESTS = 5;
+    private final String remoteAddress = "1.2.3.4";
+    private final int remotePort = 1234;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -143,7 +152,7 @@ public class QueryInsightsPluginTransportIT extends OpenSearchIntegTestCase {
     /**
      * Test get top queries when feature enabled
      */
-    public void testGetTopQueriesWhenFeatureEnabled() throws InterruptedException {
+    public void testGetTopQueriesWhenFeatureEnabled() throws InterruptedException, UnknownHostException {
         Settings commonSettings = Settings.builder()
             .put(TOP_N_LATENCY_QUERIES_ENABLED.getKey(), "true")
             .put(TOP_N_LATENCY_QUERIES_SIZE.getKey(), "100")
@@ -168,10 +177,11 @@ public class QueryInsightsPluginTransportIT extends OpenSearchIntegTestCase {
         }
         // making search requests to get top queries
         for (int i = 0; i < TOTAL_SEARCH_REQUESTS; i++) {
-            SearchResponse searchResponse = internalCluster().client(randomFrom(nodes))
+            SearchRequestBuilder requestBuilder = internalCluster().client(randomFrom(nodes))
                 .prepareSearch()
-                .setQuery(QueryBuilders.matchAllQuery())
-                .get();
+                .setQuery(QueryBuilders.matchAllQuery());
+            requestBuilder.request().remoteAddress(new TransportAddress(InetAddress.getByName(remoteAddress), remotePort));
+            SearchResponse searchResponse = requestBuilder.get();
             assertEquals(searchResponse.getFailedShards(), 0);
         }
         // Sleep to wait for queue drained to top queries store
@@ -181,6 +191,11 @@ public class QueryInsightsPluginTransportIT extends OpenSearchIntegTestCase {
         Assert.assertEquals(0, response.failures().size());
         Assert.assertEquals(TOTAL_NUMBER_OF_NODES, response.getNodes().size());
         Assert.assertEquals(TOTAL_SEARCH_REQUESTS, response.getNodes().stream().mapToInt(o -> o.getTopQueriesRecord().size()).sum());
+        for (TopQueries nodeRecords : response.getNodes()) {
+            for (SearchQueryRecord record : nodeRecords.getTopQueriesRecord()) {
+                Assert.assertEquals(remoteAddress + ":" + remotePort, record.getAttributes().get(Attribute.REMOTE_ADDRESS));
+            }
+        }
 
         internalCluster().stopAllNodes();
     }

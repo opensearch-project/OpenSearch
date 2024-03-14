@@ -10,6 +10,7 @@ package org.opensearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.annotation.InternalApi;
+import org.opensearch.core.common.transport.TransportAddress;
 
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -51,8 +52,8 @@ public class SearchRequestContext {
         return phaseTookMap;
     }
 
-    public String getRequestRemoteAddress() {
-        return searchRequest.remoteAddress().toString();
+    public TransportAddress getRequestRemoteAddress() {
+        return searchRequest.remoteAddress();
     }
 
     SearchResponse.PhaseTook getPhaseTook() {

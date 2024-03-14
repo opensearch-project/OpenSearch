@@ -15,6 +15,7 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.core.service.TopQueriesService;
 import org.opensearch.plugin.insights.rules.model.Attribute;
@@ -27,6 +28,8 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -55,10 +58,11 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
     private final Settings.Builder settingsBuilder = Settings.builder();
     private final Settings settings = settingsBuilder.build();
     private final String remoteAddress = "1.2.3.4";
+    private final int remotePort = 1234;
     private ClusterService clusterService;
 
     @Before
-    public void setup() {
+    public void setup() throws UnknownHostException {
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE);
@@ -66,7 +70,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         clusterService = new ClusterService(settings, clusterSettings, null);
         when(queryInsightsService.isCollectionEnabled(MetricType.LATENCY)).thenReturn(true);
         when(queryInsightsService.getTopQueriesService(MetricType.LATENCY)).thenReturn(topQueriesService);
-        when(searchRequestContext.getRequestRemoteAddress()).thenReturn(remoteAddress);
+        when(searchRequestContext.getRequestRemoteAddress()).thenReturn(new TransportAddress(InetAddress.getByName(remoteAddress), remotePort));
     }
 
     public void testOnRequestEnd() {
@@ -107,7 +111,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         assertEquals(numberOfShards, attrs.get(Attribute.TOTAL_SHARDS));
         assertEquals(indices, attrs.get(Attribute.INDICES));
         assertEquals(phaseLatencyMap, attrs.get(Attribute.PHASE_LATENCY_MAP));
-        assertEquals(remoteAddress, attrs.get(Attribute.REMOTE_ADDRESS));
+        assertEquals(remoteAddress + ":" + remotePort, attrs.get(Attribute.REMOTE_ADDRESS));
     }
 
     public void testConcurrentOnRequestEnd() throws InterruptedException {
