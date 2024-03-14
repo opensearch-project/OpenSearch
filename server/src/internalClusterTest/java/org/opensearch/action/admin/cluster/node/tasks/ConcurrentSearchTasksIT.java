@@ -15,9 +15,9 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.FeatureFlagSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.tasks.resourcetracker.ThreadResourceInfo;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.search.SearchService;
 import org.opensearch.tasks.TaskInfo;
 import org.hamcrest.MatcherAssert;
 
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Integration tests for task management API with Concurrent Segment Search
- *
+ * <p>
  * The way the test framework bootstraps the test cluster makes it difficult to parameterize the feature flag.
  * Once concurrent search is moved behind a cluster setting we can parameterize these tests behind the setting.
  */
@@ -44,6 +44,7 @@ public class ConcurrentSearchTasksIT extends AbstractTasksIT {
             .put(super.nodeSettings(nodeOrdinal))
             .put("thread_pool.index_searcher.size", INDEX_SEARCHER_THREADS)
             .put("thread_pool.index_searcher.queue_size", INDEX_SEARCHER_THREADS)
+            .put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true)
             .build();
     }
 
@@ -66,13 +67,12 @@ public class ConcurrentSearchTasksIT extends AbstractTasksIT {
         for (Setting builtInFlag : FeatureFlagSettings.BUILT_IN_FEATURE_FLAGS) {
             featureSettings.put(builtInFlag.getKey(), builtInFlag.getDefaultRaw(Settings.EMPTY));
         }
-        featureSettings.put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, true);
         return featureSettings.build();
     }
 
     /**
      * Tests the number of threads that worked on a search task.
-     *
+     * <p>
      * Currently, we try to control concurrency by creating an index with 7 segments and rely on
      * the way concurrent search creates leaf slices from segments. Once more concurrency controls are introduced
      * we should improve this test to use those methods.
@@ -108,8 +108,9 @@ public class ConcurrentSearchTasksIT extends AbstractTasksIT {
             assertEquals(mainTaskInfo.getTaskId(), taskInfo.getParentTaskId());
 
             Map<Long, List<ThreadResourceInfo>> threadStats = getThreadStats(SearchAction.NAME + "[*]", taskInfo.getTaskId());
-            // Concurrent search forks each slice of 5 segments to different thread
-            assertEquals((int) Math.ceil(getSegmentCount(INDEX_NAME) / 5.0), threadStats.size());
+            // Concurrent search forks each slice of 5 segments to different thread (see please
+            // https://github.com/apache/lucene/issues/12498)
+            assertEquals((int) Math.ceil(getSegmentCount(INDEX_NAME) / 5.0) + 1, threadStats.size());
 
             // assert that all task descriptions have non-zero length
             MatcherAssert.assertThat(taskInfo.getDescription().length(), greaterThan(0));

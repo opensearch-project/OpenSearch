@@ -62,6 +62,7 @@ public class CustomLoggingConfigIT extends OpenSearchRestTestCase {
         });
     }
 
+    @SuppressWarnings("removal")
     private List<String> readAllLines(Path logFile) {
         return AccessController.doPrivileged((PrivilegedAction<List<String>>) () -> {
             try {

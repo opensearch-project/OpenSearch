@@ -36,6 +36,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -60,8 +61,9 @@ import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 /**
  * Request for an update index settings action
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest>
     implements
         IndicesRequest.Replaceable,

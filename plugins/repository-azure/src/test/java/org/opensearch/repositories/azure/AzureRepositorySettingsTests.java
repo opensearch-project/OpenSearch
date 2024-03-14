@@ -34,15 +34,19 @@ package org.opensearch.repositories.azure;
 
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
+
+import java.util.List;
 
 import reactor.core.scheduler.Schedulers;
 
@@ -179,4 +183,21 @@ public class AzureRepositorySettingsTests extends OpenSearchTestCase {
         );
     }
 
+    public void testSystemRepositoryDefault() {
+        assertThat(azureRepository(Settings.EMPTY).isSystemRepository(), is(false));
+    }
+
+    public void testSystemRepositoryOn() {
+        assertThat(azureRepository(Settings.builder().put("system_repository", true).build()).isSystemRepository(), is(true));
+    }
+
+    public void testRestrictedSettingsDefault() {
+        List<Setting<?>> restrictedSettings = azureRepository(Settings.EMPTY).getRestrictedSystemRepositorySettings();
+        assertThat(restrictedSettings.size(), is(5));
+        assertTrue(restrictedSettings.contains(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING));
+        assertTrue(restrictedSettings.contains(BlobStoreRepository.READONLY_SETTING));
+        assertTrue(restrictedSettings.contains(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY));
+        assertTrue(restrictedSettings.contains(AzureRepository.Repository.BASE_PATH_SETTING));
+        assertTrue(restrictedSettings.contains(AzureRepository.Repository.LOCATION_MODE_SETTING));
+    }
 }

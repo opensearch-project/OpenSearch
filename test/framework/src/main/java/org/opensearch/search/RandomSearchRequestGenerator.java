@@ -131,6 +131,9 @@ public class RandomSearchRequestGenerator {
         if (randomBoolean()) {
             searchRequest.setCancelAfterTimeInterval(TimeValue.parseTimeValue(randomTimeValue(), null, "cancel_after_time_interval"));
         }
+        if (randomBoolean()) {
+            searchRequest.setPhaseTook(randomBoolean());
+        }
         return searchRequest;
     }
 

@@ -39,7 +39,6 @@ import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.ShapesAvailability;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.ParseFieldRegistry;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -327,7 +326,7 @@ public class SearchModule {
 
     /**
      * Constructs a new SearchModule object
-     *
+     * <p>
      * NOTE: This constructor should not be called in production unless an accurate {@link Settings} object is provided.
      *       When constructed, a static flag is set in Lucene {@link BooleanQuery#setMaxClauseCount} according to the settings.
      * @param settings Current settings
@@ -1279,7 +1278,7 @@ public class SearchModule {
             }
         }
 
-        if (provider == null && FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
+        if (provider == null) {
             provider = (ThreadPool threadPool) -> threadPool.executor(INDEX_SEARCHER);
         }
         return provider;

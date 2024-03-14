@@ -31,6 +31,7 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.cluster.ClusterState;
@@ -50,17 +51,21 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -77,6 +82,23 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class SearchAsyncActionTests extends OpenSearchTestCase {
+    private SearchRequestOperationsListenerAssertingListener assertingListener;
+
+    @Before
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+
+        assertingListener = new SearchRequestOperationsListenerAssertingListener();
+    }
+
+    @After
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+
+        assertingListener.assertFinished();
+    }
 
     public void testSkipSearchShards() throws InterruptedException {
         SearchRequest request = new SearchRequest();
@@ -115,6 +137,10 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         AtomicInteger numRequests = new AtomicInteger(0);
+        final SearchRequestOperationsListener searchRequestOperationsListener = new SearchRequestOperationsListener.CompositeListener(
+            List.of(assertingListener),
+            LogManager.getLogger()
+        );
         AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>(
             "test",
             logger,
@@ -135,7 +161,9 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext(searchRequestOperationsListener, request),
+            NoopTracer.INSTANCE
         ) {
 
             @Override
@@ -166,6 +194,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
                     @Override
                     public void run() {
                         assertTrue(searchPhaseDidRun.compareAndSet(false, true));
+                        searchRequestOperationsListener.onPhaseEnd(new MockSearchPhaseContext(1, request, this), null);
                     }
                 };
             }
@@ -233,6 +262,10 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         CountDownLatch awaitInitialRequests = new CountDownLatch(1);
         AtomicInteger numRequests = new AtomicInteger(0);
+        final SearchRequestOperationsListener searchRequestOperationsListener = new SearchRequestOperationsListener.CompositeListener(
+            List.of(assertingListener),
+            LogManager.getLogger()
+        );
         AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>(
             "test",
             logger,
@@ -253,7 +286,9 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext(searchRequestOperationsListener, request),
+            NoopTracer.INSTANCE
         ) {
 
             @Override
@@ -291,6 +326,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
                 return new SearchPhase("test") {
                     @Override
                     public void run() {
+                        searchRequestOperationsListener.onPhaseEnd(new MockSearchPhaseContext(1, request, this), null);
                         assertTrue(searchPhaseDidRun.compareAndSet(false, true));
                     }
                 };
@@ -370,7 +406,12 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
+                request
+            ),
+            NoopTracer.INSTANCE
         ) {
             TestSearchResponse response = new TestSearchResponse();
 
@@ -406,6 +447,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
                             sendReleaseSearchContext(result.getContextId(), new MockConnection(result.node), OriginalIndices.NONE);
                         }
                         responseListener.onResponse(response);
+                        assertingListener.onPhaseEnd(new MockSearchPhaseContext(1, request, this), null);
                     }
                 };
             }
@@ -492,7 +534,12 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
+                request
+            ),
+            NoopTracer.INSTANCE
         ) {
             TestSearchResponse response = new TestSearchResponse();
 
@@ -585,6 +632,10 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         AtomicInteger numRequests = new AtomicInteger(0);
         AtomicInteger numFailReplicas = new AtomicInteger(0);
+        final SearchRequestOperationsListener searchRequestOperationsListener = new SearchRequestOperationsListener.CompositeListener(
+            List.of(assertingListener),
+            LogManager.getLogger()
+        );
         AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>(
             "test",
             logger,
@@ -605,9 +656,10 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext(searchRequestOperationsListener, request),
+            NoopTracer.INSTANCE
         ) {
-
             @Override
             protected void executePhaseOnShard(
                 SearchShardIterator shardIt,
@@ -639,6 +691,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
                     @Override
                     public void run() {
                         assertTrue(searchPhaseDidRun.compareAndSet(false, true));
+                        searchRequestOperationsListener.onPhaseEnd(new MockSearchPhaseContext(1, request, this), null);
                     }
                 };
             }

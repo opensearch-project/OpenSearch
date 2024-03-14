@@ -35,6 +35,7 @@ package org.opensearch.action.search;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionResponse;
@@ -59,8 +60,9 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
 /**
  * A multi search response.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class MultiSearchResponse extends ActionResponse implements Iterable<MultiSearchResponse.Item>, ToXContentObject {
 
     private static final ParseField RESPONSES = new ParseField(Fields.RESPONSES);
@@ -78,8 +80,9 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     /**
      * A search response item, holding the actual search response, or an error message if it failed.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Item implements Writeable {
         private final SearchResponse response;
         private final Exception exception;

@@ -32,6 +32,7 @@
 
 package org.opensearch.index.translog;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -45,8 +46,9 @@ import java.nio.file.Path;
  * Once {@link Translog} has been created with this object, changes to this
  * object will affect the {@link Translog} instance.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class TranslogConfig {
 
     public static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
@@ -56,6 +58,7 @@ public final class TranslogConfig {
     private final ShardId shardId;
     private final Path translogPath;
     private final ByteSizeValue bufferSize;
+    private final String nodeId;
 
     /**
      * Creates a new TranslogConfig instance
@@ -64,16 +67,24 @@ public final class TranslogConfig {
      * @param indexSettings the index settings used to set internal variables
      * @param bigArrays a bigArrays instance used for temporarily allocating write operations
      */
-    public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays) {
-        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE);
+    public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays, String nodeId) {
+        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE, nodeId);
     }
 
-    TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays, ByteSizeValue bufferSize) {
+    TranslogConfig(
+        ShardId shardId,
+        Path translogPath,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        ByteSizeValue bufferSize,
+        String nodeId
+    ) {
         this.bufferSize = bufferSize;
         this.indexSettings = indexSettings;
         this.shardId = shardId;
         this.translogPath = translogPath;
         this.bigArrays = bigArrays;
+        this.nodeId = nodeId;
     }
 
     /**
@@ -109,5 +120,9 @@ public final class TranslogConfig {
      */
     public ByteSizeValue getBufferSize() {
         return bufferSize;
+    }
+
+    public String getNodeId() {
+        return nodeId;
     }
 }

@@ -40,7 +40,7 @@ import java.util.Map;
 
 /**
  * The Contents of this file were originally moved from {@link Version}.
- *
+ * <p>
  * This class keeps all the supported OpenSearch predecessor versions for
  * backward compatibility purpose.
  *

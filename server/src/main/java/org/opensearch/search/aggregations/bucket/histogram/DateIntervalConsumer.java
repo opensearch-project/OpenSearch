@@ -34,7 +34,7 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 /**
  * A shared interface for aggregations that parse and use "interval" parameters.
- *
+ * <p>
  * Provides definitions for the new fixed and calendar intervals, and deprecated
  * defintions for the old interval/dateHisto interval parameters
  *

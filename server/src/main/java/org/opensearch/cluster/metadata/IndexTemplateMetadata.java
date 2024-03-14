@@ -273,8 +273,9 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
     /**
      * Builder of index template metadata.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
         private static final Set<String> VALID_FIELDS = Sets.newHashSet(
@@ -369,7 +370,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         /**
          * Serializes the template to xContent, using the legacy format where the mappings are
          * nested under the type name.
-         *
+         * <p>
          * This method is used for serializing templates before storing them in the cluster metadata,
          * and also in the REST layer when returning a deprecated typed response.
          */
@@ -386,7 +387,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         /**
          * Serializes the template to xContent, making sure not to nest mappings under the
          * type name.
-         *
+         * <p>
          * Note that this method should currently only be used for creating REST responses,
          * and not when directly updating stored templates. Index templates are still stored
          * in the old, typed format, and have yet to be migrated to be typeless.

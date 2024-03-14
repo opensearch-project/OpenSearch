@@ -33,6 +33,7 @@
 package org.opensearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 
 import java.util.Arrays;
@@ -46,8 +47,9 @@ import java.util.Set;
 /**
  * Search context used during highlighting phase
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SearchHighlightContext {
 
     private final Map<String, Field> fields;
@@ -82,8 +84,9 @@ public class SearchHighlightContext {
     /**
      * Field for the search highlight context
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Field {
         private final String field;
         private final FieldOptions fieldOptions;
@@ -107,8 +110,9 @@ public class SearchHighlightContext {
     /**
      * Field options for the search highlight context
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class FieldOptions {
 
         // Field options that default to null or -1 are often set to their real default in HighlighterParseElement#parse

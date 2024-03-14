@@ -90,6 +90,7 @@ import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequestOperationsCompositeListenerFactory;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.action.search.TransportSearchAction;
@@ -156,6 +157,7 @@ import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.cache.module.CacheModule;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -178,6 +180,7 @@ import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
+import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.remote.RemoteStorePressureService;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
@@ -186,7 +189,6 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
-import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
@@ -195,6 +197,7 @@ import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.indices.recovery.DefaultRecoverySettings;
 import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -221,6 +224,7 @@ import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.opensearch.tasks.TaskResourceTrackingService;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
@@ -236,6 +240,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -2033,7 +2038,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
                 final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
                 repositoriesServiceReference.set(repositoriesService);
-                FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnv, null);
                 indicesService = new IndicesService(
                     settings,
                     mock(PluginsService.class),
@@ -2068,8 +2072,10 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     emptyMap(),
                     new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool),
                     repositoriesServiceReference::get,
-                    fileCacheCleaner,
-                    new RemoteStoreStatsTrackerFactory(clusterService, settings)
+                    null,
+                    new RemoteStoreStatsTrackerFactory(clusterService, settings),
+                    DefaultRecoverySettings.INSTANCE,
+                    new CacheModule(new ArrayList<>(), settings).getCacheService()
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
@@ -2120,7 +2126,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             shardStateAction,
                             actionFilters,
                             new IndexingPressureService(settings, clusterService),
-                            new SystemIndices(emptyMap())
+                            new SystemIndices(emptyMap()),
+                            NoopTracer.INSTANCE
                         )
                     ),
                     new GlobalCheckpointSyncAction(
@@ -2183,10 +2190,12 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         clusterService,
                         mock(IndicesService.class),
                         mock(ShardStateAction.class),
+                        mock(SegmentReplicationStatsTracker.class),
                         mock(ThreadPool.class)
                     ),
                     mock(RemoteStorePressureService.class),
-                    new SystemIndices(emptyMap())
+                    new SystemIndices(emptyMap()),
+                    NoopTracer.INSTANCE
                 );
                 actions.put(
                     BulkAction.INSTANCE,
@@ -2201,7 +2210,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             scriptService,
                             new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
                             Collections.emptyList(),
-                            client
+                            client,
+                            indicesService
                         ),
                         transportShardBulkAction,
                         client,
@@ -2209,7 +2219,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         indexNameExpressionResolver,
                         new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, new SystemIndices(emptyMap())),
                         new IndexingPressureService(settings, clusterService),
-                        new SystemIndices(emptyMap())
+                        mock(IndicesService.class),
+                        new SystemIndices(emptyMap()),
+                        NoopTracer.INSTANCE
                     )
                 );
                 final RestoreService restoreService = new RestoreService(
@@ -2273,6 +2285,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     writableRegistry(),
                     searchService::aggReduceContextBuilder
                 );
+                SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =
+                    new SearchRequestOperationsCompositeListenerFactory();
                 actions.put(
                     SearchAction.INSTANCE,
                     new TransportSearchAction(
@@ -2297,7 +2311,10 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             namedWriteableRegistry,
                             List.of(),
                             client
-                        )
+                        ),
+                        NoopMetricsRegistry.INSTANCE,
+                        searchRequestOperationsCompositeListenerFactory,
+                        NoopTracer.INSTANCE
                     )
                 );
                 actions.put(

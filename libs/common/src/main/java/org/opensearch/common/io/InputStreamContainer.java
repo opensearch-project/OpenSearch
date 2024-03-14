@@ -8,13 +8,16 @@
 
 package org.opensearch.common.io;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.io.InputStream;
 
 /**
  * Model composed of an input stream and the total content length of the stream
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public class InputStreamContainer {
 
     private final InputStream inputStream;

@@ -323,7 +323,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
     /**
      * This unassigns a task from any node, i.e. it is assigned to a {@code null} node with the provided reason.
-     *
+     * <p>
      * Since the assignment executor node is null, the {@link PersistentTasksClusterService} will attempt to reassign it to a valid
      * node quickly.
      *

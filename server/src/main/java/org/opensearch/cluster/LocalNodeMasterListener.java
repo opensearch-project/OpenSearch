@@ -31,14 +31,17 @@
 
 package org.opensearch.cluster;
 
+import org.opensearch.common.annotation.DeprecatedApi;
+
 /**
  * Enables listening to cluster-manager changes events of the local node (when the local node becomes the cluster-manager, and when the local
  * node cease being a cluster-manager).
  *
- * @opensearch.internal
+ * @opensearch.api
  * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link LocalNodeClusterManagerListener}
  */
 @Deprecated
+@DeprecatedApi(since = "2.2.0")
 public interface LocalNodeMasterListener extends LocalNodeClusterManagerListener {
 
     /**

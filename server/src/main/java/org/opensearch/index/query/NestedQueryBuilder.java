@@ -318,11 +318,17 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             parentFilter = context.bitsetFilter(objectMapper.nestedTypeFilter());
         }
 
+        BitSetProducer previousParentFilter = context.getParentFilter();
         try {
+            context.setParentFilter(parentFilter);
             context.nestedScope().nextLevel(nestedObjectMapper);
-            innerQuery = this.query.toQuery(context);
+            try {
+                innerQuery = this.query.toQuery(context);
+            } finally {
+                context.nestedScope().previousLevel();
+            }
         } finally {
-            context.nestedScope().previousLevel();
+            context.setParentFilter(previousParentFilter);
         }
 
         // ToParentBlockJoinQuery requires that the inner query only matches documents

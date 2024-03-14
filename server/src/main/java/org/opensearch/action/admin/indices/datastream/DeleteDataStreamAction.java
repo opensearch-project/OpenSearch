@@ -53,6 +53,7 @@ import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.TimeValue;
@@ -78,8 +79,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * Transport action for deleting a datastream
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(DeleteDataStreamAction.class);
@@ -94,8 +96,9 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
     /**
      * Request for deleting data streams
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Request extends ClusterManagerNodeRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;

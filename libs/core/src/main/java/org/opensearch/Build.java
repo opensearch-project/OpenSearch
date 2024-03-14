@@ -216,7 +216,7 @@ public class Build {
 
     /**
      * Get the version as considered at build time
-     *
+     * <p>
      * Offers a way to get the fully qualified version as configured by the build.
      * This will be the same as {@link Version} for production releases, but may include on of the qualifier ( e.x alpha1 )
      * or -SNAPSHOT for others.

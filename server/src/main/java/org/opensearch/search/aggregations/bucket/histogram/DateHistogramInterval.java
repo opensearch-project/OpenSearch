@@ -129,7 +129,7 @@ public class DateHistogramInterval implements Writeable, ToXContentFragment {
      * Converts this DateHistogramInterval into a millisecond representation.  If this is a calendar
      * interval, it is an approximation of milliseconds based on the fixed equivalent (e.g. `1h` is treated as 60
      * fixed minutes, rather than the hour at a specific point in time.
-     *
+     * <p>
      * This is merely a convenience helper for quick comparisons and should not be used for situations that
      * require precise durations.
      */

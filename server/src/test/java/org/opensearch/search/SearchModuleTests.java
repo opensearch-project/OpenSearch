@@ -113,7 +113,6 @@ import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class SearchModuleTests extends OpenSearchTestCase {
@@ -431,9 +430,7 @@ public class SearchModuleTests extends OpenSearchTestCase {
     }
 
     public void testConcurrentQueryPhaseSearcher() {
-        Settings settings = Settings.builder().put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, true).build();
-        FeatureFlags.initializeFeatureFlags(settings);
-        SearchModule searchModule = new SearchModule(settings, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         TestSearchContext searchContext = new TestSearchContext(null);
         searchContext.setConcurrentSegmentSearchEnabled(true);
         QueryPhase queryPhase = searchModule.getQueryPhase();
@@ -443,8 +440,6 @@ public class SearchModuleTests extends OpenSearchTestCase {
     }
 
     public void testPluginQueryPhaseSearcher() {
-        Settings settings = Settings.builder().put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, true).build();
-        FeatureFlags.initializeFeatureFlags(settings);
         QueryPhaseSearcher queryPhaseSearcher = (searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout) -> false;
         SearchPlugin plugin1 = new SearchPlugin() {
             @Override
@@ -452,7 +447,7 @@ public class SearchModuleTests extends OpenSearchTestCase {
                 return Optional.of(queryPhaseSearcher);
             }
         };
-        SearchModule searchModule = new SearchModule(settings, Collections.singletonList(plugin1));
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.singletonList(plugin1));
         QueryPhase queryPhase = searchModule.getQueryPhase();
         TestSearchContext searchContext = new TestSearchContext(null);
         assertEquals(queryPhaseSearcher, queryPhase.getQueryPhaseSearcher());
@@ -480,18 +475,10 @@ public class SearchModuleTests extends OpenSearchTestCase {
     }
 
     public void testIndexSearcher() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         ThreadPool threadPool = mock(ThreadPool.class);
-        assertNull(searchModule.getIndexSearcherExecutor(threadPool));
-        verify(threadPool, times(0)).executor(ThreadPool.Names.INDEX_SEARCHER);
-
-        // enable concurrent segment search feature flag
-        Settings settings = Settings.builder().put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, true).build();
-        FeatureFlags.initializeFeatureFlags(settings);
-        searchModule = new SearchModule(settings, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         searchModule.getIndexSearcherExecutor(threadPool);
         verify(threadPool).executor(ThreadPool.Names.INDEX_SEARCHER);
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
     }
 
     public void testMultiplePluginRegisterIndexSearcherProvider() {

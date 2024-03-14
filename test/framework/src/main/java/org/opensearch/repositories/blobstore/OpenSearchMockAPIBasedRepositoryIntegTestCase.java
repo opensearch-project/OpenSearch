@@ -238,7 +238,7 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
     }
 
-    private Map<String, Long> getMockRequestCounts() {
+    protected Map<String, Long> getMockRequestCounts() {
         for (HttpHandler h : handlers.values()) {
             while (h instanceof DelegatingHttpHandler) {
                 if (h instanceof HttpStatsCollectorHandler) {
@@ -265,7 +265,7 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
 
     /**
      * HTTP handler that injects random service errors
-     *
+     * <p>
      * Note: it is not a good idea to allow this handler to simulate too many errors as it would
      * slow down the test suite.
      */
@@ -339,7 +339,7 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
 
     /**
      * HTTP handler that allows collect request stats per request type.
-     *
+     * <p>
      * Implementors should keep track of the desired requests on {@link #maybeTrack(String, Headers)}.
      */
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
@@ -377,7 +377,7 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
 
         /**
          * Tracks the given request if it matches the criteria.
-         *
+         * <p>
          * The request is represented as:
          * Request = Method SP Request-URI
          *

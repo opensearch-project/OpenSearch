@@ -36,6 +36,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.cluster.crypto.CryptoSettings;
 import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -57,8 +58,9 @@ import static org.opensearch.common.settings.Settings.writeSettingsToStream;
  * Registers a repository with given name, type and settings. If the repository with the same name already
  * exists in the cluster, the new repository will replace the existing repository.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryRequest> implements ToXContentObject {
 
     private String name;

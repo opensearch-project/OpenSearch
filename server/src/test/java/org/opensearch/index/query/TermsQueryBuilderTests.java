@@ -34,6 +34,7 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.Query;
@@ -135,6 +136,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 either(instanceOf(TermInSetQuery.class)).or(instanceOf(PointInSetQuery.class))
                     .or(instanceOf(ConstantScoreQuery.class))
                     .or(instanceOf(MatchNoDocsQuery.class))
+                    .or(instanceOf(IndexOrDocValuesQuery.class))
             );
             if (query instanceof ConstantScoreQuery) {
                 assertThat(((ConstantScoreQuery) query).getQuery(), instanceOf(BooleanQuery.class));

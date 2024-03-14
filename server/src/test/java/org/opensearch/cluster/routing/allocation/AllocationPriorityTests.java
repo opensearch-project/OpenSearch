@@ -50,7 +50,7 @@ public class AllocationPriorityTests extends OpenSearchAllocationTestCase {
 
     /**
      * Tests that higher prioritized primaries and replicas are allocated first even on the balanced shard allocator
-     * See https://github.com/elastic/elasticsearch/issues/13249 for details
+     * See <a href="https://github.com/elastic/elasticsearch/issues/13249">elasticsearch issue #13249</a> for details
      */
     public void testPrioritizedIndicesAllocatedFirst() {
         AllocationService allocation = createAllocationService(

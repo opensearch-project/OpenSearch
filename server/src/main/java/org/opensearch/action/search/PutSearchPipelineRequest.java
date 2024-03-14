@@ -11,6 +11,7 @@ package org.opensearch.action.search;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -25,8 +26,9 @@ import java.util.Objects;
 /**
  * Request to put a search pipeline
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.7.0")
 public class PutSearchPipelineRequest extends AcknowledgedRequest<PutSearchPipelineRequest> implements ToXContentObject {
     private String id;
     private BytesReference source;

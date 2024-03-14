@@ -35,6 +35,7 @@ package org.opensearch.action.admin.cluster.node.usage;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.ClusterName;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -48,8 +49,9 @@ import java.util.List;
  * The response for the nodes usage api which contains the individual usage
  * statistics for all nodes queried.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class NodesUsageResponse extends BaseNodesResponse<NodeUsage> implements ToXContentFragment {
 
     public NodesUsageResponse(StreamInput in) throws IOException {

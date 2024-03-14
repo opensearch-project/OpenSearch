@@ -32,22 +32,27 @@
 
 package org.opensearch.indices;
 
-import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
-import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.indices.IndicesRequestCache.Key;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.node.MockNode;
 import org.opensearch.node.Node;
@@ -59,6 +64,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
@@ -72,6 +78,56 @@ import static org.opensearch.test.NodeRoles.dataNode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class IndicesServiceCloseTests extends OpenSearchTestCase {
+
+    private static class DummyQuery extends Query {
+
+        private final int id;
+
+        DummyQuery(int id) {
+            this.id = id;
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj) && id == ((IndicesServiceCloseTests.DummyQuery) obj).id;
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * classHash() + id;
+        }
+
+        @Override
+        public String toString(String field) {
+            return "dummy";
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            return new ConstantScoreWeight(this, boost) {
+                @Override
+                public Scorer scorer(LeafReaderContext context) throws IOException {
+                    return new ConstantScoreScorer(this, score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+                }
+
+                @Override
+                public int count(LeafReaderContext context) {
+                    return -1;
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return true;
+                }
+            };
+        }
+
+    }
 
     private Node startNode() throws NodeValidationException {
         final Path tempDir = createTempDir();
@@ -225,7 +281,7 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
         Engine.Searcher searcher = shard.acquireSearcher("test");
         assertEquals(1, searcher.getIndexReader().maxDoc());
 
-        Query query = LongPoint.newRangeQuery("foo", 0, 5);
+        Query query = new DummyQuery(1);
         assertEquals(0L, cache.getStats(shard.shardId()).getCacheSize());
         searcher.count(query);
         assertEquals(1L, cache.getStats(shard.shardId()).getCacheSize());
@@ -271,7 +327,7 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
         node.close();
         assertEquals(1, indicesService.indicesRefCount.refCount());
 
-        Query query = LongPoint.newRangeQuery("foo", 0, 5);
+        Query query = new DummyQuery(1);
         assertEquals(0L, cache.getStats(shard.shardId()).getCacheSize());
         searcher.count(query);
         assertEquals(1L, cache.getStats(shard.shardId()).getCacheSize());
@@ -314,14 +370,11 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
         assertEquals(1, indicesService.indicesRefCount.refCount());
 
         assertEquals(0L, cache.count());
-        IndicesRequestCache.CacheEntity cacheEntity = new IndicesRequestCache.CacheEntity() {
+        IndicesService.IndexShardCacheEntity cacheEntity = new IndicesService.IndexShardCacheEntity(shard) {
             @Override
             public long ramBytesUsed() {
                 return 42;
             }
-
-            @Override
-            public void onCached(Key key, BytesReference value) {}
 
             @Override
             public boolean isOpen() {
@@ -330,17 +383,8 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
 
             @Override
             public Object getCacheIdentity() {
-                return this;
+                return shard;
             }
-
-            @Override
-            public void onHit() {}
-
-            @Override
-            public void onMiss() {}
-
-            @Override
-            public void onRemoval(RemovalNotification<Key, BytesReference> notification) {}
         };
         cache.getOrCompute(cacheEntity, () -> new BytesArray("bar"), searcher.getDirectoryReader(), new BytesArray("foo"));
         assertEquals(1L, cache.count());

@@ -37,6 +37,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -56,8 +57,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
 /**
  * Represents a failure to search on a specific shard.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ShardSearchFailure extends ShardOperationFailedException {
 
     private static final String REASON_FIELD = "reason";

@@ -34,6 +34,7 @@ package org.opensearch.action.admin.indices.flush;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -52,8 +53,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * @see org.opensearch.client.IndicesAdminClient#flush(FlushRequest)
  * @see FlushResponse
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class FlushRequest extends BroadcastRequest<FlushRequest> {
 
     private boolean force = false;

@@ -54,7 +54,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.MergePolicyConfig;
+import org.opensearch.index.MergePolicyProvider;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
@@ -168,7 +168,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10)
             // If soft-deletes is enabled, delete#1 will be reclaimed because its segment (segment_1) is fully deleted
             // index#0 will be retained if merge is disabled; otherwise it will be reclaimed because gcp=3 and retained_ops=0
-            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            .put(MergePolicyProvider.INDEX_MERGE_ENABLED, false)
             .build();
         try (ReplicationGroup shards = createGroup(1, settings)) {
             shards.startAll();

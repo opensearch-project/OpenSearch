@@ -245,23 +245,22 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         assertFalse(clusterState.getMetadata().hasIndex(".test-index"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6287")
     public void testCreateIndexWithMaxClusterShardSetting() {
-        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        setMaxShardLimit(dataNodes, shardsPerNodeKey);
+        int maxAllowedShardsPerNode = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+        setMaxShardLimit(maxAllowedShardsPerNode, shardsPerNodeKey);
 
-        int maxAllowedShards = dataNodes + 1;
-        int extraShardCount = maxAllowedShards + 1;
+        // Always keep
+        int maxAllowedShardsPerCluster = maxAllowedShardsPerNode * 1000;
+        int extraShardCount = 1;
         // Getting total active shards in the cluster.
         int currentActiveShards = client().admin().cluster().prepareHealth().get().getActiveShards();
         try {
-            setMaxShardLimit(maxAllowedShards, SETTING_MAX_SHARDS_PER_CLUSTER_KEY);
+            setMaxShardLimit(maxAllowedShardsPerCluster, SETTING_MAX_SHARDS_PER_CLUSTER_KEY);
             prepareCreate("test_index_with_cluster_shard_limit").setSettings(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, extraShardCount).put(SETTING_NUMBER_OF_REPLICAS, 0).build()
             ).get();
         } catch (final IllegalArgumentException ex) {
-            verifyException(Math.min(maxAllowedShards, dataNodes * dataNodes), currentActiveShards, extraShardCount, ex);
+            verifyException(maxAllowedShardsPerCluster, currentActiveShards, extraShardCount, ex);
         } finally {
             setMaxShardLimit(-1, SETTING_MAX_SHARDS_PER_CLUSTER_KEY);
         }

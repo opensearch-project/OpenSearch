@@ -278,12 +278,49 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
         buildFakePlugin(env, "fake desc 2", "fake_plugin2", "org.fake2");
 
         MockTerminal terminal = listPlugins(home);
-        String message = "plugin [fake_plugin1] was built for OpenSearch version 1.0 but version " + Version.CURRENT + " is required";
+        String message = "plugin [fake_plugin1] was built for OpenSearch version 5.0.0 and is not compatible with " + Version.CURRENT;
         assertEquals("fake_plugin1\nfake_plugin2\n", terminal.getOutput());
         assertEquals("WARNING: " + message + "\n", terminal.getErrorOutput());
 
         String[] params = { "-s" };
         terminal = listPlugins(home, params);
         assertEquals("fake_plugin1\nfake_plugin2\n", terminal.getOutput());
+    }
+
+    public void testPluginWithDependencies() throws Exception {
+        PluginTestUtil.writePluginProperties(
+            env.pluginsDir().resolve("fake_plugin1"),
+            "description",
+            "fake desc 1",
+            "name",
+            "fake_plugin1",
+            "version",
+            "1.0",
+            "dependencies",
+            "{opensearch:\"" + Version.CURRENT + "\"}",
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "org.fake1"
+        );
+        String[] params = { "-v" };
+        MockTerminal terminal = listPlugins(home, params);
+        assertEquals(
+            buildMultiline(
+                "Plugins directory: " + env.pluginsDir(),
+                "fake_plugin1",
+                "- Plugin information:",
+                "Name: fake_plugin1",
+                "Description: fake desc 1",
+                "Version: 1.0",
+                "OpenSearch Version: " + Version.CURRENT.toString(),
+                "Java Version: " + System.getProperty("java.specification.version"),
+                "Native Controller: false",
+                "Extended Plugins: []",
+                " * Classname: org.fake1",
+                "Folder name: null"
+            ),
+            terminal.getOutput()
+        );
     }
 }

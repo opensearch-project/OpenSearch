@@ -39,9 +39,8 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -51,11 +50,11 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.hamcrest.Matchers.containsString;
 
-public class IndexSortIT extends ParameterizedOpenSearchIntegTestCase {
+public class IndexSortIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     private static final XContentBuilder TEST_MAPPING = createTestMapping();
 
-    public IndexSortIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public IndexSortIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -64,11 +63,6 @@ public class IndexSortIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     private static XContentBuilder createTestMapping() {

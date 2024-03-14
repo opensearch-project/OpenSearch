@@ -34,6 +34,7 @@ package org.opensearch.transport;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.unit.TimeValue;
@@ -111,7 +112,10 @@ public interface Transport extends LifecycleComponent {
 
     /**
      * A unidirectional connection to a {@link DiscoveryNode}
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     interface Connection extends Closeable {
         /**
          * The node this connection is associated with

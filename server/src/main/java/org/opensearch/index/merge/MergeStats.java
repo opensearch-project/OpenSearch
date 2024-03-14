@@ -32,6 +32,8 @@
 
 package org.opensearch.index.merge;
 
+import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -45,8 +47,9 @@ import java.io.IOException;
 /**
  * Stores stats about a merge process
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class MergeStats implements Writeable, ToXContentFragment {
 
     private long total;
@@ -65,9 +68,9 @@ public class MergeStats implements Writeable, ToXContentFragment {
 
     private long totalBytesPerSecAutoThrottle;
 
-    public MergeStats() {
+    private long unreferencedFileCleanUpsPerformed;
 
-    }
+    public MergeStats() {}
 
     public MergeStats(StreamInput in) throws IOException {
         total = in.readVLong();
@@ -81,6 +84,9 @@ public class MergeStats implements Writeable, ToXContentFragment {
         totalStoppedTimeInMillis = in.readVLong();
         totalThrottledTimeInMillis = in.readVLong();
         totalBytesPerSecAutoThrottle = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_2_11_0)) {
+            unreferencedFileCleanUpsPerformed = in.readOptionalVLong();
+        }
     }
 
     public void add(
@@ -133,11 +139,20 @@ public class MergeStats implements Writeable, ToXContentFragment {
         this.totalSizeInBytes += mergeStats.totalSizeInBytes;
         this.totalStoppedTimeInMillis += mergeStats.totalStoppedTimeInMillis;
         this.totalThrottledTimeInMillis += mergeStats.totalThrottledTimeInMillis;
+        addUnreferencedFileCleanUpStats(mergeStats.unreferencedFileCleanUpsPerformed);
         if (this.totalBytesPerSecAutoThrottle == Long.MAX_VALUE || mergeStats.totalBytesPerSecAutoThrottle == Long.MAX_VALUE) {
             this.totalBytesPerSecAutoThrottle = Long.MAX_VALUE;
         } else {
             this.totalBytesPerSecAutoThrottle += mergeStats.totalBytesPerSecAutoThrottle;
         }
+    }
+
+    public void addUnreferencedFileCleanUpStats(long unreferencedFileCleanUpsPerformed) {
+        this.unreferencedFileCleanUpsPerformed += unreferencedFileCleanUpsPerformed;
+    }
+
+    public long getUnreferencedFileCleanUpsPerformed() {
+        return this.unreferencedFileCleanUpsPerformed;
     }
 
     /**
@@ -240,6 +255,7 @@ public class MergeStats implements Writeable, ToXContentFragment {
             builder.field(Fields.TOTAL_THROTTLE_BYTES_PER_SEC).value(new ByteSizeValue(totalBytesPerSecAutoThrottle).toString());
         }
         builder.field(Fields.TOTAL_THROTTLE_BYTES_PER_SEC_IN_BYTES, totalBytesPerSecAutoThrottle);
+        builder.field(Fields.UNREFERENCED_FILE_CLEANUPS_PERFORMED, unreferencedFileCleanUpsPerformed);
         builder.endObject();
         return builder;
     }
@@ -267,6 +283,7 @@ public class MergeStats implements Writeable, ToXContentFragment {
         static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
         static final String TOTAL_THROTTLE_BYTES_PER_SEC_IN_BYTES = "total_auto_throttle_in_bytes";
         static final String TOTAL_THROTTLE_BYTES_PER_SEC = "total_auto_throttle";
+        static final String UNREFERENCED_FILE_CLEANUPS_PERFORMED = "unreferenced_file_cleanups_performed";
     }
 
     @Override
@@ -282,5 +299,8 @@ public class MergeStats implements Writeable, ToXContentFragment {
         out.writeVLong(totalStoppedTimeInMillis);
         out.writeVLong(totalThrottledTimeInMillis);
         out.writeVLong(totalBytesPerSecAutoThrottle);
+        if (out.getVersion().onOrAfter(Version.V_2_11_0)) {
+            out.writeOptionalVLong(unreferencedFileCleanUpsPerformed);
+        }
     }
 }

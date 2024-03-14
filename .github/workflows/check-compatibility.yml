@@ -36,7 +36,7 @@ jobs:
           echo "### Compatible components"   >> "${{ github.workspace }}/results.txt" && grep -e 'Compatible component'   $HOME/gradlew-check.out | sed -e 's/Compatible component: \[\(.*\)\]/- \1/'   >> "${{ github.workspace }}/results.txt"
 
       - name: Upload results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: results.txt
           path: ${{ github.workspace }}/results.txt
@@ -48,12 +48,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download results
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: results.txt
 
       - name: Find Comment
-        uses: peter-evans/find-comment@v2
+        uses: peter-evans/find-comment@v3
         id: fc
         with:
           issue-number: ${{ github.event.number }}
@@ -61,7 +61,7 @@ jobs:
           body-includes: 'Compatibility status:'
 
       - name: Add comment on the PR
-        uses: peter-evans/create-or-update-comment@v3
+        uses: peter-evans/create-or-update-comment@v4
         with:
           comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ github.event.number }}

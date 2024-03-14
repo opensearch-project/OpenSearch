@@ -25,7 +25,7 @@ public class InsecureSettingTests extends OpenSearchTestCase {
     private List<String> rootLogMsgs = new ArrayList<>();
     private AbstractAppender rootAppender;
 
-    protected void assertSettingWarning() {
+    private void assertSettingWarning() {
         assertWarnings(
             "[setting.name] setting was deprecated in OpenSearch and will be removed in a future release! See the breaking changes documentation for the next major version."
         );
@@ -50,13 +50,14 @@ public class InsecureSettingTests extends OpenSearchTestCase {
                 InsecureSettingTests.this.rootLogMsgs.add(message);
             }
         };
-        Loggers.addAppender(LogManager.getRootLogger(), rootAppender);
         rootAppender.start();
+        Loggers.addAppender(LogManager.getLogger(SecureSetting.class), rootAppender);
     }
 
     @After
     public void removeInsecureSettingsAppender() {
-        Loggers.removeAppender(LogManager.getRootLogger(), rootAppender);
+        Loggers.removeAppender(LogManager.getLogger(SecureSetting.class), rootAppender);
+        rootAppender.stop();
     }
 
     public void testShouldRaiseExceptionByDefault() {

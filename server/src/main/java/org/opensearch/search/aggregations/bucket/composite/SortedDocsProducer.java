@@ -62,7 +62,7 @@ abstract class SortedDocsProducer {
      * Visits all non-deleted documents in <code>iterator</code> and fills the provided <code>queue</code>
      * with the top composite buckets extracted from the collection.
      * Documents that contain a top composite bucket are added in the provided <code>builder</code> if it is not null.
-     *
+     * <p>
      * Returns true if the queue is full and the current <code>leadSourceBucket</code> did not produce any competitive
      * composite buckets.
      */

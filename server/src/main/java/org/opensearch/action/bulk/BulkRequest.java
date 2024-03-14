@@ -45,6 +45,7 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -67,12 +68,13 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * A bulk request holds an ordered {@link IndexRequest}s, {@link DeleteRequest}s and {@link UpdateRequest}s
  * and allows to executes it in a single batch.
- *
+ * <p>
  * Note that we only support refresh on the bulk request not per item.
  * @see org.opensearch.client.Client#bulk(BulkRequest)
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class BulkRequest extends ActionRequest implements CompositeIndicesRequest, WriteRequest<BulkRequest>, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
@@ -123,7 +125,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     /**
      * Add a request to the current BulkRequest.
-     *
+     * <p>
      * Note for internal callers: This method does not respect all global parameters.
      *                            Only the global index is applied to the request objects.
      *                            Global parameters would be respected if the request was serialized for a REST call as it is
@@ -347,7 +349,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     /**
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
-     *
+     * <p>
      * - {@link BulkRequest#add(IndexRequest)}
      * - {@link BulkRequest#add(UpdateRequest)}
      * - {@link BulkRequest#add(DocWriteRequest)}
@@ -364,7 +366,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     /**
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
-     *
+     * <p>
       - {@link BulkRequest#add(IndexRequest)}
       - {@link BulkRequest#add(UpdateRequest)}
       - {@link BulkRequest#add(DocWriteRequest)}
@@ -404,7 +406,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     /**
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
-     *
+     * <p>
      * - {@link BulkRequest#add(IndexRequest)}
      * - {@link BulkRequest#add(UpdateRequest)}
      * - {@link BulkRequest#add(DocWriteRequest)}

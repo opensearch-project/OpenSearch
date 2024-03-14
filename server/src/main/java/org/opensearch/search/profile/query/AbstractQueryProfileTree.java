@@ -54,14 +54,11 @@ public abstract class AbstractQueryProfileTree extends AbstractInternalProfileTr
      * startRewriteTime() must be called for a particular context prior to calling
      * stopAndAddRewriteTime(), otherwise the elapsed time will be negative and
      * nonsensical
-     *
-     * @return          The elapsed time
      */
-    public long stopAndAddRewriteTime() {
+    public void stopAndAddRewriteTime() {
         long time = Math.max(1, System.nanoTime() - rewriteScratch);
         rewriteTime += time;
         rewriteScratch = 0;
-        return time;
     }
 
     public long getRewriteTime() {

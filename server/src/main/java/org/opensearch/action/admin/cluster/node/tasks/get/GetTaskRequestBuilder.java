@@ -34,14 +34,16 @@ package org.opensearch.action.admin.cluster.node.tasks.get;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.tasks.TaskId;
 
 /**
  * Builder for the request to retrieve the list of tasks running on the specified nodes
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetTaskRequestBuilder extends ActionRequestBuilder<GetTaskRequest, GetTaskResponse> {
     public GetTaskRequestBuilder(OpenSearchClient client, GetTaskAction action) {
         super(client, action, new GetTaskRequest());

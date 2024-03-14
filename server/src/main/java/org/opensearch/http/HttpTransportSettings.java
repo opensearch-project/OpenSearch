@@ -182,6 +182,14 @@ public final class HttpTransportSettings {
         Property.NodeScope
     );
 
+    // A default of 0 means that by default there is no connect timeout
+    public static final Setting<TimeValue> SETTING_HTTP_CONNECT_TIMEOUT = Setting.timeSetting(
+        "http.connect_timeout",
+        new TimeValue(0),
+        new TimeValue(0),
+        Property.NodeScope
+    );
+
     // Tcp socket settings
 
     public static final Setting<Boolean> OLD_SETTING_HTTP_TCP_NO_DELAY = boolSetting(

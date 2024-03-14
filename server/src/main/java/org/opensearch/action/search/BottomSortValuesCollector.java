@@ -34,6 +34,7 @@ package org.opensearch.action.search;
 
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.opensearch.search.DocValueFormat;
@@ -59,7 +60,7 @@ class BottomSortValuesCollector {
         this.reverseMuls = new int[sortFields.length];
         this.sortFields = sortFields;
         for (int i = 0; i < sortFields.length; i++) {
-            comparators[i] = sortFields[i].getComparator(1, false);
+            comparators[i] = sortFields[i].getComparator(1, Pruning.NONE);
             reverseMuls[i] = sortFields[i].getReverse() ? -1 : 1;
         }
     }

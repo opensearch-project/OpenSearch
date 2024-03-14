@@ -14,6 +14,7 @@ import org.opensearch.cluster.AbstractNamedDiffable;
 import org.opensearch.cluster.NamedDiff;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.Metadata.Custom;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -30,8 +31,9 @@ import java.util.Set;
 /**
  * Contains metadata about decommission attribute
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.4.0")
 public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom> implements Custom {
 
     public static final String TYPE = "decommissionedAttribute";

@@ -74,7 +74,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified optional property from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type string a {@link OpenSearchParseException} is thrown.
      */
     public static String readOptionalStringProperty(
@@ -89,7 +89,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type string an {@link OpenSearchParseException} is thrown.
      * If the property is missing an {@link OpenSearchParseException} is thrown
      */
@@ -104,7 +104,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type string a {@link OpenSearchParseException} is thrown.
      * If the property is missing and no default value has been specified a {@link OpenSearchParseException} is thrown
      */
@@ -141,7 +141,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type string or int a {@link OpenSearchParseException} is thrown.
      * If the property is missing and no default value has been specified a {@link OpenSearchParseException} is thrown
      */
@@ -180,7 +180,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type string or int a {@link OpenSearchParseException} is thrown.
      */
     public static String readOptionalStringOrIntProperty(
@@ -228,7 +228,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type int a {@link OpenSearchParseException} is thrown.
      * If the property is missing an {@link OpenSearchParseException} is thrown
      */
@@ -257,7 +257,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type int a {@link OpenSearchParseException} is thrown.
      * If the property is missing an {@link OpenSearchParseException} is thrown
      */
@@ -285,7 +285,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property of type list from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type list an {@link OpenSearchParseException} is thrown.
      */
     public static <T> List<T> readOptionalList(
@@ -303,7 +303,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property of type list from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type list an {@link OpenSearchParseException} is thrown.
      * If the property is missing an {@link OpenSearchParseException} is thrown
      */
@@ -333,7 +333,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property of type map from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type map an {@link OpenSearchParseException} is thrown.
      * If the property is missing an {@link OpenSearchParseException} is thrown
      */
@@ -353,7 +353,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property of type map from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type map an {@link OpenSearchParseException} is thrown.
      */
     public static <T> Map<String, T> readOptionalMap(
@@ -387,6 +387,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property as an {@link Object} from the specified configuration map.
+     * If the property is missing an {@link OpenSearchParseException} is thrown
      */
     public static Object readObject(String processorType, String processorTag, Map<String, Object> configuration, String propertyName) {
         Object value = configuration.remove(propertyName);
@@ -394,6 +395,13 @@ public final class ConfigurationUtils {
             throw newConfigurationException(processorType, processorTag, propertyName, "required property is missing");
         }
         return value;
+    }
+
+    /**
+     * Returns and removes the specified property as an {@link Object} from the specified configuration map.
+     */
+    public static Object readOptionalObject(Map<String, Object> configuration, String propertyName) {
+        return configuration.remove(propertyName);
     }
 
     public static OpenSearchException newConfigurationException(

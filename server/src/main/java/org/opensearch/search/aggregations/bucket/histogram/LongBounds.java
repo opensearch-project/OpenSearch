@@ -54,7 +54,7 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalCons
 
 /**
  * Represent hard_bounds and extended_bounds in date-histogram aggregations.
- *
+ * <p>
  * This class is similar to {@link DoubleBounds} used in histograms, but is using longs to store data. LongBounds and DoubleBounds are
  *  * not used interchangeably and therefore don't share any common interfaces except for serialization.
  *

@@ -58,6 +58,10 @@ import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.pipeline.PipelinedRequest;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanCreationContext;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.Transport;
 
 import java.util.ArrayDeque;
@@ -68,6 +72,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -107,7 +112,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final AtomicInteger skippedOps = new AtomicInteger();
     private final TransportSearchAction.SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
-
     protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final int expectedTotalOps;
@@ -115,6 +119,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final int maxConcurrentRequestsPerNode;
     private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
     private final boolean throttleConcurrentRequests;
+    private final SearchRequestContext searchRequestContext;
+    private final Tracer tracer;
+
+    private SearchPhase currentPhase;
+    private boolean currentPhaseHasLifecycle;
 
     private final List<Releasable> releasables = new ArrayList<>();
 
@@ -135,7 +144,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchTask task,
         SearchPhaseResults<Result> resultConsumer,
         int maxConcurrentRequestsPerNode,
-        SearchResponse.Clusters clusters
+        SearchResponse.Clusters clusters,
+        SearchRequestContext searchRequestContext,
+        Tracer tracer
     ) {
         super(name);
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
@@ -171,6 +182,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.indexRoutings = indexRoutings;
         this.results = resultConsumer;
         this.clusters = clusters;
+        this.searchRequestContext = searchRequestContext;
+        this.tracer = tracer;
     }
 
     @Override
@@ -209,11 +222,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     0,
                     0,
                     buildTookInMillis(),
+                    searchRequestContext.getPhaseTook(),
                     ShardSearchFailure.EMPTY_ARRAY,
                     clusters,
                     null
                 )
             );
+            onRequestEnd(searchRequestContext);
             return;
         }
         executePhase(this);
@@ -279,6 +294,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             Runnable r = () -> {
                 final Thread thread = Thread.currentThread();
                 try {
+                    final SearchPhase phase = this;
                     executePhaseOnShard(shardIt, shard, new SearchActionListener<Result>(shard, shardIndex) {
                         @Override
                         public void innerOnResponse(Result result) {
@@ -292,7 +308,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                         @Override
                         public void onFailure(Exception t) {
                             try {
-                                onShardFailure(shardIndex, shard, shardIt, t);
+                                // It only happens when onPhaseDone() is called and executePhaseOnShard() fails hard with an exception.
+                                if (totalOps.get() == expectedTotalOps) {
+                                    onPhaseFailure(phase, "The phase has failed", t);
+                                } else {
+                                    onShardFailure(shardIndex, shard, shardIt, t);
+                                }
                             } finally {
                                 executeNext(pendingExecutions, thread);
                             }
@@ -371,6 +392,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 : OpenSearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
             logger.debug(() -> new ParameterizedMessage("All shards failed for phase: [{}]", getName()), cause);
             onPhaseFailure(currentPhase, "all shards failed", cause);
+
         } else {
             Boolean allowPartialResults = request.allowPartialSearchResults();
             assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
@@ -419,18 +441,51 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     clusterState.version()
                 );
             }
+            onPhaseEnd(searchRequestContext);
             executePhase(nextPhase);
         }
     }
 
+    private void onPhaseEnd(SearchRequestContext searchRequestContext) {
+        if (getCurrentPhase() != null) {
+            long tookInNanos = System.nanoTime() - getCurrentPhase().getStartTimeInNanos();
+            searchRequestContext.updatePhaseTookMap(getCurrentPhase().getName(), TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+        }
+        if (currentPhaseHasLifecycle) {
+            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseEnd(this, searchRequestContext);
+        }
+    }
+
+    private void onPhaseStart(SearchPhase phase) {
+        setCurrentPhase(phase);
+        if (currentPhaseHasLifecycle) {
+            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseStart(this);
+        }
+    }
+
+    private void onRequestEnd(SearchRequestContext searchRequestContext) {
+        this.searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(this, searchRequestContext);
+    }
+
     private void executePhase(SearchPhase phase) {
-        try {
-            phase.run();
+        Span phaseSpan = tracer.startSpan(SpanCreationContext.server().name("[phase/" + phase.getName() + "]"));
+        try (final SpanScope scope = tracer.withSpanInScope(phaseSpan)) {
+            onPhaseStart(phase);
+            phase.recordAndRun();
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
                 logger.debug(new ParameterizedMessage("Failed to execute [{}] while moving to [{}] phase", request, phase.getName()), e);
             }
+
+            if (currentPhaseHasLifecycle == false) {
+                phaseSpan.setError(e);
+            }
+
             onPhaseFailure(phase, "", e);
+        } finally {
+            if (currentPhaseHasLifecycle == false) {
+                phaseSpan.endSpan();
+            }
         }
     }
 
@@ -603,6 +658,20 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
+    public SearchPhase getCurrentPhase() {
+        return currentPhase;
+    }
+
+    private void setCurrentPhase(SearchPhase phase) {
+        currentPhase = phase;
+        // The WrappingSearchAsyncActionPhase (see please CanMatchPreFilterSearchPhase as one example) is a special case
+        // of search phase that wraps SearchAsyncActionPhase as SearchPhase. The AbstractSearchAsyncAction manages own
+        // onPhaseStart / onPhaseFailure / OnPhaseDone callbacks and the wrapping SearchPhase is being abandoned
+        // (fe, has no onPhaseEnd callbacks called ever). To fix that, we would not send any notifications for this
+        // phase.
+        currentPhaseHasLifecycle = ((phase instanceof WrappingSearchAsyncActionPhase) == false);
+    }
+
     @Override
     public final int getNumShards() {
         return results.getNumShards();
@@ -636,6 +705,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             successfulOps.get(),
             skippedOps.get(),
             buildTookInMillis(),
+            searchRequestContext.getPhaseTook(),
             failures,
             clusters,
             searchContextId
@@ -668,12 +738,20 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     searchContextId = null;
                 }
             }
+            searchRequestContext.setTotalHits(internalSearchResponse.hits().getTotalHits());
+            searchRequestContext.setShardStats(results.getNumShards(), successfulOps.get(), skippedOps.get(), failures.length);
+            onPhaseEnd(searchRequestContext);
+            onRequestEnd(searchRequestContext);
             listener.onResponse(buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
         }
+        setCurrentPhase(null);
     }
 
     @Override
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
+        if (currentPhaseHasLifecycle) {
+            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseFailure(this, cause);
+        }
         raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
     }
 

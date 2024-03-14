@@ -185,7 +185,7 @@ public class BulkProcessor implements Closeable {
         /**
          * Sets a custom backoff policy. The backoff policy defines how the bulk processor should handle retries of bulk requests internally
          * in case they have failed due to resource constraints (i.e. a thread pool was full).
-         *
+         * <p>
          * The default is to back off exponentially.
          *
          * @see org.opensearch.action.bulk.BackoffPolicy#exponentialBackoff()

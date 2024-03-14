@@ -49,7 +49,7 @@ public class TelemetryValidators {
         StringBuilder sb = new StringBuilder();
         for (var entry : spanMap.entrySet()) {
             sb.append("SpanData validation failed for validator " + entry.getKey());
-            sb.append("/n");
+            sb.append("\n");
             for (MockSpanData span : entry.getValue()) {
                 sb.append(span.toString());
             }

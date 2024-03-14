@@ -60,8 +60,8 @@ import static org.hamcrest.collection.IsEmptyCollection.empty;
 public class HotThreadsIT extends OpenSearchIntegTestCase {
 
     public void testHotThreadsDontFail() throws ExecutionException, InterruptedException {
-        /**
-         * This test just checks if nothing crashes or gets stuck etc.
+        /*
+          This test just checks if nothing crashes or gets stuck etc.
          */
         createIndex("test");
         final int iters = scaledRandomIntBetween(2, 20);

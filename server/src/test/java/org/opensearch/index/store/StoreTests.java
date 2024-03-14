@@ -84,9 +84,10 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
+import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.IndexSettingsModule;
@@ -798,7 +799,7 @@ public class StoreTests extends OpenSearchTestCase {
             assertEquals(shardId, theLock.getShardId());
             assertEquals(lock, theLock);
             count.incrementAndGet();
-        });
+        }, null);
         assertEquals(count.get(), 0);
 
         final int iters = randomIntBetween(1, 10);
@@ -807,6 +808,26 @@ public class StoreTests extends OpenSearchTestCase {
         }
 
         assertEquals(count.get(), 1);
+    }
+
+    public void testStoreShardPath() {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(0))
+            .build();
+        final Path path = createTempDir().resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
+        final ShardPath shardPath = new ShardPath(false, path, path, shardId);
+        final Store store = new Store(
+            shardId,
+            IndexSettingsModule.newIndexSettings("index", settings),
+            StoreTests.newDirectory(random()),
+            new DummyShardLock(shardId),
+            Store.OnClose.EMPTY,
+            shardPath
+        );
+        assertEquals(shardPath, store.shardPath());
+        store.close();
     }
 
     public void testStoreStats() throws IOException {
@@ -959,12 +980,11 @@ public class StoreTests extends OpenSearchTestCase {
                 )
             );
         }
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata outStoreFileMetadata =
-            new TransportNodesListShardStoreMetadata.StoreFilesMetadata(
-                new ShardId("test", "_na_", 0),
-                metadataSnapshot,
-                peerRecoveryRetentionLeases
-            );
+        StoreFilesMetadata outStoreFileMetadata = new StoreFilesMetadata(
+            new ShardId("test", "_na_", 0),
+            metadataSnapshot,
+            peerRecoveryRetentionLeases
+        );
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         org.opensearch.Version targetNodeVersion = randomVersion(random());
@@ -973,8 +993,7 @@ public class StoreTests extends OpenSearchTestCase {
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
         in.setVersion(targetNodeVersion);
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata inStoreFileMetadata =
-            new TransportNodesListShardStoreMetadata.StoreFilesMetadata(in);
+        StoreFilesMetadata inStoreFileMetadata = new StoreFilesMetadata(in);
         Iterator<StoreFileMetadata> outFiles = outStoreFileMetadata.iterator();
         for (StoreFileMetadata inFile : inStoreFileMetadata) {
             assertThat(inFile.name(), equalTo(outFiles.next().name()));

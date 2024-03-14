@@ -650,7 +650,15 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
                 }
             }
         };
-        final IndexShard newShard = newIndexShard(indexService, shard, wrapper, getInstanceFromNode(CircuitBreakerService.class), listener);
+        NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
+        final IndexShard newShard = newIndexShard(
+            indexService,
+            shard,
+            wrapper,
+            getInstanceFromNode(CircuitBreakerService.class),
+            env.nodeId(),
+            listener
+        );
         shardRef.set(newShard);
         recoverShard(newShard);
 
@@ -674,6 +682,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         final IndexShard shard,
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper,
         final CircuitBreakerService cbs,
+        final String nodeId,
         final IndexingOperationListener... listeners
     ) throws IOException {
         ShardRouting initializingShardRouting = getInitializingShardRouting(shard.routingEntry());
@@ -702,7 +711,9 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             SegmentReplicationCheckpointPublisher.EMPTY,
             null,
             null,
-            () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
+            () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
+            nodeId,
+            null
         );
     }
 

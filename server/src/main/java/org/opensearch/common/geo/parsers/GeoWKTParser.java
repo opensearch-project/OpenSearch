@@ -58,7 +58,7 @@ import org.locationtech.jts.geom.Coordinate;
 
 /**
  * Parses shape geometry represented in WKT format
- *
+ * <p>
  * complies with OGC® document: 12-063r5 and ISO/IEC 13249-3:2016 standard
  * located at http://docs.opengeospatial.org/is/12-063r5/12-063r5.html
  *

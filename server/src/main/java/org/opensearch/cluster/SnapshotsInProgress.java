@@ -35,6 +35,7 @@ package org.opensearch.cluster;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState.Custom;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -928,8 +929,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     /**
      * State of the snapshots.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum State {
         INIT((byte) 0, false),
         STARTED((byte) 1, false),

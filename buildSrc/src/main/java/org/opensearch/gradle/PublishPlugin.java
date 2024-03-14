@@ -77,7 +77,7 @@ public class PublishPlugin implements Plugin<Project> {
     }
 
     private static String getArchivesBaseName(Project project) {
-        return project.getExtensions().getByType(BasePluginExtension.class).getArchivesBaseName();
+        return project.getExtensions().getByType(BasePluginExtension.class).getArchivesName().get();
     }
 
     /**Configuration generation of maven poms. */

@@ -38,7 +38,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer.Mode;
 import org.apache.lucene.analysis.ja.dict.UserDictionary;
-import org.apache.lucene.analysis.ja.util.CSVUtil;
+import org.apache.lucene.analysis.util.CSVUtil;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;

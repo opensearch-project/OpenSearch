@@ -37,6 +37,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.Channels;
@@ -73,8 +74,9 @@ import java.util.function.LongSupplier;
 /**
  * Writer that writes operations to the translog
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private final ShardId shardId;
@@ -376,7 +378,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     /**
      * write all buffered ops to disk and fsync file.
-     *
+     * <p>
      * Note: any exception during the sync process will be interpreted as a tragic exception and the writer will be closed before
      * raising the exception.
      * @return  <code>true</code> if this call caused an actual sync operation
@@ -471,7 +473,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     @Override
-    public TranslogSnapshot newSnapshot() {
+    TranslogSnapshot newSnapshot() {
         // make sure to acquire the sync lock first, to prevent dead locks with threads calling
         // syncUpTo() , where the sync lock is acquired first, following by the synchronize(this)
         // After the sync lock we acquire the write lock to avoid deadlocks with threads writing where

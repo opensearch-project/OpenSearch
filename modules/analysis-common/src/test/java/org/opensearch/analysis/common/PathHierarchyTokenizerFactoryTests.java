@@ -35,15 +35,60 @@ package org.opensearch.analysis.common;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.analysis.Tokenizer;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
+import org.opensearch.env.Environment;
+import org.opensearch.env.TestEnvironment;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTokenStreamTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.Collections;
 
 public class PathHierarchyTokenizerFactoryTests extends OpenSearchTokenStreamTestCase {
+
+    private IndexAnalyzers buildAnalyzers(Version version, String tokenizer) throws IOException {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", tokenizer)
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+        return new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(new CommonAnalysisModulePlugin()))
+            .getAnalysisRegistry()
+            .build(idxSettings);
+    }
+
+    /**
+     * Test that deprecated "PathHierarchy" tokenizer name is still available via {@link CommonAnalysisModulePlugin} starting in 3.x.
+     */
+    public void testPreConfiguredTokenizer() throws IOException {
+
+        {
+            try (
+                IndexAnalyzers indexAnalyzers = buildAnalyzers(
+                    VersionUtils.randomVersionBetween(random(), Version.V_3_0_0, Version.CURRENT),
+                    "PathHierarchy"
+                )
+            ) {
+                NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
+                assertNotNull(analyzer);
+                assertTokenStreamContents(analyzer.tokenStream("dummy", "/a/b/c"), new String[] { "/a", "/a/b", "/a/b/c" });
+                // Once LUCENE-12750 is fixed we can use the following testing method instead.
+                // Similar testing approach has been used for deprecation of (Edge)NGrams tokenizers as well.
+                // assertAnalyzesTo(analyzer, "/a/b/c", new String[] { "/a", "/a/b", "/a/b/c" });
+
+            }
+        }
+    }
 
     public void testDefaults() throws IOException {
         final Index index = new Index("test", "_na_");

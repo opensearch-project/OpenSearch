@@ -9,6 +9,7 @@
 package org.opensearch.index.store.remote.filecache;
 
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
@@ -43,8 +44,9 @@ import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirector
  * items from cache tail and triggers a callback to clean up the file from disk. The
  * cleanup process also includes closing file’s descriptor.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.7.0")
 public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     private final SegmentedCache<Path, CachedIndexInput> theCache;
 

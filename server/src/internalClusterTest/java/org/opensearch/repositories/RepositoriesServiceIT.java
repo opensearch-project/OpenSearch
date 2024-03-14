@@ -108,4 +108,16 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
         final Repository updatedRepository = repositoriesService.repository(repositoryName);
         assertThat(updatedRepository, updated ? not(sameInstance(originalRepository)) : sameInstance(originalRepository));
     }
+
+    public void testSystemRepositoryCantBeCreated() {
+        internalCluster();
+        final String repositoryName = "test-repo";
+        final Client client = client();
+        final Settings.Builder repoSettings = Settings.builder().put("system_repository", true).put("location", randomRepoPath());
+
+        assertThrows(
+            RepositoryException.class,
+            () -> client.admin().cluster().preparePutRepository(repositoryName).setType(FsRepository.TYPE).setSettings(repoSettings).get()
+        );
+    }
 }

@@ -30,7 +30,7 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
     /**
      * High watermark breach blocks new shard allocations to affected nodes. If shard count on such
      * nodes is low, this will cause IndexShardPerNodeConstraint to breach.
-     *
+     * <p>
      * This test verifies that this doesn't lead to unassigned shards, and there are no hot spots in eligible
      * nodes.
      */

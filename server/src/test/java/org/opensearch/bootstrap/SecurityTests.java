@@ -35,8 +35,12 @@ package org.opensearch.bootstrap;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.Map;
 
 public class SecurityTests extends OpenSearchTestCase {
 
@@ -72,11 +76,31 @@ public class SecurityTests extends OpenSearchTestCase {
     }
 
     /** can't execute processes */
+    @SuppressWarnings("removal")
     public void testProcessExecution() throws Exception {
         assumeTrue("test requires security manager", System.getSecurityManager() != null);
         try {
             Runtime.getRuntime().exec("ls");
             fail("didn't get expected exception");
         } catch (SecurityException expected) {}
+    }
+
+    public void testReadPolicyWithCodebases() throws IOException {
+        final Map<String, URL> codebases = Map.of(
+            "test-netty-tcnative-boringssl-static-2.0.61.Final-linux-x86_64.jar",
+            new URL("file://test-netty-tcnative-boringssl-static-2.0.61.Final-linux-x86_64.jar"),
+            "test-kafka-server-common-3.6.1.jar",
+            new URL("file://test-kafka-server-common-3.6.1.jar"),
+            "test-kafka-server-common-3.6.1-test.jar",
+            new URL("file://test-kafka-server-common-3.6.1-test.jar"),
+            "test-lucene-core-9.11.0-snapshot-8a555eb.jar",
+            new URL("file://test-lucene-core-9.11.0-snapshot-8a555eb.jar"),
+            "test-zstd-jni-1.5.5-5.jar",
+            new URL("file://test-zstd-jni-1.5.5-5.jar")
+        );
+
+        AccessController.doPrivileged(
+            (PrivilegedAction<?>) () -> Security.readPolicy(SecurityTests.class.getResource("test-codebases.policy"), codebases)
+        );
     }
 }

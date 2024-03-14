@@ -73,23 +73,23 @@ import static org.opensearch.index.store.remote.filecache.FileCache.DATA_TO_FILE
 /**
  * The {@link DiskThresholdDecider} checks that the node a shard is potentially
  * being allocated to has enough disk space.
- *
+ * <p>
  * It has three configurable settings, all of which can be changed dynamically:
- *
+ * <p>
  * <code>cluster.routing.allocation.disk.watermark.low</code> is the low disk
  * watermark. New shards will not allocated to a node with usage higher than this,
  * although this watermark may be passed by allocating a shard. It defaults to
  * 0.85 (85.0%).
- *
+ * <p>
  * <code>cluster.routing.allocation.disk.watermark.high</code> is the high disk
  * watermark. If a node has usage higher than this, shards are not allowed to
  * remain on the node. In addition, if allocating a shard to a node causes the
  * node to pass this watermark, it will not be allowed. It defaults to
  * 0.90 (90.0%).
- *
+ * <p>
  * Both watermark settings are expressed in terms of used disk percentage, or
  * exact byte values for free space (like "500mb")
- *
+ * <p>
  * <code>cluster.routing.allocation.disk.threshold_enabled</code> is used to
  * enable or disable this decider. It defaults to true (enabled).
  *
@@ -119,7 +119,7 @@ public class DiskThresholdDecider extends AllocationDecider {
     /**
      * Returns the size of all shards that are currently being relocated to
      * the node, but may not be finished transferring yet.
-     *
+     * <p>
      * If subtractShardsMovingAway is true then the size of shards moving away is subtracted from the total size of all shards
      */
     public static long sizeOfRelocatingShards(

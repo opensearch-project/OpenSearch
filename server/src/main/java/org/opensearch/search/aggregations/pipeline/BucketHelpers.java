@@ -64,7 +64,7 @@ public class BucketHelpers {
      * a date_histogram might have empty buckets due to no data existing for that time interval.
      * This can cause problems for operations like a derivative, which relies on a continuous
      * function.
-     *
+     * <p>
      * "insert_zeros": empty buckets will be filled with zeros for all metrics
      * "skip": empty buckets will simply be ignored
      *

@@ -82,6 +82,7 @@ import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.node.NodeClosedException;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
@@ -100,7 +101,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Base class for requests that should be executed on a primary copy followed by replica copies.
  * Subclasses can resolve the target shard and provide implementation for primary and replica operations.
- *
+ * <p>
  * The action samples cluster state on the receiving node to reroute to node with primary copy and on the
  * primary node to validate request before primary operation followed by sampling state again for resolving
  * nodes with replica copies to perform replication.
@@ -133,6 +134,12 @@ public abstract class TransportReplicationAction<
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    /**
+     * Making primary and replica actions suffixes as constant
+     */
+    public static final String PRIMARY_ACTION_SUFFIX = "[p]";
+    public static final String REPLICA_ACTION_SUFFIX = "[r]";
 
     protected final ThreadPool threadPool;
     protected final TransportService transportService;
@@ -196,6 +203,40 @@ public abstract class TransportReplicationAction<
         boolean syncGlobalCheckpointAfterOperation,
         boolean forceExecutionOnPrimary
     ) {
+        this(
+            settings,
+            actionName,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            requestReader,
+            replicaRequestReader,
+            executor,
+            syncGlobalCheckpointAfterOperation,
+            forceExecutionOnPrimary,
+            null
+        );
+    }
+
+    protected TransportReplicationAction(
+        Settings settings,
+        String actionName,
+        TransportService transportService,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ShardStateAction shardStateAction,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader,
+        Writeable.Reader<ReplicaRequest> replicaRequestReader,
+        String executor,
+        boolean syncGlobalCheckpointAfterOperation,
+        boolean forceExecutionOnPrimary,
+        AdmissionControlActionType admissionControlActionType
+    ) {
         super(actionName, actionFilters, transportService.getTaskManager());
         this.threadPool = threadPool;
         this.transportService = transportService;
@@ -204,8 +245,8 @@ public abstract class TransportReplicationAction<
         this.shardStateAction = shardStateAction;
         this.executor = executor;
 
-        this.transportPrimaryAction = actionName + "[p]";
-        this.transportReplicaAction = actionName + "[r]";
+        this.transportPrimaryAction = actionName + PRIMARY_ACTION_SUFFIX;
+        this.transportReplicaAction = actionName + REPLICA_ACTION_SUFFIX;
 
         this.initialRetryBackoffBound = REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.get(settings);
         this.retryTimeout = REPLICATION_RETRY_TIMEOUT.get(settings);
@@ -213,14 +254,8 @@ public abstract class TransportReplicationAction<
 
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
 
-        transportService.registerRequestHandler(
-            transportPrimaryAction,
-            executor,
-            forceExecutionOnPrimary,
-            true,
-            in -> new ConcreteShardRequest<>(requestReader, in),
-            this::handlePrimaryRequest
-        );
+        // This method will register Primary Request Handler Based on AdmissionControlActionType
+        registerPrimaryRequestHandler(requestReader, admissionControlActionType);
 
         // we must never reject on because of thread pool capacity on replicas
         transportService.registerRequestHandler(
@@ -239,6 +274,38 @@ public abstract class TransportReplicationAction<
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(REPLICATION_INITIAL_RETRY_BACKOFF_BOUND, (v) -> initialRetryBackoffBound = v);
         clusterSettings.addSettingsUpdateConsumer(REPLICATION_RETRY_TIMEOUT, (v) -> retryTimeout = v);
+    }
+
+    /**
+     *  This method will register handler as based on admissionControlActionType and AdmissionControlHandler will be
+     *  invoked for registered action
+     * @param requestReader instance of the request reader
+     * @param admissionControlActionType type of AdmissionControlActionType
+     */
+    private void registerPrimaryRequestHandler(
+        Writeable.Reader<Request> requestReader,
+        AdmissionControlActionType admissionControlActionType
+    ) {
+        if (admissionControlActionType != null) {
+            transportService.registerRequestHandler(
+                transportPrimaryAction,
+                executor,
+                forceExecutionOnPrimary,
+                true,
+                admissionControlActionType,
+                in -> new ConcreteShardRequest<>(requestReader, in),
+                this::handlePrimaryRequest
+            );
+        } else {
+            transportService.registerRequestHandler(
+                transportPrimaryAction,
+                executor,
+                forceExecutionOnPrimary,
+                true,
+                in -> new ConcreteShardRequest<>(requestReader, in),
+                this::handlePrimaryRequest
+            );
+        }
     }
 
     @Override
@@ -866,7 +933,7 @@ public abstract class TransportReplicationAction<
      * Responsible for routing and retrying failed operations on the primary.
      * The actual primary operation is done in {@link ReplicationOperation} on the
      * node with primary copy.
-     *
+     * <p>
      * Resolves index and shard id for the request before routing it to target node
      *
      * @opensearch.internal

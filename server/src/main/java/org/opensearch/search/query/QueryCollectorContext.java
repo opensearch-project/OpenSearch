@@ -40,6 +40,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.Weight;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.MinimumScoreCollector;
 import org.opensearch.common.lucene.search.FilteredCollector;
 import org.opensearch.search.aggregations.AggregationCollectorManager;
@@ -62,8 +63,9 @@ import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_
 /**
  * The context used during query collection
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class QueryCollectorContext {
     private static final Collector EMPTY_COLLECTOR = new SimpleCollector() {
         @Override

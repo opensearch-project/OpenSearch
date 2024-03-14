@@ -10,6 +10,7 @@ package org.opensearch.search.aggregations;
 
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.MultiCollector;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.MinimumScoreCollector;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.query.InternalProfileCollector;
@@ -26,7 +27,10 @@ import java.util.Queue;
 /**
  * Processor to perform collector level processing specific to {@link BucketCollector} in different stages like: a) PostCollection
  * after search on each leaf is completed and b) process the collectors to perform reduce after collection is completed
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.10.0")
 public class BucketCollectorProcessor {
 
     /**

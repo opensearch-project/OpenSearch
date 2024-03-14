@@ -55,7 +55,7 @@ import java.util.Map;
 
 /**
  * Aggregate on only the top-scoring docs on a shard.
- *
+ * <p>
  * TODO currently the diversity feature of this agg offers only 'script' and
  * 'field' as a means of generating a de-dup value. In future it would be nice
  * if users could use any of the "bucket" aggs syntax (geo, date histogram...)

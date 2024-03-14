@@ -34,6 +34,7 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.Diffable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -50,8 +51,9 @@ import java.util.Set;
  * This is a {@code Map<String, String>} that implements AbstractDiffable so it
  * can be used for cluster state purposes
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DiffableStringMap extends AbstractMap<String, String> implements Diffable<DiffableStringMap> {
 
     public static final DiffableStringMap EMPTY = new DiffableStringMap(Collections.emptyMap());

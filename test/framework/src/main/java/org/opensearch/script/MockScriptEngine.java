@@ -58,14 +58,14 @@ import static java.util.Collections.emptyMap;
 
 /**
  * A mocked script engine that can be used for testing purpose.
- *
+ * <p>
  * This script engine allows to define a set of predefined scripts that basically a combination of a key and a
  * function:
- *
+ * <p>
  * The key can be anything as long as it is a {@link String} and is used to resolve the scripts
  * at compilation time. For inline scripts, the key can be a description of the script. For stored and file scripts,
  * the source must match a key in the predefined set of scripts.
- *
+ * <p>
  * The function is used to provide the result of the script execution and can return anything.
  */
 public class MockScriptEngine implements ScriptEngine {

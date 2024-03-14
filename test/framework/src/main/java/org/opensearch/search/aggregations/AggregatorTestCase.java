@@ -34,11 +34,13 @@ package org.opensearch.search.aggregations;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -62,6 +64,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.TriConsumer;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -103,6 +106,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.Mapper.BuilderContext;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.mapper.ObjectMapper.Nested;
@@ -120,6 +124,7 @@ import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregatorFactories.Builder;
 import org.opensearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.opensearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.metrics.MetricsAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
@@ -146,6 +151,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -176,6 +182,14 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
     // A list of field types that should not be tested, or are not currently supported
     private static List<String> TYPE_TEST_DENYLIST;
+
+    protected static final TriConsumer<Document, String, String> ADD_SORTED_SET_FIELD_NOT_INDEXED = (document, field, value) -> document
+        .add(new SortedSetDocValuesField(field, new BytesRef(value)));
+
+    protected static final TriConsumer<Document, String, String> ADD_SORTED_SET_FIELD_INDEXED = (document, field, value) -> {
+        document.add(new SortedSetDocValuesField(field, new BytesRef(value)));
+        document.add(new StringField(field, value, Field.Store.NO));
+    };
 
     static {
         List<String> denylist = new ArrayList<>();
@@ -432,7 +446,6 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays
     ) {
-
         return new QueryShardContext(
             0,
             indexSettings,
@@ -685,7 +698,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
      * Implementors should return a list of {@link ValuesSourceType} that the aggregator supports.
      * This is used to test the matrix of supported/unsupported field types against the aggregator
      * and verify it works (or doesn't) as expected.
-     *
+     * <p>
      * If this method is implemented, {@link AggregatorTestCase#createAggBuilderForTypeTest(MappedFieldType, String)}
      * should be implemented as well.
      *
@@ -702,7 +715,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
      * The field type and name are provided, and the implementor is expected to return an AggBuilder accordingly.
      * The AggBuilder should be returned even if the aggregation does not support the field type, because
      * the test will check if an exception is thrown in that case.
-     *
+     * <p>
      * The list of supported types are provided by {@link AggregatorTestCase#getSupportedValuesSourceTypes()},
      * which must also be implemented.
      *
@@ -720,7 +733,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
      * A method that allows implementors to specifically denylist particular field types (based on their content_name).
      * This is needed in some areas where the ValuesSourceType is not granular enough, for example integer values
      * vs floating points, or `keyword` bytes vs `binary` bytes (which are not searchable)
-     *
+     * <p>
      * This is a denylist instead of an allowlist because there are vastly more field types than ValuesSourceTypes,
      * and it's expected that these unsupported cases are exceptional rather than common
      */
@@ -734,7 +747,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
      * is provided by the implementor class, and it is executed against each field type in turn.  If
      * an exception is thrown when the field is supported, that will fail the test.  Similarly, if
      * an exception _is not_ thrown when a field is unsupported, that will also fail the test.
-     *
+     * <p>
      * Exception types/messages are not currently checked, just presence/absence of an exception.
      */
     public void testSupportedFieldTypes() throws IOException {
@@ -760,7 +773,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             source.put("type", mappedType.getKey());
 
             // Text is the only field that doesn't support DVs, instead FD
-            if (mappedType.getKey().equals(TextFieldMapper.CONTENT_TYPE) == false) {
+            if (mappedType.getKey().equals(TextFieldMapper.CONTENT_TYPE) == false
+                && mappedType.getKey().equals(MatchOnlyTextFieldMapper.CONTENT_TYPE) == false) {
                 source.put("doc_values", "true");
             }
 
@@ -825,7 +839,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
     /**
      * Helper method to write a single document with a single value specific to the requested fieldType.
-     *
+     * <p>
      * Throws an exception if it encounters an unknown field type, to prevent new ones from sneaking in without
      * being tested.
      */
@@ -1091,6 +1105,89 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         protected void doWriteTo(StreamOutput out) throws IOException {
             throw new UnsupportedOperationException();
 
+        }
+    }
+
+    /**
+     * Wrapper around Aggregator class
+     * Maintains a count for times collect() is invoked - number of documents visited
+     */
+    protected static class CountingAggregator extends Aggregator {
+        private final AtomicInteger collectCounter;
+        public final Aggregator delegate;
+
+        public CountingAggregator(AtomicInteger collectCounter, TermsAggregator delegate) {
+            this.collectCounter = collectCounter;
+            this.delegate = delegate;
+        }
+
+        public AtomicInteger getCollectCount() {
+            return collectCounter;
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+
+        @Override
+        public String name() {
+            return delegate.name();
+        }
+
+        @Override
+        public SearchContext context() {
+            return delegate.context();
+        }
+
+        @Override
+        public Aggregator parent() {
+            return delegate.parent();
+        }
+
+        @Override
+        public Aggregator subAggregator(String name) {
+            return delegate.subAggregator(name);
+        }
+
+        @Override
+        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+            return delegate.buildAggregations(owningBucketOrds);
+        }
+
+        @Override
+        public InternalAggregation buildEmptyAggregation() {
+            return delegate.buildEmptyAggregation();
+        }
+
+        @Override
+        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+            return new LeafBucketCollector() {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    delegate.getLeafCollector(ctx).collect(doc, bucket);
+                    collectCounter.incrementAndGet();
+                }
+            };
+        }
+
+        @Override
+        public ScoreMode scoreMode() {
+            return delegate.scoreMode();
+        }
+
+        @Override
+        public void preCollection() throws IOException {
+            delegate.preCollection();
+        }
+
+        @Override
+        public void postCollection() throws IOException {
+            delegate.postCollection();
+        }
+
+        public void setWeight(Weight weight) {
+            this.delegate.setWeight(weight);
         }
     }
 

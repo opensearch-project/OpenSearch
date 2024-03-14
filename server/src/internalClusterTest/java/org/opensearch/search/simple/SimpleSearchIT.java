@@ -32,6 +32,8 @@
 
 package org.opensearch.search.simple;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
@@ -45,13 +47,17 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.ConstantScoreQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -62,14 +68,29 @@ import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.rangeQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.apache.lucene.search.TotalHits.Relation.EQUAL_TO;
+import static org.apache.lucene.search.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
 
-public class SimpleSearchIT extends OpenSearchIntegTestCase {
+public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public SimpleSearchIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() }
+        );
+    }
 
     public void testSearchNullIndex() {
         expectThrows(
@@ -258,10 +279,9 @@ public class SimpleSearchIT extends OpenSearchIntegTestCase {
         assertHitCount(searchResponse, 2L);
     }
 
-    public void testSimpleTerminateAfterCount() throws Exception {
+    public void dotestSimpleTerminateAfterCountWithSize(int size, int max) throws Exception {
         prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
-        int max = randomIntBetween(3, 29);
         List<IndexRequestBuilder> docbuilders = new ArrayList<>(max);
 
         for (int i = 1; i <= max; i++) {
@@ -278,9 +298,20 @@ public class SimpleSearchIT extends OpenSearchIntegTestCase {
             searchResponse = client().prepareSearch("test")
                 .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max))
                 .setTerminateAfter(i)
+                .setSize(size)
+                .setTrackTotalHits(true)
                 .get();
-            assertHitCount(searchResponse, i);
+
+            // Do not expect an exact match as an optimization introduced by https://issues.apache.org/jira/browse/LUCENE-10620
+            // can produce a total hit count > terminated_after, but this only kicks in
+            // when size = 0 which is when TotalHitCountCollector is used.
+            if (size == 0) {
+                assertHitCount(searchResponse, i, max);
+            } else {
+                assertHitCount(searchResponse, i);
+            }
             assertTrue(searchResponse.isTerminatedEarly());
+            assertEquals(Math.min(i, size), searchResponse.getHits().getHits().length);
         }
 
         searchResponse = client().prepareSearch("test")
@@ -290,6 +321,126 @@ public class SimpleSearchIT extends OpenSearchIntegTestCase {
 
         assertHitCount(searchResponse, max);
         assertFalse(searchResponse.isTerminatedEarly());
+    }
+
+    public void testSimpleTerminateAfterCountSize0() throws Exception {
+        int max = randomIntBetween(3, 29);
+        dotestSimpleTerminateAfterCountWithSize(0, max);
+    }
+
+    public void testSimpleTerminateAfterCountRandomSize() throws Exception {
+        int max = randomIntBetween(3, 29);
+        dotestSimpleTerminateAfterCountWithSize(randomIntBetween(1, max), max);
+    }
+
+    /**
+     * Special cases when size = 0:
+     *
+     * If track_total_hits = true:
+     *   Weight#count optimization can cause totalHits in the response to be up to the total doc count regardless of terminate_after.
+     *   So, we will have to do a range check, not an equality check.
+     *
+     * If track_total_hits != true, but set to a value AND terminate_after is set:
+     *   Again, due to the optimization, any count can be returned.
+     *   Up to terminate_after, relation == EQUAL_TO.
+     *   But if track_total_hits_up_to &ge; terminate_after, relation can be EQ _or_ GTE.
+     *   This ambiguity is due to the fact that totalHits == track_total_hits_up_to
+     *   or totalHits &gt; track_total_hits_up_to and SearchPhaseController sets totalHits = track_total_hits_up_to when returning results
+     *   in which case relation = GTE.
+     *
+     * @param size
+     * @throws Exception
+     */
+    public void doTestSimpleTerminateAfterTrackTotalHitsUpTo(int size) throws Exception {
+        prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
+        ensureGreen();
+        int numDocs = 29;
+        List<IndexRequestBuilder> docbuilders = new ArrayList<>(numDocs);
+
+        for (int i = 1; i <= numDocs; i++) {
+            String id = String.valueOf(i);
+            docbuilders.add(client().prepareIndex("test").setId(id).setSource("field", i));
+        }
+
+        indexRandom(true, docbuilders);
+        ensureGreen();
+        refresh();
+
+        SearchResponse searchResponse;
+
+        searchResponse = client().prepareSearch("test")
+            .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
+            .setTerminateAfter(10)
+            .setSize(size)
+            .setTrackTotalHitsUpTo(5)
+            .get();
+        assertTrue(searchResponse.isTerminatedEarly());
+        assertEquals(5, searchResponse.getHits().getTotalHits().value);
+        assertEquals(GREATER_THAN_OR_EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
+
+        // For size = 0, the following queries terminate early, but hits and relation can vary.
+        if (size > 0) {
+            searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
+                .setTerminateAfter(5)
+                .setSize(size)
+                .setTrackTotalHitsUpTo(10)
+                .get();
+            assertTrue(searchResponse.isTerminatedEarly());
+            assertEquals(5, searchResponse.getHits().getTotalHits().value);
+            assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
+
+            searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
+                .setTerminateAfter(5)
+                .setSize(size)
+                .setTrackTotalHitsUpTo(5)
+                .get();
+            assertTrue(searchResponse.isTerminatedEarly());
+            assertEquals(5, searchResponse.getHits().getTotalHits().value);
+            assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
+        }
+
+        searchResponse = client().prepareSearch("test")
+            .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
+            .setTerminateAfter(5)
+            .setSize(size)
+            .setTrackTotalHits(true)
+            .get();
+        assertTrue(searchResponse.isTerminatedEarly());
+        if (size == 0) {
+            // Since terminate_after < track_total_hits, we need to do a range check.
+            assertHitCount(searchResponse, 5, numDocs);
+        } else {
+            assertEquals(5, searchResponse.getHits().getTotalHits().value);
+        }
+        assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
+
+        searchResponse = client().prepareSearch("test")
+            .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
+            .setTerminateAfter(numDocs * 2)
+            .setSize(size)
+            .setTrackTotalHits(true)
+            .get();
+        assertFalse(searchResponse.isTerminatedEarly());
+        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
+        assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
+
+        searchResponse = client().prepareSearch("test")
+            .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
+            .setSize(size)
+            .setTrackTotalHitsUpTo(5)
+            .get();
+        assertEquals(5, searchResponse.getHits().getTotalHits().value);
+        assertEquals(GREATER_THAN_OR_EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
+    }
+
+    public void testSimpleTerminateAfterTrackTotalHitsUpToRandomSize0() throws Exception {
+        doTestSimpleTerminateAfterTrackTotalHitsUpTo(0);
+    }
+
+    public void testSimpleTerminateAfterTrackTotalHitsUpToSize() throws Exception {
+        doTestSimpleTerminateAfterTrackTotalHitsUpTo(randomIntBetween(1, 29));
     }
 
     public void testSimpleIndexSortEarlyTerminate() throws Exception {
@@ -523,6 +674,23 @@ public class SimpleSearchIT extends OpenSearchIntegTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, queryJson);
         parser.nextToken();
         TermQueryBuilder query = TermQueryBuilder.fromXContent(parser);
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(query).get();
+        assertEquals(1, searchResponse.getHits().getTotalHits().value);
+    }
+
+    public void testIndexOnlyFloatField() throws IOException {
+        prepareCreate("idx").setMapping("field", "type=float,doc_values=false").get();
+        ensureGreen("idx");
+
+        IndexRequestBuilder indexRequestBuilder = client().prepareIndex("idx");
+
+        for (float i = 9000.0F; i < 20000.0F; i++) {
+            indexRequestBuilder.setId(String.valueOf(i)).setSource("{\"field\":" + i + "}", MediaTypeRegistry.JSON).get();
+        }
+        String queryJson = "{ \"filter\" : { \"terms\" : { \"field\" : [ 10000.0 ] } } }";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, queryJson);
+        parser.nextToken();
+        ConstantScoreQueryBuilder query = ConstantScoreQueryBuilder.fromXContent(parser);
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(query).get();
         assertEquals(1, searchResponse.getHits().getTotalHits().value);
     }

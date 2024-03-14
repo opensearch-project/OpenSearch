@@ -61,8 +61,8 @@ class OngoingSegmentReplications {
         this.allocationIdToHandlers = ConcurrentCollections.newConcurrentMap();
     }
 
-    /**
-     * Operations on the {@link #copyStateMap} member.
+    /*
+      Operations on the {@link #copyStateMap} member.
      */
 
     /**
@@ -85,12 +85,12 @@ class OngoingSegmentReplications {
             // build the CopyState object and cache it before returning
             final CopyState copyState = new CopyState(checkpoint, indexShard);
 
-            /**
-             * Use the checkpoint from the request as the key in the map, rather than
-             * the checkpoint from the created CopyState. This maximizes cache hits
-             * if replication targets make a request with an older checkpoint.
-             * Replication targets are expected to fetch the checkpoint in the response
-             * CopyState to bring themselves up to date.
+            /*
+              Use the checkpoint from the request as the key in the map, rather than
+              the checkpoint from the created CopyState. This maximizes cache hits
+              if replication targets make a request with an older checkpoint.
+              Replication targets are expected to fetch the checkpoint in the response
+              CopyState to bring themselves up to date.
              */
             addToCopyStateMap(checkpoint, copyState);
             return copyState;

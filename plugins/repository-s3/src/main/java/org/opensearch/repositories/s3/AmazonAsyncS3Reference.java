@@ -29,6 +29,7 @@ public class AmazonAsyncS3Reference extends RefCountedReleasable<AmazonAsyncS3Wi
         super("AWS_S3_CLIENT", client, () -> {
             client.client().close();
             client.priorityClient().close();
+            client.urgentClient().close();
             AwsCredentialsProvider credentials = client.credentials();
             if (credentials instanceof Closeable) {
                 try {

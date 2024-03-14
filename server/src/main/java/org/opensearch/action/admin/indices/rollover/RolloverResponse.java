@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.rollover;
 
 import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -51,12 +52,13 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
 
 /**
  * Response object for {@link RolloverRequest} API
- *
+ * <p>
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should also go to that client class.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class RolloverResponse extends ShardsAcknowledgedResponse implements ToXContentObject {
 
     private static final ParseField NEW_INDEX = new ParseField("new_index");

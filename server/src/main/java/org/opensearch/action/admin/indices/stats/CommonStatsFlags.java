@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.stats;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -45,8 +46,9 @@ import java.util.EnumSet;
 /**
  * Common Stats Flags for OpenSearch
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class CommonStatsFlags implements Writeable, Cloneable {
 
     public static final CommonStatsFlags ALL = new CommonStatsFlags().all();
@@ -255,8 +257,9 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     /**
      * The flags.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Flag {
         Store("store", 0),
         Indexing("indexing", 1),

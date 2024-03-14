@@ -103,7 +103,7 @@ public abstract class RestActionTestCase extends OpenSearchTestCase {
     /**
      * A mocked {@link NodeClient} which can be easily reconfigured to verify arbitrary verification
      * functions, and can be reset to allow reconfiguration partway through a test without having to construct a new object.
-     *
+     * <p>
      * By default, will throw {@link AssertionError} when any execution method is called, unless configured otherwise using
      * {@link #setExecuteVerifier(BiFunction)} or {@link #setExecuteLocallyVerifier(BiFunction)}.
      */

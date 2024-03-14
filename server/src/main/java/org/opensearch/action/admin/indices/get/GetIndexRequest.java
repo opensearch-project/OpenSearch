@@ -34,6 +34,7 @@ package org.opensearch.action.admin.indices.get;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.info.ClusterInfoRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.ArrayUtils;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -43,14 +44,16 @@ import java.io.IOException;
 /**
  * A request to retrieve information about an index.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     /**
      * The features to get.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Feature {
         ALIASES((byte) 0),
         MAPPINGS((byte) 1),

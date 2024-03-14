@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -87,6 +88,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
                     IndexShard indexShard,
+                    BiConsumer<String, Long> fileProgressTracker,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     // randomly resolve the listener, indicating the source has resolved.
@@ -131,6 +133,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
                     IndexShard indexShard,
+                    BiConsumer<String, Long> fileProgressTracker,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     Assert.fail("Should not be reached");
@@ -176,6 +179,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
                     IndexShard indexShard,
+                    BiConsumer<String, Long> fileProgressTracker,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     Assert.fail("Unreachable");
@@ -223,6 +227,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
                     IndexShard indexShard,
+                    BiConsumer<String, Long> fileProgressTracker,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {}
             };
@@ -269,6 +274,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
                     IndexShard indexShard,
+                    BiConsumer<String, Long> fileProgressTracker,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));

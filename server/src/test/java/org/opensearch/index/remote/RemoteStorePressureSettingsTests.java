@@ -48,7 +48,7 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
         );
 
         // Check remote refresh segment pressure enabled is false
-        assertFalse(pressureSettings.isRemoteRefreshSegmentPressureEnabled());
+        assertTrue(pressureSettings.isRemoteRefreshSegmentPressureEnabled());
 
         // Check bytes lag variance threshold default value
         assertEquals(10.0, pressureSettings.getBytesLagVarianceFactor(), 0.0d);

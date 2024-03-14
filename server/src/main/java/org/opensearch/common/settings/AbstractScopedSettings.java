@@ -254,7 +254,7 @@ public abstract class AbstractScopedSettings {
     /**
      * Adds a settings consumer that is only executed if any setting in the supplied list of settings is changed. In that case all the
      * settings are specified in the argument are returned.
-     *
+     * <p>
      * Also automatically adds empty consumers for all settings in order to activate logging
      */
     public synchronized void addSettingsUpdateConsumer(Consumer<Settings> consumer, List<? extends Setting<?>> settings) {
@@ -265,7 +265,7 @@ public abstract class AbstractScopedSettings {
      * Adds a settings consumer that is only executed if any setting in the supplied list of settings is changed. In that case all the
      * settings are specified in the argument are returned.  The validator is run across all specified settings before the settings are
      * applied.
-     *
+     * <p>
      * Also automatically adds empty consumers for all settings in order to activate logging
      */
     public synchronized void addSettingsUpdateConsumer(

@@ -56,6 +56,7 @@ import org.opensearch.core.common.text.Text;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.semver.SemverRange;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -96,7 +97,7 @@ import static org.opensearch.OpenSearchException.readStackTrace;
 
 /**
  * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
- *
+ * <p>
  * This class's methods are optimized so you can put the methods that read and write a class next to each other and you can scan them
  * visually for differences. That means that most variables should be read and written in a single line so even large objects fit both
  * reading and writing on the screen. It also means that the methods on this class are named very similarly to {@link StreamOutput}. Finally
@@ -750,6 +751,8 @@ public abstract class StreamInput extends InputStream {
                 return readCollection(StreamInput::readGenericValue, HashSet::new, Collections.emptySet());
             case 26:
                 return readBigInteger();
+            case 27:
+                return readSemverRange();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
@@ -1090,6 +1093,10 @@ public abstract class StreamInput extends InputStream {
         return Version.fromId(readVInt());
     }
 
+    public SemverRange readSemverRange() throws IOException {
+        return SemverRange.fromString(readString());
+    }
+
     /** Reads the {@link Version} from the input stream */
     public Build readBuild() throws IOException {
         // the following is new for opensearch: we write the distribution to support any "forks"
@@ -1128,7 +1135,7 @@ public abstract class StreamInput extends InputStream {
      * the corresponding entry in the registry by name, so that the proper object can be read and returned.
      * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
      * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
-     *
+     * <p>
      * Prefer {@link StreamInput#readNamedWriteable(Class)} and {@link StreamOutput#writeNamedWriteable(NamedWriteable)} unless you
      * have a compelling reason to use this method instead.
      */

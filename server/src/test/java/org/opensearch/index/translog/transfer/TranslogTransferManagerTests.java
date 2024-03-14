@@ -10,12 +10,14 @@ package org.opensearch.index.translog.transfer;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -34,15 +36,19 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.mockito.Mockito;
 
+import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.METADATA_SEPARATOR;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anySet;
@@ -176,6 +182,93 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertEquals(4, fileTransferTracker.allUploaded().size());
     }
 
+    public void testTransferSnapshotOnUploadTimeout() throws Exception {
+        doAnswer(invocationOnMock -> {
+            Thread.sleep(31 * 1000);
+            return null;
+        }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(
+            new ShardId("index", "indexUUid", 0),
+            remoteTranslogTransferTracker
+        );
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath,
+            fileTransferTracker,
+            remoteTranslogTransferTracker
+        );
+        SetOnce<Exception> exception = new SetOnce<>();
+        translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {}
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                exception.set(ex);
+            }
+        });
+        assertNotNull(exception.get());
+        assertTrue(exception.get() instanceof TranslogUploadFailedException);
+        assertEquals("Timed out waiting for transfer of snapshot test-to-string to complete", exception.get().getMessage());
+    }
+
+    public void testTransferSnapshotOnThreadInterrupt() throws Exception {
+        SetOnce<Thread> uploadThread = new SetOnce<>();
+        doAnswer(invocationOnMock -> {
+            uploadThread.set(new Thread(() -> {
+                ActionListener<TransferFileSnapshot> listener = invocationOnMock.getArgument(2);
+                try {
+                    Thread.sleep(31 * 1000);
+                } catch (InterruptedException ignore) {
+                    List<TransferFileSnapshot> list = new ArrayList<>(invocationOnMock.getArgument(0));
+                    listener.onFailure(new FileTransferException(list.get(0), ignore));
+                }
+            }));
+            uploadThread.get().start();
+            return null;
+        }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(
+            new ShardId("index", "indexUUid", 0),
+            remoteTranslogTransferTracker
+        );
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath,
+            fileTransferTracker,
+            remoteTranslogTransferTracker
+        );
+        SetOnce<Exception> exception = new SetOnce<>();
+
+        Thread thread = new Thread(() -> {
+            try {
+                translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
+                    @Override
+                    public void onUploadComplete(TransferSnapshot transferSnapshot) {}
+
+                    @Override
+                    public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                        exception.set(ex);
+                    }
+                });
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        thread.start();
+
+        Thread.sleep(1000);
+        // Interrupt the thread
+        thread.interrupt();
+        assertBusy(() -> {
+            assertNotNull(exception.get());
+            assertTrue(exception.get() instanceof TranslogUploadFailedException);
+            assertEquals("Failed to upload test-to-string", exception.get().getMessage());
+        });
+        uploadThread.get().interrupt();
+    }
+
     private TransferSnapshot createTransferSnapshot() {
         return new TransferSnapshot() {
             @Override
@@ -228,6 +321,11 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             public TranslogTransferMetadata getTranslogTransferMetadata() {
                 return new TranslogTransferMetadata(primaryTerm, generation, minTranslogGeneration, randomInt(5));
             }
+
+            @Override
+            public String toString() {
+                return "test-to-string";
+            }
         };
     }
 
@@ -251,8 +349,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertNoDownloadStats(false);
     }
 
-    // This should happen most of the time - Just a single metadata file
-    public void testReadMetadataSingleFile() throws IOException {
+    // This should happen most of the time -
+    public void testReadMetadataFile() throws IOException {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
@@ -260,12 +358,16 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             null,
             remoteTranslogTransferTracker
         );
-        TranslogTransferMetadata tm = new TranslogTransferMetadata(1, 1, 1, 2);
-        String mdFilename = tm.getFileName();
+        TranslogTransferMetadata metadata1 = new TranslogTransferMetadata(1, 1, 1, 2);
+        String mdFilename1 = metadata1.getFileName();
+
+        TranslogTransferMetadata metadata2 = new TranslogTransferMetadata(1, 0, 1, 2);
+        String mdFilename2 = metadata2.getFileName();
         doAnswer(invocation -> {
             LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
             List<BlobMetadata> bmList = new LinkedList<>();
-            bmList.add(new PlainBlobMetadata(mdFilename, 1));
+            bmList.add(new PlainBlobMetadata(mdFilename1, 1));
+            bmList.add(new PlainBlobMetadata(mdFilename2, 1));
             latchedActionListener.onResponse(bmList);
             return null;
         }).when(transferService)
@@ -273,7 +375,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
         long delayForMdDownload = 1;
-        when(transferService.downloadBlob(any(BlobPath.class), eq(mdFilename))).thenAnswer(invocation -> {
+        when(transferService.downloadBlob(any(BlobPath.class), eq(mdFilename1))).thenAnswer(invocation -> {
             Thread.sleep(delayForMdDownload);
             return new ByteArrayInputStream(translogTransferManager.getMetadataBytes(metadata));
         });
@@ -495,5 +597,44 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertEquals(tlogBytes.length + ckpBytes.length, remoteTranslogTransferTracker.getDownloadBytesSucceeded());
         // Expect delay for both tlog and ckp file
         assertTrue(remoteTranslogTransferTracker.getTotalDownloadTimeInMillis() >= 2 * delayForBlobDownload);
+    }
+
+    public void testGetPrimaryTermAndGeneration() {
+        String nodeId = UUID.randomUUID().toString();
+        String tm = new TranslogTransferMetadata(1, 2, 1, 2, nodeId).getFileName();
+        Tuple<Tuple<Long, Long>, String> actualOutput = TranslogTransferMetadata.getNodeIdByPrimaryTermAndGeneration(tm);
+        assertEquals(1L, (long) (actualOutput.v1().v1()));
+        assertEquals(2L, (long) (actualOutput.v1().v2()));
+        assertEquals(String.valueOf(Objects.hash(nodeId)), actualOutput.v2());
+    }
+
+    public void testMetadataConflict() throws InterruptedException {
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath,
+            null,
+            remoteTranslogTransferTracker
+        );
+        TranslogTransferMetadata tm = new TranslogTransferMetadata(1, 1, 1, 2, "node--1");
+        String mdFilename = tm.getFileName();
+        long count = mdFilename.chars().filter(ch -> ch == METADATA_SEPARATOR.charAt(0)).count();
+        // There should not be any `_` in mdFile name as it is used a separator .
+        assertEquals(10, count);
+        Thread.sleep(1);
+        TranslogTransferMetadata tm2 = new TranslogTransferMetadata(1, 1, 1, 2, "node--2");
+        String mdFilename2 = tm2.getFileName();
+
+        doAnswer(invocation -> {
+            LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
+            List<BlobMetadata> bmList = new LinkedList<>();
+            bmList.add(new PlainBlobMetadata(mdFilename, 1));
+            bmList.add(new PlainBlobMetadata(mdFilename2, 1));
+            latchedActionListener.onResponse(bmList);
+            return null;
+        }).when(transferService)
+            .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
+
+        assertThrows(RuntimeException.class, translogTransferManager::readMetadata);
     }
 }

@@ -153,7 +153,7 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
     /**
      * takes a request that was sent by a {@link TransportReplicationAction} and captured
      * and returns the underlying request if it's wrapped or the original (cast to the expected type).
-     *
+     * <p>
      * This will throw a {@link ClassCastException} if the request is of the wrong type.
      */
     public static <R extends ReplicationRequest> R resolveRequest(TransportRequest requestOrWrappedRequest) {
@@ -1318,7 +1318,8 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             namedWriteableRegistry,
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            NoopTracer.INSTANCE
         );
         transportService = new MockTransportService(
             Settings.EMPTY,

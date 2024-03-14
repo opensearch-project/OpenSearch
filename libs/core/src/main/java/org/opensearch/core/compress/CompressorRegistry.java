@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 /**
  * A registry that wraps a static Map singleton which holds a mapping of unique String names (typically the
  * compressor header as a string) to registerd {@link Compressor} implementations.
- *
+ * <p>
  * This enables plugins, modules, extensions to register their own compression implementations through SPI
  *
  * @opensearch.experimental
@@ -105,7 +105,7 @@ public final class CompressorRegistry {
 
     /**
      * Returns the registered compressors as an Immutable collection
-     *
+     * <p>
      * note: used for testing
      */
     public static Map<String, Compressor> registeredCompressors() {

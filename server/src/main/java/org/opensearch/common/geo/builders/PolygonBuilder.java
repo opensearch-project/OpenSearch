@@ -177,11 +177,11 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.geo
     }
 
     private static void validateLinearRing(LineStringBuilder lineString) {
-        /**
-         * Per GeoJSON spec (http://geojson.org/geojson-spec.html#linestring)
-         * A LinearRing is closed LineString with 4 or more positions. The first and last positions
-         * are equivalent (they represent equivalent points). Though a LinearRing is not explicitly
-         * represented as a GeoJSON geometry type, it is referred to in the Polygon geometry type definition.
+        /*
+          Per GeoJSON spec (http://geojson.org/geojson-spec.html#linestring)
+          A LinearRing is closed LineString with 4 or more positions. The first and last positions
+          are equivalent (they represent equivalent points). Though a LinearRing is not explicitly
+          represented as a GeoJSON geometry type, it is referred to in the Polygon geometry type definition.
          */
         List<Coordinate> points = lineString.coordinates;
         if (points.size() < 4) {

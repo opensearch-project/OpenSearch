@@ -43,7 +43,7 @@ import java.io.OutputStream;
 /**
  * Compressor interface used for compressing {@link org.opensearch.core.xcontent.MediaType} and
  * {@code org.opensearch.repositories.blobstore.BlobStoreRepository} implementations.
- *
+ * <p>
  * This is not to be confused with {@link org.apache.lucene.codecs.compressing.Compressor} which is used
  * for codec implementations such as {@code org.opensearch.index.codec.customcodecs.Lucene95CustomCodec}
  * for compressing {@link org.apache.lucene.document.StoredField}s

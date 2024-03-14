@@ -53,7 +53,7 @@ import java.util.function.UnaryOperator;
 
 /**
  * An helper to manage a vagrant box.
- *
+ * <p>
  * This is created alongside a {@link VagrantExtension} for a project to manage starting and
  * stopping a single vagrant box.
  */
@@ -185,7 +185,7 @@ public class VagrantMachine {
 
         /**
          * A function to translate output from the vagrant command execution to the progress line.
-         *
+         * <p>
          * The function takes the current line of output from vagrant, and returns a new
          * progress line, or {@code null} if there is no update.
          */

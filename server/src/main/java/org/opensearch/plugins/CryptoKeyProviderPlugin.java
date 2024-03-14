@@ -14,7 +14,8 @@ import org.opensearch.common.crypto.MasterKeyProvider;
 
 /**
  * Crypto plugin to provide support for custom key providers.
- * @opensearch.api
+ *
+ * @opensearch.experimental
  */
 @ExperimentalApi
 public interface CryptoKeyProviderPlugin {

@@ -23,7 +23,6 @@ import org.junit.Before;
 import java.nio.file.Path;
 
 import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
@@ -57,7 +56,7 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
 
     @After
     public void teardown() {
-        assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
+        clusterAdmin().prepareCleanupRepository(REPOSITORY_NAME).get();
     }
 
     @Override
@@ -158,10 +157,4 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
     public void testReplicaRecovery() {
 
     }
-
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9580")
-    public void testRerouteRecovery() {
-
-    }
-
 }

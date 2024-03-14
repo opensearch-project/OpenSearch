@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 /**
  * This test checks that in-flight requests are limited on HTTP level and that requests that are excluded from limiting can pass.
- *
+ * <p>
  * As the same setting is also used to limit in-flight requests on transport level, we avoid transport messages by forcing
  * a single node "cluster".
  */

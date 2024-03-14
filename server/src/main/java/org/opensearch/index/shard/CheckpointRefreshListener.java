@@ -21,7 +21,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class CheckpointRefreshListener extends CloseableRetryableRefreshListener {
+public class CheckpointRefreshListener extends ReleasableRetryableRefreshListener {
 
     protected static Logger logger = LogManager.getLogger(CheckpointRefreshListener.class);
 

@@ -35,6 +35,7 @@ package org.opensearch.common.io.stream;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -62,8 +63,9 @@ import java.io.IOException;
  * to force their buffering in serialized format by calling
  * {@link #asSerialized(Reader, NamedWriteableRegistry)}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class DelayableWriteable<T extends Writeable> implements Writeable {
     /**
      * Build a {@linkplain DelayableWriteable} that wraps an existing object
@@ -151,8 +153,9 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
     /**
      * A {@link Writeable} stored in serialized form.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Serialized<T extends Writeable> extends DelayableWriteable<T> implements Accountable {
         private final Writeable.Reader<T> reader;
         private final Version serializedAtVersion;

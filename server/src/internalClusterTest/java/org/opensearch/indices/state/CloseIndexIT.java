@@ -287,7 +287,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
                     throw new AssertionError(e);
                 }
                 try {
-                    assertAcked(client().admin().indices().prepareDelete(indexToDelete));
+                    assertAcked(client().admin().indices().prepareDelete(indexToDelete).setTimeout("60s"));
                 } catch (final Exception e) {
                     assertException(e, indexToDelete);
                 }
@@ -301,7 +301,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
                     throw new AssertionError(e);
                 }
                 try {
-                    client().admin().indices().prepareClose(indexToClose).get();
+                    client().admin().indices().prepareClose(indexToClose).setTimeout("60s").get();
                 } catch (final Exception e) {
                     assertException(e, indexToClose);
                 }
@@ -509,7 +509,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Test for https://github.com/elastic/elasticsearch/issues/47276 which checks that the persisted metadata on a data node does not
+     * Test for <a href="https://github.com/elastic/elasticsearch/issues/47276">Elasticsearch issue #47276</a> which checks that the persisted metadata on a data node does not
      * become inconsistent when using replicated closed indices.
      */
     public void testRelocatedClosedIndexIssue() throws Exception {

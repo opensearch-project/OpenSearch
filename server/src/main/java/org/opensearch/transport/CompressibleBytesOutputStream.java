@@ -48,11 +48,11 @@ import java.util.zip.DeflaterOutputStream;
  * requires that the underlying {@link DeflaterOutputStream} be closed to write EOS bytes. However, the
  * {@link BytesStream} should not be closed yet, as we have not used the bytes. This class handles these
  * intricacies.
- *
+ * <p>
  * {@link CompressibleBytesOutputStream#materializeBytes()} should be called when all the bytes have been
  * written to this stream. If compression is enabled, the proper EOS bytes will be written at that point.
  * The underlying {@link BytesReference} will be returned.
- *
+ * <p>
  * {@link CompressibleBytesOutputStream#close()} will NOT close the underlying stream. The byte stream passed
  * in the constructor must be closed individually.
  *

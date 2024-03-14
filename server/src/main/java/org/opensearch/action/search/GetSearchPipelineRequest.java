@@ -10,6 +10,7 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -20,8 +21,9 @@ import java.util.Objects;
 /**
  * Request to get search pipelines
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.7.0")
 public class GetSearchPipelineRequest extends ClusterManagerNodeReadRequest<GetSearchPipelineRequest> {
     private final String[] ids;
 

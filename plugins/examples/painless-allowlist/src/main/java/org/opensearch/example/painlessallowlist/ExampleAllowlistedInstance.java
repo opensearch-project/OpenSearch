@@ -34,7 +34,7 @@ package org.opensearch.example.painlessallowlist;
 
 /**
  * An example of an instance to be allowlisted for use by painless scripts.
- *
+ * <p>
  * Each of the members and methods below are allowlisted for use in search scripts but only from this instance.
  */
 public class ExampleAllowlistedInstance {

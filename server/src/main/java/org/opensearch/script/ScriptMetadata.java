@@ -183,9 +183,9 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
 
     /**
      * This will parse XContent into {@link ScriptMetadata}.
-     *
+     * <p>
      * The following format will be parsed:
-     *
+     * <p>
      * {@code
      * {
      *     "<id>" : "<{@link StoredScriptSource#fromXContent(XContentParser, boolean)}>",
@@ -356,7 +356,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
 
     /**
      * This will write XContent from {@link ScriptMetadata}.  The following format will be written:
-     *
+     * <p>
      * {@code
      * {
      *     "<id>" : "<{@link StoredScriptSource#toXContent(XContentBuilder, Params)}>",

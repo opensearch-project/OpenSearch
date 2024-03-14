@@ -32,6 +32,7 @@
 package org.opensearch.action.support;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -55,15 +56,17 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeStrin
  * Controls how to deal with unavailable concrete indices (closed or missing), how wildcard expressions are expanded
  * to actual indices (all, closed or open indices) and how to deal with wildcard expressions that resolve to no indices.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndicesOptions implements ToXContentFragment {
 
     /**
      * The wildcard states.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum WildcardStates {
         OPEN,
         CLOSED,

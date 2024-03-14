@@ -40,6 +40,7 @@ import org.opensearch.action.ValidateActions;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentType;
@@ -74,8 +75,9 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
  * Note, the {@link #index()}, and {@link #id(String)} are
  * required.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest {
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField ID = new ParseField("_id");
@@ -118,8 +120,9 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     /**
      * Internal filter settings
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class FilterSettings {
         public Integer maxNumTerms;
         public Integer minTermFreq;
@@ -572,8 +575,9 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     /**
      * The flags.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Flag {
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!

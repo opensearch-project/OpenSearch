@@ -37,6 +37,7 @@ import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.opensearch.action.update.UpdateRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -78,8 +79,9 @@ public interface WriteRequest<R extends WriteRequest<R>> extends Writeable {
     /**
      * The refresh policy of the request.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     enum RefreshPolicy implements Writeable {
         /**
          * Don't refresh after this request. The default.

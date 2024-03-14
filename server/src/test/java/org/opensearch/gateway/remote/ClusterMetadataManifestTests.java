@@ -26,6 +26,33 @@ import java.util.List;
 
 public class ClusterMetadataManifestTests extends OpenSearchTestCase {
 
+    public void testClusterMetadataManifestXContentV0() throws IOException {
+        UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
+        ClusterMetadataManifest originalManifest = new ClusterMetadataManifest(
+            1L,
+            1L,
+            "test-cluster-uuid",
+            "test-state-uuid",
+            Version.CURRENT,
+            "test-node-id",
+            false,
+            ClusterMetadataManifest.CODEC_V0,
+            null,
+            Collections.singletonList(uploadedIndexMetadata),
+            "prev-cluster-uuid",
+            true
+        );
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        originalManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final ClusterMetadataManifest fromXContentManifest = ClusterMetadataManifest.fromXContentV0(parser);
+            assertEquals(originalManifest, fromXContentManifest);
+        }
+    }
+
     public void testClusterMetadataManifestXContent() throws IOException {
         UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
         ClusterMetadataManifest originalManifest = new ClusterMetadataManifest(
@@ -36,8 +63,11 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             Version.CURRENT,
             "test-node-id",
             false,
+            ClusterMetadataManifest.CODEC_V1,
+            "test-global-metadata-file",
             Collections.singletonList(uploadedIndexMetadata),
-            "prev-cluster-uuid"
+            "prev-cluster-uuid",
+            true
         );
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -59,8 +89,11 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             Version.CURRENT,
             "B10RX1f5RJenMQvYccCgSQ",
             true,
+            1,
+            "test-global-metadata-file",
             randomUploadedIndexMetadataList(),
-            "yfObdx8KSMKKrXf8UyHhM"
+            "yfObdx8KSMKKrXf8UyHhM",
+            true
         );
         {  // Mutate Cluster Term
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(
@@ -182,6 +215,21 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                 }
             );
 
+        }
+        { // Mutate cluster uuid committed
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                initialManifest,
+                orig -> OpenSearchTestCase.copyWriteable(
+                    orig,
+                    new NamedWriteableRegistry(Collections.emptyList()),
+                    ClusterMetadataManifest::new
+                ),
+                manifest -> {
+                    ClusterMetadataManifest.Builder builder = ClusterMetadataManifest.builder(manifest);
+                    builder.clusterUUIDCommitted(false);
+                    return builder.build();
+                }
+            );
         }
     }
 

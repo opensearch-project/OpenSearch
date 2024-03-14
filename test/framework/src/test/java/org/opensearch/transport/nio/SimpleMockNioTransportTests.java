@@ -42,6 +42,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.transport.AbstractSimpleTransportTestCase;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.ConnectionProfile;
@@ -71,7 +72,8 @@ public class SimpleMockNioTransportTests extends AbstractSimpleTransportTestCase
             networkService,
             new MockPageCacheRecycler(settings),
             namedWriteableRegistry,
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            NoopTracer.INSTANCE
         ) {
 
             @Override

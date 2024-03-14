@@ -38,6 +38,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -48,6 +49,7 @@ import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -64,8 +66,9 @@ import java.io.IOException;
  * Thread-safe utility class that allows to get per-segment values via the
  * {@link #load(LeafReaderContext)} method.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface IndexFieldData<FD extends LeafFieldData> {
 
     /**
@@ -93,6 +96,13 @@ public interface IndexFieldData<FD extends LeafFieldData> {
      * Returns the {@link SortField} to use for sorting.
      */
     SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse);
+
+    /**
+     * Returns the {@link SortField} to use for index sorting where we widen the sort field type to higher or equal bytes.
+     */
+    default SortField wideSortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+        return sortField(missingValue, sortMode, nested, reverse);
+    }
 
     /**
      * Build a sort implementation specialized for aggregations.
@@ -141,13 +151,23 @@ public interface IndexFieldData<FD extends LeafFieldData> {
             this.enableSkipping = false;
         }
 
+        protected Pruning filterPruning(Pruning pruning) {
+            if (this.enableSkipping) {
+                return pruning;
+            }
+            return Pruning.NONE;
+        }
+
         /**
          * Simple wrapper class around a filter that matches parent documents
          * and a filter that matches child documents. For every root document R,
          * R will be in the parent filter and its children documents will be the
          * documents that are contained in the inner set between the previous
          * parent + 1, or 0 if there is no previous parent, and R (excluded).
+         *
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public static class Nested {
 
             private final BitSetProducer rootFilter;
@@ -286,8 +306,9 @@ public interface IndexFieldData<FD extends LeafFieldData> {
     /**
      * Base builder interface
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     interface Builder {
 
         IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService);
@@ -296,8 +317,9 @@ public interface IndexFieldData<FD extends LeafFieldData> {
     /**
      * Base Global field data class
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     interface Global<FD extends LeafFieldData> extends IndexFieldData<FD> {
 
         IndexFieldData<FD> loadGlobal(DirectoryReader indexReader);

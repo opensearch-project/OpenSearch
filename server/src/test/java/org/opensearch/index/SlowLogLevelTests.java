@@ -32,6 +32,7 @@
 
 package org.opensearch.index;
 
+import org.opensearch.common.logging.SlowLogLevel;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class SlowLogLevelTests extends OpenSearchTestCase {

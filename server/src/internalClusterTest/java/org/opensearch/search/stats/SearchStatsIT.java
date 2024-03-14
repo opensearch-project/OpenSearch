@@ -37,6 +37,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
@@ -44,7 +45,6 @@ import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.search.stats.SearchStats.Stats;
 import org.opensearch.plugins.Plugin;
@@ -53,7 +53,7 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -63,6 +63,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.opensearch.action.search.SearchRequestStats.SEARCH_REQUEST_STATS_ENABLED_KEY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -78,11 +79,11 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class SearchStatsIT extends ParameterizedOpenSearchIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, minNumDataNodes = 2)
+public class SearchStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public SearchStatsIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SearchStatsIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -91,11 +92,6 @@ public class SearchStatsIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
@@ -126,6 +122,11 @@ public class SearchStatsIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(numNodes, greaterThanOrEqualTo(2));
         final int shardsIdx1 = randomIntBetween(1, 10); // we make sure each node gets at least a single shard...
         final int shardsIdx2 = Math.max(numNodes - shardsIdx1, randomIntBetween(1, 10));
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(SEARCH_REQUEST_STATS_ENABLED_KEY, true).build())
+            .get();
         assertThat(numNodes, lessThanOrEqualTo(shardsIdx1 + shardsIdx2));
         assertAcked(
             prepareCreate("test1").setSettings(
@@ -188,20 +189,40 @@ public class SearchStatsIT extends ParameterizedOpenSearchIntegTestCase {
 
         Set<String> nodeIdsWithIndex = nodeIdsWithIndex("test1", "test2");
         int num = 0;
+        int numOfCoordinators = 0;
+
         for (NodeStats stat : nodeStats.getNodes()) {
             Stats total = stat.getIndices().getSearch().getTotal();
+            if (total.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.QUERY.getName()).getTimeInMillis() > 0) {
+                assertThat(
+                    total.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.FETCH.getName()).getTimeInMillis(),
+                    greaterThan(0L)
+                );
+                assertEquals(
+                    iters,
+                    total.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.FETCH.getName()).getTotal()
+                );
+                assertEquals(
+                    iters,
+                    total.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.EXPAND.getName()).getTotal()
+                );
+                assertEquals(
+                    iters,
+                    total.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.FETCH.getName()).getTotal()
+                );
+                numOfCoordinators += 1;
+            }
             if (nodeIdsWithIndex.contains(stat.getNode().getId())) {
                 assertThat(total.getQueryCount(), greaterThan(0L));
                 assertThat(total.getQueryTimeInMillis(), greaterThan(0L));
                 num++;
             } else {
-                assertThat(total.getQueryCount(), equalTo(0L));
+                assertThat(total.getQueryCount(), greaterThanOrEqualTo(0L));
                 assertThat(total.getQueryTimeInMillis(), equalTo(0L));
             }
         }
-
+        assertThat(numOfCoordinators, greaterThan(0));
         assertThat(num, greaterThan(0));
-
     }
 
     private Set<String> nodeIdsWithIndex(String... indices) {

@@ -35,6 +35,7 @@ package org.opensearch.action.admin.cluster.state;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -45,8 +46,9 @@ import java.util.Objects;
 /**
  * The response for getting the cluster state.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterStateResponse extends ActionResponse {
 
     private ClusterName clusterName;

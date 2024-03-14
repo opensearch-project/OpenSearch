@@ -8,11 +8,14 @@
 
 package org.opensearch.core.tasks.resourcetracker;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Information about resource usage
  *
- * @opensearch.internal
+ *  @opensearch.api
  */
+@PublicApi(since = "2.1.0")
 public class ResourceUsageMetric {
     private final ResourceStats stats;
     private final long value;

@@ -34,6 +34,7 @@ package org.opensearch.action.admin.indices.close;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -54,8 +55,9 @@ import static java.util.Collections.unmodifiableList;
 /**
  * Transport response for closing an index
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
     private final List<IndexResult> indices;
@@ -99,8 +101,9 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     /**
      * Inner index result
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class IndexResult implements Writeable, ToXContentFragment {
 
         private final Index index;
@@ -199,8 +202,9 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     /**
      * Shard Result from Close Index Response
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ShardResult implements Writeable, ToXContentFragment {
 
         private final int id;
@@ -257,8 +261,9 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
         /**
          * Inner Failure if something goes wrong
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public static class Failure extends DefaultShardOperationFailedException {
 
             private @Nullable String nodeId;

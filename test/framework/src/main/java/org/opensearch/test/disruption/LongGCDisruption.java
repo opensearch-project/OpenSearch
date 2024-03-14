@@ -248,11 +248,11 @@ public class LongGCDisruption extends SingleNodeDisruption {
     /**
      * resolves all threads belonging to given node and suspends them if their current stack trace
      * is "safe". Threads are added to nodeThreads if suspended.
-     *
+     * <p>
      * returns true if some live threads were found. The caller is expected to call this method
      * until no more "live" are found.
      */
-    @SuppressWarnings("deprecation") // suspends/resumes threads intentionally
+    @SuppressWarnings({ "deprecation", "removal" }) // suspends/resumes threads intentionally
     @SuppressForbidden(reason = "suspends/resumes threads intentionally")
     protected boolean suspendThreads(Set<Thread> nodeThreads) {
         Thread[] allThreads = null;
@@ -360,7 +360,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
         );
     }
 
-    @SuppressWarnings("deprecation") // suspends/resumes threads intentionally
+    @SuppressWarnings({ "deprecation", "removal" }) // suspends/resumes threads intentionally
     @SuppressForbidden(reason = "suspends/resumes threads intentionally")
     protected void resumeThreads(Set<Thread> threads) {
         for (Thread thread : threads) {

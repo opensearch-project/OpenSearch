@@ -73,13 +73,13 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
 
 /**
  * Task storing information about a currently running BulkByScroll request.
- *
+ * <p>
  * When the request is not sliced, this task is the only task created, and starts an action to perform search requests.
- *
+ * <p>
  * When the request is sliced, this task can either represent a coordinating task (using
  * {@link BulkByScrollTask#setWorkerCount(int)}) or a worker task that performs search queries (using
  * {@link BulkByScrollTask#setWorker(float, Integer)}).
- *
+ * <p>
  * We don't always know if this task will be a leader or worker task when it's created, because if slices is set to "auto" it may
  * be either depending on the number of shards in the source indices. We figure that out when the request is handled and set it on this
  * class with {@link #setWorkerCount(int)} or {@link #setWorker(float, Integer)}.

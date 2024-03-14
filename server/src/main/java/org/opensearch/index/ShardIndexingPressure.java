@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Interfaces returns Releasable which when triggered will release the acquired accounting tokens values and also
  * perform necessary actions such as throughput evaluation once the request completes.
  * Consumers of these interfaces are expected to trigger close on releasable, reliably for consistency.
- *
+ * <p>
  * Overall ShardIndexingPressure provides:
  * 1. Memory Accounting at shard level. This can be enabled/disabled based on dynamic setting.
  * 2. Memory Accounting at Node level. Tracking is done using the IndexingPressure artefacts to support feature seamless toggling.

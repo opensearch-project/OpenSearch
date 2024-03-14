@@ -19,16 +19,14 @@ import org.opensearch.identity.tokens.TokenManager;
 public interface IdentityPlugin {
 
     /**
-     * Get the current subject
-     *
-     * Should never return null
+     * Get the current subject.
+     * @return Should never return null
      * */
     public Subject getSubject();
 
     /**
      * Get the Identity Plugin's token manager implementation
-     *
-     * Should never return null
+     * @return Should never return null.
      */
     public TokenManager getTokenManager();
 }

@@ -51,7 +51,7 @@ import java.util.Objects;
 /**
  * Similar to {@link ValuesSourceAggregationBuilder}, except it references multiple ValuesSources (e.g. so that an aggregation
  * can pull values from multiple fields).
- *
+ * <p>
  * A limitation of this class is that all the ValuesSource's being refereenced must be of the same type.
  *
  * @opensearch.internal

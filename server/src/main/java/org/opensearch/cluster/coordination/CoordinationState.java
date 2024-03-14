@@ -639,6 +639,12 @@ public class CoordinationState {
         void setLastAcceptedState(ClusterState clusterState);
 
         /**
+         * Returns the stats for the persistence layer for {@link CoordinationState}.
+         * @return PersistedStateStats
+         */
+        PersistedStateStats getStats();
+
+        /**
          * Marks the last accepted cluster state as committed.
          * After a successful call to this method, {@link #getLastAcceptedState()} should return the last cluster state that was set,
          * with the last committed configuration now corresponding to the last accepted configuration, and the cluster uuid, if set,

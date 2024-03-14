@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.indices.settings.get;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.action.ActionResponse;
@@ -53,8 +54,9 @@ import java.util.Objects;
 /**
  * Transport response for getting index segments
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetSettingsResponse extends ActionResponse implements ToXContentObject {
 
     private final Map<String, Settings> indexToSettings;

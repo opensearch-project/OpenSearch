@@ -44,6 +44,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.test.transport.StubbableTransport;
 import org.opensearch.transport.AbstractSimpleTransportTestCase;
@@ -82,7 +83,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             namedWriteableRegistry,
             new NoneCircuitBreakerService(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            NoopTracer.INSTANCE
         ) {
 
             @Override

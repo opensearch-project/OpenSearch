@@ -33,6 +33,7 @@
 package org.opensearch.cluster.routing;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.Countable;
 
 import java.util.Iterator;
@@ -44,8 +45,9 @@ import java.util.List;
  * ShardsIterators are always returned in ascending order independently of their order at construction
  * time. The incoming iterators are sorted to ensure consistent iteration behavior across Nodes / JVMs.
  *
- * @opensearch.internal
+ * @opensearch.api
 */
+@PublicApi(since = "1.0.0")
 public final class GroupShardsIterator<ShardIt extends Comparable<ShardIt> & Countable> implements Iterable<ShardIt> {
 
     private final List<ShardIt> iterators;

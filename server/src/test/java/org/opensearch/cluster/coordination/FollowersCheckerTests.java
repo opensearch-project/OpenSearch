@@ -39,6 +39,7 @@ import org.opensearch.cluster.coordination.FollowersChecker.FollowerCheckRequest
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -96,7 +97,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
     public void testChecksExpectedNodes() {
         final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).build();
-
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final DiscoveryNodes[] discoveryNodesHolder = new DiscoveryNodes[] {
             DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build() };
 
@@ -132,6 +133,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
 
         final FollowersChecker followersChecker = new FollowersChecker(
             settings,
+            clusterSettings,
             transportService,
             fcr -> { assert false : fcr; },
             (node, reason) -> {
@@ -257,6 +259,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
 
         final MockTransport mockTransport = new MockTransport() {
@@ -297,6 +300,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
 
         final FollowersChecker followersChecker = new FollowersChecker(
             settings,
+            clusterSettings,
             transportService,
             fcr -> { assert false : fcr; },
             (node, reason) -> {
@@ -336,6 +340,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).put(testSettings).build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
 
         final MockTransport mockTransport = new MockTransport() {
@@ -384,6 +389,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
 
         final FollowersChecker followersChecker = new FollowersChecker(
             settings,
+            clusterSettings,
             transportService,
             fcr -> { assert false : fcr; },
             (node, reason) -> {
@@ -464,6 +470,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         final DiscoveryNode leader = new DiscoveryNode("leader", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode follower = new DiscoveryNode("follower", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), follower.getName()).build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
 
         final MockTransport mockTransport = new MockTransport() {
@@ -488,7 +495,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         final AtomicBoolean calledCoordinator = new AtomicBoolean();
         final AtomicReference<RuntimeException> coordinatorException = new AtomicReference<>();
 
-        final FollowersChecker followersChecker = new FollowersChecker(settings, transportService, fcr -> {
+        final FollowersChecker followersChecker = new FollowersChecker(settings, clusterSettings, transportService, fcr -> {
             assertTrue(calledCoordinator.compareAndSet(false, true));
             final RuntimeException exception = coordinatorException.get();
             if (exception != null) {
@@ -536,6 +543,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         final DiscoveryNode leader = new DiscoveryNode("leader", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode follower = new DiscoveryNode("follower", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), follower.getName()).build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
 
         final MockTransport mockTransport = new MockTransport() {
@@ -560,7 +568,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         final AtomicBoolean calledCoordinator = new AtomicBoolean();
         final AtomicReference<RuntimeException> coordinatorException = new AtomicReference<>();
 
-        final FollowersChecker followersChecker = new FollowersChecker(settings, transportService, fcr -> {
+        final FollowersChecker followersChecker = new FollowersChecker(settings, clusterSettings, transportService, fcr -> {
             assertTrue(calledCoordinator.compareAndSet(false, true));
             final RuntimeException exception = coordinatorException.get();
             if (exception != null) {
@@ -700,6 +708,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         DiscoveryNodes discoveryNodes = discoNodesBuilder.localNodeId(nodes.get(0).getId()).build();
         CapturingTransport capturingTransport = new CapturingTransport();
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), nodes.get(0).getName()).build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
         TransportService transportService = capturingTransport.createTransportService(
             Settings.EMPTY,
@@ -710,15 +719,9 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             emptySet(),
             NoopTracer.INSTANCE
         );
-        final FollowersChecker followersChecker = new FollowersChecker(
-            Settings.EMPTY,
-            transportService,
-            fcr -> { assert false : fcr; },
-            (node, reason) -> {
-                assert false : node;
-            },
-            () -> new StatusInfo(HEALTHY, "healthy-info")
-        );
+        final FollowersChecker followersChecker = new FollowersChecker(Settings.EMPTY, clusterSettings, transportService, fcr -> {
+            assert false : fcr;
+        }, (node, reason) -> { assert false : node; }, () -> new StatusInfo(HEALTHY, "healthy-info"));
         followersChecker.setCurrentNodes(discoveryNodes);
         List<DiscoveryNode> followerTargets = Stream.of(capturingTransport.getCapturedRequestsAndClear())
             .map(cr -> cr.node)
@@ -754,7 +757,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             settingsBuilder.put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), randomIntBetween(100, 100000) + "ms");
         }
         if (randomBoolean()) {
-            settingsBuilder.put(FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), randomIntBetween(1, 100000) + "ms");
+            settingsBuilder.put(FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), randomIntBetween(1, 60000) + "ms");
         }
         return settingsBuilder.build();
     }

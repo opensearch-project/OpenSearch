@@ -32,6 +32,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.collect.Iterators;
 import org.opensearch.common.regex.Regex;
 
@@ -48,6 +49,7 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
+@InternalApi
 class FieldTypeLookup implements Iterable<MappedFieldType> {
 
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
@@ -57,7 +59,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
      * A map from field name to all fields whose content has been copied into it
      * through copy_to. A field only be present in the map if some other field
      * has listed it as a target of copy_to.
-     *
+     * <p>
      * For convenience, the set of copied fields includes the field itself.
      */
     private final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
@@ -133,7 +135,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
     /**
      * Given a concrete field name, return its paths in the _source.
-     *
+     * <p>
      * For most fields, the source path is the same as the field itself. However
      * there are cases where a field's values are found elsewhere in the _source:
      *   - For a multi-field, the source path is the parent field.

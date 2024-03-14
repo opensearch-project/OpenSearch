@@ -43,6 +43,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.action.ActionListener;
@@ -90,8 +91,9 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * Context object used to create lucene queries on the shard level.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class QueryShardContext extends QueryRewriteContext {
 
     private final ScriptService scriptService;
@@ -115,6 +117,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private BitSetProducer parentFilter;
 
     public QueryShardContext(
         int shardId,
@@ -253,7 +256,7 @@ public class QueryShardContext extends QueryRewriteContext {
         this.bitsetFilterCache = bitsetFilterCache;
         this.indexFieldDataService = indexFieldDataLookup;
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
-        this.nestedScope = new NestedScope();
+        this.nestedScope = new NestedScope(indexSettings);
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;
         this.searcher = searcher;
@@ -267,7 +270,7 @@ public class QueryShardContext extends QueryRewriteContext {
         allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.lookup = null;
         this.namedQueries.clear();
-        this.nestedScope = new NestedScope();
+        this.nestedScope = new NestedScope(indexSettings);
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -420,7 +423,8 @@ public class QueryShardContext extends QueryRewriteContext {
         if (this.lookup == null) {
             this.lookup = new SearchLookup(
                 getMapperService(),
-                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
+                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup),
+                shardId
             );
         }
         return this.lookup;
@@ -436,7 +440,8 @@ public class QueryShardContext extends QueryRewriteContext {
          */
         return new SearchLookup(
             getMapperService(),
-            (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
+            (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup),
+            shardId
         );
     }
 
@@ -509,7 +514,7 @@ public class QueryShardContext extends QueryRewriteContext {
     /**
      * This method fails if {@link #freezeContext()} is called before on this
      * context. This is used to <i>seal</i>.
-     *
+     * <p>
      * This methods and all methods that call it should be final to ensure that
      * setting the request as not cacheable and the freezing behaviour of this
      * class cannot be bypassed. This is important so we can trust when this
@@ -621,5 +626,13 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public AggregationUsageService getUsageService() {
         return valuesSourceRegistry.getUsageService();
+    }
+
+    public BitSetProducer getParentFilter() {
+        return parentFilter;
+    }
+
+    public void setParentFilter(BitSetProducer parentFilter) {
+        this.parentFilter = parentFilter;
     }
 }

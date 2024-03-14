@@ -180,7 +180,6 @@ public class RemoteStorePressureService {
                 return true;
             }
             if (pressureTracker.isUploadTimeMovingAverageReady() == false) {
-                logger.trace("upload time moving average is not ready");
                 return true;
             }
             long timeLag = pressureTracker.getTimeMsLag();

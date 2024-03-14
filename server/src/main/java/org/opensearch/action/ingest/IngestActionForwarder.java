@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A utility for forwarding ingest requests to ingest nodes in a round-robin fashion.
- *
+ * <p>
  * TODO: move this into IngestService and make index/bulk actions call that
  *
  * @opensearch.internal

@@ -29,7 +29,6 @@ import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,11 +40,13 @@ import java.util.stream.Stream;
 
 import org.mockito.Mockito;
 
+import static org.opensearch.common.blobstore.BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -204,13 +205,29 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
     public void testOpenInput() throws IOException {
         InputStream mockInputStream = mock(InputStream.class);
         when(blobContainer.readBlob("segment_1")).thenReturn(mockInputStream);
-        Map<String, BlobMetadata> fileInfo = new HashMap<>();
-        fileInfo.put("segment_1", new PlainBlobMetadata("segment_1", 100));
-        when(blobContainer.listBlobsByPrefix("segment_1")).thenReturn(fileInfo);
+
+        BlobMetadata blobMetadata = new PlainBlobMetadata("segment_1", 100);
+
+        when(blobContainer.listBlobsByPrefixInSortedOrder("segment_1", 1, LEXICOGRAPHIC)).thenReturn(List.of(blobMetadata));
 
         IndexInput indexInput = remoteDirectory.openInput("segment_1", IOContext.DEFAULT);
         assertTrue(indexInput instanceof RemoteIndexInput);
         assertEquals(100, indexInput.length());
+        verify(blobContainer).listBlobsByPrefixInSortedOrder("segment_1", 1, LEXICOGRAPHIC);
+    }
+
+    public void testOpenInputWithLength() throws IOException {
+        InputStream mockInputStream = mock(InputStream.class);
+        when(blobContainer.readBlob("segment_1")).thenReturn(mockInputStream);
+
+        BlobMetadata blobMetadata = new PlainBlobMetadata("segment_1", 100);
+
+        when(blobContainer.listBlobsByPrefixInSortedOrder("segment_1", 1, LEXICOGRAPHIC)).thenReturn(List.of(blobMetadata));
+
+        IndexInput indexInput = remoteDirectory.openInput("segment_1", 100, IOContext.DEFAULT);
+        assertTrue(indexInput instanceof RemoteIndexInput);
+        assertEquals(100, indexInput.length());
+        verify(blobContainer, times(0)).listBlobsByPrefixInSortedOrder("segment_1", 1, LEXICOGRAPHIC);
     }
 
     public void testOpenInputIOException() throws IOException {
@@ -228,9 +245,8 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
     }
 
     public void testFileLength() throws IOException {
-        Map<String, BlobMetadata> fileInfo = new HashMap<>();
-        fileInfo.put("segment_1", new PlainBlobMetadata("segment_1", 100));
-        when(blobContainer.listBlobsByPrefix("segment_1")).thenReturn(fileInfo);
+        BlobMetadata blobMetadata = new PlainBlobMetadata("segment_1", 100);
+        when(blobContainer.listBlobsByPrefixInSortedOrder("segment_1", 1, LEXICOGRAPHIC)).thenReturn(List.of(blobMetadata));
 
         assertEquals(100, remoteDirectory.fileLength("segment_1"));
     }
@@ -246,13 +262,7 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
             LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
             latchedActionListener.onResponse(List.of(new PlainBlobMetadata("metadata_1", 1)));
             return null;
-        }).when(blobContainer)
-            .listBlobsByPrefixInSortedOrder(
-                eq("metadata"),
-                eq(1),
-                eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC),
-                any(ActionListener.class)
-            );
+        }).when(blobContainer).listBlobsByPrefixInSortedOrder(eq("metadata"), eq(1), eq(LEXICOGRAPHIC), any(ActionListener.class));
 
         assertEquals(List.of("metadata_1"), remoteDirectory.listFilesByPrefixInLexicographicOrder("metadata", 1));
     }
@@ -262,13 +272,7 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
             LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
             latchedActionListener.onResponse(List.of());
             return null;
-        }).when(blobContainer)
-            .listBlobsByPrefixInSortedOrder(
-                eq("metadata"),
-                eq(1),
-                eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC),
-                any(ActionListener.class)
-            );
+        }).when(blobContainer).listBlobsByPrefixInSortedOrder(eq("metadata"), eq(1), eq(LEXICOGRAPHIC), any(ActionListener.class));
 
         assertEquals(List.of(), remoteDirectory.listFilesByPrefixInLexicographicOrder("metadata", 1));
     }
@@ -278,13 +282,7 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
             LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
             latchedActionListener.onFailure(new IOException("Error"));
             return null;
-        }).when(blobContainer)
-            .listBlobsByPrefixInSortedOrder(
-                eq("metadata"),
-                eq(1),
-                eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC),
-                any(ActionListener.class)
-            );
+        }).when(blobContainer).listBlobsByPrefixInSortedOrder(eq("metadata"), eq(1), eq(LEXICOGRAPHIC), any(ActionListener.class));
 
         assertThrows(IOException.class, () -> remoteDirectory.listFilesByPrefixInLexicographicOrder("metadata", 1));
     }

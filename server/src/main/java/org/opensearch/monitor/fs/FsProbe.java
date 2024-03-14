@@ -109,6 +109,25 @@ public class FsProbe {
 
             List<FsInfo.DeviceStats> devicesStats = new ArrayList<>();
 
+            /**
+             * The /proc/diskstats file displays the I/O statistics of block devices.
+             * Each line contains the following 14 fields: ( + additional fields )
+            *
+            * 1  major number
+            * 2  minor number
+            * 3  device name
+            * 4  reads completed successfully
+            * 5  reads merged
+            * 6  sectors read
+            * 7  time spent reading (ms)
+            * 8  writes completed
+            * 9  writes merged
+            * 10  sectors written
+            * 11  time spent writing (ms)
+            * 12  I/Os currently in progress
+            * 13  time spent doing I/Os (ms) ---- IO use percent
+            * 14  weighted time spent doing I/Os (ms) ---- Queue size
+             */
             List<String> lines = readProcDiskStats();
             if (!lines.isEmpty()) {
                 for (String line : lines) {
@@ -123,6 +142,12 @@ public class FsProbe {
                     final long sectorsRead = Long.parseLong(fields[5]);
                     final long writesCompleted = Long.parseLong(fields[7]);
                     final long sectorsWritten = Long.parseLong(fields[9]);
+                    // readTime and writeTime calculates the total read/write time taken for each request to complete
+                    // ioTime calculates actual time queue and disks are busy
+                    final long readTime = Long.parseLong(fields[6]);
+                    final long writeTime = Long.parseLong(fields[10]);
+                    final long ioTime = fields.length > 12 ? Long.parseLong(fields[12]) : 0;
+                    final long queueSize = fields.length > 13 ? Long.parseLong(fields[13]) : 0;
                     final FsInfo.DeviceStats deviceStats = new FsInfo.DeviceStats(
                         majorDeviceNumber,
                         minorDeviceNumber,
@@ -131,6 +156,10 @@ public class FsProbe {
                         sectorsRead,
                         writesCompleted,
                         sectorsWritten,
+                        readTime,
+                        writeTime,
+                        queueSize,
+                        ioTime,
                         deviceMap.get(Tuple.tuple(majorDeviceNumber, minorDeviceNumber))
                     );
                     devicesStats.add(deviceStats);

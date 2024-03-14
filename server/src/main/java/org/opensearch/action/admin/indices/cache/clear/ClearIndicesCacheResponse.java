@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.cache.clear;
 
 import org.opensearch.action.support.broadcast.BroadcastResponse;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
@@ -45,8 +46,9 @@ import java.util.List;
 /**
  * The response of a clear cache action.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClearIndicesCacheResponse extends BroadcastResponse {
 
     private static final ConstructingObjectParser<ClearIndicesCacheResponse, Void> PARSER = new ConstructingObjectParser<>(

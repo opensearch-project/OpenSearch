@@ -57,13 +57,13 @@ import java.util.stream.Collectors;
  * A gateway allocator implementation that keeps an in memory list of started shard allocation
  * that are used as replies to the, normally async, fetch data requests. The in memory list
  * is adapted when shards are started and failed.
- *
+ * <p>
  * Nodes leaving and joining the cluster do not change the list of shards the class tracks but
  * rather serves as a filter to what is returned by fetch data. Concretely - fetch data will
  * only return shards that were started on nodes that are currently part of the cluster.
- *
+ * <p>
  * For now only primary shard related data is fetched. Replica request always get an empty response.
- *
+ * <p>
  *
  * This class is useful to use in unit tests that require the functionality of {@link GatewayAllocator} but do
  * not have all the infrastructure required to use it.
@@ -98,7 +98,11 @@ public class TestGatewayAllocator extends GatewayAllocator {
                     )
                 );
 
-            return new AsyncShardFetch.FetchResult<>(shardId, foundShards, ignoreNodes);
+            return new AsyncShardFetch.FetchResult<>(foundShards, new HashMap<>() {
+                {
+                    put(shardId, ignoreNodes);
+                }
+            });
         }
     };
 
@@ -111,7 +115,11 @@ public class TestGatewayAllocator extends GatewayAllocator {
         protected AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation) {
             // for now, just pretend no node has data
             final ShardId shardId = shard.shardId();
-            return new AsyncShardFetch.FetchResult<>(shardId, Collections.emptyMap(), allocation.getIgnoreNodes(shardId));
+            return new AsyncShardFetch.FetchResult<>(Collections.emptyMap(), new HashMap<>() {
+                {
+                    put(shardId, allocation.getIgnoreNodes(shardId));
+                }
+            });
         }
 
         @Override

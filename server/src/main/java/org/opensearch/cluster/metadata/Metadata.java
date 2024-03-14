@@ -49,6 +49,7 @@ import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -98,8 +99,9 @@ import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 /**
  * Metadata information
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, ToXContentFragment {
 
     private static final Logger logger = LogManager.getLogger(Metadata.class);
@@ -127,8 +129,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     /**
      * Context of the XContent.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum XContentContext {
         /* Custom metadata should be returns as part of API call */
         API,
@@ -166,8 +169,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     /**
      * Custom metadata.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface Custom extends NamedDiffable<Custom>, ToXContentFragment, ClusterState.FeatureAware {
 
         EnumSet<XContentContext> context();
@@ -827,6 +831,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             .orElse(Collections.emptyMap());
     }
 
+    public Map<String, View> views() {
+        return Optional.ofNullable((ViewMetadata) this.custom(ViewMetadata.TYPE)).map(ViewMetadata::views).orElse(Collections.emptyMap());
+    }
+
     public DecommissionAttributeMetadata decommissionAttributeMetadata() {
         return custom(DecommissionAttributeMetadata.TYPE);
     }
@@ -922,19 +930,26 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         if (!metadata1.coordinationMetadata.equals(metadata2.coordinationMetadata)) {
             return false;
         }
-        if (!metadata1.persistentSettings.equals(metadata2.persistentSettings)) {
-            return false;
-        }
         if (!metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings)) {
-            return false;
-        }
-        if (!metadata1.templates.equals(metadata2.templates())) {
             return false;
         }
         if (!metadata1.clusterUUID.equals(metadata2.clusterUUID)) {
             return false;
         }
         if (metadata1.clusterUUIDCommitted != metadata2.clusterUUIDCommitted) {
+            return false;
+        }
+        return isGlobalResourcesMetadataEquals(metadata1, metadata2);
+    }
+
+    /**
+     * Compares Metadata entities persisted in Remote Store.
+     */
+    public static boolean isGlobalResourcesMetadataEquals(Metadata metadata1, Metadata metadata2) {
+        if (!metadata1.persistentSettings.equals(metadata2.persistentSettings)) {
+            return false;
+        }
+        if (!metadata1.templates.equals(metadata2.templates())) {
             return false;
         }
         // Check if any persistent metadata needs to be saved
@@ -1122,8 +1137,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     /**
      * Builder of metadata.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
         private String clusterUUID;
@@ -1311,6 +1327,36 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             existingDataStreams.remove(name);
             this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams));
             return this;
+        }
+
+        private Map<String, View> getViews() {
+            return Optional.ofNullable(customs.get(ViewMetadata.TYPE))
+                .map(o -> (ViewMetadata) o)
+                .map(vmd -> vmd.views())
+                .orElse(new HashMap<>());
+        }
+
+        public View view(final String viewName) {
+            return getViews().get(viewName);
+        }
+
+        public Builder views(final Map<String, View> views) {
+            this.customs.put(ViewMetadata.TYPE, new ViewMetadata(views));
+            return this;
+        }
+
+        public Builder put(final View view) {
+            Objects.requireNonNull(view, "view cannot be null");
+            final var replacementViews = new HashMap<>(getViews());
+            replacementViews.put(view.getName(), view);
+            return views(replacementViews);
+        }
+
+        public Builder removeView(final String viewName) {
+            Objects.requireNonNull(viewName, "viewName cannot be null");
+            final var replacementViews = new HashMap<>(getViews());
+            replacementViews.remove(viewName);
+            return views(replacementViews);
         }
 
         public Custom getCustom(String type) {
@@ -1666,7 +1712,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         /**
          * Validates there isn't any index with a name that would clash with the future backing indices of the existing data streams.
-         *
+         * <p>
          * E.g., if data stream `foo` has backing indices [`.ds-foo-000001`, `.ds-foo-000002`] and the indices lookup contains indices
          * `.ds-foo-000001`, `.ds-foo-000002` and `.ds-foo-000006` this will throw an IllegalStateException (as attempting to rollover the
          * `foo` data stream from generation 5 to 6 will not be possible)

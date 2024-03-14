@@ -33,6 +33,7 @@
 package org.opensearch.cluster.node;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.regex.Regex;
@@ -48,15 +49,17 @@ import java.util.stream.Collectors;
 /**
  * Filters Discovery nodes
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DiscoveryNodeFilters {
 
     /**
      * Operation type.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum OpType {
         AND,
         OR

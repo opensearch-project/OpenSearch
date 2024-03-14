@@ -32,6 +32,7 @@
 
 package org.opensearch.core.index.shard;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -54,6 +55,8 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
     private final Index index;
     private final int shardId;
     private final int hashCode;
+
+    private final static long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ShardId.class);
 
     /**
      * Constructs a new shard id.
@@ -86,6 +89,10 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
         index = new Index(in);
         shardId = in.readVInt();
         hashCode = computeHashCode();
+    }
+
+    public long getBaseRamBytesUsed() {
+        return BASE_RAM_BYTES_USED;
     }
 
     /**
@@ -143,7 +150,7 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
 
     /**
      * Parse the string representation of this shardId back to an object.
-     *
+     * <p>
      * We lose index uuid information here, but since we use toString in
      * rest responses, this is the best we can do to reconstruct the object
      * on the client side.

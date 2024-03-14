@@ -40,7 +40,7 @@ import org.opensearch.common.util.IntArray;
 /**
  * AbstractHyperLogLogPlusPlus instance that only supports linear counting. The maximum number of hashes supported
  * by the structure is determined at construction time.
- *
+ * <p>
  * This structure expects all the added values to be distinct and therefore there are no checks
  * if an element has been previously added.
  *

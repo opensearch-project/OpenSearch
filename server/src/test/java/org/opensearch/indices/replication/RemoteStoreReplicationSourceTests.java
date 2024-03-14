@@ -90,7 +90,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         List<StoreFileMetadata> filesToFetch = primaryShard.getSegmentMetadataMap().values().stream().collect(Collectors.toList());
         final PlainActionFuture<GetSegmentFilesResponse> res = PlainActionFuture.newFuture();
         replicationSource = new RemoteStoreReplicationSource(primaryShard);
-        replicationSource.getSegmentFiles(REPLICATION_ID, checkpoint, filesToFetch, replicaShard, res);
+        replicationSource.getSegmentFiles(REPLICATION_ID, checkpoint, filesToFetch, replicaShard, (fileName, bytesRecovered) -> {}, res);
         GetSegmentFilesResponse response = res.get();
         assertEquals(response.files.size(), filesToFetch.size());
         assertTrue(response.files.containsAll(filesToFetch));
@@ -104,7 +104,14 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         try {
             final PlainActionFuture<GetSegmentFilesResponse> res = PlainActionFuture.newFuture();
             replicationSource = new RemoteStoreReplicationSource(primaryShard);
-            replicationSource.getSegmentFiles(REPLICATION_ID, checkpoint, filesToFetch, primaryShard, res);
+            replicationSource.getSegmentFiles(
+                REPLICATION_ID,
+                checkpoint,
+                filesToFetch,
+                primaryShard,
+                (fileName, bytesRecovered) -> {},
+                res
+            );
             res.get();
         } catch (AssertionError | ExecutionException ex) {
             latch.countDown();
@@ -118,7 +125,14 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         final ReplicationCheckpoint checkpoint = primaryShard.getLatestReplicationCheckpoint();
         final PlainActionFuture<GetSegmentFilesResponse> res = PlainActionFuture.newFuture();
         replicationSource = new RemoteStoreReplicationSource(primaryShard);
-        replicationSource.getSegmentFiles(REPLICATION_ID, checkpoint, Collections.emptyList(), primaryShard, res);
+        replicationSource.getSegmentFiles(
+            REPLICATION_ID,
+            checkpoint,
+            Collections.emptyList(),
+            primaryShard,
+            (fileName, bytesRecovered) -> {},
+            res
+        );
         GetSegmentFilesResponse response = res.get();
         assert (response.files.isEmpty());
     }

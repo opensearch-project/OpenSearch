@@ -126,6 +126,11 @@ public class JodaDateFormatter implements DateFormatter {
     }
 
     @Override
+    public String printPattern() {
+        throw new UnsupportedOperationException("JodaDateFormatter does not have a print pattern");
+    }
+
+    @Override
     public Locale locale() {
         return printer.getLocale();
     }

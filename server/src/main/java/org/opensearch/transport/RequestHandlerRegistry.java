@@ -91,14 +91,14 @@ public final class RequestHandlerRegistry<Request extends TransportRequest> {
 
         Releasable unregisterTask = () -> taskManager.unregister(task);
         try {
-            if (channel instanceof TcpTransportChannel && task instanceof CancellableTask) {
+            if (channel instanceof BaseTcpTransportChannel && task instanceof CancellableTask) {
                 if (request instanceof ShardSearchRequest) {
                     // on receiving request, update the inbound network time to reflect time spent in transit over the network
                     ((ShardSearchRequest) request).setInboundNetworkTime(
                         Math.max(0, System.currentTimeMillis() - ((ShardSearchRequest) request).getInboundNetworkTime())
                     );
                 }
-                final TcpChannel tcpChannel = ((TcpTransportChannel) channel).getChannel();
+                final TcpChannel tcpChannel = ((BaseTcpTransportChannel) channel).getChannel();
                 final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, (CancellableTask) task);
                 unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
             }

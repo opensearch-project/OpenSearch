@@ -65,7 +65,7 @@ import java.util.HashMap;
  * <strong>Rest YAML tests :</strong> <br>
  * When the {@link RestResourcesPlugin} has been applied the {@link CopyRestTestsTask} will copy the Rest YAML tests if explicitly
  * configured with `includeCore` through the `restResources.restTests` extension.
- *
+ * <p>
  * Additionally you can specify which sourceSetName resources should be copied to. The default is the yamlRestTest source set.
  * @see CopyRestApiTask
  * @see CopyRestTestsTask

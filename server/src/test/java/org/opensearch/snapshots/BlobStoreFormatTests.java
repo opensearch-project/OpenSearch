@@ -43,6 +43,7 @@ import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.compress.DeflateCompressor;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -65,8 +66,13 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class BlobStoreFormatTests extends OpenSearchTestCase {
 
@@ -128,47 +134,74 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
             BlobPath.cleanPath(),
             null
         );
+        MockFsVerifyingBlobContainer spyContainer = spy(mockBlobContainer);
         ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
-
+        ArgumentCaptor<ActionListener<Void>> actionListenerArgumentCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        ArgumentCaptor<WriteContext> writeContextArgumentCaptor = ArgumentCaptor.forClass(WriteContext.class);
         CountDownLatch latch = new CountDownLatch(2);
-
-        ActionListener<Void> actionListener = new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {
-                logger.info("---> Async write succeeded");
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.info("---> Failure in async write");
-                throw new RuntimeException("async write should not fail");
-            }
-        };
 
         // Write blobs in different formats
         checksumSMILE.writeAsync(
             new BlobObj("checksum smile"),
-            mockBlobContainer,
+            spyContainer,
             "check-smile",
             CompressorRegistry.none(),
-            actionListener
+            getVoidActionListener(latch),
+            ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS
         );
         checksumSMILE.writeAsync(
             new BlobObj("checksum smile compressed"),
-            mockBlobContainer,
+            spyContainer,
             "check-smile-comp",
             CompressorRegistry.getCompressor(DeflateCompressor.NAME),
-            actionListener
+            getVoidActionListener(latch),
+            ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS
         );
 
         latch.await();
 
+        verify(spyContainer, times(2)).asyncBlobUpload(writeContextArgumentCaptor.capture(), actionListenerArgumentCaptor.capture());
+        assertEquals(2, writeContextArgumentCaptor.getAllValues().size());
+        writeContextArgumentCaptor.getAllValues()
+            .forEach(writeContext -> assertEquals(WritePriority.NORMAL, writeContext.getWritePriority()));
         // Assert that all checksum blobs can be read
         assertEquals(checksumSMILE.read(mockBlobContainer.getDelegate(), "check-smile", xContentRegistry()).getText(), "checksum smile");
         assertEquals(
             checksumSMILE.read(mockBlobContainer.getDelegate(), "check-smile-comp", xContentRegistry()).getText(),
             "checksum smile compressed"
+        );
+    }
+
+    public void testBlobStorePriorityAsyncOperation() throws IOException, InterruptedException {
+        BlobStore blobStore = createTestBlobStore();
+        MockFsVerifyingBlobContainer mockBlobContainer = new MockFsVerifyingBlobContainer(
+            (FsBlobStore) blobStore,
+            BlobPath.cleanPath(),
+            null
+        );
+        MockFsVerifyingBlobContainer spyContainer = spy(mockBlobContainer);
+        ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
+
+        ArgumentCaptor<ActionListener<Void>> actionListenerArgumentCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        ArgumentCaptor<WriteContext> writeContextArgumentCaptor = ArgumentCaptor.forClass(WriteContext.class);
+        CountDownLatch latch = new CountDownLatch(1);
+
+        // Write blobs in different formats
+        checksumSMILE.writeAsyncWithUrgentPriority(
+            new BlobObj("cluster state diff"),
+            spyContainer,
+            "cluster-state-diff",
+            CompressorRegistry.none(),
+            getVoidActionListener(latch),
+            ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS
+        );
+        latch.await();
+
+        verify(spyContainer).asyncBlobUpload(writeContextArgumentCaptor.capture(), actionListenerArgumentCaptor.capture());
+        assertEquals(WritePriority.URGENT, writeContextArgumentCaptor.getValue().getWritePriority());
+        assertEquals(
+            checksumSMILE.read(mockBlobContainer.getDelegate(), "cluster-state-diff", xContentRegistry()).getText(),
+            "cluster state diff"
         );
     }
 
@@ -224,6 +257,24 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
         } catch (EOFException ex) {
             // This can happen if corrupt the byte length
         }
+    }
+
+    private ActionListener<Void> getVoidActionListener(CountDownLatch latch) {
+        ActionListener<Void> actionListener = new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.info("---> Async write succeeded");
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.info("---> Failure in async write");
+                throw new RuntimeException("async write should not fail");
+            }
+        };
+
+        return actionListener;
     }
 
     protected BlobStore createTestBlobStore() throws IOException {
