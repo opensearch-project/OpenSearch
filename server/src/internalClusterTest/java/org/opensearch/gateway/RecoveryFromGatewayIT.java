@@ -902,7 +902,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             .get(discoveryNodes[0].getId())
             .getNodeStoreFilesMetadataBatch();
         // We don't store exception in case of corrupt index, rather just return an empty response
-        assertNull(nodeStoreFilesMetadata.get(shardId1).getException());
+        assertNull(nodeStoreFilesMetadata.get(shardId1).getStoreFileFetchException());
         assertEquals(shardId1, nodeStoreFilesMetadata.get(shardId1).storeFilesMetadata().shardId());
         assertTrue(nodeStoreFilesMetadata.get(shardId1).storeFilesMetadata().isEmpty());
 
@@ -943,7 +943,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata nodeStoreFilesMetadata,
         ShardId shardId
     ) {
-        assertNull(nodeStoreFilesMetadata.getException());
+        assertNull(nodeStoreFilesMetadata.getStoreFileFetchException());
         TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata storeFileMetadata = nodeStoreFilesMetadata.storeFilesMetadata();
         assertFalse(storeFileMetadata.isEmpty());
         assertEquals(shardId, storeFileMetadata.shardId());
