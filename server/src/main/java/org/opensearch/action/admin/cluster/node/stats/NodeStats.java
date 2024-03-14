@@ -239,7 +239,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
             admissionControlStats = null;
         }
 
-        if (in.getVersion().onOrAfter(Version.V_2_13_0)) {
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
             peerRecoveryStats = in.readOptionalWriteable(PeerRecoveryStats::new);
         } else {
             peerRecoveryStats = null;

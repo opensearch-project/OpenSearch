@@ -49,7 +49,6 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryModule;
-import org.opensearch.indices.recovery.PeerRecoveryStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsInfo;
@@ -861,40 +860,42 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
     static class PeerRecoveryStats implements ToXContentFragment {
 
-        private long total_started_recoveries;
-        private long total_failed_recoveries;
-        private long total_completed_recoveries;
-        private long total_retried_recoveries;
-        private long total_cancelled_recoveries;
-
-        private static final String TotalStartedRecoveries = "total_started_recoveries";
-        private static final String TotalFailedRecoveries = "total_failed_recoveries";
-        private static final String TotalCompletedRecoveries = "total_completed_recoveries";
-        private static final String TotalRetriedRecoveries = "total_retried_recoveries";
-        private static final String TotalCancelledRecoveries = "total_cancelled_recoveries";
+        private long totalStartedRecoveries;
+        private long totalFailedRecoveries;
+        private long totalCompletedRecoveries;
+        private long totalRetriedRecoveries;
+        private long totalCancelledRecoveries;
 
         PeerRecoveryStats(List<NodeStats> nodeStats) {
             for (NodeStats nodeStat : nodeStats) {
                 if (nodeStat.getPeerRecoveryStats() != null) {
-                    total_started_recoveries += nodeStat.getPeerRecoveryStats().getTotalStartedRecoveries();
-                    total_failed_recoveries += nodeStat.getPeerRecoveryStats().getTotalFailedRecoveries();
-                    total_completed_recoveries += nodeStat.getPeerRecoveryStats().getTotalCompletedRecoveries();
-                    total_retried_recoveries += nodeStat.getPeerRecoveryStats().getTotalRetriedRecoveries();
-                    total_cancelled_recoveries += nodeStat.getPeerRecoveryStats().getTotalCancelledRecoveries();
+                    totalStartedRecoveries += nodeStat.getPeerRecoveryStats().getTotalStartedRecoveries();
+                    totalFailedRecoveries += nodeStat.getPeerRecoveryStats().getTotalFailedRecoveries();
+                    totalCompletedRecoveries += nodeStat.getPeerRecoveryStats().getTotalCompletedRecoveries();
+                    totalRetriedRecoveries += nodeStat.getPeerRecoveryStats().getTotalRetriedRecoveries();
+                    totalCancelledRecoveries += nodeStat.getPeerRecoveryStats().getTotalCancelledRecoveries();
                 }
             }
         }
 
+        public static final class Fields {
+            static final String PEER_RECOVERY_STATS = "peer_recovery_stats";
+            static final String TOTAL_STARTED_RECOVERIES = "total_started_recoveries";
+            static final String TOTAL_FAILED_RECOVERIES = "total_failed_recoveries";
+            static final String TOTAL_COMPLETED_RECOVERIES = "total_completed_recoveries";
+            static final String TOTAL_RETRIED_RECOVERIES = "total_retried_recoveries";
+            static final String TOTAL_CANCELLED_RECOVERIES = "total_cancelled_recoveries";
+        }
+
         @Override
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-            builder.startObject("peer_recovery_stats");
+            builder.startObject(Fields.PEER_RECOVERY_STATS);
             {
-                builder.field(TotalStartedRecoveries, total_started_recoveries);
-                builder.field(TotalFailedRecoveries, total_failed_recoveries);
-                builder.field(TotalCompletedRecoveries, total_completed_recoveries);
-                builder.field(TotalRetriedRecoveries, total_retried_recoveries);
-                builder.field(TotalCancelledRecoveries, total_cancelled_recoveries);
-
+                builder.field(Fields.TOTAL_STARTED_RECOVERIES, totalStartedRecoveries);
+                builder.field(Fields.TOTAL_FAILED_RECOVERIES, totalFailedRecoveries);
+                builder.field(Fields.TOTAL_COMPLETED_RECOVERIES, totalCompletedRecoveries);
+                builder.field(Fields.TOTAL_RETRIED_RECOVERIES, totalRetriedRecoveries);
+                builder.field(Fields.TOTAL_CANCELLED_RECOVERIES, totalCancelledRecoveries);
             }
             builder.endObject();
             return builder;
