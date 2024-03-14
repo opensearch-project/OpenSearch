@@ -139,6 +139,7 @@ import org.opensearch.persistent.decider.EnableAssignmentDecider;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
+import org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionControllerSettings;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.script.ScriptService;
@@ -712,7 +713,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE,
                 CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                 CpuBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT,
-                CpuBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT
+                CpuBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT,
+                IoBasedAdmissionControllerSettings.IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
+                IoBasedAdmissionControllerSettings.SEARCH_IO_USAGE_LIMIT,
+                IoBasedAdmissionControllerSettings.INDEXING_IO_USAGE_LIMIT
             )
         )
     );
