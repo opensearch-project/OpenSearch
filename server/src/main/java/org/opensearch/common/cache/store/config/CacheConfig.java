@@ -13,6 +13,7 @@ import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.serializer.Serializer;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 
 import java.util.List;
 import java.util.function.ToLongBiFunction;
@@ -50,6 +51,16 @@ public class CacheConfig<K, V> {
 
     private final List<String> dimensionNames;
 
+    /**
+     * Max size in bytes for the cache. This is needed for backward compatibility.
+     */
+    private final long maxSizeInBytes;
+
+    /**
+     * Defines the expiration time for a cache entry. This is needed for backward compatibility.
+     */
+    private final TimeValue expireAfterAccess;
+
     private CacheConfig(Builder<K, V> builder) {
         this.keyType = builder.keyType;
         this.valueType = builder.valueType;
@@ -59,6 +70,8 @@ public class CacheConfig<K, V> {
         this.keySerializer = builder.keySerializer;
         this.valueSerializer = builder.valueSerializer;
         this.dimensionNames = builder.dimensionNames;
+        this.maxSizeInBytes = builder.maxSizeInBytes;
+        this.expireAfterAccess = builder.expireAfterAccess;
     }
 
     public Class<K> getKeyType() {
@@ -93,6 +106,14 @@ public class CacheConfig<K, V> {
         return dimensionNames;
     }
 
+    public Long getMaxSizeInBytes() {
+        return maxSizeInBytes;
+    }
+
+    public TimeValue getExpireAfterAccess() {
+        return expireAfterAccess;
+    }
+
     /**
      * Builder class to build Cache config related parameters.
      * @param <K> Type of key.
@@ -112,6 +133,10 @@ public class CacheConfig<K, V> {
         private Serializer<K, ?> keySerializer;
         private Serializer<V, ?> valueSerializer;
         private List<String> dimensionNames;
+
+        private long maxSizeInBytes;
+
+        private TimeValue expireAfterAccess;
 
         public Builder() {}
 
@@ -152,6 +177,16 @@ public class CacheConfig<K, V> {
 
         public Builder<K, V> setDimensionNames(List<String> dimensionNames) {
             this.dimensionNames = dimensionNames;
+            return this;
+        }
+
+        public Builder<K, V> setMaxSizeInBytes(long sizeInBytes) {
+            this.maxSizeInBytes = sizeInBytes;
+            return this;
+        }
+
+        public Builder<K, V> setExpireAfterAccess(TimeValue expireAfterAccess) {
+            this.expireAfterAccess = expireAfterAccess;
             return this;
         }
 

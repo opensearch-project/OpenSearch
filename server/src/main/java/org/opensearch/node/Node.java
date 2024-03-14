@@ -823,7 +823,8 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 searchRequestStats,
                 remoteStoreStatsTrackerFactory,
-                recoverySettings
+                recoverySettings,
+                cacheService
             );
 
             final IngestService ingestService = new IngestService(
@@ -922,6 +923,7 @@ public class Node implements Closeable {
             final RestController restController = actionModule.getRestController();
 
             final NodeResourceUsageTracker nodeResourceUsageTracker = new NodeResourceUsageTracker(
+                monitorService.fsService(),
                 threadPool,
                 settings,
                 clusterService.getClusterSettings()
