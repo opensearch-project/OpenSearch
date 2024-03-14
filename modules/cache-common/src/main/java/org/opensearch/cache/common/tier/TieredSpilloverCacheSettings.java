@@ -13,6 +13,7 @@ import org.opensearch.common.unit.TimeValue;
 
 import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.common.settings.Setting.Property.Dynamic;
 import static org.opensearch.common.settings.Setting.Property.NodeScope;
 
 /**
@@ -42,9 +43,9 @@ public class TieredSpilloverCacheSettings {
     /**
      * Setting defining the minimum took time for a query to be allowed into the disk cache.
      */
-    public static final Setting.AffixSetting<TimeValue> TIERED_SPILLOVER_DISK_TOOKTIME_THRESHOLD = Setting.suffixKeySetting(
+    public static final Setting.AffixSetting<TimeValue> TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD = Setting.suffixKeySetting(
         TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".disk.store.policies.took_time.threshold",
-        (key) -> Setting.timeSetting(key, new TimeValue(10, TimeUnit.MILLISECONDS), NodeScope)
+        (key) -> Setting.timeSetting(key, new TimeValue(10, TimeUnit.MILLISECONDS), NodeScope, Dynamic)
     );
     // 10 ms was chosen as a safe value based on proof of concept, where we saw disk latencies in this range.
     // Will be tuned further with future benchmarks.

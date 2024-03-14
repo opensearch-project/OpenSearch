@@ -254,7 +254,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             }
             ICache.Factory diskCacheFactory = cacheFactories.get(diskCacheStoreName);
 
-            TimeValue diskPolicyThreshold = TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_TOOKTIME_THRESHOLD
+            TimeValue diskPolicyThreshold = TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD
                 .getConcreteSettingForNamespace(cacheType.getSettingPrefix())
                 .get(settings);
             Function<V, CachedQueryResult.PolicyValues> cachedResultParser = Objects.requireNonNull(

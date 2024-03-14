@@ -1704,16 +1704,12 @@ public class IndicesService extends AbstractLifecycleComponent
             cachedQueryResult.writeToNoId(out);
             // Write relevant info for cache tier policies before the whole QuerySearchResult, so we don't have to read
             // the whole QSR into memory when we decide whether to allow it into a particular cache tier based on took time/other info
-            // context.queryResult().writeToNoId(out);
             loadedFromCache[0] = false;
         });
 
         if (loadedFromCache[0]) {
             // restore the cached query result into the context
             final QuerySearchResult result = context.queryResult();
-            /*StreamInput in = new NamedWriteableAwareStreamInput(bytesReference.streamInput(), namedWriteableRegistry);
-            CachedQueryResult policyInfo = new CachedQueryResult(in); // This wrapper is not needed outside the cache
-            result.readFromWithId(context.id(), in);*/
             // Load the cached QSR into result, discarding values used only in the cache
             CachedQueryResult.loadQSR(bytesReference, result, context.id(), namedWriteableRegistry);
             result.setSearchShardTarget(context.shardTarget());

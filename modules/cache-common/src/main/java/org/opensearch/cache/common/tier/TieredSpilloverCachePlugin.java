@@ -52,7 +52,7 @@ public class TieredSpilloverCachePlugin extends Plugin implements CachePlugin {
                 TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_NAME.getConcreteSettingForNamespace(cacheType.getSettingPrefix())
             );
             settingList.add(
-                TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_TOOKTIME_THRESHOLD.getConcreteSettingForNamespace(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD.getConcreteSettingForNamespace(
                     cacheType.getSettingPrefix()
                 )
             );

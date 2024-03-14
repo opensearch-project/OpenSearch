@@ -964,7 +964,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 onHeapCacheSize * keyValueSize + "b"
             )
             .put(
-                TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_TOOKTIME_THRESHOLD.getConcreteSettingForNamespace(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD.getConcreteSettingForNamespace(
                     CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
                 ).getKey(),
                 new TimeValue(timeValueThresholdNanos / 1_000_000)

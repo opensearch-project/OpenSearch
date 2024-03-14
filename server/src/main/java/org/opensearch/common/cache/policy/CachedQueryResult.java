@@ -24,6 +24,7 @@ import java.io.IOException;
  * to decide whether to admit a given BytesReference. Also handles serialization/deserialization of the underlying QuerySearchResult,
  * which is all that is needed outside the cache. At policy checking time, this spares us from having to create an entire
  * short-lived QuerySearchResult object just to read a few values.
+ * @opensearch.internal
  */
 public class CachedQueryResult {
     private final PolicyValues policyValues;
@@ -67,7 +68,7 @@ public class CachedQueryResult {
         }
 
         public PolicyValues(StreamInput in) throws IOException {
-            this.tookTimeNanos = in.readOptionalLong();
+            this.tookTimeNanos = in.readVLong();
         }
 
         public long getTookTimeNanos() {
@@ -76,7 +77,7 @@ public class CachedQueryResult {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalLong(tookTimeNanos);
+            out.writeVLong(tookTimeNanos);
         }
     }
 }
