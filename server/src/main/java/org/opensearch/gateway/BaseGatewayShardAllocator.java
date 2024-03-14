@@ -107,6 +107,7 @@ public abstract class BaseGatewayShardAllocator {
                 }
             } catch (Exception e) {
                 logger.error("Failed to execute decision for shard {} while initializing {}", shard, e);
+                throw e;
             }
         }
     }
