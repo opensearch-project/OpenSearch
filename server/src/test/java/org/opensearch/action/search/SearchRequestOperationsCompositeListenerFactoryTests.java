@@ -125,7 +125,7 @@ public class SearchRequestOperationsCompositeListenerFactoryTests extends OpenSe
             protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
             @Override
-            protected void onPhaseFailure(SearchPhaseContext context) {}
+            protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {}
         };
     }
 }
