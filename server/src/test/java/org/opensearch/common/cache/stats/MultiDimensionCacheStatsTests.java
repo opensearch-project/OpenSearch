@@ -30,14 +30,15 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         StatsHolder statsHolder = new StatsHolder(dimensionNames);
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
         populateStats(statsHolder, usedDimensionValues, 100, 10);
-        MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder);
+        MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder.createSnapshot(), statsHolder.getDimensionNames());
 
         BytesStreamOutput os = new BytesStreamOutput();
         stats.writeTo(os);
         BytesStreamInput is = new BytesStreamInput(BytesReference.toBytes(os.bytes()));
         MultiDimensionCacheStats deserialized = new MultiDimensionCacheStats(is);
 
-        StatsHolderTests.checkStatsHolderEquality(stats.statsHolder, deserialized.statsHolder);
+        assertEquals(stats.snapshot, deserialized.snapshot);
+        assertEquals(stats.dimensionNames, deserialized.dimensionNames);
     }
 
     public void testAddAndGet() throws Exception {
@@ -45,16 +46,16 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         StatsHolder statsHolder = new StatsHolder(dimensionNames);
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
         Map<Set<CacheStatsDimension>, CacheStatsResponse> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
-        MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder);
+        MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder.createSnapshot(), statsHolder.getDimensionNames());
 
         // test the value in the map is as expected for each distinct combination of values
         for (Set<CacheStatsDimension> dimSet : expected.keySet()) {
             CacheStatsResponse expectedResponse = expected.get(dimSet);
             List<CacheStatsDimension> dims = new ArrayList<>(dimSet);
             StatsHolder.Key key = new StatsHolder.Key(StatsHolder.getOrderedDimensionValues(dims, dimensionNames));
-            CacheStatsResponse actual = stats.statsHolder.getStatsMap().get(key);
+            CacheStatsResponse.Snapshot actual = stats.snapshot.get(key);
 
-            assertEquals(expectedResponse, actual);
+            assertEquals(expectedResponse.snapshot(), actual);
         }
 
         // test gets for total
@@ -62,7 +63,7 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         for (Set<CacheStatsDimension> dimSet : expected.keySet()) {
             expectedTotal.add(expected.get(dimSet));
         }
-        assertEquals(expectedTotal, stats.getTotalStats());
+        assertEquals(expectedTotal.snapshot(), stats.getTotalStats());
 
         assertEquals(expectedTotal.getHits(), stats.getTotalHits());
         assertEquals(expectedTotal.getMisses(), stats.getTotalMisses());
@@ -76,10 +77,10 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         StatsHolder statsHolder = new StatsHolder(List.of());
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 100);
         populateStats(statsHolder, usedDimensionValues, 10, 100);
-        MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder);
+        MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder.createSnapshot(), statsHolder.getDimensionNames());
 
-        assertEquals(1, stats.statsHolder.getStatsMap().size());
-        assertEquals(stats.getTotalStats(), stats.statsHolder.getStatsMap().get(new StatsHolder.Key(List.of())));
+        assertEquals(1, stats.snapshot.size());
+        assertEquals(stats.getTotalStats(), stats.snapshot.get(new StatsHolder.Key(List.of())));
     }
 
     public void testKeyComparator() throws Exception {
@@ -104,10 +105,10 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         StatsHolder statsHolder = new StatsHolder(dimensionNames);
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
         Map<Set<CacheStatsDimension>, CacheStatsResponse> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
-        MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder);
+        MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder.createSnapshot(), statsHolder.getDimensionNames());
 
-        Map<StatsHolder.Key, CacheStatsResponse> aggregated = stats.aggregateByLevels(dimensionNames);
-        for (Map.Entry<StatsHolder.Key, CacheStatsResponse> aggregatedEntry : aggregated.entrySet()) {
+        Map<StatsHolder.Key, CacheStatsResponse.Snapshot> aggregated = stats.aggregateByLevels(dimensionNames);
+        for (Map.Entry<StatsHolder.Key, CacheStatsResponse.Snapshot> aggregatedEntry : aggregated.entrySet()) {
             StatsHolder.Key aggregatedKey = aggregatedEntry.getKey();
 
             Set<CacheStatsDimension> expectedKey = new HashSet<>();
@@ -115,7 +116,7 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
                 expectedKey.add(new CacheStatsDimension(dimensionNames.get(i), aggregatedKey.dimensionValues.get(i)));
             }
             CacheStatsResponse expectedResponse = expected.get(expectedKey);
-            assertEquals(expectedResponse, aggregatedEntry.getValue());
+            assertEquals(expectedResponse.snapshot(), aggregatedEntry.getValue());
         }
         assertEquals(expected.size(), aggregated.size());
     }
@@ -125,7 +126,7 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         StatsHolder statsHolder = new StatsHolder(dimensionNames);
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
         Map<Set<CacheStatsDimension>, CacheStatsResponse> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
-        MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder);
+        MultiDimensionCacheStats stats = new MultiDimensionCacheStats(statsHolder.createSnapshot(), statsHolder.getDimensionNames());
 
         for (int i = 0; i < (1 << dimensionNames.size()); i++) {
             // Test each combination of possible levels
@@ -138,9 +139,8 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
             if (levels.size() == 0) {
                 assertThrows(IllegalArgumentException.class, () -> stats.aggregateByLevels(levels));
             } else {
-                Map<StatsHolder.Key, CacheStatsResponse> aggregated = stats.aggregateByLevels(levels);
-                System.out.println("Agg size = " + aggregated.size());
-                for (Map.Entry<StatsHolder.Key, CacheStatsResponse> aggregatedEntry : aggregated.entrySet()) {
+                Map<StatsHolder.Key, CacheStatsResponse.Snapshot> aggregated = stats.aggregateByLevels(levels);
+                for (Map.Entry<StatsHolder.Key, CacheStatsResponse.Snapshot> aggregatedEntry : aggregated.entrySet()) {
                     StatsHolder.Key aggregatedKey = aggregatedEntry.getKey();
                     CacheStatsResponse expectedResponse = new CacheStatsResponse();
                     for (Set<CacheStatsDimension> expectedDims : expected.keySet()) {
@@ -152,7 +152,7 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
                             expectedResponse.add(expected.get(expectedDims));
                         }
                     }
-                    assertEquals(expectedResponse, aggregatedEntry.getValue());
+                    assertEquals(expectedResponse.snapshot(), aggregatedEntry.getValue());
                 }
             }
         }

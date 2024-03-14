@@ -418,7 +418,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
      */
     @Override
     public CacheStats stats() {
-        return new MultiDimensionCacheStats(statsHolder);
+        return new MultiDimensionCacheStats(statsHolder.createSnapshot(), statsHolder.getDimensionNames());
     }
 
     /**

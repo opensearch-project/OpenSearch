@@ -17,16 +17,16 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A class containing the 5 metrics tracked by a CacheStats object.
+ * A class containing the 5 live metrics tracked by a CacheStats object. Mutable.
  */
-public class CacheStatsResponse implements Writeable { // TODO: Make this extend ToXContent.
+public class CacheStatsResponse {
     public CounterMetric hits;
     public CounterMetric misses;
     public CounterMetric evictions;
     public CounterMetric sizeInBytes;
     public CounterMetric entries;
 
-    public CacheStatsResponse(long hits, long misses, long evictions, long memorySize, long entries) {
+    public CacheStatsResponse(long hits, long misses, long evictions, long sizeInBytes, long entries) {
         this.hits = new CounterMetric();
         this.hits.inc(hits);
         this.misses = new CounterMetric();
@@ -34,28 +34,35 @@ public class CacheStatsResponse implements Writeable { // TODO: Make this extend
         this.evictions = new CounterMetric();
         this.evictions.inc(evictions);
         this.sizeInBytes = new CounterMetric();
-        this.sizeInBytes.inc(memorySize);
+        this.sizeInBytes.inc(sizeInBytes);
         this.entries = new CounterMetric();
         this.entries.inc(entries);
-    }
-
-    public CacheStatsResponse(StreamInput in) throws IOException {
-        this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
     }
 
     public CacheStatsResponse() {
         this(0, 0, 0, 0, 0);
     }
 
-    public synchronized void add(CacheStatsResponse other) {
+    private synchronized void internalAdd(long otherHits, long otherMisses, long otherEvictions, long otherSizeInBytes, long otherEntries) {
+        this.hits.inc(otherHits);
+        this.misses.inc(otherMisses);
+        this.evictions.inc(otherEvictions);
+        this.sizeInBytes.inc(otherSizeInBytes);
+        this.entries.inc(otherEntries);
+    }
+
+    public void add(CacheStatsResponse other) {
         if (other == null) {
             return;
         }
-        this.hits.inc(other.hits.count());
-        this.misses.inc(other.misses.count());
-        this.evictions.inc(other.evictions.count());
-        this.sizeInBytes.inc(other.sizeInBytes.count());
-        this.entries.inc(other.entries.count());
+        internalAdd(other.hits.count(), other.misses.count(), other.evictions.count(), other.sizeInBytes.count(), other.entries.count());
+    }
+
+    public void add(CacheStatsResponse.Snapshot snapshot) {
+        if (snapshot == null) {
+            return;
+        }
+        internalAdd(snapshot.hits, snapshot.misses, snapshot.evictions, snapshot.sizeInBytes, snapshot.entries);
     }
 
     @Override
@@ -99,12 +106,90 @@ public class CacheStatsResponse implements Writeable { // TODO: Make this extend
         return entries.count();
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(hits.count());
-        out.writeVLong(misses.count());
-        out.writeVLong(evictions.count());
-        out.writeVLong(sizeInBytes.count());
-        out.writeVLong(entries.count());
+    public Snapshot snapshot() {
+        return new Snapshot(hits.count(), misses.count(), evictions.count(), sizeInBytes.count(), entries.count());
+    }
+
+    /**
+     * An immutable snapshot of CacheStatsResponse.
+     */
+    public static class Snapshot implements Writeable { // TODO: Make this extend ToXContent (in API PR)
+        private final long hits;
+        private final long misses;
+        private final long evictions;
+        private final long sizeInBytes;
+        private final long entries;
+
+        public Snapshot(long hits, long misses, long evictions, long sizeInBytes, long entries) {
+            this.hits = hits;
+            this.misses = misses;
+            this.evictions = evictions;
+            this.sizeInBytes = sizeInBytes;
+            this.entries = entries;
+        }
+
+        public Snapshot(StreamInput in) throws IOException {
+            this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
+        }
+
+        public long getHits() {
+            return hits;
+        }
+
+        public long getMisses() {
+            return misses;
+        }
+
+        public long getEvictions() {
+            return evictions;
+        }
+
+        public long getSizeInBytes() {
+            return sizeInBytes;
+        }
+
+        public long getEntries() {
+            return entries;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(hits);
+            out.writeVLong(misses);
+            out.writeVLong(evictions);
+            out.writeVLong(sizeInBytes);
+            out.writeVLong(entries);
+        }
+
+        public Snapshot add(Snapshot other) {
+            return new Snapshot(
+                hits + other.hits,
+                misses + other.misses,
+                evictions + other.evictions,
+                sizeInBytes + other.sizeInBytes,
+                entries + other.entries
+            );
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null) {
+                return false;
+            }
+            if (o.getClass() != CacheStatsResponse.Snapshot.class) {
+                return false;
+            }
+            CacheStatsResponse.Snapshot other = (CacheStatsResponse.Snapshot) o;
+            return (hits == other.hits)
+                && (misses == other.misses)
+                && (evictions == other.evictions)
+                && (sizeInBytes == other.sizeInBytes)
+                && (entries == other.entries);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(hits, misses, evictions, sizeInBytes, entries);
+        }
     }
 }

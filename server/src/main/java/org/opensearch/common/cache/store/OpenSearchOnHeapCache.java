@@ -123,7 +123,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
 
     @Override
     public CacheStats stats() {
-        return new MultiDimensionCacheStats(statsHolder);
+        return new MultiDimensionCacheStats(statsHolder.createSnapshot(), statsHolder.getDimensionNames());
     }
 
     @Override

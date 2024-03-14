@@ -9,11 +9,7 @@
 package org.opensearch.common.cache.stats;
 
 import org.opensearch.common.cache.ICacheKey;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -25,7 +21,7 @@ import java.util.function.BiConsumer;
 /**
  * A class caches use to internally keep track of their stats across multiple dimensions. Not intended to be exposed outside the cache.
  */
-public class StatsHolder implements Writeable {
+public class StatsHolder {
 
     // The list of permitted dimensions. Should be ordered from "outermost" to "innermost", as you would like to
     // aggregate them in an API response.
@@ -33,22 +29,10 @@ public class StatsHolder implements Writeable {
 
     // A map from a set of cache stats dimension values -> stats for that ordered list of dimensions.
     private final ConcurrentMap<Key, CacheStatsResponse> statsMap;
-    CacheStatsResponse totalStats;
 
     public StatsHolder(List<String> dimensionNames) {
         this.dimensionNames = dimensionNames;
         this.statsMap = new ConcurrentHashMap<>();
-        this.totalStats = new CacheStatsResponse();
-    }
-
-    public StatsHolder(StreamInput in) throws IOException {
-        this.dimensionNames = List.of(in.readStringArray());
-        Map<Key, CacheStatsResponse> readMap = in.readMap(
-            i -> new Key(List.of(i.readArray(StreamInput::readString, String[]::new))),
-            CacheStatsResponse::new
-        );
-        this.statsMap = new ConcurrentHashMap<Key, CacheStatsResponse>(readMap);
-        this.totalStats = new CacheStatsResponse(in);
     }
 
     public List<String> getDimensionNames() {
@@ -57,10 +41,6 @@ public class StatsHolder implements Writeable {
 
     public ConcurrentMap<Key, CacheStatsResponse> getStatsMap() {
         return statsMap;
-    }
-
-    public CacheStatsResponse getTotalStats() {
-        return totalStats;
     }
 
     // For all these increment functions, the dimensions list comes from the key, and contains all dimensions present in dimensionNames.
@@ -98,20 +78,21 @@ public class StatsHolder implements Writeable {
             response.sizeInBytes.dec(response.getSizeInBytes());
             response.entries.dec(response.getEntries());
         }
-        totalStats.sizeInBytes.dec(totalStats.getSizeInBytes());
-        totalStats.entries.dec(totalStats.getEntries());
     }
 
     public long count() {
         // Include this here so caches don't have to create an entire CacheStats object to run count().
-        return totalStats.getEntries();
+        long count = 0L;
+        for (Map.Entry<Key, CacheStatsResponse> entry : statsMap.entrySet()) {
+            count += entry.getValue().getEntries();
+        }
+        return count;
     }
 
     private void internalIncrement(List<CacheStatsDimension> dimensions, BiConsumer<CacheStatsResponse, Long> incrementer, long amount) {
         assert dimensions.size() == dimensionNames.size();
         CacheStatsResponse stats = internalGetStats(dimensions);
         incrementer.accept(stats, amount);
-        incrementer.accept(totalStats, amount);
     }
 
     private CacheStatsResponse internalGetStats(List<CacheStatsDimension> dimensions) {
@@ -138,15 +119,13 @@ public class StatsHolder implements Writeable {
         return result;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeStringArray(dimensionNames.toArray(new String[0]));
-        out.writeMap(
-            statsMap,
-            (o, key) -> o.writeArray((o1, dimValue) -> o1.writeString((String) dimValue), key.dimensionValues.toArray()),
-            (o, response) -> response.writeTo(o)
-        );
-        totalStats.writeTo(out);
+    public Map<Key, CacheStatsResponse.Snapshot> createSnapshot() {
+        ConcurrentHashMap<Key, CacheStatsResponse.Snapshot> snapshot = new ConcurrentHashMap<>();
+        for (Map.Entry<Key, CacheStatsResponse> entry : statsMap.entrySet()) {
+            snapshot.put(entry.getKey(), entry.getValue().snapshot());
+        }
+        // The resulting map is immutable as well as unmodifiable since the backing map is new, not related to statsMap
+        return Collections.unmodifiableMap(snapshot);
     }
 
     /**

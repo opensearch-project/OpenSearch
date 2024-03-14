@@ -16,8 +16,8 @@ import org.opensearch.core.common.io.stream.Writeable;
  */
 public interface CacheStats extends Writeable {// TODO: also extends ToXContentFragment (in API PR)
 
-    // Methods to get all 5 values at once, either in total or for a specific set of dimensions.
-    CacheStatsResponse getTotalStats();
+    // Method to get all 5 values at once
+    CacheStatsResponse.Snapshot getTotalStats();
 
     // Methods to get total values.
     long getTotalHits();

@@ -17,59 +17,76 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A CacheStats object supporting aggregation over multiple different dimensions.
  * Stores a fixed snapshot of a cache's stats; does not allow changes.
  */
 public class MultiDimensionCacheStats implements CacheStats {
-    // A StatsHolder containing stats maintained by the cache.
+    // A snapshot of a StatsHolder containing stats maintained by the cache.
     // Pkg-private for testing.
-    final StatsHolder statsHolder;
+    final Map<StatsHolder.Key, CacheStatsResponse.Snapshot> snapshot;
+    final List<String> dimensionNames;
 
-    public MultiDimensionCacheStats(StatsHolder statsHolder) {
-        this.statsHolder = statsHolder;
+    public MultiDimensionCacheStats(Map<StatsHolder.Key, CacheStatsResponse.Snapshot> snapshot, List<String> dimensionNames) {
+        this.snapshot = snapshot;
+        this.dimensionNames = dimensionNames;
     }
 
     public MultiDimensionCacheStats(StreamInput in) throws IOException {
-        this.statsHolder = new StatsHolder(in);
+        this.dimensionNames = List.of(in.readStringArray());
+        Map<StatsHolder.Key, CacheStatsResponse.Snapshot> readMap = in.readMap(
+            i -> new StatsHolder.Key(List.of(i.readArray(StreamInput::readString, String[]::new))),
+            CacheStatsResponse.Snapshot::new
+        );
+        this.snapshot = new ConcurrentHashMap<StatsHolder.Key, CacheStatsResponse.Snapshot>(readMap);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        statsHolder.writeTo(out);
+        out.writeStringArray(dimensionNames.toArray(new String[0]));
+        out.writeMap(
+            snapshot,
+            (o, key) -> o.writeArray((o1, dimValue) -> o1.writeString((String) dimValue), key.dimensionValues.toArray()),
+            (o, snapshot) -> snapshot.writeTo(o)
+        );
     }
 
     @Override
-    public CacheStatsResponse getTotalStats() {
+    public CacheStatsResponse.Snapshot getTotalStats() {
         CacheStatsResponse response = new CacheStatsResponse();
-        response.add(statsHolder.getTotalStats()); // Return a copy to prevent consumers of this method from changing the original
-        return response;
+        // To avoid making many Snapshot objects for the incremental sums, add to a mutable CacheStatsResponse and finally convert to
+        // Snapshot
+        for (Map.Entry<StatsHolder.Key, CacheStatsResponse.Snapshot> entry : snapshot.entrySet()) {
+            response.add(entry.getValue());
+        }
+        return response.snapshot();
     }
 
     @Override
     public long getTotalHits() {
-        return statsHolder.getTotalStats().getHits();
+        return getTotalStats().getHits();
     }
 
     @Override
     public long getTotalMisses() {
-        return statsHolder.getTotalStats().getMisses();
+        return getTotalStats().getMisses();
     }
 
     @Override
     public long getTotalEvictions() {
-        return statsHolder.getTotalStats().getEvictions();
+        return getTotalStats().getEvictions();
     }
 
     @Override
     public long getTotalSizeInBytes() {
-        return statsHolder.getTotalStats().getSizeInBytes();
+        return getTotalStats().getSizeInBytes();
     }
 
     @Override
     public long getTotalEntries() {
-        return statsHolder.getTotalStats().getEntries();
+        return getTotalStats().getEntries();
     }
 
     /**
@@ -78,28 +95,25 @@ public class MultiDimensionCacheStats implements CacheStats {
      * @param levels The levels to aggregate by
      * @return The resulting stats
      */
-    public TreeMap<StatsHolder.Key, CacheStatsResponse> aggregateByLevels(List<String> levels) {
+    public TreeMap<StatsHolder.Key, CacheStatsResponse.Snapshot> aggregateByLevels(List<String> levels) {
         if (levels.size() == 0) {
             throw new IllegalArgumentException("Levels cannot have size 0");
         }
         int[] levelIndices = getLevelIndices(levels);
-        TreeMap<StatsHolder.Key, CacheStatsResponse> result = new TreeMap<>(new KeyComparator());
+        TreeMap<StatsHolder.Key, CacheStatsResponse.Snapshot> result = new TreeMap<>(new KeyComparator());
 
-        Map<StatsHolder.Key, CacheStatsResponse> map = statsHolder.getStatsMap();
-        for (Map.Entry<StatsHolder.Key, CacheStatsResponse> entry : map.entrySet()) {
+        for (Map.Entry<StatsHolder.Key, CacheStatsResponse.Snapshot> entry : snapshot.entrySet()) {
             List<String> levelValues = new ArrayList<>(); // The values for the dimensions we're aggregating over for this key
             for (int levelIndex : levelIndices) {
                 levelValues.add(entry.getKey().dimensionValues.get(levelIndex));
             }
             // The new key for the aggregated stats contains only the dimensions specified in levels
             StatsHolder.Key levelsKey = new StatsHolder.Key(levelValues);
-            CacheStatsResponse originalResponse = entry.getValue();
+            CacheStatsResponse.Snapshot originalResponse = entry.getValue();
             if (result.containsKey(levelsKey)) {
-                result.get(levelsKey).add(originalResponse);
+                result.put(levelsKey, result.get(levelsKey).add(originalResponse));
             } else {
-                CacheStatsResponse newResponse = new CacheStatsResponse();
-                newResponse.add(originalResponse);
-                result.put(levelsKey, newResponse); // add a copy, not the original
+                result.put(levelsKey, originalResponse);
             }
         }
         return result;
@@ -127,8 +141,8 @@ public class MultiDimensionCacheStats implements CacheStats {
         int[] result = new int[levels.size()];
         int levelsIndex = 0;
 
-        for (int namesIndex = 0; namesIndex < statsHolder.getDimensionNames().size(); namesIndex++) {
-            if (statsHolder.getDimensionNames().get(namesIndex).equals(levels.get(levelsIndex))) {
+        for (int namesIndex = 0; namesIndex < dimensionNames.size(); namesIndex++) {
+            if (dimensionNames.get(namesIndex).equals(levels.get(levelsIndex))) {
                 result[levelsIndex] = namesIndex;
                 levelsIndex++;
             }
