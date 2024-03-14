@@ -60,11 +60,14 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.reindex.RejectAwareActionListener;
+import org.opensearch.index.reindex.RetryListener;
 import org.opensearch.index.reindex.ScrollableHitSource;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.ConnectException;
+import java.util.Arrays;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -98,21 +101,29 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
     @Override
     protected void doStart(RejectAwareActionListener<Response> searchListener) {
-        lookupRemoteVersion(RejectAwareActionListener.withResponseHandler(searchListener, version -> {
+        logger.info("Starting remote reindex for {}", Arrays.toString(searchRequest.indices()));
+        lookupRemoteVersion(RejectAwareActionListener.wrap(version -> {
             remoteVersion = version;
-            execute(
+            logger.trace("Starting initial search");
+            executeWithRetries(
                 RemoteRequestBuilders.initialSearch(searchRequest, query, remoteVersion),
                 RESPONSE_PARSER,
                 RejectAwareActionListener.withResponseHandler(searchListener, r -> onStartResponse(searchListener, r))
             );
-        }));
+            // Skipping searchListener::onRejection(used for retries) for remote source as we've configured retries at request(scroll)
+            // level.
+        }, searchListener::onFailure, searchListener::onFailure));
     }
 
     void lookupRemoteVersion(RejectAwareActionListener<Version> listener) {
+        logger.trace("Checking version for remote domain");
+        // We're skipping retries for the first call to remote cluster so that we fail fast & respond back immediately
+        // instead of retrying for longer duration.
         execute(new Request("GET", ""), MAIN_ACTION_PARSER, listener);
     }
 
     private void onStartResponse(RejectAwareActionListener<Response> searchListener, Response response) {
+        logger.trace("On initial search response");
         if (Strings.hasLength(response.getScrollId()) && response.getHits().isEmpty()) {
             logger.debug("First response looks like a scan response. Jumping right to the second. scroll=[{}]", response.getScrollId());
             doStartNextScroll(response.getScrollId(), timeValueMillis(0), searchListener);
@@ -123,12 +134,14 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
     @Override
     protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
+        logger.trace("Starting next scroll call");
         TimeValue keepAlive = timeValueNanos(searchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos());
-        execute(RemoteRequestBuilders.scroll(scrollId, keepAlive, remoteVersion), RESPONSE_PARSER, searchListener);
+        executeWithRetries(RemoteRequestBuilders.scroll(scrollId, keepAlive, remoteVersion), RESPONSE_PARSER, searchListener);
     }
 
     @Override
     protected void clearScroll(String scrollId, Runnable onCompletion) {
+        logger.debug("Clearing the scrollID {}", scrollId);
         client.performRequestAsync(RemoteRequestBuilders.clearScroll(scrollId, remoteVersion), new ResponseListener() {
             @Override
             public void onSuccess(org.opensearch.client.Response response) {
@@ -179,17 +192,31 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         });
     }
 
+    private void executeWithRetries(
+        Request request,
+        BiFunction<XContentParser, MediaType, Response> parser,
+        RejectAwareActionListener<Response> childListener
+    ) {
+        execute(request, parser, new RetryListener(logger, threadPool, backoffPolicy, r -> {
+            logger.debug("Retrying execute request {}", request.getEndpoint());
+            countSearchRetry.run();
+            execute(request, parser, r);
+        }, childListener));
+    }
+
     private <T> void execute(
         Request request,
         BiFunction<XContentParser, MediaType, T> parser,
         RejectAwareActionListener<? super T> listener
     ) {
+        logger.trace("Executing http request to remote cluster {}", request.getEndpoint());
         // Preserve the thread context so headers survive after the call
         java.util.function.Supplier<ThreadContext.StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(true);
         try {
             client.performRequestAsync(request, new ResponseListener() {
                 @Override
                 public void onSuccess(org.opensearch.client.Response response) {
+                    logger.trace("Successfully got response from the remote");
                     // Restore the thread context to get the precious headers
                     try (ThreadContext.StoredContext ctx = contextSupplier.get()) {
                         assert ctx != null; // eliminates compiler warning
@@ -204,7 +231,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                             }
                             if (mediaType == null) {
                                 try {
-                                    logger.debug("Response didn't include Content-Type: " + bodyMessage(response.getEntity()));
+                                    logger.error("Response didn't include Content-Type: " + bodyMessage(response.getEntity()));
                                     throw new OpenSearchException(
                                         "Response didn't include supported Content-Type, remote is likely not an OpenSearch instance"
                                     );
@@ -236,22 +263,28 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                 public void onFailure(Exception e) {
                     try (ThreadContext.StoredContext ctx = contextSupplier.get()) {
                         assert ctx != null; // eliminates compiler warning
+                        logger.debug("Received response failure {}", e.getMessage());
                         if (e instanceof ResponseException) {
                             ResponseException re = (ResponseException) e;
                             int statusCode = re.getResponse().getStatusLine().getStatusCode();
                             e = wrapExceptionToPreserveStatus(statusCode, re.getResponse().getEntity(), re);
-                            if (RestStatus.TOO_MANY_REQUESTS.getStatus() == statusCode) {
+                            // retry all 5xx & 429s.
+                            if (RestStatus.TOO_MANY_REQUESTS.getStatus() == statusCode
+                                || statusCode >= RestStatus.INTERNAL_SERVER_ERROR.getStatus()) {
                                 listener.onRejection(e);
                                 return;
                             }
+                        } else if (e instanceof ConnectException) {
+                            listener.onRejection(e);
+                            return;
                         } else if (e instanceof ContentTooLongException) {
                             e = new IllegalArgumentException(
                                 "Remote responded with a chunk that was too large. Use a smaller batch size.",
                                 e
                             );
                         }
-                        listener.onFailure(e);
                     }
+                    listener.onFailure(e);
                 }
             });
         } catch (Exception e) {
