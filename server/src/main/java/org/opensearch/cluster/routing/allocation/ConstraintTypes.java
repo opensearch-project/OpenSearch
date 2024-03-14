@@ -91,7 +91,7 @@ public class ConstraintTypes {
         return (params) -> {
             int primaryShardCount = params.getNode().numPrimaryShards();
             int allowedPrimaryShardCount = (int) Math.ceil(params.getBalancer().avgPrimaryShardsPerNode() * (1 + buffer));
-            return primaryShardCount >= allowedPrimaryShardCount;
+            return primaryShardCount > allowedPrimaryShardCount;
         };
     }
 }

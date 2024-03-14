@@ -169,6 +169,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Inject
     public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings) {
+        setIndexBalanceFactor(INDEX_BALANCE_FACTOR_SETTING.get(settings));
+        setShardBalanceFactor(SHARD_BALANCE_FACTOR_SETTING.get(settings));
+        setPreferPrimaryShardBalanceBuffer(PREFER_PRIMARY_SHARD_BALANCE_BUFFER.get(settings));
         setWeightFunction(
             INDEX_BALANCE_FACTOR_SETTING.get(settings),
             SHARD_BALANCE_FACTOR_SETTING.get(settings),
@@ -177,7 +180,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         setThreshold(THRESHOLD_SETTING.get(settings));
         setPreferPrimaryShardBalance(PREFER_PRIMARY_SHARD_BALANCE.get(settings));
         setShardMovementStrategy(SHARD_MOVEMENT_STRATEGY_SETTING.get(settings));
-        setPreferPrimaryShardBalanceBuffer(PREFER_PRIMARY_SHARD_BALANCE_BUFFER.get(settings));
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_BALANCE, this::setPreferPrimaryShardBalance);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVE_PRIMARY_FIRST_SETTING, this::setMovePrimaryFirst);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVEMENT_STRATEGY_SETTING, this::setShardMovementStrategy);

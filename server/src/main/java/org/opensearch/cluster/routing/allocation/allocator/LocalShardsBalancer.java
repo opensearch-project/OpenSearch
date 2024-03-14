@@ -998,7 +998,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 // doing such relocation wouldn't help in primary balance.
                 if (preferPrimaryBalance == true
                     && shard.primary()
-                    && maxNode.numPrimaryShards(shard.getIndexName()) - minNode.numPrimaryShards(shard.getIndexName()) < 2) {
+                    && maxNode.numPrimaryShards() - minNode.numPrimaryShards() < 2) {
                     continue;
                 }
 
