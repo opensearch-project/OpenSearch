@@ -41,7 +41,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -120,9 +119,10 @@ public class LocalShardsBalancer extends ShardsBalancer {
         totalRelocation = 0;
     }
 
-    public void printRelocationCount(){
+    public void printRelocationCount() {
         logger.info("Total relocation count is: {}", Integer.toString(totalRelocation));
     }
+
     /**
      * Returns the average of shards per node for the given index
      */
@@ -361,7 +361,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
         final float[] weights = sorter.weights;
         for (String index : buildWeightOrderedIndices()) {
             IndexMetadata indexMetadata = metadata.index(index);
-
 
             // find nodes that have a shard of this index or where shards of this index are allowed to be allocated to,
             // move these nodes to the front of modelNodes so that we can only balance based on these nodes
@@ -1009,7 +1008,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
             }
         }
 
-        if (minNodes.isEmpty()){
+        if (minNodes.isEmpty()) {
             minNode = null;
         } else {
             minNode = minNodes.get(Randomness.get().nextInt(minNodes.size()));
@@ -1051,9 +1050,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 }
                 // This is a safety net which prevents un-necessary primary shard relocations from maxNode to minNode when
                 // doing such relocation wouldn't help in primary balance.
-                if (preferPrimaryBalance == true
-                    && shard.primary()
-                    && maxNode.numPrimaryShards() - minNode.numPrimaryShards() < 2) {
+                if (preferPrimaryBalance == true && shard.primary() && maxNode.numPrimaryShards() - minNode.numPrimaryShards() < 2) {
                     continue;
                 }
 
