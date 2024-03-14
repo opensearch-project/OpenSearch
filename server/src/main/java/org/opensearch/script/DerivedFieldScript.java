@@ -9,18 +9,20 @@
 package org.opensearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
 /**
+<<<<<<< HEAD
  * Definition of Script for DerivedField.
  * It will be used to execute scripts defined against derived fields of any type
  *
@@ -30,7 +32,6 @@ public abstract class DerivedFieldScript {
 
     public static final String[] PARAMETERS = {};
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("derived_field", Factory.class);
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
 
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
         "doc",
@@ -49,6 +50,11 @@ public abstract class DerivedFieldScript {
      */
     private final LeafSearchLookup leafLookup;
 
+    /**
+     * The field values emitted from the script.
+     */
+    private List<Object> emittedValues;
+
     public DerivedFieldScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
         Map<String, Object> parameters = new HashMap<>(params);
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
@@ -56,9 +62,10 @@ public abstract class DerivedFieldScript {
         this.params = new DynamicMap(parameters, PARAMS_FUNCTIONS);
     }
 
-    protected DerivedFieldScript() {
-        params = null;
-        leafLookup = null;
+    public DerivedFieldScript() {
+        this.params = null;
+        this.leafLookup = null;
+        this.emittedValues = Collections.emptyList();
     }
 
     /**
@@ -82,7 +89,9 @@ public abstract class DerivedFieldScript {
         leafLookup.setDocument(docid);
     }
 
-    public abstract Object execute();
+    public void addEmittedValue(Object o) { emittedValues.add(o); }
+
+    public List<Object> execute() { return emittedValues; }
 
     /**
      * A factory to construct {@link DerivedFieldScript} instances.
@@ -95,7 +104,6 @@ public abstract class DerivedFieldScript {
 
     /**
      * A factory to construct stateful {@link DerivedFieldScript} factories for a specific index.
-     *
      * @opensearch.internal
      */
     public interface Factory extends ScriptFactory {
