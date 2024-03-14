@@ -67,7 +67,6 @@ import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -235,6 +234,9 @@ import static org.opensearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.index.shard.IndexShard.ShardMigrationState.REMOTE_MIGRATING_SEEDED;
+import static org.opensearch.index.shard.IndexShard.ShardMigrationState.REMOTE_MIGRATING_UNSEEDED;
+import static org.opensearch.index.shard.IndexShard.ShardMigrationState.REMOTE_NON_MIGRATING;
 import static org.opensearch.index.translog.Translog.Durability;
 import static org.opensearch.index.translog.Translog.TRANSLOG_UUID_KEY;
 
@@ -347,7 +349,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
     private final RemoteStoreFileDownloader fileDownloader;
     private final RecoverySettings recoverySettings;
-    private final RemoteMigrationShardState remoteMigrationShardState;
+    /*
+     On source doc rep node,  It will be DOCREP_NON_MIGRATING.
+     On source remote node , it will be REMOTE_MIGRATING_SEEDED when relocating from remote node
+     On source remote node , it will be REMOTE_MIGRATING_UNSEEDED when relocating from docrep node
+     */
+    private final ShardMigrationState shardMigrationState;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -376,7 +383,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         final Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier,
         final String nodeId,
-        @Nullable final RecoverySettings recoverySettings,
+        final RecoverySettings recoverySettings,
         boolean seedRemote
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
@@ -475,9 +482,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.remoteStoreStatsTrackerFactory = remoteStoreStatsTrackerFactory;
         this.recoverySettings = recoverySettings;
         this.fileDownloader = new RemoteStoreFileDownloader(shardRouting.shardId(), threadPool, recoverySettings);
-        this.remoteMigrationShardState = (indexSettings.isRemoteNode() && indexSettings.isRemoteStoreEnabled() == false)
-            ? new RemoteMigrationShardState(seedRemote)
-            : null;
+        this.shardMigrationState = getShardMigrationState(indexSettings, seedRemote);
     }
 
     public ThreadPool getThreadPool() {
@@ -490,16 +495,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public boolean isMigratingToRemote() {
         // set it true only if shard is remote, but index setting doesn't say so
-        return remoteMigrationShardState != null;
+        return shardMigrationState == REMOTE_MIGRATING_UNSEEDED || shardMigrationState == REMOTE_MIGRATING_SEEDED;
     }
 
     public boolean shouldSeedRemoteStore() {
         // set it true only if relocating from docrep to remote store
-        return remoteMigrationShardState != null && remoteMigrationShardState.shouldUpload();
+        return shardMigrationState == REMOTE_MIGRATING_UNSEEDED;
     }
 
     public boolean isRemoteSeeded() {
-        return remoteMigrationShardState != null && remoteMigrationShardState.shouldUpload() == false;
+        return shardMigrationState == REMOTE_MIGRATING_SEEDED;
     }
 
     public Store remoteStore() {
@@ -861,7 +866,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @param consumer      a {@link Runnable} that is executed after performSegRep
      * @param performSegRep a {@link Runnable} that is executed after operations are blocked
-     * @param targetNode the node where the shard is relocating
      * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
      * @throws IllegalStateException           if the relocation target is no longer part of the replication group
      * @throws InterruptedException            if blocking operations is interrupted
@@ -869,8 +873,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void relocated(
         final String targetAllocationId,
         final Consumer<ReplicationTracker.PrimaryContext> consumer,
-        final Runnable performSegRep,
-        DiscoveryNode targetNode
+        final Runnable performSegRep
     ) throws IllegalIndexShardStateException, IllegalStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         // The below list of releasable ensures that if the relocation does not happen, we undo the activity of close and
@@ -939,12 +942,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // failed. The existing primary will continue to be the primary, so we need to allow the segments and translog
             // upload to resume.
             Releasables.close(releasablesOnHandoffFailures);
-            if (indexSettings.isRemoteNode() == false && targetNode != null && targetNode.isRemoteStoreNode()) {
-                // We open RemoteTranslog on target node. In case of relocation failure, we might end up with
-                // dual writers writing to same primary term . Hence, we need to fail relocation to bump up primary term
-                // for the new relocated remote shard.
-                failShard("relocation hand-off failed in remote migration", null);
-            }
             throw ex;
         }
     }
@@ -1465,7 +1462,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
         // Populate remote_store stats only if the index is remote store backed
-        if (indexSettings.isRemoteStoreEnabled() || indexSettings().isRemoteNode()) {
+        if (indexSettings().isRemoteNode()) {
             segmentsStats.addRemoteSegmentStats(
                 new RemoteSegmentStats(remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId).stats())
             );
@@ -2089,10 +2086,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return false;
     }
 
+    public void waitForRemoteStoreSync() {
+        waitForRemoteStoreSync(() -> {});
+    }
+
     /*
     Blocks the calling thread,  waiting for the remote store to get synced till internal Remote Upload Timeout
+    Calls onProgress on seeing an increased file count on remote
     */
-    public void waitForRemoteStoreSync() {
+    public void waitForRemoteStoreSync(Runnable onProgress) {
+        assert indexSettings.isRemoteNode();
+        RemoteSegmentStoreDirectory directory = getRemoteDirectory();
+        int segmentUploadeCount = 0;
         if (shardRouting.primary() == false) {
             return;
         }
@@ -2103,6 +2108,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (isRemoteSegmentStoreInSync()) {
                     break;
                 } else {
+                    if (directory.getSegmentsUploadedToRemoteStore().size() > segmentUploadeCount) {
+                        onProgress.run();
+                        logger.debug("Uploaded segment count {}", directory.getSegmentsUploadedToRemoteStore().size());
+                        segmentUploadeCount = directory.getSegmentsUploadedToRemoteStore().size();
+                    }
                     try {
                         Thread.sleep(TimeValue.timeValueMinutes(1).seconds());
                     } catch (InterruptedException ie) {
@@ -3523,7 +3533,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void postActivatePrimaryMode() {
-        if (indexSettings.isRemoteStoreEnabled() || this.isMigratingToRemote()) {
+        if (indexSettings.isRemoteNode()) {
             // We make sure to upload translog (even if it does not contain any operations) to remote translog.
             // This helps to get a consistent state in remote store where both remote segment store and remote
             // translog contains data.
@@ -3965,7 +3975,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             this::getOperationPrimaryTerm,
             tombstoneDocSupplier(),
             isReadOnlyReplica,
-            this::isStartedPrimary,
+            this::enableUploadToRemoteTranslog,
             translogFactorySupplier.apply(indexSettings, shardRouting),
             isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null // DESC @timestamp default order for
             // timeseries
@@ -3986,7 +3996,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * translog uploads.
      */
     public boolean isStartedPrimary() {
-        return (getReplicationTracker().isPrimaryMode() && state() == IndexShardState.STARTED) || shouldSeedRemoteStore();
+        return (getReplicationTracker().isPrimaryMode() && state() == IndexShardState.STARTED);
+    }
+
+    public boolean enableUploadToRemoteTranslog() {
+        return isStartedPrimary() || (shouldSeedRemoteStore() && hasOneSyncHappened());
+    }
+
+    private boolean hasOneSyncHappened() {
+        assert indexSettings.isRemoteNode();
+        // We upload remote translog only after one remote segment upload in case of migration
+        RemoteSegmentStoreDirectory rd = getRemoteDirectory();
+        AtomicBoolean segment_n_uploaded = new AtomicBoolean(false);
+        rd.getSegmentsUploadedToRemoteStore().forEach((key, value) -> {
+            if (key.startsWith("segments")) {
+                segment_n_uploaded.set(true);
+            }
+        });
+        return segment_n_uploaded.get();
     }
 
     /**
@@ -4908,6 +4935,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RemoteFsTranslog.cleanup(repository, shardId, getThreadPool());
     }
 
+    /*
+    Cleans up remote store and remote translog contents.
+    This is used in remote store migration, where we want to clean up all stale segment and translog data
+    and seed the remote store afresh
+     */
+    public void deleteRemoteStoreContents() throws IOException {
+        deleteTranslogFilesFromRemoteTranslog();
+        getRemoteDirectory().deleteStaleSegments(0);
+    }
+
     public void syncTranslogFilesFromRemoteTranslog() throws IOException {
         TranslogFactory translogFactory = translogFactorySupplier.apply(indexSettings, shardRouting);
         assert translogFactory instanceof RemoteBlobStoreInternalTranslogFactory;
@@ -5199,18 +5236,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return translogSyncProcessor;
     }
 
-    static class RemoteMigrationShardState {
+    enum ShardMigrationState {
+        REMOTE_NON_MIGRATING,
+        REMOTE_MIGRATING_SEEDED,
+        REMOTE_MIGRATING_UNSEEDED,
+        DOCREP_NON_MIGRATING
+    }
 
-        // Set to true for any primary shard started on remote backed node relocating from docrep node
-        private final boolean seedRemote;
-
-        public RemoteMigrationShardState(boolean seedRemote) {
-            this.seedRemote = seedRemote;
+    static ShardMigrationState getShardMigrationState(IndexSettings indexSettings, boolean shouldSeed) {
+        if (indexSettings.isRemoteNode() && indexSettings.isRemoteStoreEnabled()) {
+            return REMOTE_NON_MIGRATING;
+        } else if (indexSettings.isRemoteNode()) {
+            return shouldSeed ? REMOTE_MIGRATING_UNSEEDED : REMOTE_MIGRATING_SEEDED;
         }
-
-        public boolean shouldUpload() {
-            return seedRemote;
-        }
-
+        return ShardMigrationState.DOCREP_NON_MIGRATING;
     }
 }

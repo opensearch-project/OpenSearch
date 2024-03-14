@@ -491,10 +491,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     warmer.warm(reader, shard, IndexService.this.indexSettings);
                 }
             };
-            DiscoveryNode node = targetNode;
             Store remoteStore = null;
             boolean seedRemote = false;
-            if (node.isRemoteStoreNode()) {
+            if (targetNode.isRemoteStoreNode()) {
                 if (this.indexSettings.isRemoteStoreEnabled()) {
                     Directory remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
                     remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY, path);

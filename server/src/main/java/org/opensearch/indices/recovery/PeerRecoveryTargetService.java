@@ -189,7 +189,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     public void startRecovery(final IndexShard indexShard, final DiscoveryNode sourceNode, final RecoveryListener listener) {
         // create a new recovery status, and process...
         final long recoveryId = onGoingRecoveries.start(
-            new RecoveryTarget(indexShard, sourceNode, listener),
+            new RecoveryTarget(indexShard, sourceNode, listener, threadPool),
             recoverySettings.activityTimeout()
         );
         // we fork off quickly here and go async but this is called from the cluster state applier thread too and that can cause

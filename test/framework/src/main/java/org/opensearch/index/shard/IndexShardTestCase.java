@@ -1038,7 +1038,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         recoverReplica(
             replica,
             primary,
-            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener),
+            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, threadPool),
             true,
             startReplica,
             replicatePrimaryFunction

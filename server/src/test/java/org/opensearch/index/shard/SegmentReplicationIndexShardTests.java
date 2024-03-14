@@ -256,7 +256,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     public void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
                         assertEquals(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), "Expected failure");
                     }
-                }),
+                }, threadPool),
                 true,
                 true,
                 replicatePrimaryFunction
@@ -586,7 +586,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         Thread recoveryThread = new Thread(() -> {
             latch.countDown();
             try {
-                shard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}, () -> {}, null);
+                shard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}, () -> {});
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -623,8 +623,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 shard.relocated(
                     routing.getTargetRelocatingShard().allocationId().getId(),
                     primaryContext -> relocationStarted.countDown(),
-                    () -> {},
-                    null
+                    () -> {}
                 );
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);

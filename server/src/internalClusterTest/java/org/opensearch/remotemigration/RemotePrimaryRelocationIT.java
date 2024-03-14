@@ -23,32 +23,35 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
-import org.opensearch.test.junit.annotations.TestLogging;
+import org.opensearch.test.transport.MockTransportService;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Arrays.asList;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
-    private static final int RELOCATION_COUNT = 1;
-
     protected int maximumNumberOfShards() {
         return 1;
     }
 
+    // ToDo : Fix me when we support migration of replicas
     protected int maximumNumberOfReplicas() {
         return 0;
     }
 
-    @TestLogging(reason = "Getting trace logs from replication package", value = "org.opensearch.index.translog.RemoteFsTranslog:TRACE,org.opensearch.index.shard.RemoteStoreRefreshListener:TRACE,"
-        + "org.opensearch.indices.recovery:TRACE,"
-        + "org.opensearch.index.shard.IndexShard:TRACE")
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return asList(MockTransportService.TestPlugin.class);
+    }
+
     public void testMixedModeRelocation() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
         List<String> cmNodes = internalCluster().startNodes(1);
@@ -91,41 +94,45 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         GetRepositoriesResponse getRepositoriesResponse = client.admin().cluster().getRepositories(gr).actionGet();
         assertEquals(1, getRepositoriesResponse.repositories().size());
 
-        for (int i = 0; i < RELOCATION_COUNT; i++) {
-            Thread.sleep(RandomNumbers.randomIntBetween(random(), 0, 2000));
-            logger.info("--> [iteration {}] relocating from {} to {} ", i, cmNodes.get(0), remoteNode);
-            client().admin()
-                .cluster()
-                .prepareReroute()
-                .add(new MoveAllocationCommand("test", 0, cmNodes.get(0), remoteNode))
-                .execute()
-                .actionGet();
-            ClusterHealthResponse clusterHealthResponse = client().admin()
-                .cluster()
-                .prepareHealth()
-                .setTimeout(TimeValue.timeValueSeconds(60))
-                .setWaitForEvents(Priority.LANGUID)
-                .setWaitForNoRelocatingShards(true)
-                .execute()
-                .actionGet();
-            logger.info("--> [iteration {}] relocation complete", i);
-            Thread.sleep(RandomNumbers.randomIntBetween(random(), 0, 2000));
+        Thread.sleep(RandomNumbers.randomIntBetween(random(), 0, 2000));
+        logger.info("-->  relocating from {} to {} ", cmNodes.get(0), remoteNode);
+        client().admin()
+            .cluster()
+            .prepareReroute()
+            .add(new MoveAllocationCommand("test", 0, cmNodes.get(0), remoteNode))
+            .execute()
+            .actionGet();
+        ClusterHealthResponse clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setTimeout(TimeValue.timeValueSeconds(60))
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .execute()
+            .actionGet();
 
-            client().admin()
-                .cluster()
-                .prepareReroute()
-                .add(new MoveAllocationCommand("test", 0, remoteNode, remoteNode2))
-                .execute()
-                .actionGet();
-            clusterHealthResponse = client().admin()
-                .cluster()
-                .prepareHealth()
-                .setTimeout(TimeValue.timeValueSeconds(60))
-                .setWaitForEvents(Priority.LANGUID)
-                .setWaitForNoRelocatingShards(true)
-                .execute()
-                .actionGet();
-        }
+        assertEquals(0, clusterHealthResponse.getRelocatingShards());
+        logger.info("-->  relocation from docrep to remote  complete");
+        Thread.sleep(RandomNumbers.randomIntBetween(random(), 0, 2000));
+
+        client().admin()
+            .cluster()
+            .prepareReroute()
+            .add(new MoveAllocationCommand("test", 0, remoteNode, remoteNode2))
+            .execute()
+            .actionGet();
+        clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setTimeout(TimeValue.timeValueSeconds(60))
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .execute()
+            .actionGet();
+
+        assertEquals(0, clusterHealthResponse.getRelocatingShards());
+        logger.info("-->  relocation from remote to remote  complete");
+
         finished.set(true);
         indexingThread.join();
         refresh("test");
@@ -138,5 +145,87 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
             numAutoGenDocs.get()
         );
 
+    }
+
+    public void testMixedModeRelocation_RemoteSeedingFail() throws Exception {
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
+        List<String> cmNodes = internalCluster().startNodes(1);
+        Client client = internalCluster().client(cmNodes.get(0));
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed"));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        // create shard with 0 replica and 1 shard
+        client().admin().indices().prepareCreate("test").setSettings(indexSettings()).setMapping("field", "type=text").get();
+        ensureGreen("test");
+
+        AtomicInteger numAutoGenDocs = new AtomicInteger();
+        final AtomicBoolean finished = new AtomicBoolean(false);
+        Thread indexingThread = new Thread(() -> {
+            while (finished.get() == false && numAutoGenDocs.get() < 100) {
+                IndexResponse indexResponse = client().prepareIndex("test").setId("id").setSource("field", "value").get();
+                assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+                DeleteResponse deleteResponse = client().prepareDelete("test", "id").get();
+                assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+                client().prepareIndex("test").setSource("auto", true).get();
+                numAutoGenDocs.incrementAndGet();
+                logger.info("Indexed {} docs here", numAutoGenDocs.get());
+            }
+        });
+        indexingThread.start();
+
+        refresh("test");
+
+        // add remote node in mixed mode cluster
+        addRemote = true;
+        String remoteNode = internalCluster().startNode();
+        internalCluster().validateClusterFormed();
+
+        // assert repo gets registered
+        GetRepositoriesRequest gr = new GetRepositoriesRequest(new String[] { REPOSITORY_NAME });
+        GetRepositoriesResponse getRepositoriesResponse = client.admin().cluster().getRepositories(gr).actionGet();
+        assertEquals(1, getRepositoriesResponse.repositories().size());
+
+        setFailRate(REPOSITORY_NAME, 100);
+        Thread.sleep(RandomNumbers.randomIntBetween(random(), 0, 2000));
+        logger.info("--> relocating from {} to {} ", cmNodes.get(0), remoteNode);
+        client().admin()
+            .cluster()
+            .prepareReroute()
+            .add(new MoveAllocationCommand("test", 0, cmNodes.get(0), remoteNode))
+            .execute()
+            .actionGet();
+        ClusterHealthResponse clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setTimeout(TimeValue.timeValueSeconds(5))
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .execute()
+            .actionGet();
+
+        assertTrue(clusterHealthResponse.getRelocatingShards() == 1);
+        setFailRate(REPOSITORY_NAME, 0);
+        clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setTimeout(TimeValue.timeValueSeconds(5))
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .execute()
+            .actionGet();
+        assertTrue(clusterHealthResponse.getRelocatingShards() == 0);
+        logger.info("--> remote to remote relocation complete");
+        finished.set(true);
+        indexingThread.join();
+        refresh("test");
+        OpenSearchAssertions.assertHitCount(client().prepareSearch("test").setTrackTotalHits(true).get(), numAutoGenDocs.get());
+        OpenSearchAssertions.assertHitCount(
+            client().prepareSearch("test")
+                .setTrackTotalHits(true)// extra paranoia ;)
+                .setQuery(QueryBuilders.termQuery("auto", true))
+                .get(),
+            numAutoGenDocs.get()
+        );
     }
 }

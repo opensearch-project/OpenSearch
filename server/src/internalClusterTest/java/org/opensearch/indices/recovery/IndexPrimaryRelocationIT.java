@@ -46,7 +46,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
-import org.opensearch.test.junit.annotations.TestLogging;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -61,7 +60,6 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
         return Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build();
     }
 
-    @TestLogging(reason = "Getting trace logs from replication package", value = "org.opensearch.indices.recovery:TRACE")
     public void testPrimaryRelocationWhileIndexing() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
         client().admin().indices().prepareCreate("test").setSettings(indexSettings()).setMapping("field", "type=text").get();
