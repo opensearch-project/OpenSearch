@@ -90,6 +90,7 @@ public class CacheConfig<K, V> {
     public Function<V, CachedQueryResult.PolicyValues> getCachedResultParser() {
         return cachedResultParser;
     }
+
     public Long getMaxSizeInBytes() {
         return maxSizeInBytes;
     }

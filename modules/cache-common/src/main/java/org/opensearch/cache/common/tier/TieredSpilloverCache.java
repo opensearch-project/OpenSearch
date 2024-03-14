@@ -80,6 +80,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 .setValueType(builder.cacheConfig.getValueType())
                 .setSettings(builder.cacheConfig.getSettings())
                 .setWeigher(builder.cacheConfig.getWeigher())
+                .setMaxSizeInBytes(builder.cacheConfig.getMaxSizeInBytes()) // TODO: Part of a workaround for an issue in TSC. Overall fix
+                                                                            // coming soon
                 .build(),
             builder.cacheType,
             builder.cacheFactories

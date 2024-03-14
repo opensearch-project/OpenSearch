@@ -68,6 +68,13 @@ public class TookTimePolicyTests extends OpenSearchTestCase {
         assertFalse(allowedMissingWrapper);
     }
 
+    public void testNegativeOneInput() throws Exception {
+        // PolicyValues with -1 took time can be passed to this policy if we shouldn't accept it for whatever reason
+        TookTimePolicy<BytesReference> tookTimePolicy = getTookTimePolicy(TimeValue.ZERO);
+        BytesReference minusOne = getValidPolicyInput(-1L);
+        assertFalse(tookTimePolicy.test(minusOne));
+    }
+
     private BytesReference getValidPolicyInput(Long tookTimeNanos) throws IOException {
         // When it's used in the cache, the policy will receive BytesReferences which come from
         // serializing a CachedQueryResult.

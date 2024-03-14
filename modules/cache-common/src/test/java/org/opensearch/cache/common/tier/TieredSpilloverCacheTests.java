@@ -977,6 +977,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setWeigher((k, v) -> keyValueSize)
                 .setRemovalListener(removalListener)
                 .setSettings(settings)
+                .setMaxSizeInBytes(onHeapCacheSize * keyValueSize)
                 .setCachedResultParser(new Function<String, CachedQueryResult.PolicyValues>() {
                     @Override
                     public CachedQueryResult.PolicyValues apply(String s) {
