@@ -23,7 +23,7 @@ public class CacheStatsResponse implements Writeable { // TODO: Make this extend
     public CounterMetric hits;
     public CounterMetric misses;
     public CounterMetric evictions;
-    public CounterMetric memorySize;
+    public CounterMetric sizeInBytes;
     public CounterMetric entries;
 
     public CacheStatsResponse(long hits, long misses, long evictions, long memorySize, long entries) {
@@ -33,8 +33,8 @@ public class CacheStatsResponse implements Writeable { // TODO: Make this extend
         this.misses.inc(misses);
         this.evictions = new CounterMetric();
         this.evictions.inc(evictions);
-        this.memorySize = new CounterMetric();
-        this.memorySize.inc(memorySize);
+        this.sizeInBytes = new CounterMetric();
+        this.sizeInBytes.inc(memorySize);
         this.entries = new CounterMetric();
         this.entries.inc(entries);
     }
@@ -54,7 +54,7 @@ public class CacheStatsResponse implements Writeable { // TODO: Make this extend
         this.hits.inc(other.hits.count());
         this.misses.inc(other.misses.count());
         this.evictions.inc(other.evictions.count());
-        this.memorySize.inc(other.memorySize.count());
+        this.sizeInBytes.inc(other.sizeInBytes.count());
         this.entries.inc(other.entries.count());
     }
 
@@ -70,13 +70,13 @@ public class CacheStatsResponse implements Writeable { // TODO: Make this extend
         return (hits.count() == other.hits.count())
             && (misses.count() == other.misses.count())
             && (evictions.count() == other.evictions.count())
-            && (memorySize.count() == other.memorySize.count())
+            && (sizeInBytes.count() == other.sizeInBytes.count())
             && (entries.count() == other.entries.count());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(hits.count(), misses.count(), evictions.count(), memorySize.count(), entries.count());
+        return Objects.hash(hits.count(), misses.count(), evictions.count(), sizeInBytes.count(), entries.count());
     }
 
     public long getHits() {
@@ -91,8 +91,8 @@ public class CacheStatsResponse implements Writeable { // TODO: Make this extend
         return evictions.count();
     }
 
-    public long getMemorySize() {
-        return memorySize.count();
+    public long getSizeInBytes() {
+        return sizeInBytes.count();
     }
 
     public long getEntries() {
@@ -104,7 +104,7 @@ public class CacheStatsResponse implements Writeable { // TODO: Make this extend
         out.writeVLong(hits.count());
         out.writeVLong(misses.count());
         out.writeVLong(evictions.count());
-        out.writeVLong(memorySize.count());
+        out.writeVLong(sizeInBytes.count());
         out.writeVLong(entries.count());
     }
 }

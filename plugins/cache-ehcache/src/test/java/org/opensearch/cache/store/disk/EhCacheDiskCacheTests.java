@@ -84,11 +84,8 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 assertEquals(entry.getValue(), value);
             }
             assertEquals(randomKeys, ehcacheTest.stats().getTotalEntries());
-            assertEquals(randomKeys, ehcacheTest.stats().getEntriesByDimensions(List.of(getMockDimensions().get(0))));
             assertEquals(randomKeys, ehcacheTest.stats().getTotalHits());
-            assertEquals(randomKeys, ehcacheTest.stats().getHitsByDimensions(List.of(getMockDimensions().get(0))));
-            assertEquals(expectedSize, ehcacheTest.stats().getTotalMemorySize());
-            assertEquals(expectedSize, ehcacheTest.stats().getMemorySizeByDimensions(List.of(getMockDimensions().get(0))));
+            assertEquals(expectedSize, ehcacheTest.stats().getTotalSizeInBytes());
             assertEquals(randomKeys, ehcacheTest.count());
 
             // Validate misses
@@ -98,7 +95,6 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             }
 
             assertEquals(expectedNumberOfMisses, ehcacheTest.stats().getTotalMisses());
-            assertEquals(expectedNumberOfMisses, ehcacheTest.stats().getMissesByDimensions(List.of(getMockDimensions().get(0))));
 
             ehcacheTest.close();
         }
@@ -620,47 +616,6 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             ehcacheTest.close();
         }
     }*/
-
-    public void testGetStatsByTierName() throws Exception {
-        Settings settings = Settings.builder().build();
-        MockRemovalListener<String, String> mockRemovalListener = new MockRemovalListener<>();
-        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
-        try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
-                .setIsEventListenerModeSync(true)
-                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
-                .setKeyType(String.class)
-                .setValueType(String.class)
-                .setKeySerializer(new StringSerializer())
-                .setValueSerializer(new StringSerializer())
-                .setDimensionNames(List.of(dimensionName))
-                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
-                .setSettings(settings)
-                .setExpireAfterAccess(TimeValue.MAX_VALUE)
-                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
-                .setRemovalListener(mockRemovalListener)
-                .setWeigher(weigher)
-                .build();
-            int randomKeys = randomIntBetween(10, 100);
-            for (int i = 0; i < randomKeys; i++) {
-                ehcacheTest.put(getICacheKey(UUID.randomUUID().toString()), UUID.randomUUID().toString());
-            }
-            assertEquals(
-                randomKeys,
-                ehcacheTest.stats()
-                    .getEntriesByDimensions(
-                        List.of(new CacheStatsDimension(CacheStatsDimension.TIER_DIMENSION_NAME, EhcacheDiskCache.TIER_DIMENSION_VALUE))
-                    )
-            );
-            assertEquals(
-                0,
-                ehcacheTest.stats()
-                    .getEntriesByDimensions(List.of(new CacheStatsDimension(CacheStatsDimension.TIER_DIMENSION_NAME, "other_tier_value")))
-            );
-
-            ehcacheTest.close();
-        }
-    }
 
     private static String generateRandomString(int length) {
         String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";

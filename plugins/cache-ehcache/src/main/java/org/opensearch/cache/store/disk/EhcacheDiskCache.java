@@ -115,8 +115,6 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     private final String diskCacheAlias;
     private final Serializer<K, byte[]> keySerializer;
     private final Serializer<V, byte[]> valueSerializer;
-    /** The value for this cache's tier dimension, used in stats. */
-    public final static String TIER_DIMENSION_VALUE = "disk";
 
     /**
      * Used in computeIfAbsent to synchronize loading of a given key. This is needed as ehcache doesn't provide a
@@ -158,7 +156,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         );
         this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
         List<String> dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
-        this.statsHolder = new StatsHolder(dimensionNames, builder.getSettings(), StatsHolder.TrackingMode.ALL_COMBINATIONS);
+        this.statsHolder = new StatsHolder(dimensionNames);
     }
 
     @SuppressWarnings({ "rawtypes" })
@@ -264,9 +262,9 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
             throw new OpenSearchException("Exception occurred while trying to fetch item from ehcache disk cache");
         }
         if (value != null) {
-            statsHolder.incrementHitsByDimensions(key.dimensions);
+            statsHolder.incrementHits(key);
         } else {
-            statsHolder.incrementMissesByDimensions(key.dimensions);
+            statsHolder.incrementMisses(key);
         }
         return value;
     }
@@ -302,9 +300,9 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
             value = compute(key, loader);
         }
         if (!loader.isLoaded()) {
-            statsHolder.incrementHitsByDimensions(key.dimensions);
+            statsHolder.incrementHits(key);
         } else {
-            statsHolder.incrementMissesByDimensions(key.dimensions);
+            statsHolder.incrementMisses(key);
         }
         return value;
     }
@@ -420,7 +418,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
      */
     @Override
     public CacheStats stats() {
-        return new MultiDimensionCacheStats(statsHolder, TIER_DIMENSION_VALUE);
+        return new MultiDimensionCacheStats(statsHolder);
     }
 
     /**
@@ -482,25 +480,25 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         public void onEvent(CacheEvent<? extends ICacheKey<K>, ? extends byte[]> event) {
             switch (event.getType()) {
                 case CREATED:
-                    statsHolder.incrementEntriesByDimensions(event.getKey().dimensions);
-                    statsHolder.incrementMemorySizeByDimensions(event.getKey().dimensions, getNewValuePairSize(event));
+                    statsHolder.incrementEntries(event.getKey());
+                    statsHolder.incrementSizeInBytes(event.getKey(), getNewValuePairSize(event));
                     assert event.getOldValue() == null;
                     break;
                 case EVICTED:
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), valueSerializer.deserialize(event.getOldValue()), RemovalReason.EVICTED)
                     );
-                    statsHolder.decrementEntriesByDimensions(event.getKey().dimensions);
-                    statsHolder.incrementMemorySizeByDimensions(event.getKey().dimensions, -getOldValuePairSize(event));
-                    statsHolder.incrementEvictionsByDimensions(event.getKey().dimensions);
+                    statsHolder.decrementEntries(event.getKey());
+                    statsHolder.incrementSizeInBytes(event.getKey(), -getOldValuePairSize(event));
+                    statsHolder.incrementEvictions(event.getKey());
                     assert event.getNewValue() == null;
                     break;
                 case REMOVED:
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), valueSerializer.deserialize(event.getOldValue()), RemovalReason.EXPLICIT)
                     );
-                    statsHolder.decrementEntriesByDimensions(event.getKey().dimensions);
-                    statsHolder.incrementMemorySizeByDimensions(event.getKey().dimensions, -getOldValuePairSize(event));
+                    statsHolder.decrementEntries(event.getKey());
+                    statsHolder.incrementSizeInBytes(event.getKey(), -getOldValuePairSize(event));
                     assert event.getNewValue() == null;
                     break;
                 case EXPIRED:
@@ -511,14 +509,14 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                             RemovalReason.INVALIDATED
                         )
                     );
-                    statsHolder.decrementEntriesByDimensions(event.getKey().dimensions);
-                    statsHolder.incrementMemorySizeByDimensions(event.getKey().dimensions, -getOldValuePairSize(event));
+                    statsHolder.decrementEntries(event.getKey());
+                    statsHolder.incrementSizeInBytes(event.getKey(), -getOldValuePairSize(event));
                     assert event.getNewValue() == null;
                     break;
                 case UPDATED:
                     long newSize = getNewValuePairSize(event);
                     long oldSize = getOldValuePairSize(event);
-                    statsHolder.incrementMemorySizeByDimensions(event.getKey().dimensions, newSize - oldSize);
+                    statsHolder.incrementSizeInBytes(event.getKey(), newSize - oldSize);
                     break;
                 default:
                     break;
