@@ -44,8 +44,8 @@ class DefaultMetricsRegistry implements MetricsRegistry {
     }
 
     @Override
-    public Closeable createObservableGauge(String name, String description, String unit, Supplier<Double> valueProvider, Tags tags) {
-        return metricsTelemetry.createObservableGauge(name, description, unit, valueProvider, tags);
+    public Closeable createGauge(String name, String description, String unit, Supplier<Double> valueProvider, Tags tags) {
+        return metricsTelemetry.createGauge(name, description, unit, valueProvider, tags);
     }
 
     @Override

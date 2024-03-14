@@ -58,13 +58,7 @@ public class MockTelemetry implements Telemetry {
             }
 
             @Override
-            public Closeable createObservableGauge(
-                String name,
-                String description,
-                String unit,
-                Supplier<Double> valueProvider,
-                Tags tags
-            ) {
+            public Closeable createGauge(String name, String description, String unit, Supplier<Double> valueProvider, Tags tags) {
                 return () -> {};
             }
 

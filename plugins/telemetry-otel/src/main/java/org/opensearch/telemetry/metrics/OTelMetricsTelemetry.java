@@ -91,7 +91,7 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
     }
 
     @Override
-    public Closeable createObservableGauge(String name, String description, String unit, Supplier<Double> valueProvider, Tags tags) {
+    public Closeable createGauge(String name, String description, String unit, Supplier<Double> valueProvider, Tags tags) {
         ObservableDoubleGauge doubleObservableGauge = AccessController.doPrivileged(
             (PrivilegedAction<ObservableDoubleGauge>) () -> otelMeter.gaugeBuilder(name)
                 .setUnit(unit)

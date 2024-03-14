@@ -59,8 +59,8 @@ public interface MetricsRegistry extends Closeable {
      * @param unit          unit of the metric.
      * @param valueProvider value provider.
      * @param tags          attributes/dimensions of the metric.
-     * @return observableGauge.
+     * @return closeable to dispose/close the Gauge metric.
      */
-    Closeable createObservableGauge(String name, String description, String unit, Supplier<Double> valueProvider, Tags tags);
+    Closeable createGauge(String name, String description, String unit, Supplier<Double> valueProvider, Tags tags);
 
 }

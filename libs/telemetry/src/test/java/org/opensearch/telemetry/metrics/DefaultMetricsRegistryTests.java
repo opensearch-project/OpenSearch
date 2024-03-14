@@ -66,15 +66,9 @@ public class DefaultMetricsRegistryTests extends OpenSearchTestCase {
     public void testObservableGauge() {
         Closeable mockCloseable = mock(Closeable.class);
         when(
-            defaultMeterRegistry.createObservableGauge(
-                any(String.class),
-                any(String.class),
-                any(String.class),
-                any(Supplier.class),
-                any(Tags.class)
-            )
+            defaultMeterRegistry.createGauge(any(String.class), any(String.class), any(String.class), any(Supplier.class), any(Tags.class))
         ).thenReturn(mockCloseable);
-        Closeable closeable = defaultMeterRegistry.createObservableGauge(
+        Closeable closeable = defaultMeterRegistry.createGauge(
             "org.opensearch.telemetry.metrics.DefaultMeterRegistryTests.testObservableGauge",
             "test observable gauge",
             "ms",
