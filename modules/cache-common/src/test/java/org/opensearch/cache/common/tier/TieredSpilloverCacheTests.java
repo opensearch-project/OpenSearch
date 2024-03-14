@@ -286,9 +286,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             LoadAwareCacheLoader<String, String> tieredCacheLoader = getLoadAwareCacheLoader();
             tieredSpilloverCache.computeIfAbsent(key, tieredCacheLoader);
         }
-        long actualDiskCacheSize = tieredSpilloverCache.getDiskCache().count();
-        // assertEquals(actualDiskCacheSize, removalListener.evictionsMetric.count()); // Evictions from onHeap equal to
-        // disk cache size.
 
         tieredSpilloverCache.getOnHeapCache().keys().forEach(onHeapKeys::add);
         tieredSpilloverCache.getDiskCache().keys().forEach(diskTierKeys::add);
