@@ -996,9 +996,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 }
                 // This is a safety net which prevents un-necessary primary shard relocations from maxNode to minNode when
                 // doing such relocation wouldn't help in primary balance.
-                if (preferPrimaryBalance == true
-                    && shard.primary()
-                    && maxNode.numPrimaryShards() - minNode.numPrimaryShards() < 2) {
+                if (preferPrimaryBalance == true && shard.primary() && maxNode.numPrimaryShards() - minNode.numPrimaryShards() < 2) {
                     continue;
                 }
 
