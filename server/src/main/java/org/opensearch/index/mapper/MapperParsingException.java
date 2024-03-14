@@ -32,16 +32,18 @@
 
 package org.opensearch.index.mapper;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 
 /**
  * Exception thrown if there are any errors parsing mappings
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class MapperParsingException extends MapperException {
 
     public MapperParsingException(StreamInput in) throws IOException {

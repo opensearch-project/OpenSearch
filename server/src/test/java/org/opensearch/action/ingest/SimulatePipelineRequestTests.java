@@ -32,10 +32,10 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -46,7 +46,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class SimulatePipelineRequestTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
-        SimulatePipelineRequest request = new SimulatePipelineRequest(new BytesArray(""), XContentType.JSON);
+        SimulatePipelineRequest request = new SimulatePipelineRequest(new BytesArray(""), MediaTypeRegistry.JSON);
         // Sometimes we set an id
         if (randomBoolean()) {
             request.setId(randomAlphaOfLengthBetween(1, 10));
@@ -69,16 +69,16 @@ public class SimulatePipelineRequestTests extends OpenSearchTestCase {
     public void testSerializationWithXContent() throws IOException {
         SimulatePipelineRequest request = new SimulatePipelineRequest(
             new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
-        assertEquals(XContentType.JSON, request.getXContentType());
+        assertEquals(MediaTypeRegistry.JSON, request.getXContentType());
 
         BytesStreamOutput output = new BytesStreamOutput();
         request.writeTo(output);
         StreamInput in = StreamInput.wrap(output.bytes().toBytesRef().bytes);
 
         SimulatePipelineRequest serialized = new SimulatePipelineRequest(in);
-        assertEquals(XContentType.JSON, serialized.getXContentType());
+        assertEquals(MediaTypeRegistry.JSON, serialized.getXContentType());
         assertEquals("{}", serialized.getSource().utf8ToString());
     }
 }

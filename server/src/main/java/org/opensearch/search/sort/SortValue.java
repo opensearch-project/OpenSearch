@@ -32,10 +32,11 @@
 
 package org.opensearch.search.sort;
 
-import org.opensearch.common.io.stream.NamedWriteable;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 
@@ -46,8 +47,9 @@ import java.util.List;
 /**
  * A {@link Comparable}, {@link DocValueFormat} aware wrapper around a sort value.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class SortValue implements NamedWriteable, Comparable<SortValue> {
     /**
      * Get a {@linkplain SortValue} for a double.
@@ -64,12 +66,20 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     }
 
     /**
+     * Get a {@linkplain SortValue} for a unsigned long.
+     */
+    public static SortValue fromUnsigned(long l) {
+        return new UnsignedLongSortValue(l);
+    }
+
+    /**
      * Get the list of {@linkplain NamedWriteable}s that this class needs.
      */
     public static List<NamedWriteableRegistry.Entry> namedWriteables() {
         return Arrays.asList(
             new NamedWriteableRegistry.Entry(SortValue.class, DoubleSortValue.NAME, DoubleSortValue::new),
-            new NamedWriteableRegistry.Entry(SortValue.class, LongSortValue.NAME, LongSortValue::new)
+            new NamedWriteableRegistry.Entry(SortValue.class, LongSortValue.NAME, LongSortValue::new),
+            new NamedWriteableRegistry.Entry(SortValue.class, UnsignedLongSortValue.NAME, UnsignedLongSortValue::new)
         );
     }
 
@@ -268,6 +278,75 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         @Override
         public String toString() {
             return Long.toString(key);
+        }
+
+        @Override
+        public Number numberValue() {
+            return key;
+        }
+    }
+
+    private static class UnsignedLongSortValue extends SortValue {
+        public static final String NAME = "unsigned_long";
+
+        private final long key;
+
+        UnsignedLongSortValue(long key) {
+            this.key = key;
+        }
+
+        UnsignedLongSortValue(StreamInput in) throws IOException {
+            key = in.readLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(key);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public Object getKey() {
+            return key;
+        }
+
+        @Override
+        public String format(DocValueFormat format) {
+            return format.format(key).toString();
+        }
+
+        @Override
+        protected XContentBuilder rawToXContent(XContentBuilder builder) throws IOException {
+            return builder.value(key);
+        }
+
+        @Override
+        protected int compareToSameType(SortValue obj) {
+            UnsignedLongSortValue other = (UnsignedLongSortValue) obj;
+            return Long.compareUnsigned(key, other.key);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || false == getClass().equals(obj.getClass())) {
+                return false;
+            }
+            UnsignedLongSortValue other = (UnsignedLongSortValue) obj;
+            return key == other.key;
+        }
+
+        @Override
+        public int hashCode() {
+            return Long.hashCode(key);
+        }
+
+        @Override
+        public String toString() {
+            return Long.toUnsignedString(key);
         }
 
         @Override

@@ -32,14 +32,14 @@
 
 package org.opensearch.index.analysis;
 
-import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.phonetic.DaitchMokotoffSoundexFilter;
+import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.plugin.analysis.AnalysisPhoneticPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.MatcherAssert;

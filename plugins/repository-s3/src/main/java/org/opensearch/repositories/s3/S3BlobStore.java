@@ -32,12 +32,9 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.Request;
-import com.amazonaws.Response;
-import com.amazonaws.metrics.RequestMetricCollector;
-import com.amazonaws.services.s3.model.CannedAccessControlList;
-import com.amazonaws.services.s3.model.StorageClass;
-import com.amazonaws.util.AWSRequestMetrics;
+import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
+import software.amazon.awssdk.services.s3.model.StorageClass;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -45,13 +42,24 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.BlobStoreException;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
+import org.opensearch.repositories.s3.async.AsyncTransferManager;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
+
+import static org.opensearch.repositories.s3.S3Repository.BUCKET_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.BUFFER_SIZE_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.BULK_DELETE_SIZE;
+import static org.opensearch.repositories.s3.S3Repository.CANNED_ACL_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.REDIRECT_LARGE_S3_UPLOAD;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.STORAGE_CLASS_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.UPLOAD_RETRY_ENABLED;
 
 class S3BlobStore implements BlobStore {
 
@@ -59,78 +67,80 @@ class S3BlobStore implements BlobStore {
 
     private final S3Service service;
 
-    private final String bucket;
+    private final S3AsyncService s3AsyncService;
 
-    private final ByteSizeValue bufferSize;
+    private volatile String bucket;
 
-    private final boolean serverSideEncryption;
+    private volatile ByteSizeValue bufferSize;
 
-    private final CannedAccessControlList cannedACL;
+    private volatile boolean redirectLargeUploads;
 
-    private final StorageClass storageClass;
+    private volatile boolean uploadRetryEnabled;
 
-    private final RepositoryMetadata repositoryMetadata;
+    private volatile boolean serverSideEncryption;
 
-    private final Stats stats = new Stats();
+    private volatile ObjectCannedACL cannedACL;
 
-    final RequestMetricCollector getMetricCollector;
-    final RequestMetricCollector listMetricCollector;
-    final RequestMetricCollector putMetricCollector;
-    final RequestMetricCollector multiPartUploadMetricCollector;
+    private volatile StorageClass storageClass;
+
+    private volatile int bulkDeletesSize;
+
+    private volatile RepositoryMetadata repositoryMetadata;
+
+    private final StatsMetricPublisher statsMetricPublisher = new StatsMetricPublisher();
+
+    private final AsyncTransferManager asyncTransferManager;
+    private final AsyncExecutorContainer urgentExecutorBuilder;
+    private final AsyncExecutorContainer priorityExecutorBuilder;
+    private final AsyncExecutorContainer normalExecutorBuilder;
+    private final boolean multipartUploadEnabled;
 
     S3BlobStore(
         S3Service service,
+        S3AsyncService s3AsyncService,
+        boolean multipartUploadEnabled,
         String bucket,
         boolean serverSideEncryption,
         ByteSizeValue bufferSize,
         String cannedACL,
         String storageClass,
-        RepositoryMetadata repositoryMetadata
+        int bulkDeletesSize,
+        RepositoryMetadata repositoryMetadata,
+        AsyncTransferManager asyncTransferManager,
+        AsyncExecutorContainer urgentExecutorBuilder,
+        AsyncExecutorContainer priorityExecutorBuilder,
+        AsyncExecutorContainer normalExecutorBuilder
     ) {
         this.service = service;
+        this.s3AsyncService = s3AsyncService;
+        this.multipartUploadEnabled = multipartUploadEnabled;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
+        this.bulkDeletesSize = bulkDeletesSize;
         this.repositoryMetadata = repositoryMetadata;
-        this.getMetricCollector = new RequestMetricCollector() {
-            @Override
-            public void collectMetrics(Request<?> request, Response<?> response) {
-                assert request.getHttpMethod().name().equals("GET");
-                stats.getCount.addAndGet(getRequestCount(request));
-            }
-        };
-        this.listMetricCollector = new RequestMetricCollector() {
-            @Override
-            public void collectMetrics(Request<?> request, Response<?> response) {
-                assert request.getHttpMethod().name().equals("GET");
-                stats.listCount.addAndGet(getRequestCount(request));
-            }
-        };
-        this.putMetricCollector = new RequestMetricCollector() {
-            @Override
-            public void collectMetrics(Request<?> request, Response<?> response) {
-                assert request.getHttpMethod().name().equals("PUT");
-                stats.putCount.addAndGet(getRequestCount(request));
-            }
-        };
-        this.multiPartUploadMetricCollector = new RequestMetricCollector() {
-            @Override
-            public void collectMetrics(Request<?> request, Response<?> response) {
-                assert request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
-                stats.postCount.addAndGet(getRequestCount(request));
-            }
-        };
+        this.asyncTransferManager = asyncTransferManager;
+        this.normalExecutorBuilder = normalExecutorBuilder;
+        this.priorityExecutorBuilder = priorityExecutorBuilder;
+        this.urgentExecutorBuilder = urgentExecutorBuilder;
+        // Settings to initialize blobstore with.
+        this.redirectLargeUploads = REDIRECT_LARGE_S3_UPLOAD.get(repositoryMetadata.settings());
+        this.uploadRetryEnabled = UPLOAD_RETRY_ENABLED.get(repositoryMetadata.settings());
     }
 
-    private long getRequestCount(Request<?> request) {
-        Number requestCount = request.getAWSRequestMetrics().getTimingInfo().getCounter(AWSRequestMetrics.Field.RequestCount.name());
-        if (requestCount == null) {
-            logger.warn("Expected request count to be tracked for request [{}] but found not count.", request);
-            return 0L;
-        }
-        return requestCount.longValue();
+    @Override
+    public void reload(RepositoryMetadata repositoryMetadata) {
+        this.repositoryMetadata = repositoryMetadata;
+        this.bucket = BUCKET_SETTING.get(repositoryMetadata.settings());
+        this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(repositoryMetadata.settings());
+        this.bufferSize = BUFFER_SIZE_SETTING.get(repositoryMetadata.settings());
+        this.cannedACL = initCannedACL(CANNED_ACL_SETTING.get(repositoryMetadata.settings()));
+        this.storageClass = initStorageClass(STORAGE_CLASS_SETTING.get(repositoryMetadata.settings()));
+        this.bulkDeletesSize = BULK_DELETE_SIZE.get(repositoryMetadata.settings());
+        this.redirectLargeUploads = REDIRECT_LARGE_S3_UPLOAD.get(repositoryMetadata.settings());
+        this.uploadRetryEnabled = UPLOAD_RETRY_ENABLED.get(repositoryMetadata.settings());
     }
 
     @Override
@@ -142,8 +152,20 @@ class S3BlobStore implements BlobStore {
         return service.client(repositoryMetadata);
     }
 
+    public AmazonAsyncS3Reference asyncClientReference() {
+        return s3AsyncService.client(repositoryMetadata, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder);
+    }
+
     int getMaxRetries() {
         return service.settings(repositoryMetadata).maxRetries;
+    }
+
+    public boolean isRedirectLargeUploads() {
+        return redirectLargeUploads;
+    }
+
+    public boolean isUploadRetryEnabled() {
+        return uploadRetryEnabled;
     }
 
     public String bucket() {
@@ -158,6 +180,10 @@ class S3BlobStore implements BlobStore {
         return bufferSize.getBytes();
     }
 
+    public int getBulkDeletesSize() {
+        return bulkDeletesSize;
+    }
+
     @Override
     public BlobContainer blobContainer(BlobPath path) {
         return new S3BlobContainer(path, this);
@@ -165,15 +191,30 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public void close() throws IOException {
-        this.service.close();
+        if (service != null) {
+            this.service.close();
+        }
+        if (s3AsyncService != null) {
+            this.s3AsyncService.close();
+        }
     }
 
     @Override
     public Map<String, Long> stats() {
-        return stats.toMap();
+        return statsMetricPublisher.getStats().toMap();
     }
 
-    public CannedAccessControlList getCannedACL() {
+    @Override
+    public Map<Metric, Map<String, Long>> extendedStats() {
+        if (statsMetricPublisher.getExtendedStats() == null || statsMetricPublisher.getExtendedStats().isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Metric, Map<String, Long>> extendedStats = new HashMap<>();
+        statsMetricPublisher.getExtendedStats().forEach((k, v) -> extendedStats.put(k, v.toMap()));
+        return extendedStats;
+    }
+
+    public ObjectCannedACL getCannedACL() {
         return cannedACL;
     }
 
@@ -181,32 +222,36 @@ class S3BlobStore implements BlobStore {
         return storageClass;
     }
 
-    public static StorageClass initStorageClass(String storageClass) {
-        if ((storageClass == null) || storageClass.equals("")) {
-            return StorageClass.Standard;
+    public StatsMetricPublisher getStatsMetricPublisher() {
+        return statsMetricPublisher;
+    }
+
+    public static StorageClass initStorageClass(String storageClassStringValue) {
+        if ((storageClassStringValue == null) || storageClassStringValue.equals("")) {
+            return StorageClass.STANDARD;
         }
 
-        try {
-            final StorageClass _storageClass = StorageClass.fromValue(storageClass.toUpperCase(Locale.ENGLISH));
-            if (_storageClass.equals(StorageClass.Glacier)) {
-                throw new BlobStoreException("Glacier storage class is not supported");
-            }
-
-            return _storageClass;
-        } catch (final IllegalArgumentException illegalArgumentException) {
-            throw new BlobStoreException("`" + storageClass + "` is not a valid S3 Storage Class.");
+        final StorageClass storageClass = StorageClass.fromValue(storageClassStringValue.toUpperCase(Locale.ENGLISH));
+        if (storageClass.equals(StorageClass.GLACIER)) {
+            throw new BlobStoreException("Glacier storage class is not supported");
         }
+
+        if (storageClass == StorageClass.UNKNOWN_TO_SDK_VERSION) {
+            throw new BlobStoreException("`" + storageClassStringValue + "` is not a valid S3 Storage Class.");
+        }
+
+        return storageClass;
     }
 
     /**
      * Constructs canned acl from string
      */
-    public static CannedAccessControlList initCannedACL(String cannedACL) {
+    public static ObjectCannedACL initCannedACL(String cannedACL) {
         if ((cannedACL == null) || cannedACL.equals("")) {
-            return CannedAccessControlList.Private;
+            return ObjectCannedACL.PRIVATE;
         }
 
-        for (final CannedAccessControlList cur : CannedAccessControlList.values()) {
+        for (final ObjectCannedACL cur : ObjectCannedACL.values()) {
             if (cur.toString().equalsIgnoreCase(cannedACL)) {
                 return cur;
             }
@@ -215,23 +260,7 @@ class S3BlobStore implements BlobStore {
         throw new BlobStoreException("cannedACL is not valid: [" + cannedACL + "]");
     }
 
-    static class Stats {
-
-        final AtomicLong listCount = new AtomicLong();
-
-        final AtomicLong getCount = new AtomicLong();
-
-        final AtomicLong putCount = new AtomicLong();
-
-        final AtomicLong postCount = new AtomicLong();
-
-        Map<String, Long> toMap() {
-            final Map<String, Long> results = new HashMap<>();
-            results.put("GetObject", getCount.get());
-            results.put("ListObjects", listCount.get());
-            results.put("PutObject", putCount.get());
-            results.put("PutMultipartObject", postCount.get());
-            return results;
-        }
+    public AsyncTransferManager getAsyncTransferManager() {
+        return asyncTransferManager;
     }
 }

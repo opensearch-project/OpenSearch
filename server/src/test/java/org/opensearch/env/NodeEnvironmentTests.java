@@ -39,16 +39,16 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.gateway.MetadataStateFormat;
-import org.opensearch.index.Index;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.node.Node;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.NodeRoles;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -65,8 +65,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.opensearch.test.NodeRoles.nonDataNode;
 import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
+import static org.opensearch.test.NodeRoles.nonDataNode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -359,6 +359,57 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         env.close();
     }
 
+    public void testIndexStoreListener() throws Exception {
+        final AtomicInteger shardCounter = new AtomicInteger(0);
+        final AtomicInteger indexCounter = new AtomicInteger(0);
+        final Index index = new Index("foo", "fooUUID");
+        final ShardId shardId = new ShardId(index, 0);
+        final NodeEnvironment.IndexStoreListener listener = new NodeEnvironment.IndexStoreListener() {
+            @Override
+            public void beforeShardPathDeleted(ShardId inShardId, IndexSettings indexSettings, NodeEnvironment env) {
+                assertEquals(shardId, inShardId);
+                shardCounter.incrementAndGet();
+            }
+
+            @Override
+            public void beforeIndexPathDeleted(Index inIndex, IndexSettings indexSettings, NodeEnvironment env) {
+                assertEquals(index, inIndex);
+                indexCounter.incrementAndGet();
+            }
+        };
+        final NodeEnvironment env = newNodeEnvironment(listener);
+
+        for (Path path : env.indexPaths(index)) {
+            Files.createDirectories(path.resolve("0"));
+        }
+
+        for (Path path : env.indexPaths(index)) {
+            assertTrue(Files.exists(path.resolve("0")));
+        }
+        assertEquals(0, shardCounter.get());
+
+        env.deleteShardDirectorySafe(new ShardId(index, 0), idxSettings);
+
+        for (Path path : env.indexPaths(index)) {
+            assertFalse(Files.exists(path.resolve("0")));
+        }
+        assertEquals(1, shardCounter.get());
+
+        for (Path path : env.indexPaths(index)) {
+            assertTrue(Files.exists(path));
+        }
+        assertEquals(0, indexCounter.get());
+
+        env.deleteIndexDirectorySafe(index, 5000, idxSettings);
+
+        for (Path path : env.indexPaths(index)) {
+            assertFalse(Files.exists(path));
+        }
+        assertEquals(1, indexCounter.get());
+        assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
+        env.close();
+    }
+
     public void testStressShardLock() throws IOException, InterruptedException {
         class Int {
             int value = 0;
@@ -627,6 +678,11 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
     @Override
     public NodeEnvironment newNodeEnvironment() throws IOException {
         return newNodeEnvironment(Settings.EMPTY);
+    }
+
+    public NodeEnvironment newNodeEnvironment(NodeEnvironment.IndexStoreListener listener) throws IOException {
+        Settings build = buildEnvSettings(Settings.EMPTY);
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build), listener);
     }
 
     @Override

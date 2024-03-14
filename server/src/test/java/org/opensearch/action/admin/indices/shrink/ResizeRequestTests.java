@@ -36,11 +36,12 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestTests;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.RandomCreateIndexGenerator;
 import org.opensearch.test.OpenSearchTestCase;
@@ -78,7 +79,7 @@ public class ResizeRequestTests extends OpenSearchTestCase {
     public void testToXContent() throws IOException {
         {
             ResizeRequest request = new ResizeRequest("target", "source");
-            String actualRequestBody = Strings.toString(XContentType.JSON, request);
+            String actualRequestBody = Strings.toString(MediaTypeRegistry.JSON, request);
             assertEquals("{\"settings\":{},\"aliases\":{}}", actualRequestBody);
         }
         {
@@ -93,7 +94,7 @@ public class ResizeRequestTests extends OpenSearchTestCase {
             settings.put(SETTING_NUMBER_OF_SHARDS, 10);
             target.settings(settings);
             request.setTargetIndex(target);
-            String actualRequestBody = Strings.toString(XContentType.JSON, request);
+            String actualRequestBody = Strings.toString(MediaTypeRegistry.JSON, request);
             String expectedRequestBody = "{\"settings\":{\"index\":{\"number_of_shards\":\"10\"}},"
                 + "\"aliases\":{\"test_alias\":{\"filter\":{\"term\":{\"year\":2016}},\"routing\":\"1\",\"is_write_index\":true}}}";
             assertEquals(expectedRequestBody, actualRequestBody);
@@ -130,13 +131,36 @@ public class ResizeRequestTests extends OpenSearchTestCase {
     public void testTargetIndexSettingsValidation() {
         ResizeRequest resizeRequest = new ResizeRequest(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10));
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(randomAlphaOfLengthBetween(3, 10));
+        createIndexRequest.settings(Settings.builder().put("index.blocks.read_only", true));
+        resizeRequest.setTargetIndex(createIndexRequest);
+        ActionRequestValidationException e = resizeRequest.validate();
+        assertEquals(
+            "Validation Failed: 1: target index ["
+                + createIndexRequest.index()
+                + "] will be blocked by [index.blocks.read_only=true],"
+                + " this will disable metadata writes and cause the shards to be unassigned;",
+            e.getMessage()
+        );
+
+        createIndexRequest.settings(Settings.builder().put("index.blocks.metadata", true));
+        resizeRequest.setMaxShardSize(new ByteSizeValue(randomIntBetween(1, 100)));
+        resizeRequest.setTargetIndex(createIndexRequest);
+        e = resizeRequest.validate();
+        assertEquals(
+            "Validation Failed: 1: target index ["
+                + createIndexRequest.index()
+                + "] will be blocked by [index.blocks.metadata=true],"
+                + " this will disable metadata writes and cause the shards to be unassigned;",
+            e.getMessage()
+        );
+
         createIndexRequest.settings(
             Settings.builder()
                 .put("index.sort.field", randomAlphaOfLengthBetween(3, 10))
                 .put("index.routing_partition_size", randomIntBetween(1, 10))
         );
         resizeRequest.setTargetIndex(createIndexRequest);
-        ActionRequestValidationException e = resizeRequest.validate();
+        e = resizeRequest.validate();
         assertEquals(
             "Validation Failed: 1: can't override index sort when resizing an index;"
                 + "2: cannot provide a routing partition size value when resizing an index;",

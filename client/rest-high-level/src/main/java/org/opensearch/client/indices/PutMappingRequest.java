@@ -36,11 +36,10 @@ import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.TimedRequest;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -98,17 +97,7 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
     }
 
     /**
-     * The {@link XContentType} of the mapping source.
-     *
-     * @deprecated use {@link #mediaType()} instead
-     */
-    @Deprecated
-    public XContentType xContentType() {
-        return XContentType.fromMediaType(mediaType);
-    }
-
-    /**
-     * The {@link XContentType} of the mapping source.
+     * The {@link MediaType} of the mapping source.
      */
     public MediaType mediaType() {
         return mediaType;
@@ -116,12 +105,12 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
 
     /**
      * The mapping source definition.
-     *
+     * <p>
      * Note that the definition should *not* be nested under a type name.
      */
     public PutMappingRequest source(Map<String, ?> mappingSource) {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.getDefaultMediaType());
             builder.map(mappingSource);
             return source(builder);
         } catch (IOException e) {
@@ -131,21 +120,7 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
 
     /**
      * The mapping source definition.
-     *
-     * Note that the definition should *not* be nested under a type name.
-     *
-     * @deprecated use {@link #source(String, MediaType)} instead
-     */
-    @Deprecated
-    public PutMappingRequest source(String mappingSource, XContentType xContentType) {
-        this.source = new BytesArray(mappingSource);
-        this.mediaType = xContentType;
-        return this;
-    }
-
-    /**
-     * The mapping source definition.
-     *
+     * <p>
      * Note that the definition should *not* be nested under a type name.
      */
     public PutMappingRequest source(String mappingSource, MediaType mediaType) {
@@ -156,7 +131,7 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
 
     /**
      * The mapping source definition.
-     *
+     * <p>
      * Note that the definition should *not* be nested under a type name.
      */
     public PutMappingRequest source(XContentBuilder builder) {
@@ -167,21 +142,7 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
 
     /**
      * The mapping source definition.
-     *
-     * Note that the definition should *not* be nested under a type name.
-     *
-     * @deprecated use {@link #source(BytesReference, MediaType)} instead
-     */
-    @Deprecated
-    public PutMappingRequest source(BytesReference source, XContentType xContentType) {
-        this.source = source;
-        this.mediaType = xContentType;
-        return this;
-    }
-
-    /**
-     * The mapping source definition.
-     *
+     * <p>
      * Note that the definition should *not* be nested under a type name.
      */
     public PutMappingRequest source(BytesReference source, MediaType mediaType) {

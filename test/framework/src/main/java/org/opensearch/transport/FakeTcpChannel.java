@@ -31,9 +31,9 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.action.ActionListener;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.concurrent.CompletableContext;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicReference;

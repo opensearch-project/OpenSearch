@@ -32,23 +32,24 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.Version;
-import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ShardOperationFailedException;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.repositories.IndexId;
-import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -64,8 +65,9 @@ import java.util.stream.Collectors;
 /**
  * Information about a snapshot
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent, Writeable {
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
@@ -94,6 +96,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final String TOTAL_SHARDS = "total_shards";
     private static final String SUCCESSFUL_SHARDS = "successful_shards";
     private static final String INCLUDE_GLOBAL_STATE = "include_global_state";
+
+    private static final String REMOTE_STORE_INDEX_SHALLOW_COPY = "remote_store_index_shallow_copy";
     private static final String USER_METADATA = "metadata";
 
     private static final Comparator<SnapshotInfo> COMPARATOR = Comparator.comparing(SnapshotInfo::startTime)
@@ -115,6 +119,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         private long endTime = 0L;
         private ShardStatsBuilder shardStatsBuilder = null;
         private Boolean includeGlobalState = null;
+
+        private Boolean remoteStoreIndexShallowCopy = null;
         private Map<String, Object> userMetadata = null;
         private int version = -1;
         private List<SnapshotShardFailure> shardFailures = null;
@@ -167,6 +173,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             this.version = version;
         }
 
+        private void setRemoteStoreIndexShallowCopy(Boolean remoteStoreIndexShallowCopy) {
+            this.remoteStoreIndexShallowCopy = remoteStoreIndexShallowCopy;
+        }
+
         private void setShardFailures(List<SnapshotShardFailure> shardFailures) {
             this.shardFailures = shardFailures;
         }
@@ -205,7 +215,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                 successfulShards,
                 shardFailures,
                 includeGlobalState,
-                userMetadata
+                userMetadata,
+                remoteStoreIndexShallowCopy
             );
         }
     }
@@ -256,6 +267,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         SNAPSHOT_INFO_PARSER.declareBoolean(SnapshotInfoBuilder::setIncludeGlobalState, new ParseField(INCLUDE_GLOBAL_STATE));
         SNAPSHOT_INFO_PARSER.declareObject(SnapshotInfoBuilder::setUserMetadata, (p, c) -> p.map(), new ParseField(USER_METADATA));
         SNAPSHOT_INFO_PARSER.declareInt(SnapshotInfoBuilder::setVersion, new ParseField(VERSION_ID));
+        SNAPSHOT_INFO_PARSER.declareBoolean(
+            SnapshotInfoBuilder::setRemoteStoreIndexShallowCopy,
+            new ParseField(REMOTE_STORE_INDEX_SHALLOW_COPY)
+        );
         SNAPSHOT_INFO_PARSER.declareObjectArray(
             SnapshotInfoBuilder::setShardFailures,
             SnapshotShardFailure.SNAPSHOT_SHARD_FAILURE_PARSER,
@@ -290,6 +305,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private Boolean includeGlobalState;
 
     @Nullable
+    private Boolean remoteStoreIndexShallowCopy;
+
+    @Nullable
     private final Map<String, Object> userMetadata;
 
     @Nullable
@@ -298,11 +316,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private final List<SnapshotShardFailure> shardFailures;
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, SnapshotState state) {
-        this(snapshotId, indices, dataStreams, state, null, null, 0L, 0L, 0, 0, Collections.emptyList(), null, null);
+        this(snapshotId, indices, dataStreams, state, null, null, 0L, 0L, 0, 0, Collections.emptyList(), null, null, null);
     }
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, SnapshotState state, Version version) {
-        this(snapshotId, indices, dataStreams, state, null, version, 0L, 0L, 0, 0, Collections.emptyList(), null, null);
+        this(snapshotId, indices, dataStreams, state, null, version, 0L, 0L, 0, 0, Collections.emptyList(), null, null, null);
     }
 
     public SnapshotInfo(SnapshotsInProgress.Entry entry) {
@@ -319,7 +337,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             0,
             Collections.emptyList(),
             entry.includeGlobalState(),
-            entry.userMetadata()
+            entry.userMetadata(),
+            entry.remoteStoreIndexShallowCopy()
         );
     }
 
@@ -333,7 +352,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         int totalShards,
         List<SnapshotShardFailure> shardFailures,
         Boolean includeGlobalState,
-        Map<String, Object> userMetadata
+        Map<String, Object> userMetadata,
+        Boolean remoteStoreIndexShallowCopy
     ) {
         this(
             snapshotId,
@@ -348,7 +368,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             totalShards - shardFailures.size(),
             shardFailures,
             includeGlobalState,
-            userMetadata
+            userMetadata,
+            remoteStoreIndexShallowCopy
         );
     }
 
@@ -365,7 +386,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         int successfulShards,
         List<SnapshotShardFailure> shardFailures,
         Boolean includeGlobalState,
-        Map<String, Object> userMetadata
+        Map<String, Object> userMetadata,
+        Boolean remoteStoreIndexShallowCopy
     ) {
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.indices = Collections.unmodifiableList(Objects.requireNonNull(indices));
@@ -380,6 +402,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         this.shardFailures = Objects.requireNonNull(shardFailures);
         this.includeGlobalState = includeGlobalState;
         this.userMetadata = userMetadata;
+        this.remoteStoreIndexShallowCopy = remoteStoreIndexShallowCopy;
     }
 
     /**
@@ -395,10 +418,13 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
         shardFailures = Collections.unmodifiableList(in.readList(SnapshotShardFailure::new));
-        version = in.readBoolean() ? Version.readVersion(in) : null;
+        version = in.readBoolean() ? in.readVersion() : null;
         includeGlobalState = in.readOptionalBoolean();
         userMetadata = in.readMap();
         dataStreams = in.readStringList();
+        if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
+            remoteStoreIndexShallowCopy = in.readOptionalBoolean();
+        }
     }
 
     /**
@@ -508,6 +534,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         return includeGlobalState;
     }
 
+    @Nullable
+    public Boolean isRemoteStoreIndexShallowCopyEnabled() {
+        return remoteStoreIndexShallowCopy;
+    }
+
     /**
      * Returns shard failures; an empty list will be returned if there were no shard
      * failures, or if {@link #state()} returns {@code null}.
@@ -573,6 +604,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             + version
             + ", shardFailures="
             + shardFailures
+            + ", isRemoteStoreInteropEnabled="
+            + remoteStoreIndexShallowCopy
             + '}';
     }
 
@@ -604,6 +637,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (version != null) {
             builder.field(VERSION_ID, version.id);
             builder.field(VERSION, version.toString());
+        }
+        if (remoteStoreIndexShallowCopy != null) {
+            builder.field(REMOTE_STORE_INDEX_SHALLOW_COPY, remoteStoreIndexShallowCopy);
         }
         builder.startArray(INDICES);
         for (String index : indices) {
@@ -660,6 +696,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         builder.field(UUID, snapshotId.getUUID());
         assert version != null : "version must always be known when writing a snapshot metadata blob";
         builder.field(VERSION_ID, version.id);
+        if (remoteStoreIndexShallowCopy != null) {
+            builder.field(REMOTE_STORE_INDEX_SHALLOW_COPY, remoteStoreIndexShallowCopy);
+        }
         builder.startArray(INDICES);
         for (String index : indices) {
             builder.value(index);
@@ -709,6 +748,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         int totalShards = 0;
         int successfulShards = 0;
         Boolean includeGlobalState = null;
+        Boolean remoteStoreIndexShallowCopy = null;
         Map<String, Object> userMetadata = null;
         List<SnapshotShardFailure> shardFailures = Collections.emptyList();
         if (parser.currentToken() == null) { // fresh parser? move to the first token
@@ -746,6 +786,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                             version = Version.fromId(parser.intValue());
                         } else if (INCLUDE_GLOBAL_STATE.equals(currentFieldName)) {
                             includeGlobalState = parser.booleanValue();
+                        } else if (REMOTE_STORE_INDEX_SHALLOW_COPY.equals(currentFieldName)) {
+                            remoteStoreIndexShallowCopy = parser.booleanValue();
                         }
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         if (DATA_STREAMS.equals(currentFieldName)) {
@@ -797,7 +839,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             successfulShards,
             shardFailures,
             includeGlobalState,
-            userMetadata
+            userMetadata,
+            remoteStoreIndexShallowCopy
         );
     }
 
@@ -819,13 +862,16 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         out.writeList(shardFailures);
         if (version != null) {
             out.writeBoolean(true);
-            Version.writeVersion(version, out);
+            out.writeVersion(version);
         } else {
             out.writeBoolean(false);
         }
         out.writeOptionalBoolean(includeGlobalState);
         out.writeMap(userMetadata);
         out.writeStringCollection(dataStreams);
+        if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
+            out.writeOptionalBoolean(remoteStoreIndexShallowCopy);
+        }
     }
 
     private static SnapshotState snapshotState(final String reason, final List<SnapshotShardFailure> shardFailures) {
@@ -857,7 +903,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             && Objects.equals(includeGlobalState, that.includeGlobalState)
             && Objects.equals(version, that.version)
             && Objects.equals(shardFailures, that.shardFailures)
-            && Objects.equals(userMetadata, that.userMetadata);
+            && Objects.equals(userMetadata, that.userMetadata)
+            && Objects.equals(remoteStoreIndexShallowCopy, that.remoteStoreIndexShallowCopy);
     }
 
     @Override
@@ -876,7 +923,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             includeGlobalState,
             version,
             shardFailures,
-            userMetadata
+            userMetadata,
+            remoteStoreIndexShallowCopy
         );
     }
 }

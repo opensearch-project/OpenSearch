@@ -40,10 +40,11 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -57,8 +58,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * Request class to shrink an index into a single shard
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements IndicesRequest, ToXContentObject {
 
     public static final ObjectParser<ResizeRequest, Void> PARSER = new ObjectParser<>("resize_request");
@@ -145,6 +147,27 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         }
         if (maxShardSize != null && maxShardSize.getBytes() <= 0) {
             validationException = addValidationError("max_shard_size must be greater than 0", validationException);
+        }
+        // Check target index's settings, if `index.blocks.read_only` is `true`, the target index's metadata writes will be disabled
+        // and then cause the new shards to be unassigned.
+        if (IndexMetadata.INDEX_READ_ONLY_SETTING.get(targetIndexRequest.settings()) == true) {
+            validationException = addValidationError(
+                "target index ["
+                    + targetIndexRequest.index()
+                    + "] will be blocked by [index.blocks.read_only=true], this will disable metadata writes and cause the shards to be unassigned",
+                validationException
+            );
+        }
+
+        // Check target index's settings, if `index.blocks.metadata` is `true`, the target index's metadata writes will be disabled
+        // and then cause the new shards to be unassigned.
+        if (IndexMetadata.INDEX_BLOCKS_METADATA_SETTING.get(targetIndexRequest.settings()) == true) {
+            validationException = addValidationError(
+                "target index ["
+                    + targetIndexRequest.index()
+                    + "] will be blocked by [index.blocks.metadata=true], this will disable metadata writes and cause the shards to be unassigned",
+                validationException
+            );
         }
         assert copySettings == null || copySettings;
         return validationException;

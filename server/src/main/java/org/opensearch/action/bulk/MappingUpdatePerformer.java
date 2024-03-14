@@ -32,9 +32,9 @@
 
 package org.opensearch.action.bulk;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.mapper.Mapping;
-import org.opensearch.index.shard.ShardId;
 
 /**
  * Updates the mappings on the cluster manager

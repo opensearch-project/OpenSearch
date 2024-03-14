@@ -37,6 +37,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.DoubleComparator;
@@ -95,16 +96,14 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
         }
     }
 
-    protected void setScorer(Scorable scorer) {}
+    protected void setScorer(Scorable scorer, LeafReaderContext context) {}
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
+    public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning pruning, boolean reversed) {
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final double dMissingValue = (Double) missingObject(missingValue, reversed);
-        // NOTE: it's important to pass null as a missing value in the constructor so that
-        // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new DoubleComparator(numHits, null, null, reversed, false) {
+        return new DoubleComparator(numHits, fieldname, dMissingValue, reversed, filterPruning(pruning)) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new DoubleLeafComparator(context) {
@@ -115,7 +114,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
 
                     @Override
                     public void setScorer(Scorable scorer) {
-                        DoubleValuesComparatorSource.this.setScorer(scorer);
+                        DoubleValuesComparatorSource.this.setScorer(scorer, context);
                     }
                 };
             }

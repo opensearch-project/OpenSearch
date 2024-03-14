@@ -50,10 +50,12 @@ import org.gradle.process.ExecResult;
 import org.gradle.process.ExecSpec;
 
 import javax.inject.Inject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+
 import static java.util.Arrays.asList;
 
 public class InternalBwcGitPlugin implements Plugin<Project> {
@@ -74,7 +76,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
     public void apply(Project project) {
         this.project = project;
         this.gitExtension = project.getExtensions().create("bwcGitConfig", BwcGitExtension.class);
-        Provider<String> remote = providerFactory.systemProperty("bwc.remote").forUseAtConfigurationTime().orElse("opensearch-project");
+        Provider<String> remote = providerFactory.systemProperty("bwc.remote").orElse("opensearch-project");
 
         TaskContainer tasks = project.getTasks();
         TaskProvider<LoggedExec> createCloneTaskProvider = tasks.register("createClone", LoggedExec.class, createClone -> {
@@ -103,7 +105,6 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             String remoteRepo = remote.get();
             // for testing only we can override the base remote url
             String remoteRepoUrl = providerFactory.systemProperty("testRemoteRepo")
-                .forUseAtConfigurationTime()
                 .getOrElse("https://github.com/" + remoteRepo + "/OpenSearch.git");
             addRemote.setCommandLine(asList("git", "remote", "add", remoteRepo, remoteRepoUrl));
         });
@@ -111,7 +112,6 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         TaskProvider<LoggedExec> fetchLatestTaskProvider = tasks.register("fetchLatest", LoggedExec.class, fetchLatest -> {
             Provider<Object> gitFetchLatest = project.getProviders()
                 .systemProperty("tests.bwc.git_fetch_latest")
-                .forUseAtConfigurationTime()
                 .orElse("true")
                 .map(fetchProp -> {
                     if ("true".equals(fetchProp)) {

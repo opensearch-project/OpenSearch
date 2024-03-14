@@ -41,11 +41,12 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
@@ -53,15 +54,16 @@ import org.opensearch.test.VersionUtils;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
-import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 
 public class IndexSettingsTests extends OpenSearchTestCase {
 
@@ -325,7 +327,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
     }
 
     public void testRefreshInterval() {
-        String refreshInterval = getRandomTimeString();
+        String refreshInterval = getRandomTimeString(false);
         IndexMetadata metadata = newIndexMeta(
             "index",
             Settings.builder()
@@ -342,7 +344,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             ),
             settings.getRefreshInterval()
         );
-        String newRefreshInterval = getRandomTimeString();
+        String newRefreshInterval = getRandomTimeString(false);
         settings.updateIndexMetadata(
             newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), newRefreshInterval).build())
         );
@@ -356,8 +358,12 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
     }
 
-    private String getRandomTimeString() {
-        int refreshIntervalInt = randomFrom(-1, Math.abs(randomInt()));
+    private String getRandomTimeString(boolean nonNegativeOnly) {
+        int start = -1;
+        if (nonNegativeOnly) {
+            start = 0;
+        }
+        int refreshIntervalInt = randomFrom(start, Math.abs(randomInt()));
         String refreshInterval = Integer.toString(refreshIntervalInt);
         if (refreshIntervalInt >= 0) {
             refreshInterval += randomFrom("s", "ms", "h");
@@ -773,6 +779,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             "index",
             Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
                 .build()
         );
@@ -787,77 +794,6 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertFalse(settings.isRemoteTranslogStoreEnabled());
-    }
-
-    public void testRemoteTranslogStoreExplicitSetting() {
-        IndexMetadata metadata = newIndexMeta(
-            "index",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
-                .build()
-        );
-        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertTrue(settings.isRemoteTranslogStoreEnabled());
-    }
-
-    public void testRemoteTranslogStoreNullSetting() {
-        Settings indexSettings = Settings.builder()
-            .put("index.remote_store.translog.enabled", "null")
-            .put("index.remote_store.enabled", randomBoolean())
-            .build();
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.get(indexSettings)
-        );
-        assertEquals("Failed to parse value [null] as only [true] or [false] are allowed.", iae.getMessage());
-    }
-
-    public void testUpdateRemoteStoreFails() {
-        Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
-        remoteStoreSettingSet.add(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING);
-        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, remoteStoreSettingSet);
-        SettingsException error = expectThrows(
-            SettingsException.class,
-            () -> settings.updateSettings(
-                Settings.builder().put("index.remote_store.enabled", randomBoolean()).build(),
-                Settings.builder(),
-                Settings.builder(),
-                "index"
-            )
-        );
-        assertEquals(error.getMessage(), "final index setting [index.remote_store.enabled], not updateable");
-    }
-
-    public void testUpdateRemoteTranslogStoreFails() {
-        Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
-        remoteStoreSettingSet.add(IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
-        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, remoteStoreSettingSet);
-        SettingsException error = expectThrows(
-            SettingsException.class,
-            () -> settings.updateSettings(
-                Settings.builder().put("index.remote_store.translog.enabled", randomBoolean()).build(),
-                Settings.builder(),
-                Settings.builder(),
-                "index"
-            )
-        );
-        assertEquals(error.getMessage(), "final index setting [index.remote_store.translog.enabled], not updateable");
-    }
-
-    public void testEnablingRemoteTranslogStoreFailsWhenRemoteSegmentDisabled() {
-        Settings indexSettings = Settings.builder()
-            .put("index.remote_store.translog.enabled", true)
-            .put("index.remote_store.enabled", false)
-            .build();
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.get(indexSettings)
-        );
-        assertEquals(
-            "Settings index.remote_store.translog.enabled can only be set/enabled when index.remote_store.enabled is set to true",
-            iae.getMessage()
-        );
     }
 
     public void testEnablingRemoteStoreFailsWhenReplicationTypeIsDocument() {
@@ -895,57 +831,54 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             "index",
             Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-                .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, "repo1")
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "repo1")
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals("repo1", settings.getRemoteStoreRepository());
     }
 
-    public void testUpdateRemoteRepositoryFails() {
-        Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
-        remoteStoreSettingSet.add(IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING);
-        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, remoteStoreSettingSet);
-        SettingsException error = expectThrows(
-            SettingsException.class,
-            () -> settings.updateSettings(
-                Settings.builder().put("index.remote_store.repository", randomUnicodeOfLength(10)).build(),
-                Settings.builder(),
-                Settings.builder(),
-                "index"
-            )
-        );
-        assertEquals(error.getMessage(), "final index setting [index.remote_store.repository], not updateable");
-    }
-
     public void testSetRemoteRepositoryFailsWhenRemoteStoreIsNotEnabled() {
         Settings indexSettings = Settings.builder()
-            .put("index.replication.type", ReplicationType.SEGMENT)
-            .put("index.remote_store.enabled", false)
-            .put("index.remote_store.repository", "repo1")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "repo1")
             .build();
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING.get(indexSettings)
+            () -> IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals(
-            "Settings index.remote_store.repository can only be set/enabled when index.remote_store.enabled is set to true",
+            String.format(
+                Locale.ROOT,
+                "Settings %s can only be set/enabled when %s is set to true",
+                IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
+                IndexMetadata.SETTING_REMOTE_STORE_ENABLED
+            ),
             iae.getMessage()
         );
     }
 
     public void testSetRemoteRepositoryFailsWhenEmptyString() {
         Settings indexSettings = Settings.builder()
-            .put("index.replication.type", ReplicationType.SEGMENT)
-            .put("index.remote_store.enabled", false)
-            .put("index.remote_store.repository", "")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "")
             .build();
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING.get(indexSettings)
+            () -> IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.get(indexSettings)
         );
-        assertEquals("Setting index.remote_store.repository should be provided with non-empty repository ID", iae.getMessage());
+        assertEquals(
+            String.format(
+                Locale.ROOT,
+                "Setting %s should be provided with non-empty repository ID",
+                IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY
+            ),
+            iae.getMessage()
+        );
     }
 
     public void testRemoteTranslogRepoDefaultSetting() {
@@ -962,9 +895,8 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             "index",
             Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
                 .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "tlog-store")
-                .put(IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "200ms")
+                .put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "200ms")
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
@@ -973,10 +905,10 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         assertEquals(TimeValue.timeValueMillis(200), settings.getRemoteTranslogUploadBufferInterval());
     }
 
-    public void testSetRemoteTranslogRepositoryFailsWhenRemoteTranslogIsNotEnabled() {
+    public void testSetRemoteTranslogRepositoryFailsWhenRemoteStoreIsNotEnabled() {
         Settings indexSettings = Settings.builder()
-            .put("index.replication.type", ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "repo1")
             .build();
         IllegalArgumentException iae = expectThrows(
@@ -984,15 +916,15 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals(
-            "Settings index.remote_store.translog.repository can only be set/enabled when index.remote_store.translog.enabled is set to true",
+            "Settings index.remote_store.translog.repository can only be set/enabled when index.remote_store.enabled is set to true",
             iae.getMessage()
         );
     }
 
     public void testSetRemoteTranslogRepositoryFailsWhenEmptyString() {
         Settings indexSettings = Settings.builder()
-            .put("index.replication.type", ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "")
             .build();
         IllegalArgumentException iae = expectThrows(
@@ -1006,36 +938,20 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         Version createdVersion = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
             .build();
-        assertEquals(TimeValue.timeValueMillis(100), IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings));
-    }
-
-    public void testSetRemoteTranslogBufferIntervalFailsWhenRemoteTranslogIsNotEnabled() {
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL, "200ms")
-            .build();
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings)
-        );
-        assertEquals(
-            "Setting index.remote_store.translog.buffer_interval can only be set when index.remote_store.translog.enabled is set to true",
-            iae.getMessage()
-        );
+        assertEquals(TimeValue.timeValueMillis(650), IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings));
     }
 
     public void testSetRemoteTranslogBufferIntervalFailsWhenEmpty() {
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL, "")
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
+            .put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "")
             .build();
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings)
+            () -> IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings)
         );
         assertEquals(
             "failed to parse setting [index.remote_store.translog.buffer_interval] with value [] as a time value: unit is missing or unrecognized",
@@ -1043,20 +959,54 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
     }
 
+    public void testUpdateRemoteTranslogBufferInterval() {
+        String bufferInterval = getRandomTimeString(true);
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), bufferInterval)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(
+            TimeValue.parseTimeValue(
+                bufferInterval,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey()
+            ),
+            settings.getRemoteTranslogUploadBufferInterval()
+        );
+        String newBufferInterval = getRandomTimeString(true);
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder().put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), newBufferInterval).build()
+            )
+        );
+        assertEquals(
+            TimeValue.parseTimeValue(
+                newBufferInterval,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey()
+            ),
+            settings.getRemoteTranslogUploadBufferInterval()
+        );
+    }
+
     @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
     public void testExtendedCompatibilityVersionForRemoteSnapshot() throws Exception {
-        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
-            IndexMetadata metadata = newIndexMeta(
-                "index",
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
-                    .build()
-            );
-            IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-            assertTrue(settings.isRemoteSnapshot());
-            assertEquals(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION, settings.getExtendedCompatibilitySnapshotVersion());
-        }
+        FeatureFlagSetter.set(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY);
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertTrue(settings.isRemoteSnapshot());
+        assertEquals(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION, settings.getExtendedCompatibilitySnapshotVersion());
     }
 
     public void testExtendedCompatibilityVersionForNonRemoteSnapshot() {
@@ -1083,5 +1033,24 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertTrue(settings.isRemoteSnapshot());
         assertEquals(Version.CURRENT.minimumIndexCompatibilityVersion(), settings.getExtendedCompatibilitySnapshotVersion());
+    }
+
+    @SuppressForbidden(reason = "sets the SEARCH_PIPELINE feature flag")
+    public void testDefaultSearchPipeline() throws Exception {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(SearchPipelineService.NOOP_PIPELINE_ID, settings.getDefaultSearchPipeline());
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.DEFAULT_SEARCH_PIPELINE.getKey(), "foo")
+                .build()
+        );
+        settings.updateIndexMetadata(metadata);
+        assertEquals("foo", settings.getDefaultSearchPipeline());
     }
 }

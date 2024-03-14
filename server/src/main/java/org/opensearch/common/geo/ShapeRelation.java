@@ -33,9 +33,10 @@
 package org.opensearch.common.geo;
 
 import org.apache.lucene.document.ShapeField.QueryRelation;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -44,8 +45,9 @@ import java.util.Locale;
  * Enum representing the relationship between a Query / Filter Shape and indexed Shapes
  * that will be used to determine if a Document should be matched or not
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public enum ShapeRelation implements Writeable {
 
     INTERSECTS("intersects"),

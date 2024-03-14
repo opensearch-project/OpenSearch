@@ -31,12 +31,11 @@
 
 package org.opensearch.cluster.coordination;
 
-import com.carrotsearch.hppc.LongObjectHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
-import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.core.common.Strings;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -477,28 +476,28 @@ public class LinearizabilityChecker {
 
     /**
      * A cache optimized for small bit-counts (less than 64) and small number of unique permutations of state objects.
-     *
+     * <p>
      * Each combination of states is kept once only, building on the
      * assumption that the number of permutations is small compared to the
      * number of bits permutations. For those histories that are difficult to check
      * we will have many bits combinations that use the same state permutations.
-     *
+     * <p>
      * The smallMap optimization allows us to avoid object overheads for bit-sets up to 64 bit large.
-     *
+     * <p>
      * Comparing set of (bits, state) to smallMap:
      * (bits, state) : 24 (tuple) + 24 (FixedBitSet) + 24 (bits) + 5 (hash buckets) + 24 (hashmap node).
      * smallMap bits to {state} : 10 (bits) + 5 (hash buckets) + avg-size of unique permutations.
-     *
+     * <p>
      * The avg-size of the unique permutations part is very small compared to the
      * sometimes large number of bits combinations (which are the cases where
      * we run into trouble).
-     *
+     * <p>
      * set of (bits, state) totals 101 bytes compared to smallMap bits to { state }
      * which totals 15 bytes, ie. a 6x improvement in memory usage.
      */
     private static class Cache {
         private final Map<Object, Set<FixedBitSet>> largeMap = new HashMap<>();
-        private final LongObjectHashMap<Set<Object>> smallMap = new LongObjectHashMap<>();
+        private final Map<Long, Set<Object>> smallMap = new HashMap<>();
         private final Map<Object, Object> internalizeStateMap = new HashMap<>();
         private final Map<Set<Object>, Set<Object>> statePermutations = new HashMap<>();
 
@@ -517,12 +516,11 @@ public class LinearizabilityChecker {
         }
 
         private boolean addSmall(Object state, long bits) {
-            int index = smallMap.indexOf(bits);
-            Set<Object> states;
-            if (index < 0) {
-                states = Collections.singleton(state);
+            Set<Object> states = smallMap.get(bits);
+            if (states == null) {
+                states = Set.of(state);
             } else {
-                Set<Object> oldStates = smallMap.indexGet(index);
+                Set<Object> oldStates = states;
                 if (oldStates.contains(state)) return false;
                 states = new HashSet<>(oldStates.size() + 1);
                 states.addAll(oldStates);
@@ -532,12 +530,7 @@ public class LinearizabilityChecker {
             // Get a unique set object per state permutation. We assume that the number of permutations of states are small.
             // We thus avoid the overhead of the set data structure.
             states = statePermutations.computeIfAbsent(states, k -> k);
-
-            if (index < 0) {
-                smallMap.indexInsert(index, bits, states);
-            } else {
-                smallMap.indexReplace(index, states);
-            }
+            smallMap.put(bits, states);
 
             return true;
         }

@@ -36,14 +36,14 @@ public class ConstraintTypes {
     /**
      * Constraint to control number of shards of an index allocated on a single
      * node.
-     *
+     * <p>
      * In current weight function implementation, when a node has significantly
      * fewer shards than other nodes (e.g. during single new node addition or node
      * replacement), its weight is much less than other nodes. All shard allocations
      * at this time tend to land on the new node with skewed weight. This breaks
      * index level balance in the cluster, by creating all shards of the same index
      * on one node, often resulting in a hotspot on that node.
-     *
+     * <p>
      * This constraint is breached when balancer attempts to allocate more than
      * average shards per index per node.
      */

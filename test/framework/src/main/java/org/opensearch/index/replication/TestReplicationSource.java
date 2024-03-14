@@ -8,8 +8,8 @@
 
 package org.opensearch.index.replication;
 
-import org.opensearch.action.ActionListener;
-import org.opensearch.index.store.Store;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.CheckpointInfoResponse;
 import org.opensearch.indices.replication.GetSegmentFilesResponse;
@@ -17,6 +17,7 @@ import org.opensearch.indices.replication.SegmentReplicationSource;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.util.List;
+import java.util.function.BiConsumer;
 
 /**
  * This class is used by unit tests implementing SegmentReplicationSource
@@ -35,7 +36,8 @@ public abstract class TestReplicationSource implements SegmentReplicationSource 
         long replicationId,
         ReplicationCheckpoint checkpoint,
         List<StoreFileMetadata> filesToFetch,
-        Store store,
+        IndexShard indexShard,
+        BiConsumer<String, Long> fileProgressTracker,
         ActionListener<GetSegmentFilesResponse> listener
     );
 

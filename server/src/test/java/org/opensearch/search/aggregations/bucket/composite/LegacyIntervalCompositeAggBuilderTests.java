@@ -44,7 +44,7 @@ import java.util.List;
 /**
  * Duplicates the tests from {@link CompositeAggregationBuilderTests}, except using the deprecated
  * interval on date histo.  Separated to make testing the warnings easier.
- *
+ * <p>
  * Can be removed in when the legacy interval options are gone
  */
 public class LegacyIntervalCompositeAggBuilderTests extends BaseAggregationTestCase<CompositeAggregationBuilder> {

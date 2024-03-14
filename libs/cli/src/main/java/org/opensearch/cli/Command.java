@@ -162,7 +162,7 @@ public abstract class Command implements Closeable {
 
     /**
      * Executes this command.
-     *
+     * <p>
      * Any runtime user errors (like an input file that does not exist), should throw a {@link UserException}. */
     protected abstract void execute(Terminal terminal, OptionSet options) throws Exception;
 

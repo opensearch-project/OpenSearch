@@ -32,11 +32,9 @@
 
 package org.opensearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -53,12 +51,15 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.Spliterators;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -203,8 +204,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     private void ensureAsyncFetchStorePrimaryRecency(RoutingAllocation allocation) {
         DiscoveryNodes nodes = allocation.nodes();
         if (hasNewNodes(nodes)) {
-            final Set<String> newEphemeralIds = StreamSupport.stream(nodes.getDataNodes().spliterator(), false)
-                .map(node -> node.value.getEphemeralId())
+            final Set<String> newEphemeralIds = StreamSupport.stream(Spliterators.spliterator(nodes.getDataNodes().entrySet(), 0), false)
+                .map(node -> node.getValue().getEphemeralId())
                 .collect(Collectors.toSet());
             // Invalidate the cache if a data node has been added to the cluster. This ensures that we do not cancel a recovery if a node
             // drops out, we fetch the shard data, then some indexing happens and then the node rejoins the cluster again. There are other
@@ -226,15 +227,17 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         AsyncShardFetch<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> fetch,
         RoutingAllocation allocation
     ) {
-        ShardRouting primary = allocation.routingNodes().activePrimary(fetch.shardId);
+        assert fetch.shardAttributesMap.size() == 1 : "expected only one shard";
+        ShardId shardId = fetch.shardAttributesMap.keySet().iterator().next();
+        ShardRouting primary = allocation.routingNodes().activePrimary(shardId);
         if (primary != null) {
             fetch.clearCacheForNode(primary.currentNodeId());
         }
     }
 
     private boolean hasNewNodes(DiscoveryNodes nodes) {
-        for (ObjectObjectCursor<String, DiscoveryNode> node : nodes.getDataNodes()) {
-            if (lastSeenEphemeralIds.contains(node.value.getEphemeralId()) == false) {
+        for (final DiscoveryNode node : nodes.getDataNodes().values()) {
+            if (lastSeenEphemeralIds.contains(node.getEphemeralId()) == false) {
                 return true;
             }
         }
@@ -254,15 +257,15 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         }
 
         @Override
-        protected void reroute(ShardId shardId, String reason) {
-            logger.trace("{} scheduling reroute for {}", shardId, reason);
+        protected void reroute(String reroutingKey, String reason) {
+            logger.trace("{} scheduling reroute for {}", reroutingKey, reason);
             assert rerouteService != null;
             rerouteService.reroute(
                 "async_shard_fetch",
                 Priority.HIGH,
                 ActionListener.wrap(
-                    r -> logger.trace("{} scheduled reroute completed for {}", shardId, reason),
-                    e -> logger.debug(new ParameterizedMessage("{} scheduled reroute failed for {}", shardId, reason), e)
+                    r -> logger.trace("{} scheduled reroute completed for {}", reroutingKey, reason),
+                    e -> logger.debug(new ParameterizedMessage("{} scheduled reroute failed for {}", reroutingKey, reason), e)
                 )
             );
         }
@@ -293,7 +296,11 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             );
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState = fetch.fetchData(
                 allocation.nodes(),
-                allocation.getIgnoreNodes(shard.shardId())
+                new HashMap<>() {
+                    {
+                        put(shard.shardId(), allocation.getIgnoreNodes(shard.shardId()));
+                    }
+                }
             );
 
             if (shardState.hasData()) {
@@ -328,7 +335,11 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             );
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> shardStores = fetch.fetchData(
                 allocation.nodes(),
-                allocation.getIgnoreNodes(shard.shardId())
+                new HashMap<>() {
+                    {
+                        put(shard.shardId(), allocation.getIgnoreNodes(shard.shardId()));
+                    }
+                }
             );
             if (shardStores.hasData()) {
                 shardStores.processAllocation(allocation);

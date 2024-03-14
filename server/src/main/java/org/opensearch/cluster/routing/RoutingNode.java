@@ -34,9 +34,10 @@ package org.opensearch.cluster.routing;
 
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.index.Index;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -56,8 +57,9 @@ import java.util.stream.StreamSupport;
  * A {@link RoutingNode} represents a cluster node associated with a single {@link DiscoveryNode} including all shards
  * that are hosted on that nodes. Each {@link RoutingNode} has a unique node id that can be used to identify the node.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RoutingNode implements Iterable<ShardRouting> {
 
     static class BucketedShards implements Iterable<ShardRouting> {

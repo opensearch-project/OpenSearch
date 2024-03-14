@@ -45,6 +45,7 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.unit.TimeValue;
@@ -64,7 +65,10 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.search.NestedHelper;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.search.aggregations.BucketCollectorProcessor;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.SearchContextAggregations;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseContext;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.fetch.FetchPhase;
@@ -99,7 +103,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
+
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 
 /**
  * The main search context used during search phase
@@ -141,6 +148,8 @@ final class DefaultSearchContext extends SearchContext {
     private SortAndFormats sort;
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
+
+    private boolean includeNamedQueriesScore = false;
     private int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
     private FieldDoc searchAfter;
     private CollapseContext collapse;
@@ -170,11 +179,14 @@ final class DefaultSearchContext extends SearchContext {
     private SuggestionSearchContext suggest;
     private List<RescoreContext> rescore;
     private Profilers profilers;
-
+    private BucketCollectorProcessor bucketCollectorProcessor = NO_OP_BUCKET_COLLECTOR_PROCESSOR;
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
     private final Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers = new HashMap<>();
     private final QueryShardContext queryShardContext;
     private final FetchPhase fetchPhase;
+    private final Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
+    private final boolean concurrentSearchSettingsEnabled;
+    private final SetOnce<Boolean> requestShouldUseConcurrentSearch = new SetOnce<>();
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -188,7 +200,8 @@ final class DefaultSearchContext extends SearchContext {
         boolean lowLevelCancellation,
         Version minNodeVersion,
         boolean validate,
-        Executor executor
+        Executor executor,
+        Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -204,13 +217,15 @@ final class DefaultSearchContext extends SearchContext {
         this.indexShard = readerContext.indexShard();
         this.clusterService = clusterService;
         this.engineSearcher = readerContext.acquireSearcher("search");
+        this.concurrentSearchSettingsEnabled = evaluateConcurrentSegmentSearchSettings(executor);
         this.searcher = new ContextIndexSearcher(
             engineSearcher.getIndexReader(),
             engineSearcher.getSimilarity(),
             engineSearcher.getQueryCache(),
             engineSearcher.getQueryCachingPolicy(),
             lowLevelCancellation,
-            executor
+            concurrentSearchSettingsEnabled ? executor : null,
+            this
         );
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
@@ -224,6 +239,7 @@ final class DefaultSearchContext extends SearchContext {
         );
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
+        this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
     }
 
     @Override
@@ -622,6 +638,17 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public SearchContext includeNamedQueriesScore(boolean includeNamedQueriesScore) {
+        this.includeNamedQueriesScore = includeNamedQueriesScore;
+        return this;
+    }
+
+    @Override
+    public boolean includeNamedQueriesScore() {
+        return includeNamedQueriesScore;
+    }
+
+    @Override
     public SearchContext trackTotalHitsUpTo(int trackTotalHitsUpTo) {
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         return this;
@@ -862,6 +889,32 @@ final class DefaultSearchContext extends SearchContext {
         return profilers;
     }
 
+    /**
+     * Returns concurrent segment search status for the search context. This should only be used after request parsing, during which requestShouldUseConcurrentSearch will be set.
+     */
+    @Override
+    public boolean shouldUseConcurrentSearch() {
+        assert requestShouldUseConcurrentSearch.get() != null : "requestShouldUseConcurrentSearch must be set";
+        return concurrentSearchSettingsEnabled && Boolean.TRUE.equals(requestShouldUseConcurrentSearch.get());
+    }
+
+    /**
+     * Evaluate if parsed request supports concurrent segment search
+     */
+    public void evaluateRequestShouldUseConcurrentSearch() {
+        if (sort != null && sort.isSortOnTimeSeriesField()) {
+            requestShouldUseConcurrentSearch.set(false);
+        } else if (aggregations() != null
+            && aggregations().factories() != null
+            && !aggregations().factories().allFactoriesSupportConcurrentSearch()) {
+                requestShouldUseConcurrentSearch.set(false);
+            } else if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
+                requestShouldUseConcurrentSearch.set(false);
+            } else {
+                requestShouldUseConcurrentSearch.set(true);
+            }
+    }
+
     public void setProfilers(Profilers profilers) {
         this.profilers = profilers;
     }
@@ -884,5 +937,56 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public ReaderContext readerContext() {
         return readerContext;
+    }
+
+    @Override
+    public InternalAggregation.ReduceContext partialOnShard() {
+        InternalAggregation.ReduceContext rc = requestToAggReduceContextBuilder.apply(request.source()).forPartialReduction();
+        rc.setSliceLevel(shouldUseConcurrentSearch());
+        return rc;
+    }
+
+    @Override
+    public void setBucketCollectorProcessor(BucketCollectorProcessor bucketCollectorProcessor) {
+        this.bucketCollectorProcessor = bucketCollectorProcessor;
+    }
+
+    @Override
+    public BucketCollectorProcessor bucketCollectorProcessor() {
+        return bucketCollectorProcessor;
+    }
+
+    /**
+     * Evaluate based on cluster and index settings if concurrent segment search should be used for this request context
+     * @return true: use concurrent search
+     *         false: otherwise
+     */
+    private boolean evaluateConcurrentSegmentSearchSettings(Executor concurrentSearchExecutor) {
+        if ((clusterService != null) && (concurrentSearchExecutor != null)) {
+            return indexService.getIndexSettings()
+                .getSettings()
+                .getAsBoolean(
+                    IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(),
+                    clusterService.getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
+                );
+        } else {
+            return false;
+        }
+    }
+
+    @Override
+    public int getTargetMaxSliceCount() {
+        if (shouldUseConcurrentSearch() == false) {
+            throw new IllegalStateException("Target slice count should not be used when concurrent search is disabled");
+        }
+        return clusterService.getClusterSettings().get(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING);
+    }
+
+    @Override
+    public boolean shouldUseTimeSeriesDescSortOptimization() {
+        return indexShard.isTimeSeriesDescSortOptimizationEnabled()
+            && sort != null
+            && sort.isSortOnTimeSeriesField()
+            && sort.sort.getSort()[0].getReverse() == false;
     }
 }

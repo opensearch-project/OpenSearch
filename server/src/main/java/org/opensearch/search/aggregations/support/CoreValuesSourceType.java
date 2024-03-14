@@ -274,7 +274,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
          * MappedFieldType, it prefers to get the formatter from there. Only when a field can't be
          * resolved (which is to say script cases and unmapped field cases), it will fall back to calling this method on whatever
          * ValuesSourceType it was able to resolve to.
-         *
+         * <p>
          * For geoshape field we may never hit this function till we have aggregations which are only geo_shape
          * specific and not present on geo_points, as we use default CoreValueSource types for Geo based aggregations
          * as GEOPOINT
@@ -411,7 +411,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         @Override
         public DocValueFormat getFormatter(String format, ZoneId tz) {
             return new DocValueFormat.DateTime(
-                format == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER : DateFormatter.forPattern(format),
+                format == null ? DateFieldMapper.getDefaultDateTimeFormatter() : DateFormatter.forPattern(format),
                 tz == null ? ZoneOffset.UTC : tz,
                 // If we were just looking at fields, we could read the resolution from the field settings, but we need to deal with script
                 // output, which has no way to indicate the resolution, so we need to default to something. Milliseconds is the standard.

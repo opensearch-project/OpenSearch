@@ -32,10 +32,14 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.core.action.ActionListener;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -89,10 +93,10 @@ public interface BlobContainer {
 
     /**
      * Provides a hint to clients for a suitable length to use with {@link BlobContainer#readBlob(String, long, long)}.
-     *
+     * <p>
      * Some blob containers have nontrivial costs attached to each readBlob call, so it is a good idea for consumers to speculatively
      * request more data than they need right now and to re-use this stream for future needs if possible.
-     *
+     * <p>
      * Also, some blob containers return streams that are expensive to close before the stream has been fully consumed, and the cost may
      * depend on the length of the data that was left unconsumed. For these containers it's best to bound the cost of a partial read by
      * bounding the length of the data requested.
@@ -127,7 +131,7 @@ public interface BlobContainer {
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
      * using an atomic write operation if the implementation supports it.
-     *
+     * <p>
      * This method assumes the container does not already contain a blob of the same blobName.  If a blob by the
      * same name already exists, the operation will fail and an {@link IOException} will be thrown.
      *
@@ -191,4 +195,55 @@ public interface BlobContainer {
      * @throws  IOException if there were any failures in reading from the blob container.
      */
     Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException;
+
+    /**
+     * The type representing sort order of blob names
+     */
+    enum BlobNameSortOrder {
+
+        LEXICOGRAPHIC(Comparator.comparing(BlobMetadata::name));
+
+        final Comparator<BlobMetadata> comparator;
+
+        public Comparator<BlobMetadata> comparator() {
+            return comparator;
+        }
+
+        BlobNameSortOrder(final Comparator<BlobMetadata> comparator) {
+            this.comparator = comparator;
+        }
+    }
+
+    /**
+     * Lists all blobs in the container that match the specified prefix in lexicographic order
+     * @param blobNamePrefix The prefix to match against blob names in the container.
+     * @param limit Limits the result size to min(limit, number of keys)
+     * @param blobNameSortOrder Comparator to sort keys with
+     * @param listener the listener to be notified upon request completion
+     */
+    default void listBlobsByPrefixInSortedOrder(
+        String blobNamePrefix,
+        int limit,
+        BlobNameSortOrder blobNameSortOrder,
+        ActionListener<List<BlobMetadata>> listener
+    ) {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit should not be a negative value");
+        }
+        try {
+            listener.onResponse(listBlobsByPrefixInSortedOrder(blobNamePrefix, limit, blobNameSortOrder));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    default List<BlobMetadata> listBlobsByPrefixInSortedOrder(String blobNamePrefix, int limit, BlobNameSortOrder blobNameSortOrder)
+        throws IOException {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit should not be a negative value");
+        }
+        List<BlobMetadata> blobNames = new ArrayList<>(listBlobsByPrefix(blobNamePrefix).values());
+        blobNames.sort(blobNameSortOrder.comparator());
+        return blobNames.subList(0, Math.min(blobNames.size(), limit));
+    }
 }

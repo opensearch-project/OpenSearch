@@ -32,7 +32,6 @@
 
 package org.opensearch.common.lucene.search;
 
-import com.carrotsearch.hppc.ObjectHashSet;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -40,6 +39,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
@@ -50,10 +50,12 @@ import org.apache.lucene.util.StringHelper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A multi phrase prefix query.
@@ -158,8 +160,8 @@ public class MultiPhrasePrefixQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten = super.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewritten = super.rewrite(searcher);
         if (rewritten != this) {
             return rewritten;
         }
@@ -174,9 +176,9 @@ public class MultiPhrasePrefixQuery extends Query {
         }
         Term[] suffixTerms = termArrays.get(sizeMinus1);
         int position = positions.get(sizeMinus1);
-        ObjectHashSet<Term> terms = new ObjectHashSet<>();
+        Set<Term> terms = new HashSet<>();
         for (Term term : suffixTerms) {
-            getPrefixTerms(terms, term, reader);
+            getPrefixTerms(terms, term, searcher.getIndexReader());
             if (terms.size() > maxExpansions) {
                 break;
             }
@@ -196,11 +198,11 @@ public class MultiPhrasePrefixQuery extends Query {
                 )
                 .build();
         }
-        query.add(terms.toArray(Term.class), position);
+        query.add(terms.toArray(new Term[0]), position);
         return query.build();
     }
 
-    private void getPrefixTerms(ObjectHashSet<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
+    private void getPrefixTerms(final Set<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
         // SlowCompositeReaderWrapper could be used... but this would merge all terms from each segment into one terms
         // instance, which is very expensive. Therefore I think it is better to iterate over each leaf individually.
         List<LeafReaderContext> leaves = reader.leaves();

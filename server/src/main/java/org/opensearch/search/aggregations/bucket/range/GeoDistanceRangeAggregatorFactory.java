@@ -172,6 +172,11 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
             );
     }
 
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
+
     /**
      * The source location for the distance calculation
      *
@@ -201,6 +206,11 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
         @Override
         public boolean isFloatingPoint() {
             return true;
+        }
+
+        @Override
+        public boolean isBigInteger() {
+            return false;
         }
 
         @Override

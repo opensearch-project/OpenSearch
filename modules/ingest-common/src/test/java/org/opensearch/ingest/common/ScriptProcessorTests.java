@@ -105,4 +105,16 @@ public class ScriptProcessorTests extends OpenSearchTestCase {
         int bytesTotal = ingestDocument.getFieldValue("bytes_in", Integer.class) + ingestDocument.getFieldValue("bytes_out", Integer.class);
         assertThat(ingestDocument.getSourceAndMetadata().get("bytes_total"), is(bytesTotal));
     }
+
+    public void testScriptingWithSelfReferencingSourceMetadata() {
+        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), null, script, null, scriptService);
+        IngestDocument originalIngestDocument = randomDocument();
+        String index = originalIngestDocument.getSourceAndMetadata().get(IngestDocument.Metadata.INDEX.getFieldName()).toString();
+        String id = originalIngestDocument.getSourceAndMetadata().get(IngestDocument.Metadata.ID.getFieldName()).toString();
+        Map<String, Object> sourceMetadata = originalIngestDocument.getSourceAndMetadata();
+        originalIngestDocument.getSourceAndMetadata().put("_source", sourceMetadata);
+        IngestDocument ingestDocument = new IngestDocument(index, id, null, null, null, originalIngestDocument.getSourceAndMetadata());
+        expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+    }
+
 }

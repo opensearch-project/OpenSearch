@@ -33,9 +33,9 @@
 package org.opensearch.cluster.coordination;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -44,10 +44,11 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportException;
-import org.opensearch.transport.TransportResponse;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -91,11 +92,9 @@ public class PublicationTests extends OpenSearchTestCase {
                 CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG,
                 0L
             );
-            coordinationState = new CoordinationState(
-                localNode,
-                new InMemoryPersistedState(0L, initialState),
-                ElectionStrategy.DEFAULT_INSTANCE
-            );
+            PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
+            persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, new InMemoryPersistedState(0L, initialState));
+            coordinationState = new CoordinationState(localNode, persistedStateRegistry, ElectionStrategy.DEFAULT_INSTANCE, Settings.EMPTY);
         }
 
         final DiscoveryNode localNode;

@@ -33,7 +33,6 @@
 package org.opensearch.ingest.common;
 
 import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.ClusterSettings;
@@ -42,6 +41,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.grok.Grok;
 import org.opensearch.grok.MatcherWatchdog;
 import org.opensearch.ingest.DropProcessor;
@@ -98,7 +98,7 @@ public class IngestCommonModulePlugin extends Plugin implements ActionPlugin, In
         processors.put(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService));
         processors.put(DotExpanderProcessor.TYPE, new DotExpanderProcessor.Factory());
         processors.put(JsonProcessor.TYPE, new JsonProcessor.Factory());
-        processors.put(KeyValueProcessor.TYPE, new KeyValueProcessor.Factory());
+        processors.put(KeyValueProcessor.TYPE, new KeyValueProcessor.Factory(parameters.scriptService));
         processors.put(URLDecodeProcessor.TYPE, new URLDecodeProcessor.Factory());
         processors.put(BytesProcessor.TYPE, new BytesProcessor.Factory());
         processors.put(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService));
@@ -106,6 +106,9 @@ public class IngestCommonModulePlugin extends Plugin implements ActionPlugin, In
         processors.put(DropProcessor.TYPE, new DropProcessor.Factory());
         processors.put(HtmlStripProcessor.TYPE, new HtmlStripProcessor.Factory());
         processors.put(CsvProcessor.TYPE, new CsvProcessor.Factory());
+        processors.put(CopyProcessor.TYPE, new CopyProcessor.Factory(parameters.scriptService));
+        processors.put(RemoveByPatternProcessor.TYPE, new RemoveByPatternProcessor.Factory());
+        processors.put(CommunityIdProcessor.TYPE, new CommunityIdProcessor.Factory());
         return Collections.unmodifiableMap(processors);
     }
 

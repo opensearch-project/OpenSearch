@@ -16,6 +16,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingPool;
+import org.opensearch.cluster.routing.ShardMovementStrategy;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.UnassignedInfo;
@@ -57,14 +58,13 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final Map<String, BalancedShardsAllocator.ModelNode> nodes;
     private final RoutingAllocation allocation;
     private final RoutingNodes routingNodes;
-    private final boolean movePrimaryFirst;
+    private final ShardMovementStrategy shardMovementStrategy;
 
     private final boolean preferPrimaryBalance;
     private final BalancedShardsAllocator.WeightFunction weight;
 
     private final float threshold;
     private final Metadata metadata;
-    private final float avgShardsPerNode;
 
     private final float avgPrimaryShardsPerNode;
     private final BalancedShardsAllocator.NodeSorter sorter;
@@ -73,19 +73,17 @@ public class LocalShardsBalancer extends ShardsBalancer {
     public LocalShardsBalancer(
         Logger logger,
         RoutingAllocation allocation,
-        boolean movePrimaryFirst,
+        ShardMovementStrategy shardMovementStrategy,
         BalancedShardsAllocator.WeightFunction weight,
         float threshold,
         boolean preferPrimaryBalance
     ) {
         this.logger = logger;
         this.allocation = allocation;
-        this.movePrimaryFirst = movePrimaryFirst;
         this.weight = weight;
         this.threshold = threshold;
         this.routingNodes = allocation.routingNodes();
         this.metadata = allocation.metadata();
-        avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
         avgPrimaryShardsPerNode = (float) (StreamSupport.stream(metadata.spliterator(), false)
             .mapToInt(IndexMetadata::getNumberOfShards)
             .sum()) / routingNodes.size();
@@ -93,6 +91,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         sorter = newNodeSorter();
         inEligibleTargetNode = new HashSet<>();
         this.preferPrimaryBalance = preferPrimaryBalance;
+        this.shardMovementStrategy = shardMovementStrategy;
     }
 
     /**
@@ -471,7 +470,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private String[] buildWeightOrderedIndices() {
 
         final List<String> localIndices = new ArrayList<>();
-        for (String index : allocation.routingTable().indicesRouting().keys().toArray(String.class)) {
+        for (String index : allocation.routingTable().indicesRouting().keySet().toArray(new String[0])) {
             if (RoutingPool.LOCAL_ONLY.equals(RoutingPool.getIndexPool(metadata.index(index)))) {
                 localIndices.add(index);
             }
@@ -529,7 +528,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
     /**
      * Move started shards that can not be allocated to a node anymore
-     *
+     * <p>
      * For each shard to be moved this function executes a move operation
      * to the minimal eligible node with respect to the
      * weight function. If a shard is moved the shard will be set to
@@ -549,7 +548,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
             checkAndAddInEligibleTargetNode(currentNode.getRoutingNode());
         }
         boolean primariesThrottled = false;
-        for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(movePrimaryFirst); it.hasNext();) {
+        for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(shardMovementStrategy); it.hasNext();) {
             // Verify if the cluster concurrent recoveries have been reached.
             if (allocation.deciders().canMoveAnyShard(allocation).type() != Decision.Type.YES) {
                 logger.info(
@@ -573,8 +572,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 continue;
             }
 
-            // Ensure that replicas don't relocate if primaries are being throttled and primary first is enabled
-            if (movePrimaryFirst && primariesThrottled && !shardRouting.primary()) {
+            // Ensure that replicas don't relocate if primaries are being throttled and primary first shard movement strategy is enabled
+            if ((shardMovementStrategy == ShardMovementStrategy.PRIMARY_FIRST) && primariesThrottled && !shardRouting.primary()) {
                 logger.info(
                     "Cannot move any replica shard in the cluster as movePrimaryFirst is enabled and primary shards"
                         + "are being throttled. Skipping shard iteration"
@@ -662,7 +661,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
         RoutingNode targetNode = null;
         final List<NodeAllocationResult> nodeExplanationMap = explain ? new ArrayList<>() : null;
         int weightRanking = 0;
-        int targetNodeProcessed = 0;
         for (BalancedShardsAllocator.ModelNode currentNode : sorter.modelNodes) {
             if (currentNode != sourceNode) {
                 RoutingNode target = currentNode.getRoutingNode();
@@ -676,7 +674,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
                         continue;
                     }
                 }
-                targetNodeProcessed++;
                 // don't use canRebalance as we want hard filtering rules to apply. See #17698
                 Decision allocationDecision = allocation.deciders().canAllocate(shardRouting, target, allocation);
                 if (explain) {

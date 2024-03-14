@@ -74,9 +74,9 @@ import org.opensearch.common.collect.Iterators;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
@@ -98,6 +98,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 
@@ -109,7 +110,7 @@ import java.util.function.Supplier;
 public class TextFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "text";
-    private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
+    protected static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
     private static final String FAST_PHRASE_SUFFIX = "._index_phrase";
 
     /**
@@ -142,8 +143,8 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         public static final int POSITION_INCREMENT_GAP = 100;
     }
 
-    private static Builder builder(FieldMapper in) {
-        return ((TextFieldMapper) in).builder;
+    private static TextFieldMapper toType(FieldMapper in) {
+        return (TextFieldMapper) in;
     }
 
     /**
@@ -151,11 +152,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    private static final class PrefixConfig implements ToXContent {
+    protected static final class PrefixConfig implements ToXContent {
         final int minChars;
         final int maxChars;
 
-        private PrefixConfig(int minChars, int maxChars) {
+        PrefixConfig(int minChars, int maxChars) {
             this.minChars = minChars;
             this.maxChars = maxChars;
             if (minChars > maxChars) {
@@ -197,7 +198,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    private static PrefixConfig parsePrefixConfig(String propName, ParserContext parserContext, Object propNode) {
+    static PrefixConfig parsePrefixConfig(String propName, ParserContext parserContext, Object propNode) {
         if (propNode == null) {
             return null;
         }
@@ -213,7 +214,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    private static final class FielddataFrequencyFilter implements ToXContent {
+    protected static final class FielddataFrequencyFilter implements ToXContent {
         final double minFreq;
         final double maxFreq;
         final int minSegmentSize;
@@ -279,48 +280,59 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
         private final Version indexCreatedVersion;
 
-        private final Parameter<Boolean> index = Parameter.indexParam(m -> builder(m).index.getValue(), true);
-        private final Parameter<Boolean> store = Parameter.storeParam(m -> builder(m).store.getValue(), false);
+        protected final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).mappedFieldType.isSearchable(), true);
+        protected final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
 
-        final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.getValue());
+        final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> toType(m).similarity);
 
-        final Parameter<String> indexOptions = TextParams.indexOptions(m -> builder(m).indexOptions.getValue());
-        final Parameter<Boolean> norms = TextParams.norms(true, m -> builder(m).norms.getValue());
-        final Parameter<String> termVectors = TextParams.termVectors(m -> builder(m).termVectors.getValue());
-
+        final Parameter<String> indexOptions = TextParams.indexOptions(m -> toType(m).indexOptions);
+        final Parameter<Boolean> norms = TextParams.norms(true, m -> toType(m).fieldType.omitNorms() == false);
+        final Parameter<String> termVectors = TextParams.termVectors(m -> toType(m).termVectors);
         final Parameter<Integer> positionIncrementGap = Parameter.intParam(
             "position_increment_gap",
             false,
-            m -> builder(m).positionIncrementGap.getValue(),
+            m -> toType(m).positionIncrementGap,
             POSITION_INCREMENT_GAP_USE_ANALYZER
         );
 
-        final Parameter<Boolean> fieldData = Parameter.boolParam("fielddata", true, m -> builder(m).fieldData.getValue(), false);
+        final Parameter<Boolean> fieldData = Parameter.boolParam(
+            "fielddata",
+            true,
+            m -> ((TextFieldType) toType(m).mappedFieldType).fielddata,
+            false
+        );
         final Parameter<FielddataFrequencyFilter> freqFilter = new Parameter<>(
             "fielddata_frequency_filter",
             true,
             () -> DEFAULT_FILTER,
             TextFieldMapper::parseFrequencyFilter,
-            m -> builder(m).freqFilter.getValue()
+            m -> toType(m).freqFilter
         );
         final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam(
             "eager_global_ordinals",
             true,
-            m -> builder(m).eagerGlobalOrdinals.getValue(),
+            m -> toType(m).mappedFieldType.eagerGlobalOrdinals(),
             false
         );
 
-        final Parameter<Boolean> indexPhrases = Parameter.boolParam("index_phrases", false, m -> builder(m).indexPhrases.getValue(), false);
+        final Parameter<Boolean> indexPhrases = Parameter.boolParam(
+            "index_phrases",
+            false,
+            m -> ((TextFieldType) toType(m).mappedFieldType).indexPhrases,
+            false
+        );
         final Parameter<PrefixConfig> indexPrefixes = new Parameter<>(
             "index_prefixes",
             false,
             () -> null,
             TextFieldMapper::parsePrefixConfig,
-            m -> builder(m).indexPrefixes.getValue()
+            m -> Optional.ofNullable(((TextFieldType) toType(m).mappedFieldType).prefixFieldType)
+                .map(p -> new PrefixConfig(p.minChars, p.maxChars))
+                .orElse(null)
         ).acceptsNull();
 
-        private final Parameter<Float> boost = Parameter.boostParam();
-        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+        protected final Parameter<Float> boost = Parameter.boostParam();
+        protected final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final TextParams.Analyzers analyzers;
 
@@ -382,7 +394,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             );
         }
 
-        private TextFieldType buildFieldType(FieldType fieldType, BuilderContext context) {
+        protected TextFieldType buildFieldType(FieldType fieldType, BuilderContext context) {
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
@@ -407,7 +419,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             return ft;
         }
 
-        private PrefixFieldMapper buildPrefixMapper(BuilderContext context, FieldType fieldType, TextFieldType tft) {
+        protected PrefixFieldMapper buildPrefixMapper(BuilderContext context, FieldType fieldType, TextFieldType tft) {
             if (indexPrefixes.get() == null) {
                 return null;
             }
@@ -441,7 +453,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             return new PrefixFieldMapper(pft, prefixFieldType);
         }
 
-        private PhraseFieldMapper buildPhraseMapper(FieldType fieldType, TextFieldType parent) {
+        protected PhraseFieldMapper buildPhraseMapper(FieldType fieldType, TextFieldType parent) {
             if (indexPhrases.get() == false) {
                 return null;
             }
@@ -670,7 +682,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    private static final class PhraseFieldMapper extends FieldMapper {
+    protected static final class PhraseFieldMapper extends FieldMapper {
 
         PhraseFieldMapper(FieldType fieldType, PhraseFieldType mappedFieldType) {
             super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
@@ -697,7 +709,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    private static final class PrefixFieldMapper extends FieldMapper {
+    protected static final class PrefixFieldMapper extends FieldMapper {
 
         protected PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType) {
             super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
@@ -955,10 +967,16 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
     }
 
-    private final Builder builder;
-    private final FieldType fieldType;
+    protected final FieldType fieldType;
     private final PrefixFieldMapper prefixFieldMapper;
     private final PhraseFieldMapper phraseFieldMapper;
+    private final SimilarityProvider similarity;
+    private final String indexOptions;
+    private final String termVectors;
+    private final int positionIncrementGap;
+    protected final Version indexCreatedVersion;
+    protected final IndexAnalyzers indexAnalyzers;
+    private final FielddataFrequencyFilter freqFilter;
 
     protected TextFieldMapper(
         String simpleName,
@@ -979,7 +997,13 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         this.fieldType = fieldType;
         this.prefixFieldMapper = prefixFieldMapper;
         this.phraseFieldMapper = phraseFieldMapper;
-        this.builder = builder;
+        this.similarity = builder.similarity.getValue();
+        this.indexOptions = builder.indexOptions.getValue();
+        this.termVectors = builder.termVectors.getValue();
+        this.positionIncrementGap = builder.positionIncrementGap.getValue();
+        this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.indexAnalyzers = builder.analyzers.indexAnalyzers;
+        this.freqFilter = builder.freqFilter.getValue();
     }
 
     @Override
@@ -989,7 +1013,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
+        return new Builder(simpleName(), this.indexCreatedVersion, this.indexAnalyzers).init(this);
     }
 
     @Override
@@ -1168,24 +1192,25 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         // this is a pain, but we have to do this to maintain BWC
         builder.field("type", contentType());
-        this.builder.boost.toXContent(builder, includeDefaults);
-        this.builder.index.toXContent(builder, includeDefaults);
-        this.builder.store.toXContent(builder, includeDefaults);
+        Builder mapperBuilder = (TextFieldMapper.Builder) getMergeBuilder();
+        mapperBuilder.boost.toXContent(builder, includeDefaults);
+        mapperBuilder.index.toXContent(builder, includeDefaults);
+        mapperBuilder.store.toXContent(builder, includeDefaults);
         this.multiFields.toXContent(builder, params);
         this.copyTo.toXContent(builder, params);
-        this.builder.meta.toXContent(builder, includeDefaults);
-        this.builder.indexOptions.toXContent(builder, includeDefaults);
-        this.builder.termVectors.toXContent(builder, includeDefaults);
-        this.builder.norms.toXContent(builder, includeDefaults);
-        this.builder.analyzers.indexAnalyzer.toXContent(builder, includeDefaults);
-        this.builder.analyzers.searchAnalyzer.toXContent(builder, includeDefaults);
-        this.builder.analyzers.searchQuoteAnalyzer.toXContent(builder, includeDefaults);
-        this.builder.similarity.toXContent(builder, includeDefaults);
-        this.builder.eagerGlobalOrdinals.toXContent(builder, includeDefaults);
-        this.builder.positionIncrementGap.toXContent(builder, includeDefaults);
-        this.builder.fieldData.toXContent(builder, includeDefaults);
-        this.builder.freqFilter.toXContent(builder, includeDefaults);
-        this.builder.indexPrefixes.toXContent(builder, includeDefaults);
-        this.builder.indexPhrases.toXContent(builder, includeDefaults);
+        mapperBuilder.meta.toXContent(builder, includeDefaults);
+        mapperBuilder.indexOptions.toXContent(builder, includeDefaults);
+        mapperBuilder.termVectors.toXContent(builder, includeDefaults);
+        mapperBuilder.norms.toXContent(builder, includeDefaults);
+        mapperBuilder.analyzers.indexAnalyzer.toXContent(builder, includeDefaults);
+        mapperBuilder.analyzers.searchAnalyzer.toXContent(builder, includeDefaults);
+        mapperBuilder.analyzers.searchQuoteAnalyzer.toXContent(builder, includeDefaults);
+        mapperBuilder.similarity.toXContent(builder, includeDefaults);
+        mapperBuilder.eagerGlobalOrdinals.toXContent(builder, includeDefaults);
+        mapperBuilder.positionIncrementGap.toXContent(builder, includeDefaults);
+        mapperBuilder.fieldData.toXContent(builder, includeDefaults);
+        mapperBuilder.freqFilter.toXContent(builder, includeDefaults);
+        mapperBuilder.indexPrefixes.toXContent(builder, includeDefaults);
+        mapperBuilder.indexPhrases.toXContent(builder, includeDefaults);
     }
 }

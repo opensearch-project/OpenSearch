@@ -35,7 +35,7 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion99PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
@@ -44,10 +44,10 @@ import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.ParsingException;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.NumberType;
@@ -330,7 +330,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
          */
         public static synchronized PostingsFormat postingsFormat() {
             if (postingsFormat == null) {
-                postingsFormat = new Completion90PostingsFormat();
+                postingsFormat = new Completion99PostingsFormat();
             }
             return postingsFormat;
         }
@@ -447,13 +447,13 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
 
     /**
      * Parses and indexes inputs
-     *
+     * <p>
      * Parsing:
      *  Acceptable format:
      *   "STRING" - interpreted as field value (input)
      *   "ARRAY" - each element can be one of "OBJECT" (see below)
      *   "OBJECT" - { "input": STRING|ARRAY, "weight": STRING|INT, "contexts": ARRAY|OBJECT }
-     *
+     * <p>
      * Indexing:
      *  if context mappings are defined, delegates to {@link ContextMappings#addField(ParseContext.Document, String, String, int, Map)}
      *  else adds inputs as a {@link org.apache.lucene.search.suggest.document.SuggestField}

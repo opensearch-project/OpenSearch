@@ -37,11 +37,11 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
@@ -95,6 +95,10 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
     /** Get a temporary name for the provided file name. */
     String getTempNameForFile(String origFile) {
         return tempFilePrefix + origFile;
+    }
+
+    public Map<String, String> getTempFileNames() {
+        return tempFileNames;
     }
 
     public IndexOutput getOpenIndexOutput(String key) {

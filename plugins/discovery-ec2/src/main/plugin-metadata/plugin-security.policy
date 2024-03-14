@@ -42,4 +42,13 @@ grant {
   permission java.net.SocketPermission "*", "connect";
 
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
+  permission java.util.PropertyPermission "aws.sharedCredentialsFile", "read,write";
+  permission java.util.PropertyPermission "aws.configFile", "read,write";
+  permission java.util.PropertyPermission "aws.region", "read,write";
+  permission java.util.PropertyPermission "aws.accessKeyId", "read,write";
+  permission java.util.PropertyPermission "aws.secretAccessKey", "read,write";
+  permission java.util.PropertyPermission "opensearch.path.conf", "read,write";
+
+  permission java.io.FilePermission "config", "read";
 };

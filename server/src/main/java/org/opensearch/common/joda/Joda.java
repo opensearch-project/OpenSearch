@@ -32,11 +32,13 @@
 
 package org.opensearch.common.joda;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.FormatNames;
 import org.opensearch.common.util.LazyInitializable;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.joda.time.Chronology;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeField;
@@ -313,6 +315,36 @@ public class Joda {
 
         formatter = formatter.withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970);
         return new JodaDateFormatter(input, formatter, formatter);
+    }
+
+    public static void writeTimeZone(final StreamOutput out, final DateTimeZone timeZone) throws IOException {
+        out.writeString(timeZone.getID());
+    }
+
+    public static void writeOptionalTimeZone(final StreamOutput out, final DateTimeZone timeZone) throws IOException {
+        if (timeZone == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            writeTimeZone(out, timeZone);
+        }
+    }
+
+    /**
+     * Read a {@linkplain DateTimeZone} from a {@linkplain StreamInput}.
+     */
+    public static DateTimeZone readTimeZone(final StreamInput in) throws IOException {
+        return DateTimeZone.forID(in.readString());
+    }
+
+    /**
+     * Read an optional {@linkplain DateTimeZone}.
+     */
+    public static DateTimeZone readOptionalTimeZone(final StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            return DateTimeZone.forID(in.readString());
+        }
+        return null;
     }
 
     private static void maybeLogJodaDeprecation(String format) {

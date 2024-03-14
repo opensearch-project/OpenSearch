@@ -32,19 +32,18 @@
 
 package org.opensearch.script.mustache;
 
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.core.ParseField;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.StatusToXContentObject;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -104,11 +103,11 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
 
         if (contentAsMap.containsKey(TEMPLATE_OUTPUT_FIELD.getPreferredName())) {
             Object source = contentAsMap.get(TEMPLATE_OUTPUT_FIELD.getPreferredName());
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).value(source);
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON).value(source);
             searchTemplateResponse.setSource(BytesReference.bytes(builder));
         } else {
             MediaType contentType = parser.contentType();
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType).map(contentAsMap);
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(contentType).map(contentAsMap);
             XContentParser searchResponseParser = contentType.xContent()
                 .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), BytesReference.bytes(builder).streamInput());
 
@@ -126,7 +125,7 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
             builder.startObject();
             // we can assume the template is always json as we convert it before compiling it
             try (InputStream stream = source.streamInput()) {
-                builder.rawField(TEMPLATE_OUTPUT_FIELD.getPreferredName(), stream, XContentType.JSON);
+                builder.rawField(TEMPLATE_OUTPUT_FIELD.getPreferredName(), stream, MediaTypeRegistry.JSON);
             }
             builder.endObject();
         }

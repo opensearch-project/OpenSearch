@@ -33,12 +33,16 @@
 package org.opensearch.index.engine;
 
 import org.opensearch.Version;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.ReplicationStats;
+import org.opensearch.index.codec.fuzzy.FuzzyFilterPostingsFormat;
+import org.opensearch.index.remote.RemoteSegmentStats;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -48,8 +52,9 @@ import java.util.Map;
 /**
  * Tracker for segment stats
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SegmentsStats implements Writeable, ToXContentFragment {
 
     private long count;
@@ -58,8 +63,13 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     private long maxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
     private long bitsetMemoryInBytes;
     private final Map<String, Long> fileSizes;
-
+    private final RemoteSegmentStats remoteSegmentStats;
     private static final ByteSizeValue ZERO_BYTE_SIZE_VALUE = new ByteSizeValue(0L);
+
+    /**
+     * Segment replication statistics.
+     */
+    private final ReplicationStats replicationStats;
 
     /*
      * A map to provide a best-effort approach describing Lucene index files.
@@ -86,11 +96,14 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         Map.entry("tvx", "Term Vector Index"),
         Map.entry("tvd", "Term Vector Documents"),
         Map.entry("tvf", "Term Vector Fields"),
-        Map.entry("liv", "Live Documents")
+        Map.entry("liv", "Live Documents"),
+        Map.entry(FuzzyFilterPostingsFormat.FUZZY_FILTER_FILE_EXTENSION, "Fuzzy Filter")
     );
 
     public SegmentsStats() {
         fileSizes = new HashMap<>();
+        remoteSegmentStats = new RemoteSegmentStats();
+        replicationStats = new ReplicationStats();
     }
 
     public SegmentsStats(StreamInput in) throws IOException {
@@ -111,6 +124,13 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         bitsetMemoryInBytes = in.readLong();
         maxUnsafeAutoIdTimestamp = in.readLong();
         fileSizes = in.readMap(StreamInput::readString, StreamInput::readLong);
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
+            remoteSegmentStats = in.readOptionalWriteable(RemoteSegmentStats::new);
+            replicationStats = in.readOptionalWriteable(ReplicationStats::new);
+        } else {
+            remoteSegmentStats = new RemoteSegmentStats();
+            replicationStats = new ReplicationStats();
+        }
     }
 
     public void add(long count) {
@@ -133,6 +153,14 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         this.bitsetMemoryInBytes += bitsetMemoryInBytes;
     }
 
+    public void addRemoteSegmentStats(RemoteSegmentStats remoteSegmentStats) {
+        this.remoteSegmentStats.add(remoteSegmentStats);
+    }
+
+    public void addReplicationStats(ReplicationStats replicationStats) {
+        this.replicationStats.add(replicationStats);
+    }
+
     public void addFileSizes(final Map<String, Long> newFileSizes) {
         newFileSizes.forEach((k, v) -> this.fileSizes.merge(k, v, (a, b) -> {
             assert a != null;
@@ -151,6 +179,8 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         addVersionMapMemoryInBytes(mergeStats.versionMapMemoryInBytes);
         addBitsetMemoryInBytes(mergeStats.bitsetMemoryInBytes);
         addFileSizes(mergeStats.fileSizes);
+        addRemoteSegmentStats(mergeStats.remoteSegmentStats);
+        addReplicationStats(mergeStats.replicationStats);
     }
 
     /**
@@ -198,6 +228,15 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         return Collections.unmodifiableMap(this.fileSizes);
     }
 
+    /** Returns remote_store based stats **/
+    public RemoteSegmentStats getRemoteSegmentStats() {
+        return remoteSegmentStats;
+    }
+
+    public ReplicationStats getReplicationStats() {
+        return replicationStats;
+    }
+
     /**
      * Returns the max timestamp that is used to de-optimize documents with auto-generated IDs in the engine.
      * This is used to ensure we don't add duplicate documents when we assume an append only case based on auto-generated IDs
@@ -221,6 +260,8 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.VERSION_MAP_MEMORY_IN_BYTES, Fields.VERSION_MAP_MEMORY, getVersionMapMemory());
         builder.humanReadableField(Fields.FIXED_BIT_SET_MEMORY_IN_BYTES, Fields.FIXED_BIT_SET, getBitsetMemory());
         builder.field(Fields.MAX_UNSAFE_AUTO_ID_TIMESTAMP, maxUnsafeAutoIdTimestamp);
+        remoteSegmentStats.toXContent(builder, params);
+        replicationStats.toXContent(builder, params);
         builder.startObject(Fields.FILE_SIZES);
         for (Map.Entry<String, Long> entry : fileSizes.entrySet()) {
             builder.startObject(entry.getKey());
@@ -287,6 +328,10 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         out.writeLong(bitsetMemoryInBytes);
         out.writeLong(maxUnsafeAutoIdTimestamp);
         out.writeMap(this.fileSizes, StreamOutput::writeString, StreamOutput::writeLong);
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
+            out.writeOptionalWriteable(remoteSegmentStats);
+            out.writeOptionalWriteable(replicationStats);
+        }
     }
 
     public void clearFileSizes() {

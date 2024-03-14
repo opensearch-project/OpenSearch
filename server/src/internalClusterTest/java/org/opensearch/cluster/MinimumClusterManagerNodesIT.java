@@ -48,10 +48,10 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.transport.MockTransportService;
 
@@ -317,8 +317,8 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
         );
         Settings nonClusterManagerDataPathSettings1 = internalCluster().dataPathSettings(nonClusterManagerNodes.get(0));
         Settings nonClusterManagerDataPathSettings2 = internalCluster().dataPathSettings(nonClusterManagerNodes.get(1));
-        internalCluster().stopRandomNonClusterManagerNode();
-        internalCluster().stopRandomNonClusterManagerNode();
+        internalCluster().stopRandomNodeNotCurrentClusterManager();
+        internalCluster().stopRandomNodeNotCurrentClusterManager();
 
         logger.info("--> verify that there is no cluster-manager anymore on remaining node");
         // spin here to wait till the state is set

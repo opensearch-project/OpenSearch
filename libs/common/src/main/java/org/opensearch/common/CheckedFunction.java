@@ -32,6 +32,8 @@
 
 package org.opensearch.common;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.function.Function;
 
 /**
@@ -39,6 +41,7 @@ import java.util.function.Function;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 @FunctionalInterface
 public interface CheckedFunction<T, R, E extends Exception> {
     R apply(T t) throws E;

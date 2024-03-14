@@ -41,7 +41,7 @@ import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
-import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
@@ -57,6 +57,7 @@ import org.gradle.api.tasks.util.PatternSet;
 import org.gradle.internal.Factory;
 
 import javax.inject.Inject;
+
 import java.io.File;
 import java.util.Objects;
 import java.util.Optional;
@@ -178,7 +179,7 @@ public class CopyRestTestsTask extends DefaultTask {
 
     private Optional<SourceSet> getSourceSet() {
         Project project = getProject();
-        return project.getConvention().findPlugin(JavaPluginConvention.class) == null
+        return project.getExtensions().findByType(JavaPluginExtension.class) == null
             ? Optional.empty()
             : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(getSourceSetName()));
     }

@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.internal.SearchContext;
 
@@ -43,8 +44,9 @@ import static org.opensearch.search.aggregations.support.AggregationUsageService
 /**
  * Base factory to instantiate an internal aggregator
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class AggregatorFactory {
     protected final String name;
     protected final AggregatorFactory parent;
@@ -113,5 +115,16 @@ public abstract class AggregatorFactory {
      */
     public String getStatsSubtype() {
         return OTHER_SUBTYPE;
+    }
+
+    /**
+     * Implementation should override this method and return true if the Aggregator created by the factory works with concurrent segment search execution model
+     */
+    protected boolean supportsConcurrentSegmentSearch() {
+        return false;
+    }
+
+    public boolean evaluateChildFactories() {
+        return factories.allFactoriesSupportConcurrentSearch();
     }
 }

@@ -32,16 +32,14 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.EmptyClusterInfoService;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -61,7 +59,7 @@ import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matchers;
@@ -69,6 +67,7 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -248,13 +247,13 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
     /**
      * This test verifies the allocation logic when nodes breach multiple constraints and ensure node breaching min
      * constraints chosen for allocation.
-     *
+     * <p>
      * This test mimics a cluster state containing four nodes, where one node breaches two constraints while one breaches
      * only one. In order to have nodes breach constraints, test excludes two nodes (node2, node3) from allocation so
      * that other two nodes (node0, node1) have all shards assignments resulting in constraints breach. Test asserts that
      * the new primary shard assignment lands on the node breaching one constraint(node1), while replica land on the other
      * (node0). Final shard allocation state.
-     *
+     * <p>
      routing_nodes:
      -----node_id[node2][V]
      -----node_id[node3][V]
@@ -364,7 +363,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
 
     /**
      * This test verifies global balance by creating indices iteratively and verify primary shards do not pile up on one
-     * node.
+     * @throws Exception generic exception
      */
     public void testGlobalPrimaryBalance() throws Exception {
         AllocationService strategy = createAllocationService(getSettingsBuilderForPrimaryBalance().build(), new TestGatewayAllocator());
@@ -385,13 +384,13 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
      * This test mimics a cluster state which can not be rebalanced due to
      * {@link org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider}
      * allocation decider which prevents shard relocation, leaving cluster unbalanced on primaries.
-     *
+     * <p>
      * There are two nodes (N1, N2) where all primaries land on N1 while replicas on N2.
      * N1        N2
      * ------  --------
      * P1        R1
      * P2        R2
-     *
+     * <p>
      * -----node_id[node_0][V]
      * --------[test][1], node[node_0], [P], s[STARTED], a[id=xqfZSToVSQaff2xvuxh_yA]
      * --------[test][0], node[node_0], [P], s[STARTED], a[id=VGjOeBGdSmu3pJR6T7v29A]
@@ -455,14 +454,14 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
      * This test mimics cluster state where re-balancing is not possible due to existing limitation of re-balancing
      * logic which applies at index level i.e. balance shards single index across all nodes. This will be solved when
      * primary shard count across indices, constraint is added.
-     *
+     * <p>
      * Please note, P1, P2 belongs to different index
-     *
+     * <p>
      * N1        N2
      * ------  --------
      * P1       R1
      * P2       R2
-     *
+     * <p>
      * -----node_id[node_0][V]
      * --------[test1][0], node[node_0], [P], s[STARTED], a[id=u7qtyy5AR42hgEa-JpeArg]
      * --------[test0][0], node[node_0], [P], s[STARTED], a[id=BQrLSo6sQyGlcLdVvGgqLQ]
@@ -523,12 +522,12 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
 
     private void verifyPerIndexPrimaryBalance(ClusterState currentState) {
         RoutingNodes nodes = currentState.getRoutingNodes();
-        for (ObjectObjectCursor<String, IndexRoutingTable> index : currentState.getRoutingTable().indicesRouting()) {
-            final int totalPrimaryShards = index.value.primaryShardsActive();
+        for (final Map.Entry<String, IndexRoutingTable> index : currentState.getRoutingTable().indicesRouting().entrySet()) {
+            final int totalPrimaryShards = index.getValue().primaryShardsActive();
             final int avgPrimaryShardsPerNode = (int) Math.ceil(totalPrimaryShards * 1f / currentState.getRoutingNodes().size());
 
             for (RoutingNode node : nodes) {
-                final int primaryCount = node.shardsWithState(index.key, STARTED)
+                final int primaryCount = node.shardsWithState(index.getKey(), STARTED)
                     .stream()
                     .filter(ShardRouting::primary)
                     .collect(Collectors.toList())
@@ -542,8 +541,8 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         assertBusy(() -> {
             RoutingNodes nodes = clusterState.getRoutingNodes();
             int totalPrimaryShards = 0;
-            for (ObjectObjectCursor<String, IndexRoutingTable> index : clusterState.getRoutingTable().indicesRouting()) {
-                totalPrimaryShards += index.value.primaryShardsActive();
+            for (final IndexRoutingTable index : clusterState.getRoutingTable().indicesRouting().values()) {
+                totalPrimaryShards += index.primaryShardsActive();
             }
             final int avgPrimaryShardsPerNode = (int) Math.ceil(totalPrimaryShards * 1f / clusterState.getRoutingNodes().size());
             for (RoutingNode node : nodes) {
@@ -654,8 +653,8 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         }
 
         Metadata metadata = metadataBuilder.build();
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            routingTableBuilder.addAsNew(cursor.value);
+        for (final IndexMetadata cursor : metadata.indices().values()) {
+            routingTableBuilder.addAsNew(cursor);
         }
 
         RoutingTable initialRoutingTable = routingTableBuilder.build();
@@ -774,10 +773,10 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         final int minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - threshold)));
         final int maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + threshold)));
 
-        for (ObjectCursor<String> index : routingTable.indicesRouting().keys()) {
+        for (final String index : routingTable.indicesRouting().keySet()) {
             for (RoutingNode node : nodes) {
-                assertThat(node.shardsWithState(index.value, STARTED).size(), Matchers.greaterThanOrEqualTo(minAvgNumberOfShards));
-                assertThat(node.shardsWithState(index.value, STARTED).size(), Matchers.lessThanOrEqualTo(maxAvgNumberOfShards));
+                assertThat(node.shardsWithState(index, STARTED).size(), Matchers.greaterThanOrEqualTo(minAvgNumberOfShards));
+                assertThat(node.shardsWithState(index, STARTED).size(), Matchers.lessThanOrEqualTo(maxAvgNumberOfShards));
             }
         }
     }
@@ -909,8 +908,8 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             .numberOfReplicas(1);
         metadataBuilder = metadataBuilder.put(indexMeta);
         Metadata metadata = metadataBuilder.build();
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            routingTableBuilder.addAsNew(cursor.value);
+        for (final IndexMetadata cursor : metadata.indices().values()) {
+            routingTableBuilder.addAsNew(cursor);
         }
         RoutingTable routingTable = routingTableBuilder.build();
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();

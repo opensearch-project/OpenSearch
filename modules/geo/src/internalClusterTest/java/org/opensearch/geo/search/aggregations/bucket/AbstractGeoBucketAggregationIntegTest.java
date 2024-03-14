@@ -8,8 +8,6 @@
 
 package org.opensearch.geo.search.aggregations.bucket;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.opensearch.Version;
 import org.opensearch.action.index.IndexRequestBuilder;
@@ -26,8 +24,10 @@ import org.opensearch.geometry.Rectangle;
 import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
@@ -51,11 +51,11 @@ public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePlu
 
     protected static Rectangle boundingRectangleForGeoShapesAgg;
 
-    protected static ObjectIntMap<String> expectedDocsCountForGeoShapes;
+    protected static Map<String, Integer> expectedDocsCountForGeoShapes;
 
-    protected static ObjectIntMap<String> expectedDocCountsForSingleGeoPoint;
+    protected static Map<String, Integer> expectedDocCountsForSingleGeoPoint;
 
-    protected static ObjectIntMap<String> multiValuedExpectedDocCountsGeoPoint;
+    protected static Map<String, Integer> multiValuedExpectedDocCountsGeoPoint;
 
     protected static final String GEO_SHAPE_FIELD_NAME = "location_geo_shape";
 
@@ -66,6 +66,10 @@ public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePlu
     protected static String smallestGeoHash = null;
 
     protected final Version version = VersionUtils.randomIndexCompatibleVersion(random());
+
+    public AbstractGeoBucketAggregationIntegTest(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
 
     @Override
     protected boolean forbidPrivateIndexSettings() {
@@ -82,8 +86,8 @@ public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePlu
      * @throws Exception thrown during index creation.
      */
     protected void prepareGeoShapeIndexForAggregations(final Random random) throws Exception {
-        expectedDocsCountForGeoShapes = new ObjectIntHashMap<>();
-        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
+        expectedDocsCountForGeoShapes = new HashMap<>();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         final List<IndexRequestBuilder> geoshapes = new ArrayList<>();
         assertAcked(prepareCreate(GEO_SHAPE_INDEX_NAME).setSettings(settings).setMapping(GEO_SHAPE_FIELD_NAME, "type" + "=geo_shape"));
         boolean isShapeIntersectingBB = false;
@@ -129,10 +133,10 @@ public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePlu
      * @throws Exception thrown during index creation.
      */
     protected void prepareSingleValueGeoPointIndex(final Random random) throws Exception {
-        expectedDocCountsForSingleGeoPoint = new ObjectIntHashMap<>();
+        expectedDocCountsForSingleGeoPoint = new HashMap<>();
         createIndex("idx_unmapped");
         final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("index.number_of_shards", 4)
             .put("index.number_of_replicas", 0)
             .build();
@@ -155,8 +159,8 @@ public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePlu
     }
 
     protected void prepareMultiValuedGeoPointIndex(final Random random) throws Exception {
-        multiValuedExpectedDocCountsGeoPoint = new ObjectIntHashMap<>();
-        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
+        multiValuedExpectedDocCountsGeoPoint = new HashMap<>();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         final List<IndexRequestBuilder> cities = new ArrayList<>();
         assertAcked(
             prepareCreate("multi_valued_idx").setSettings(settings)

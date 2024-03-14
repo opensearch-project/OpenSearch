@@ -32,7 +32,7 @@
 
 package org.opensearch.painless.lookup;
 
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 
 import java.lang.invoke.MethodHandle;
 import java.util.Map;

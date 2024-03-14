@@ -8,8 +8,8 @@
 
 package org.opensearch.indices.recovery;
 
-import org.opensearch.action.ActionListener;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.store.StoreFileMetadata;
 
 /**

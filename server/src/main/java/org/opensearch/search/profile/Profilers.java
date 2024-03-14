@@ -32,8 +32,13 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.profile.aggregation.AggregationProfiler;
+import org.opensearch.search.profile.aggregation.ConcurrentAggregationProfiler;
+import org.opensearch.search.profile.query.ConcurrentQueryProfileTree;
+import org.opensearch.search.profile.query.ConcurrentQueryProfiler;
+import org.opensearch.search.profile.query.InternalQueryProfileTree;
 import org.opensearch.search.profile.query.QueryProfiler;
 
 import java.util.ArrayList;
@@ -43,25 +48,30 @@ import java.util.List;
 /**
  * Wrapper around all the profilers that makes management easier.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class Profilers {
 
     private final ContextIndexSearcher searcher;
     private final List<QueryProfiler> queryProfilers;
     private final AggregationProfiler aggProfiler;
+    private final boolean isConcurrentSegmentSearchEnabled;
 
     /** Sole constructor. This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
-    public Profilers(ContextIndexSearcher searcher) {
+    public Profilers(ContextIndexSearcher searcher, boolean isConcurrentSegmentSearchEnabled) {
         this.searcher = searcher;
+        this.isConcurrentSegmentSearchEnabled = isConcurrentSegmentSearchEnabled;
         this.queryProfilers = new ArrayList<>();
-        this.aggProfiler = new AggregationProfiler();
+        this.aggProfiler = isConcurrentSegmentSearchEnabled ? new ConcurrentAggregationProfiler() : new AggregationProfiler();
         addQueryProfiler();
     }
 
     /** Switch to a new profile. */
     public QueryProfiler addQueryProfiler() {
-        QueryProfiler profiler = new QueryProfiler(searcher.getExecutor() != null);
+        QueryProfiler profiler = isConcurrentSegmentSearchEnabled
+            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
+            : new QueryProfiler(new InternalQueryProfileTree());
         searcher.setProfiler(profiler);
         queryProfilers.add(profiler);
         return profiler;

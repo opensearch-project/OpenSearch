@@ -32,6 +32,7 @@
 
 package org.opensearch.core.util;
 
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -101,5 +102,14 @@ public class BytesRefUtils {
             current = tmp;
         }
         return uniqueCount;
+    }
+
+    /**
+     * Decodes a long value written as bytes in big endian order.
+     * @param bytes in big endian order
+     * @return long value
+     */
+    public static long bytesToLong(BytesRef bytes) {
+        return (long) BitUtil.VH_BE_LONG.get(bytes.bytes, bytes.offset);
     }
 }

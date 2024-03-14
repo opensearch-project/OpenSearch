@@ -31,10 +31,10 @@
 
 package org.opensearch.test.rest.yaml;
 
+import org.opensearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.opensearch.test.rest.yaml.section.ClientYamlTestSuite;
 import org.opensearch.test.rest.yaml.section.SetupSection;
 import org.opensearch.test.rest.yaml.section.TeardownSection;
-import org.opensearch.test.rest.yaml.section.ClientYamlTestSection;
 
 /**
  * Wraps {@link ClientYamlTestSection}s ready to be run. Each test section is associated to its {@link ClientYamlTestSuite}.

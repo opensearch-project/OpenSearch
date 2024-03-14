@@ -32,7 +32,10 @@
 
 package org.opensearch.gradle.test;
 
+import groovy.lang.Closure;
+
 import org.opensearch.gradle.testclusters.StandaloneRestIntegTestTask;
+import org.gradle.api.Task;
 import org.gradle.api.tasks.CacheableTask;
 
 /**
@@ -41,4 +44,12 @@ import org.gradle.api.tasks.CacheableTask;
  * conventional configured tasks of {@link RestIntegTestTask}
  */
 @CacheableTask
-public class RestIntegTestTask extends StandaloneRestIntegTestTask {}
+public abstract class RestIntegTestTask extends StandaloneRestIntegTestTask implements TestSuiteConventionMappings {
+    @SuppressWarnings("rawtypes")
+    @Override
+    public Task configure(Closure closure) {
+        final Task t = super.configure(closure);
+        applyConventionMapping(getProject(), getConventionMapping());
+        return t;
+    }
+}

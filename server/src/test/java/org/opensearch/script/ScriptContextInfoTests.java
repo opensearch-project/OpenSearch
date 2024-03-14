@@ -32,14 +32,14 @@
 
 package org.opensearch.script;
 
-import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.ScriptContextInfo.ScriptMethodInfo;
 import org.opensearch.script.ScriptContextInfo.ScriptMethodInfo.ParameterInfo;
 import org.opensearch.test.OpenSearchTestCase;
@@ -317,7 +317,7 @@ public class ScriptContextInfoTests extends OpenSearchTestCase {
     public void testParameterInfoParser() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
 
-        XContentParser parser = XContentType.JSON.xContent()
+        XContentParser parser = MediaTypeRegistry.JSON.xContent()
             .createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
@@ -330,7 +330,7 @@ public class ScriptContextInfoTests extends OpenSearchTestCase {
     public void testScriptMethodInfoParser() throws IOException {
         String json = "{\"name\": \"fooFunc\", \"return_type\": \"int\", \"params\": [{\"type\": \"int\", \"name\": \"fooParam\"}, "
             + "{\"type\": \"java.util.Map\", \"name\": \"barParam\"}]}";
-        XContentParser parser = XContentType.JSON.xContent()
+        XContentParser parser = MediaTypeRegistry.JSON.xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new BytesArray(json).streamInput());
         ScriptContextInfo.ScriptMethodInfo info = ScriptContextInfo.ScriptMethodInfo.fromXContent(parser);
         assertEquals(
@@ -395,7 +395,7 @@ public class ScriptContextInfoTests extends OpenSearchTestCase {
             + "    }"
             + "  ]"
             + "}";
-        XContentParser parser = XContentType.JSON.xContent()
+        XContentParser parser = MediaTypeRegistry.JSON.xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new BytesArray(json).streamInput());
         ScriptContextInfo parsed = ScriptContextInfo.fromXContent(parser);
         ScriptContextInfo expected = new ScriptContextInfo(

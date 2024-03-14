@@ -8,10 +8,12 @@
 
 package org.opensearch.extensions.action;
 
+import com.google.protobuf.ByteString;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.extensions.proto.ExtensionTransportMessageProto.ExtensionTransportMessage;
 
 import java.io.IOException;
 
@@ -22,14 +24,7 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class ExtensionActionRequest extends ActionRequest {
-    /**
-     * action is the transport action intended to be invoked which is registered by an extension via {@link ExtensionTransportActionsHandler}.
-     */
-    private final String action;
-    /**
-     * requestBytes is the raw bytes being transported between extensions.
-     */
-    private final byte[] requestBytes;
+    private final ExtensionTransportMessage request;
 
     /**
      * ExtensionActionRequest constructor.
@@ -37,9 +32,8 @@ public class ExtensionActionRequest extends ActionRequest {
      * @param action is the transport action intended to be invoked which is registered by an extension via {@link ExtensionTransportActionsHandler}.
      * @param requestBytes is the raw bytes being transported between extensions.
      */
-    public ExtensionActionRequest(String action, byte[] requestBytes) {
-        this.action = action;
-        this.requestBytes = requestBytes;
+    public ExtensionActionRequest(String action, ByteString requestBytes) {
+        this.request = ExtensionTransportMessage.newBuilder().setAction(action).setRequestBytes(requestBytes).build();
     }
 
     /**
@@ -50,23 +44,21 @@ public class ExtensionActionRequest extends ActionRequest {
      */
     public ExtensionActionRequest(StreamInput in) throws IOException {
         super(in);
-        action = in.readString();
-        requestBytes = in.readByteArray();
+        this.request = ExtensionTransportMessage.parseFrom(in.readByteArray());
     }
 
     public String getAction() {
-        return action;
+        return request.getAction();
     }
 
-    public byte[] getRequestBytes() {
-        return requestBytes;
+    public ByteString getRequestBytes() {
+        return request.getRequestBytes();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(action);
-        out.writeByteArray(requestBytes);
+        out.writeByteArray(request.toByteArray());
     }
 
     @Override

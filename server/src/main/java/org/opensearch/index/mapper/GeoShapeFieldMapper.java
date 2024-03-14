@@ -31,12 +31,15 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
+import org.opensearch.Version;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.geo.GeometryParser;
 import org.opensearch.common.geo.ShapeRelation;
@@ -77,6 +80,7 @@ import java.util.function.Supplier;
  * @opensearch.internal
  */
 public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry, Geometry> {
+    private static final Logger logger = LogManager.getLogger(GeoShapeFieldMapper.class);
     public static final String CONTENT_TYPE = "geo_shape";
     public static final FieldType FIELD_TYPE = new FieldType();
     static {
@@ -205,9 +209,24 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         final List<IndexableField> indexableFields,
         final ParseContext context
     ) {
-        Field[] fieldsArray = new Field[indexableFields.size()];
-        fieldsArray = indexableFields.toArray(fieldsArray);
-        context.doc().add(LatLonShape.createDocValueField(name, fieldsArray));
+        /*
+         * We are adding the doc values for GeoShape only if the index is created with 2.9 and above version of
+         * OpenSearch. If we don't do that after the upgrade of OpenSearch customers are not able to index documents
+         * with GeoShape fields. Github issue: https://github.com/opensearch-project/OpenSearch/issues/10958,
+         * https://github.com/opensearch-project/OpenSearch/issues/10795
+         */
+        if (context.indexSettings().getIndexVersionCreated().onOrAfter(Version.V_2_9_0)) {
+            Field[] fieldsArray = new Field[indexableFields.size()];
+            fieldsArray = indexableFields.toArray(fieldsArray);
+            context.doc().add(LatLonShape.createDocValueField(name, fieldsArray));
+        } else {
+            logger.warn(
+                "The index was created with Version : {}, for geoshape doc values to work index must be "
+                    + "created with OpenSearch Version : {} or above",
+                context.indexSettings().getIndexVersionCreated(),
+                Version.V_2_9_0
+            );
+        }
     }
 
     @Override

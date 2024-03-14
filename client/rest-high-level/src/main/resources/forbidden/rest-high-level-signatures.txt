@@ -14,7 +14,7 @@
 # either express or implied. See the License for the specific
 # language governing permissions and limitations under the License.
 
-@defaultMessage Use Request#createContentType(XContentType) to be sure to pass the right MIME type
+@defaultMessage Use Request#createContentType(MediaType) to be sure to pass the right MIME type
 org.apache.hc.core5.http.ContentType#create(java.lang.String)
 org.apache.hc.core5.http.ContentType#create(java.lang.String,java.lang.String)
 org.apache.hc.core5.http.ContentType#create(java.lang.String,java.nio.charset.Charset)
@@ -22,7 +22,7 @@ org.apache.hc.core5.http.ContentType#create(java.lang.String,java.nio.charset.Ch
 @defaultMessage ES's logging infrastructure uses log4j2 which we don't want to force on high level rest client users
 org.opensearch.common.logging.DeprecationLogger
 org.opensearch.common.logging.LogConfigurator
-org.opensearch.common.logging.LoggerMessageFormat
+org.opensearch.core.common.logging.LoggerMessageFormat
 org.opensearch.common.logging.Loggers
 org.opensearch.common.logging.NodeNamePatternConverter
 org.opensearch.common.logging.PrefixLogger

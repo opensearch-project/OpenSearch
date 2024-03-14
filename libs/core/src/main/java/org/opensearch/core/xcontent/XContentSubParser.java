@@ -35,6 +35,7 @@ package org.opensearch.core.xcontent;
 import org.opensearch.common.CheckedFunction;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +43,7 @@ import java.util.function.Supplier;
 
 /**
  * Wrapper for a XContentParser that makes a single object/array look like a complete document.
- *
+ * <p>
  * The wrapper prevents the parsing logic to consume tokens outside of the wrapped object as well
  * as skipping to the end of the object in case of a parsing error. The wrapper is intended to be
  * used for parsing objects that should be ignored if they are malformed.
@@ -219,7 +220,12 @@ public class XContentSubParser implements XContentParser {
 
     @Override
     public double doubleValue(boolean coerce) throws IOException {
-        return parser.doubleValue();
+        return parser.doubleValue(coerce);
+    }
+
+    @Override
+    public BigInteger bigIntegerValue(boolean coerce) throws IOException {
+        return parser.bigIntegerValue(coerce);
     }
 
     @Override
@@ -245,6 +251,11 @@ public class XContentSubParser implements XContentParser {
     @Override
     public double doubleValue() throws IOException {
         return parser.doubleValue();
+    }
+
+    @Override
+    public BigInteger bigIntegerValue() throws IOException {
+        return parser.bigIntegerValue();
     }
 
     @Override

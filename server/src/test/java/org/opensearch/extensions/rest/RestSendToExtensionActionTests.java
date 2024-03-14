@@ -8,45 +8,65 @@
 
 package org.opensearch.extensions.rest;
 
-import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Set;
-import java.util.Map;
-import java.util.Arrays;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.Version;
+import org.opensearch.action.ActionModule;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
+import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
+import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.extensions.DiscoveryExtensionNode;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.extensions.ExtensionsManager;
+import org.opensearch.extensions.action.ExtensionAction;
+import org.opensearch.extensions.action.ExtensionTransportAction;
+import org.opensearch.identity.IdentityService;
+import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestRequest.Method;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
+import org.opensearch.usage.UsageService;
+import org.junit.After;
+import org.junit.Before;
+
+import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static org.mockito.Mockito.mock;
 
 public class RestSendToExtensionActionTests extends OpenSearchTestCase {
 
     private TransportService transportService;
     private MockNioTransport transport;
     private DiscoveryExtensionNode discoveryExtensionNode;
+    private ActionModule actionModule;
+    private DynamicActionRegistry dynamicActionRegistry;
+    private IdentityService identityService;
     private final ThreadPool threadPool = new TestThreadPool(RestSendToExtensionActionTests.class.getSimpleName());
 
     @Before
@@ -59,7 +79,8 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            NoopTracer.INSTANCE
         );
         transportService = new MockTransportService(
             settings,
@@ -75,7 +96,8 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
                 Version.CURRENT
             ),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         discoveryExtensionNode = new DiscoveryExtensionNode(
             "firstExtension",
@@ -86,6 +108,25 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             Version.fromString("3.0.0"),
             Collections.emptyList()
         );
+        SettingsModule settingsModule = new SettingsModule(settings);
+        UsageService usageService = new UsageService();
+        actionModule = new ActionModule(
+            settingsModule.getSettings(),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            settingsModule.getIndexScopedSettings(),
+            settingsModule.getClusterSettings(),
+            settingsModule.getSettingsFilter(),
+            mock(ThreadPool.class),
+            emptyList(),
+            null,
+            null,
+            usageService,
+            null,
+            new IdentityService(Settings.EMPTY, new ArrayList<>()),
+            new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, List.of()))
+        );
+        identityService = new IdentityService(Settings.EMPTY, new ArrayList<>());
+        dynamicActionRegistry = actionModule.getDynamicActionRegistry();
     }
 
     @Override
@@ -99,16 +140,18 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
     public void testRestSendToExtensionAction() throws Exception {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
-            List.of("GET /foo", "PUT /bar", "POST /baz"),
-            List.of("GET /deprecated/foo", "It's deprecated!")
+            List.of("GET /foo foo", "PUT /bar bar", "POST /baz baz"),
+            List.of("GET /deprecated/foo foo_deprecated", "Its deprecated")
         );
         RestSendToExtensionAction restSendToExtensionAction = new RestSendToExtensionAction(
             registerRestActionRequest,
             discoveryExtensionNode,
-            transportService
+            transportService,
+            dynamicActionRegistry,
+            identityService
         );
 
-        assertEquals("send_to_extension_action", restSendToExtensionAction.getName());
+        assertEquals("uniqueid1:send_to_extension_action", restSendToExtensionAction.getName());
         List<Route> expected = new ArrayList<>();
         String uriPrefix = "/_extensions/_uniqueid1";
         expected.add(new Route(Method.GET, uriPrefix + "/foo"));
@@ -127,16 +170,275 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         assertTrue(expectedMethods.containsAll(methods));
     }
 
-    public void testRestSendToExtensionActionFilterHeaders() throws Exception {
+    public void testRestSendToExtensionActionWithNamedRoute() throws Exception {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
-            List.of("GET /foo", "PUT /bar", "POST /baz"),
-            List.of("GET /deprecated/foo", "It's deprecated!")
+            List.of("GET /foo foo", "PUT /bar bar", "POST /baz baz"),
+            List.of("GET /deprecated/foo foo_deprecated", "It's deprecated!")
         );
         RestSendToExtensionAction restSendToExtensionAction = new RestSendToExtensionAction(
             registerRestActionRequest,
             discoveryExtensionNode,
-            transportService
+            transportService,
+            dynamicActionRegistry,
+            identityService
+        );
+
+        assertEquals("uniqueid1:send_to_extension_action", restSendToExtensionAction.getName());
+        List<NamedRoute> expected = new ArrayList<>();
+        String uriPrefix = "/_extensions/_uniqueid1";
+        NamedRoute nr1 = new NamedRoute.Builder().method(Method.GET).path(uriPrefix + "/foo").uniqueName("foo").build();
+
+        NamedRoute nr2 = new NamedRoute.Builder().method(Method.PUT).path(uriPrefix + "/bar").uniqueName("bar").build();
+
+        NamedRoute nr3 = new NamedRoute.Builder().method(Method.POST).path(uriPrefix + "/baz").uniqueName("baz").build();
+
+        expected.add(nr1);
+        expected.add(nr2);
+        expected.add(nr3);
+
+        List<Route> routes = restSendToExtensionAction.routes();
+        assertEquals(expected.size(), routes.size());
+        List<String> expectedPaths = expected.stream().map(Route::getPath).collect(Collectors.toList());
+        List<String> paths = routes.stream().map(Route::getPath).collect(Collectors.toList());
+        List<Method> expectedMethods = expected.stream().map(Route::getMethod).collect(Collectors.toList());
+        List<Method> methods = routes.stream().map(Route::getMethod).collect(Collectors.toList());
+        List<String> expectedNames = expected.stream().map(NamedRoute::name).collect(Collectors.toList());
+        List<String> names = routes.stream().map(r -> ((NamedRoute) r).name()).collect(Collectors.toList());
+        assertTrue(paths.containsAll(expectedPaths));
+        assertTrue(expectedPaths.containsAll(paths));
+        assertTrue(methods.containsAll(expectedMethods));
+        assertTrue(expectedMethods.containsAll(methods));
+        assertTrue(expectedNames.containsAll(names));
+    }
+
+    public void testRestSendToExtensionActionWithNamedRouteAndLegacyActionName() throws Exception {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of(
+                "GET /foo foo cluster:admin/opensearch/abc/foo",
+                "PUT /bar bar cluster:admin/opensearch/jkl/bar,cluster:admin/opendistro/mno/bar*",
+                "POST /baz baz cluster:admin/opensearch/xyz/baz"
+            ),
+            List.of("GET /deprecated/foo foo_deprecated cluster:admin/opensearch/abc/foo_deprecated", "It's deprecated!")
+        );
+        RestSendToExtensionAction restSendToExtensionAction = new RestSendToExtensionAction(
+            registerRestActionRequest,
+            discoveryExtensionNode,
+            transportService,
+            dynamicActionRegistry,
+            identityService
+        );
+
+        assertEquals("uniqueid1:send_to_extension_action", restSendToExtensionAction.getName());
+        List<NamedRoute> expected = new ArrayList<>();
+        String uriPrefix = "/_extensions/_uniqueid1";
+        NamedRoute nr1 = new NamedRoute.Builder().method(Method.GET)
+            .path(uriPrefix + "/foo")
+            .uniqueName("foo")
+            .legacyActionNames(Set.of("cluster:admin/opensearch/abc/foo"))
+            .build();
+        NamedRoute nr2 = new NamedRoute.Builder().method(Method.PUT)
+            .path(uriPrefix + "/bar")
+            .uniqueName("bar")
+            .legacyActionNames(Set.of("cluster:admin/opensearch/jkl/bar", "cluster:admin/opendistro/mno/bar*"))
+            .build();
+        NamedRoute nr3 = new NamedRoute.Builder().method(Method.POST)
+            .path(uriPrefix + "/baz")
+            .uniqueName("baz")
+            .legacyActionNames(Set.of("cluster:admin/opensearch/xyz/baz"))
+            .build();
+
+        expected.add(nr1);
+        expected.add(nr2);
+        expected.add(nr3);
+
+        List<Route> routes = restSendToExtensionAction.routes();
+        assertEquals(expected.size(), routes.size());
+        List<String> expectedPaths = expected.stream().map(Route::getPath).collect(Collectors.toList());
+        List<String> paths = routes.stream().map(Route::getPath).collect(Collectors.toList());
+        List<Method> expectedMethods = expected.stream().map(Route::getMethod).collect(Collectors.toList());
+        List<Method> methods = routes.stream().map(Route::getMethod).collect(Collectors.toList());
+        List<String> expectedNames = expected.stream().map(NamedRoute::name).collect(Collectors.toList());
+        List<String> names = routes.stream().map(r -> ((NamedRoute) r).name()).collect(Collectors.toList());
+        Set<String> expectedActionNames = expected.stream().flatMap(nr -> nr.actionNames().stream()).collect(Collectors.toSet());
+        Set<String> actionNames = routes.stream().flatMap(nr -> ((NamedRoute) nr).actionNames().stream()).collect(Collectors.toSet());
+        assertTrue(paths.containsAll(expectedPaths));
+        assertTrue(expectedPaths.containsAll(paths));
+        assertTrue(methods.containsAll(expectedMethods));
+        assertTrue(expectedMethods.containsAll(methods));
+        assertTrue(expectedNames.containsAll(names));
+        assertTrue(expectedActionNames.containsAll(actionNames));
+    }
+
+    public void testRestSendToExtensionActionWithoutUniqueNameShouldFail() {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo", "PUT /bar"),
+            List.of()
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RestSendToExtensionAction(
+                registerRestActionRequest,
+                discoveryExtensionNode,
+                transportService,
+                dynamicActionRegistry,
+                identityService
+            )
+        );
+    }
+
+    public void testRestSendToExtensionMultipleNamedRoutesWithSameName() throws Exception {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo foo", "PUT /bar foo"),
+            List.of()
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RestSendToExtensionAction(
+                registerRestActionRequest,
+                discoveryExtensionNode,
+                transportService,
+                dynamicActionRegistry,
+                identityService
+            )
+        );
+    }
+
+    public void testRestSendToExtensionMultipleNamedRoutesWithSameLegacyActionName() throws Exception {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo foo cluster:admin/opensearch/abc/foo", "PUT /bar bar cluster:admin/opensearch/abc/foo"),
+            List.of()
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RestSendToExtensionAction(
+                registerRestActionRequest,
+                discoveryExtensionNode,
+                transportService,
+                dynamicActionRegistry,
+                identityService
+            )
+        );
+    }
+
+    public void testRestSendToExtensionMultipleRoutesWithSameMethodAndPath() throws Exception {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo", "GET /foo"),
+            List.of()
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RestSendToExtensionAction(
+                registerRestActionRequest,
+                discoveryExtensionNode,
+                transportService,
+                dynamicActionRegistry,
+                identityService
+            )
+        );
+    }
+
+    public void testRestSendToExtensionMultipleRoutesWithSameMethodAndPathWithDifferentPathParams() throws Exception {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo/{path_param1} fooWithParam", "GET /foo/{path_param2} listFooWithParam"),
+            List.of()
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RestSendToExtensionAction(
+                registerRestActionRequest,
+                discoveryExtensionNode,
+                transportService,
+                dynamicActionRegistry,
+                identityService
+            )
+        );
+    }
+
+    public void testRestSendToExtensionMultipleRoutesWithSameMethodAndPathWithPathParams() {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo/{path_param} fooWithParam", "GET /foo/{path_param}/list listFooWithParam"),
+            List.of()
+        );
+
+        try {
+            new RestSendToExtensionAction(
+                registerRestActionRequest,
+                discoveryExtensionNode,
+                transportService,
+                dynamicActionRegistry,
+                identityService
+            );
+        } catch (IllegalArgumentException e) {
+            fail("IllegalArgumentException should not be thrown for different paths");
+        }
+    }
+
+    public void testRestSendToExtensionWithNamedRouteCollidingWithDynamicTransportAction() throws Exception {
+        DynamicActionRegistry dynamicActionRegistry = actionModule.getDynamicActionRegistry();
+        ActionFilters emptyFilters = new ActionFilters(Collections.emptySet());
+        ExtensionAction testExtensionAction = new ExtensionAction("extensionId", "test:action/name");
+        ExtensionTransportAction testExtensionTransportAction = new ExtensionTransportAction("test:action/name", emptyFilters, null, null);
+        assertNull(dynamicActionRegistry.get(testExtensionAction));
+        dynamicActionRegistry.registerDynamicAction(testExtensionAction, testExtensionTransportAction);
+
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo test:action/name"),
+            List.of()
+        );
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RestSendToExtensionAction(
+                registerRestActionRequest,
+                discoveryExtensionNode,
+                transportService,
+                dynamicActionRegistry,
+                identityService
+            )
+        );
+    }
+
+    public void testRestSendToExtensionWithNamedRouteCollidingWithNativeTransportAction() throws Exception {
+        actionModule.getDynamicActionRegistry()
+            .registerUnmodifiableActionMap(Map.of(ClusterHealthAction.INSTANCE, mock(TransportClusterHealthAction.class)));
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo " + ClusterHealthAction.NAME),
+            List.of()
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RestSendToExtensionAction(
+                registerRestActionRequest,
+                discoveryExtensionNode,
+                transportService,
+                dynamicActionRegistry,
+                identityService
+            )
+        );
+    }
+
+    public void testRestSendToExtensionActionFilterHeaders() throws Exception {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo foo", "PUT /bar bar", "POST /baz baz"),
+            List.of("GET /deprecated/foo foo_deprecated", "It's deprecated!")
+        );
+        RestSendToExtensionAction restSendToExtensionAction = new RestSendToExtensionAction(
+            registerRestActionRequest,
+            discoveryExtensionNode,
+            transportService,
+            dynamicActionRegistry,
+            identityService
         );
 
         Map<String, List<String>> headers = new HashMap<>();
@@ -162,7 +464,13 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService)
+            () -> new RestSendToExtensionAction(
+                registerRestActionRequest,
+                discoveryExtensionNode,
+                transportService,
+                dynamicActionRegistry,
+                identityService
+            )
         );
     }
 
@@ -174,7 +482,13 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService)
+            () -> new RestSendToExtensionAction(
+                registerRestActionRequest,
+                discoveryExtensionNode,
+                transportService,
+                dynamicActionRegistry,
+                identityService
+            )
         );
     }
 
@@ -186,7 +500,13 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService)
+            () -> new RestSendToExtensionAction(
+                registerRestActionRequest,
+                discoveryExtensionNode,
+                transportService,
+                dynamicActionRegistry,
+                identityService
+            )
         );
     }
 
@@ -198,7 +518,13 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService)
+            () -> new RestSendToExtensionAction(
+                registerRestActionRequest,
+                discoveryExtensionNode,
+                transportService,
+                dynamicActionRegistry,
+                identityService
+            )
         );
     }
 }

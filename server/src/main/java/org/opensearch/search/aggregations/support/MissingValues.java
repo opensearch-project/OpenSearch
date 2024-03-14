@@ -115,11 +115,17 @@ public enum MissingValues {
     public static ValuesSource.Numeric replaceMissing(final ValuesSource.Numeric valuesSource, final Number missing) {
         final boolean missingIsFloat = missing.doubleValue() % 1 != 0;
         final boolean isFloatingPoint = valuesSource.isFloatingPoint() || missingIsFloat;
+        final boolean isBigInteger = valuesSource.isBigInteger() && !isFloatingPoint;
         return new ValuesSource.Numeric() {
 
             @Override
             public boolean isFloatingPoint() {
                 return isFloatingPoint;
+            }
+
+            @Override
+            public boolean isBigInteger() {
+                return isBigInteger;
             }
 
             @Override
@@ -221,6 +227,10 @@ public enum MissingValues {
                 return "anon SortedNumericDoubleValues of [" + super.toString() + "]";
             }
 
+            @Override
+            public int advance(int target) throws IOException {
+                return values.advance(target);
+            }
         };
     }
 

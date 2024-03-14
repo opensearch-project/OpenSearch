@@ -17,8 +17,42 @@
   - do:
       tasks.list:
         group_by: parents
+        detailed: true
+  - set:
+      tasks._arbitrary_key_: task_id
 
   - is_true: tasks
+  - is_true: tasks.$task_id.resource_stats
+  - is_true: tasks.$task_id.resource_stats.total
+
+---
+"tasks_list test detailed":
+  - skip:
+      features: [arbitrary_key]
+      version: " - 2.0.99"
+      reason: resource_stats were introduced in 2.1.0
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      tasks.list: {}
+
+  - is_true: nodes
+  - is_true: nodes.$node_id.roles
+
+  - do:
+      tasks.list:
+        group_by: parents
+        detailed: true
+  - set:
+      tasks._arbitrary_key_: task_id
+
+  - is_true: tasks
+  - is_true: tasks.$task_id.resource_stats
+  - is_true: tasks.$task_id.resource_stats.total
 
 ---
 "tasks_list headers":
@@ -32,3 +66,22 @@
 
   - is_true: tasks
   - match: { tasks.0.headers.X-Opaque-Id: "That is me" }
+
+---
+"tasks_list detailed (with thread info)":
+  - skip:
+      version: " - 2.8.99"
+      reason: thread_info was introduced in 2.9.0
+      features: [arbitrary_key]
+
+  - do:
+      tasks.list:
+        group_by: parents
+        detailed: true
+  - set:
+      tasks._arbitrary_key_: task_id
+
+  - is_true: tasks
+  - is_true: tasks.$task_id.resource_stats
+  - is_true: tasks.$task_id.resource_stats.thread_info
+  - is_true: tasks.$task_id.resource_stats.total

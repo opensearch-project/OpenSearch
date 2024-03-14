@@ -36,10 +36,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -48,29 +48,36 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.concurrent.EWMATrackingThreadPoolExecutor;
+import org.opensearch.core.tasks.TaskCancelledException;
+import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchContextSourcePrinter;
 import org.opensearch.search.SearchService;
-import org.opensearch.search.aggregations.AggregationPhase;
+import org.opensearch.search.aggregations.AggregationProcessor;
+import org.opensearch.search.aggregations.DefaultAggregationProcessor;
+import org.opensearch.search.aggregations.GlobalAggCollectorManager;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.ScrollContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.profile.query.InternalProfileCollector;
-import org.opensearch.search.rescore.RescorePhase;
+import org.opensearch.search.rescore.RescoreProcessor;
 import org.opensearch.search.sort.SortAndFormats;
-import org.opensearch.search.suggest.SuggestPhase;
-import org.opensearch.tasks.TaskCancelledException;
+import org.opensearch.search.suggest.SuggestProcessor;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
 import static org.opensearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
 import static org.opensearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
@@ -82,18 +89,17 @@ import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsC
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
  * (document ids and score or sort criteria) so that matches can be reduced on the coordinating node
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class QueryPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
     // TODO: remove this property
     public static final boolean SYS_PROP_REWRITE_SORT = Booleans.parseBoolean(System.getProperty("opensearch.search.rewrite_sort", "true"));
     public static final QueryPhaseSearcher DEFAULT_QUERY_PHASE_SEARCHER = new DefaultQueryPhaseSearcher();
-
     private final QueryPhaseSearcher queryPhaseSearcher;
-    private final AggregationPhase aggregationPhase;
-    private final SuggestPhase suggestPhase;
-    private final RescorePhase rescorePhase;
+    private final SuggestProcessor suggestProcessor;
+    private final RescoreProcessor rescoreProcessor;
 
     public QueryPhase() {
         this(DEFAULT_QUERY_PHASE_SEARCHER);
@@ -101,9 +107,8 @@ public class QueryPhase {
 
     public QueryPhase(QueryPhaseSearcher queryPhaseSearcher) {
         this.queryPhaseSearcher = Objects.requireNonNull(queryPhaseSearcher, "QueryPhaseSearcher is required");
-        this.aggregationPhase = new AggregationPhase();
-        this.suggestPhase = new SuggestPhase();
-        this.rescorePhase = new RescorePhase();
+        this.suggestProcessor = new SuggestProcessor();
+        this.rescoreProcessor = new RescoreProcessor();
     }
 
     public void preProcess(SearchContext context) {
@@ -129,7 +134,7 @@ public class QueryPhase {
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
-            suggestPhase.execute(searchContext);
+            suggestProcessor.process(searchContext);
             searchContext.queryResult()
                 .topDocs(
                     new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
@@ -142,17 +147,18 @@ public class QueryPhase {
             LOGGER.trace("{}", new SearchContextSourcePrinter(searchContext));
         }
 
+        final AggregationProcessor aggregationProcessor = queryPhaseSearcher.aggregationProcessor(searchContext);
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
-        aggregationPhase.preProcess(searchContext);
+        aggregationProcessor.preProcess(searchContext);
         boolean rescore = executeInternal(searchContext, queryPhaseSearcher);
 
         if (rescore) { // only if we do a regular search
-            rescorePhase.execute(searchContext);
+            rescoreProcessor.process(searchContext);
         }
-        suggestPhase.execute(searchContext);
-        aggregationPhase.execute(searchContext);
+        suggestProcessor.process(searchContext);
+        aggregationProcessor.postProcess(searchContext);
 
         if (searchContext.getProfilers() != null) {
             ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(
@@ -161,6 +167,11 @@ public class QueryPhase {
             );
             searchContext.queryResult().profileResults(shardResults);
         }
+    }
+
+    // making public for testing
+    public QueryPhaseSearcher getQueryPhaseSearcher() {
+        return queryPhaseSearcher;
     }
 
     /**
@@ -227,10 +238,19 @@ public class QueryPhase {
                 // this collector can filter documents during the collection
                 hasFilterCollector = true;
             }
-            if (searchContext.queryCollectorManagers().isEmpty() == false) {
-                // plug in additional collectors, like aggregations
-                collectors.add(createMultiCollectorContext(searchContext.queryCollectorManagers().values()));
+
+            // plug in additional collectors, like aggregations except global aggregations
+            final List<CollectorManager<? extends Collector, ReduceableSearchResult>> managersExceptGlobalAgg = searchContext
+                .queryCollectorManagers()
+                .entrySet()
+                .stream()
+                .filter(entry -> !(entry.getKey().equals(GlobalAggCollectorManager.class)))
+                .map(Map.Entry::getValue)
+                .collect(Collectors.toList());
+            if (managersExceptGlobalAgg.isEmpty() == false) {
+                collectors.add(createMultiCollectorContext(managersExceptGlobalAgg));
             }
+
             if (searchContext.minimumScore() != null) {
                 // apply the minimum score after multi collector so we filter aggs as well
                 collectors.add(createMinScoreCollectorContext(searchContext.minimumScore()));
@@ -336,10 +356,10 @@ public class QueryPhase {
             searcher.search(query, queryCollector);
         } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
             queryResult.terminatedEarly(true);
-        } catch (TimeExceededException e) {
+        }
+        if (searchContext.isSearchTimedOut()) {
             assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
             if (searchContext.request().allowPartialSearchResults() == false) {
-                // Can't rethrow TimeExceededException because not serializable
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
             queryResult.searchTimedOut(true);
@@ -386,10 +406,14 @@ public class QueryPhase {
      * @opensearch.internal
      */
     public static class DefaultQueryPhaseSearcher implements QueryPhaseSearcher {
+        private final AggregationProcessor aggregationProcessor;
+
         /**
          * Please use {@link QueryPhase#DEFAULT_QUERY_PHASE_SEARCHER}
          */
-        protected DefaultQueryPhaseSearcher() {}
+        protected DefaultQueryPhaseSearcher() {
+            aggregationProcessor = new DefaultAggregationProcessor();
+        }
 
         @Override
         public boolean searchWith(
@@ -401,6 +425,11 @@ public class QueryPhase {
             boolean hasTimeout
         ) throws IOException {
             return searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+        }
+
+        @Override
+        public AggregationProcessor aggregationProcessor(SearchContext searchContext) {
+            return aggregationProcessor;
         }
 
         protected boolean searchWithCollector(

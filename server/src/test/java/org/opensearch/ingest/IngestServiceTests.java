@@ -57,27 +57,28 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.cbor.CborXContent;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.junit.Before;
-import org.mockito.ArgumentMatcher;
-import org.mockito.invocation.InvocationOnMock;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -96,6 +97,9 @@ import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import org.mockito.ArgumentMatcher;
+import org.mockito.invocation.InvocationOnMock;
+
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
@@ -109,9 +113,9 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.argThat;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -146,7 +150,8 @@ public class IngestServiceTests extends OpenSearchTestCase {
             null,
             null,
             Collections.singletonList(DUMMY_PLUGIN),
-            client
+            client,
+            mock(IndicesService.class)
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -164,7 +169,8 @@ public class IngestServiceTests extends OpenSearchTestCase {
                 null,
                 null,
                 Arrays.asList(DUMMY_PLUGIN, DUMMY_PLUGIN),
-                client
+                client,
+                mock(IndicesService.class)
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
@@ -179,7 +185,8 @@ public class IngestServiceTests extends OpenSearchTestCase {
             null,
             null,
             Collections.singletonList(DUMMY_PLUGIN),
-            client
+            client,
+            mock(IndicesService.class)
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(emptyMap())
@@ -220,7 +227,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PipelineConfiguration pipeline = new PipelineConfiguration(
             "_id",
             new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         IngestMetadata ingestMetadata = new IngestMetadata(Collections.singletonMap("_id", pipeline));
         clusterState = ClusterState.builder(clusterState)
@@ -238,7 +245,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         IngestService ingestService = createWithProcessors();
         assertThat(ingestService.pipelines().size(), is(0));
 
-        PipelineConfiguration pipeline1 = new PipelineConfiguration("_id1", new BytesArray("{\"processors\": []}"), XContentType.JSON);
+        PipelineConfiguration pipeline1 = new PipelineConfiguration("_id1", new BytesArray("{\"processors\": []}"), MediaTypeRegistry.JSON);
         IngestMetadata ingestMetadata = new IngestMetadata(mapOf("_id1", pipeline1));
 
         ingestService.innerUpdatePipelines(ingestMetadata);
@@ -246,7 +253,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         assertThat(ingestService.pipelines().get("_id1").pipeline.getId(), equalTo("_id1"));
         assertThat(ingestService.pipelines().get("_id1").pipeline.getProcessors().size(), equalTo(0));
 
-        PipelineConfiguration pipeline2 = new PipelineConfiguration("_id2", new BytesArray("{\"processors\": []}"), XContentType.JSON);
+        PipelineConfiguration pipeline2 = new PipelineConfiguration("_id2", new BytesArray("{\"processors\": []}"), MediaTypeRegistry.JSON);
         ingestMetadata = new IngestMetadata(mapOf("_id1", pipeline1, "_id2", pipeline2));
 
         ingestService.innerUpdatePipelines(ingestMetadata);
@@ -256,7 +263,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         assertThat(ingestService.pipelines().get("_id2").pipeline.getId(), equalTo("_id2"));
         assertThat(ingestService.pipelines().get("_id2").pipeline.getProcessors().size(), equalTo(0));
 
-        PipelineConfiguration pipeline3 = new PipelineConfiguration("_id3", new BytesArray("{\"processors\": []}"), XContentType.JSON);
+        PipelineConfiguration pipeline3 = new PipelineConfiguration("_id3", new BytesArray("{\"processors\": []}"), MediaTypeRegistry.JSON);
         ingestMetadata = new IngestMetadata(mapOf("_id1", pipeline1, "_id2", pipeline2, "_id3", pipeline3));
 
         ingestService.innerUpdatePipelines(ingestMetadata);
@@ -280,7 +287,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         pipeline3 = new PipelineConfiguration(
             "_id3",
             new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ingestMetadata = new IngestMetadata(mapOf("_id1", pipeline1, "_id3", pipeline3));
 
@@ -322,7 +329,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PipelineConfiguration config = new PipelineConfiguration(
             "_id",
             new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         IngestMetadata ingestMetadata = new IngestMetadata(Collections.singletonMap("_id", config));
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
@@ -354,7 +361,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         Exception e = expectThrows(IllegalStateException.class, () -> ingestService.validatePipeline(emptyMap(), putRequest));
         assertEquals("Ingest info is empty", e.getMessage());
@@ -383,7 +390,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
                 "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}},"
                     + "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"
             ),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
@@ -449,7 +456,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             id,
             new BytesArray("{\"processors\": [{\"complexSet\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
@@ -475,7 +482,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             id,
             new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
@@ -503,7 +510,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
 
         // add a new pipeline:
-        PutPipelineRequest putRequest = new PutPipelineRequest(id, new BytesArray("{\"processors\": []}"), XContentType.JSON);
+        PutPipelineRequest putRequest = new PutPipelineRequest(id, new BytesArray("{\"processors\": []}"), MediaTypeRegistry.JSON);
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -517,7 +524,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         putRequest = new PutPipelineRequest(
             id,
             new BytesArray("{\"processors\": [], \"description\": \"_description\"}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
@@ -539,7 +546,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             id,
             new BytesArray("{\"description\": \"empty processors\"}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
@@ -571,9 +578,9 @@ public class IngestServiceTests extends OpenSearchTestCase {
         IngestService ingestService = createWithProcessors();
         HashMap<String, PipelineConfiguration> pipelines = new HashMap<>();
         BytesArray definition = new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}");
-        pipelines.put("p1", new PipelineConfiguration("p1", definition, XContentType.JSON));
-        pipelines.put("p2", new PipelineConfiguration("p2", definition, XContentType.JSON));
-        pipelines.put("q1", new PipelineConfiguration("q1", definition, XContentType.JSON));
+        pipelines.put("p1", new PipelineConfiguration("p1", definition, MediaTypeRegistry.JSON));
+        pipelines.put("p2", new PipelineConfiguration("p2", definition, MediaTypeRegistry.JSON));
+        pipelines.put("q1", new PipelineConfiguration("q1", definition, MediaTypeRegistry.JSON));
         IngestMetadata ingestMetadata = new IngestMetadata(pipelines);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
@@ -619,7 +626,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         IngestService ingestService = createWithProcessors();
         HashMap<String, PipelineConfiguration> pipelines = new HashMap<>();
         BytesArray definition = new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}");
-        pipelines.put("p1", new PipelineConfiguration("p1", definition, XContentType.JSON));
+        pipelines.put("p1", new PipelineConfiguration("p1", definition, MediaTypeRegistry.JSON));
         IngestMetadata ingestMetadata = new IngestMetadata(pipelines);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
@@ -640,8 +647,8 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
     public void testGetPipelines() {
         Map<String, PipelineConfiguration> configs = new HashMap<>();
-        configs.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{\"processors\": []}"), XContentType.JSON));
-        configs.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{\"processors\": []}"), XContentType.JSON));
+        configs.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{\"processors\": []}"), MediaTypeRegistry.JSON));
+        configs.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{\"processors\": []}"), MediaTypeRegistry.JSON));
 
         assertThat(IngestService.innerGetPipelines(null, "_id1").isEmpty(), is(true));
 
@@ -683,7 +690,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
                 "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}},"
                     + "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"
             ),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
 
         DiscoveryNode node1 = new DiscoveryNode("_node_id1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
@@ -723,7 +730,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             id,
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
@@ -769,7 +776,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
@@ -816,7 +823,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
@@ -847,7 +854,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [], \"description\": \"_description\"}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
@@ -881,7 +888,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
@@ -948,7 +955,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
@@ -1008,7 +1015,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
@@ -1051,7 +1058,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
@@ -1122,7 +1129,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
@@ -1180,7 +1187,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [{\"mock\": {}}], \"description\": \"_description\"}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
@@ -1240,13 +1247,13 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id1",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        putRequest = new PutPipelineRequest("_id2", new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
+        putRequest = new PutPipelineRequest("_id2", new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), MediaTypeRegistry.JSON);
         previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -1306,7 +1313,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         putRequest = new PutPipelineRequest(
             "_id1",
             new BytesArray("{\"processors\": [{\"mock\" : {}}, {\"mock\" : {}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
@@ -1339,7 +1346,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         putRequest = new PutPipelineRequest(
             "_id1",
             new BytesArray("{\"processors\": [{\"failure-mock\" : { \"on_failure\": [{\"mock\" : {}}]}}, {\"mock\" : {}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
@@ -1417,7 +1424,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [{\"drop\" : {}}, {\"mock\" : {}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
@@ -1482,7 +1489,8 @@ public class IngestServiceTests extends OpenSearchTestCase {
             null,
             null,
             Arrays.asList(testPlugin),
-            client
+            client,
+            mock(IndicesService.class)
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
@@ -1490,7 +1498,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [{\"test\" : {}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
@@ -1513,7 +1521,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id",
             new BytesArray("{\"processors\": [{\"foo\" : {}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -1699,7 +1707,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
             public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
                 return processors;
             }
-        }), client);
+        }), client, mock(IndicesService.class));
     }
 
     private CompoundProcessor mockCompoundProcessor() {
@@ -1739,14 +1747,14 @@ public class IngestServiceTests extends OpenSearchTestCase {
         assertStats(getPipelineStats(pipelineStats, pipelineId), count, failed, time);
     }
 
-    private void assertStats(IngestStats.Stats stats, long count, long failed, long time) {
-        assertThat(stats.getIngestCount(), equalTo(count));
-        assertThat(stats.getIngestCurrent(), equalTo(0L));
-        assertThat(stats.getIngestFailedCount(), equalTo(failed));
-        assertThat(stats.getIngestTimeInMillis(), greaterThanOrEqualTo(time));
+    private void assertStats(OperationStats stats, long count, long failed, long time) {
+        assertThat(stats.getCount(), equalTo(count));
+        assertThat(stats.getCurrent(), equalTo(0L));
+        assertThat(stats.getFailedCount(), equalTo(failed));
+        assertThat(stats.getTotalTimeInMillis(), greaterThanOrEqualTo(time));
     }
 
-    private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
+    private OperationStats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
         return pipelineStats.stream().filter(p1 -> p1.getPipelineId().equals(id)).findFirst().map(p2 -> p2.getStats()).orElse(null);
     }
 }

@@ -8,7 +8,6 @@
 
 package org.opensearch.action.admin.cluster.remotestore.restore;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
@@ -18,8 +17,9 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.snapshots.RestoreService;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -33,14 +33,14 @@ import java.io.IOException;
 public final class TransportRestoreRemoteStoreAction extends TransportClusterManagerNodeAction<
     RestoreRemoteStoreRequest,
     RestoreRemoteStoreResponse> {
-    private final RestoreService restoreService;
+    private final RemoteStoreRestoreService restoreService;
 
     @Inject
     public TransportRestoreRemoteStoreAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        RestoreService restoreService,
+        RemoteStoreRestoreService restoreService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
@@ -84,20 +84,17 @@ public final class TransportRestoreRemoteStoreAction extends TransportClusterMan
         final ClusterState state,
         final ActionListener<RestoreRemoteStoreResponse> listener
     ) {
-        restoreService.restoreFromRemoteStore(
-            request,
-            ActionListener.delegateFailure(listener, (delegatedListener, restoreCompletionResponse) -> {
-                if (restoreCompletionResponse.getRestoreInfo() == null && request.waitForCompletion()) {
-                    RestoreClusterStateListener.createAndRegisterListener(
-                        clusterService,
-                        restoreCompletionResponse,
-                        delegatedListener,
-                        RestoreRemoteStoreResponse::new
-                    );
-                } else {
-                    delegatedListener.onResponse(new RestoreRemoteStoreResponse(restoreCompletionResponse.getRestoreInfo()));
-                }
-            })
-        );
+        restoreService.restore(request, ActionListener.delegateFailure(listener, (delegatedListener, restoreCompletionResponse) -> {
+            if (restoreCompletionResponse.getRestoreInfo() == null && request.waitForCompletion()) {
+                RestoreClusterStateListener.createAndRegisterListener(
+                    clusterService,
+                    restoreCompletionResponse,
+                    delegatedListener,
+                    RestoreRemoteStoreResponse::new
+                );
+            } else {
+                delegatedListener.onResponse(new RestoreRemoteStoreResponse(restoreCompletionResponse.getRestoreInfo()));
+            }
+        }));
     }
 }

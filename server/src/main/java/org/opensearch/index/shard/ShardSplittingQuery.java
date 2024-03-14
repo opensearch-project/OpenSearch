@@ -286,7 +286,7 @@ final class ShardSplittingQuery extends Query {
         boolean matches(int doc) throws IOException {
             routing = id = null;
             leftToVisit = 2;
-            leafReader.document(doc, this);
+            leafReader.storedFields().document(doc, this);
             assert id != null : "docID must not be null - we might have hit a nested document";
             int targetShardId = OperationRouting.generateShardId(indexMetadata, id, routing);
             return targetShardId != shardId;

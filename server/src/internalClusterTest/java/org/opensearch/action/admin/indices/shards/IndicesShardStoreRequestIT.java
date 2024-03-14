@@ -32,8 +32,6 @@
 
 package org.opensearch.action.admin.indices.shards;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.client.Requests;
@@ -42,10 +40,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
-import org.opensearch.common.collect.ImmutableOpenIntMap;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
@@ -102,10 +98,10 @@ public class IndicesShardStoreRequestIT extends OpenSearchIntegTestCase {
         // all shards
         response = client().admin().indices().shardStores(Requests.indicesShardStoresRequest(index).shardStatuses("all")).get();
         assertThat(response.getStoreStatuses().containsKey(index), equalTo(true));
-        ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> shardStores = response.getStoreStatuses().get(index);
+        final Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> shardStores = response.getStoreStatuses().get(index);
         assertThat(shardStores.values().size(), equalTo(2));
-        for (ObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStoreStatuses : shardStores.values()) {
-            for (IndicesShardStoresResponse.StoreStatus storeStatus : shardStoreStatuses.value) {
+        for (var shardStoreStatuses : shardStores.values()) {
+            for (IndicesShardStoresResponse.StoreStatus storeStatus : shardStoreStatuses) {
                 assertThat(storeStatus.getAllocationId(), notNullValue());
                 assertThat(storeStatus.getNode(), notNullValue());
                 assertThat(storeStatus.getStoreException(), nullValue());
@@ -124,13 +120,13 @@ public class IndicesShardStoreRequestIT extends OpenSearchIntegTestCase {
         List<ShardRouting> unassignedShards = clusterState.routingTable().index(index).shardsWithState(ShardRoutingState.UNASSIGNED);
         response = client().admin().indices().shardStores(Requests.indicesShardStoresRequest(index)).get();
         assertThat(response.getStoreStatuses().containsKey(index), equalTo(true));
-        ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> shardStoresStatuses = response.getStoreStatuses().get(index);
+        final Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> shardStoresStatuses = response.getStoreStatuses().get(index);
         assertThat(shardStoresStatuses.size(), equalTo(unassignedShards.size()));
-        for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> storesStatus : shardStoresStatuses) {
-            assertThat("must report for one store", storesStatus.value.size(), equalTo(1));
+        for (var storesStatus : shardStoresStatuses.values()) {
+            assertThat("must report for one store", storesStatus.size(), equalTo(1));
             assertThat(
                 "reported store should be primary",
-                storesStatus.value.get(0).getAllocationStatus(),
+                storesStatus.get(0).getAllocationStatus(),
                 equalTo(IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY)
             );
         }
@@ -151,8 +147,7 @@ public class IndicesShardStoreRequestIT extends OpenSearchIntegTestCase {
             .indices()
             .shardStores(Requests.indicesShardStoresRequest().shardStatuses("all"))
             .get();
-        ImmutableOpenMap<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> shardStatuses = response
-            .getStoreStatuses();
+        Map<String, Map<Integer, List<IndicesShardStoresResponse.StoreStatus>>> shardStatuses = response.getStoreStatuses();
         assertThat(shardStatuses.containsKey(index1), equalTo(true));
         assertThat(shardStatuses.containsKey(index2), equalTo(true));
         assertThat(shardStatuses.get(index1).size(), equalTo(2));
@@ -207,21 +202,21 @@ public class IndicesShardStoreRequestIT extends OpenSearchIntegTestCase {
 
         assertBusy(() -> { // IndicesClusterStateService#failAndRemoveShard() called asynchronously but we need it to have completed here.
             IndicesShardStoresResponse rsp = client().admin().indices().prepareShardStores(index).setShardStatuses("all").get();
-            ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> shardStatuses = rsp.getStoreStatuses().get(index);
+            final Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> shardStatuses = rsp.getStoreStatuses().get(index);
             assertNotNull(shardStatuses);
             assertThat(shardStatuses.size(), greaterThan(0));
-            for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStatus : shardStatuses) {
-                for (IndicesShardStoresResponse.StoreStatus status : shardStatus.value) {
-                    if (corruptedShardIDMap.containsKey(shardStatus.key)
-                        && corruptedShardIDMap.get(shardStatus.key).contains(status.getNode().getName())) {
+            for (var shardStatus : shardStatuses.entrySet()) {
+                for (IndicesShardStoresResponse.StoreStatus status : shardStatus.getValue()) {
+                    if (corruptedShardIDMap.containsKey(shardStatus.getKey())
+                        && corruptedShardIDMap.get(shardStatus.getKey()).contains(status.getNode().getName())) {
                         assertThat(
-                            "shard [" + shardStatus.key + "] is failed on node [" + status.getNode().getName() + "]",
+                            "shard [" + shardStatus.getKey() + "] is failed on node [" + status.getNode().getName() + "]",
                             status.getStoreException(),
                             notNullValue()
                         );
                     } else {
                         assertNull(
-                            "shard [" + shardStatus.key + "] is not failed on node [" + status.getNode().getName() + "]",
+                            "shard [" + shardStatus.getKey() + "] is not failed on node [" + status.getNode().getName() + "]",
                             status.getStoreException()
                         );
                     }

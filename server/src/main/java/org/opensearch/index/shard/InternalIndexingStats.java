@@ -34,6 +34,7 @@ package org.opensearch.index.shard;
 
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.metrics.MeanMetric;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.Engine;
 
 import java.util.concurrent.TimeUnit;
@@ -153,7 +154,8 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 deleteCurrent.count(),
                 noopUpdates.count(),
                 isThrottled,
-                TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis)
+                TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis),
+                new IndexingStats.Stats.DocStatusStats()
             );
         }
     }

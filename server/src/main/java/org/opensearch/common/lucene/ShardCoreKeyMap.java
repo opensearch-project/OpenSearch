@@ -35,7 +35,7 @@ package org.opensearch.common.lucene;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.opensearch.core.Assertions;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardUtils;
 
 import java.io.IOException;
@@ -55,7 +55,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * mappings as segments that were not known before are added and prevents the
  * structure from growing indefinitely by registering close listeners on these
  * segments so that at any time it only tracks live segments.
- *
+ * <p>
  * NOTE: This is heavy. Avoid using this class unless absolutely required.
  *
  * @opensearch.internal

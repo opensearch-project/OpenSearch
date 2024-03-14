@@ -33,6 +33,8 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.opensearch.cluster.metadata.DataStream;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.FieldNameAnalyzer;
 
@@ -48,8 +50,9 @@ import java.util.stream.Stream;
 /**
  * Looks up a mapping for a field
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class MappingLookup implements Iterable<Mapper> {
 
     /** Full field name to mapper */
@@ -156,14 +159,14 @@ public final class MappingLookup implements Iterable<Mapper> {
     /**
      * Returns the leaf mapper associated with this field name. Note that the returned mapper
      * could be either a concrete {@link FieldMapper}, or a {@link FieldAliasMapper}.
-     *
+     * <p>
      * To access a field's type information, {@link MapperService#fieldType} should be used instead.
      */
     public Mapper getMapper(String field) {
         return fieldMappers.get(field);
     }
 
-    public FieldTypeLookup fieldTypes() {
+    FieldTypeLookup fieldTypes() {
         return fieldTypeLookup;
     }
 
@@ -259,6 +262,15 @@ public final class MappingLookup implements Iterable<Mapper> {
             }
         }
         return null;
+    }
+
+    /**
+     * If this index contains @timestamp field with Date type, it will return true
+     * @return true or false based on above condition
+     */
+    public boolean containsTimeStampField() {
+        MappedFieldType timeSeriesFieldType = this.fieldTypeLookup.get(DataStream.TIMESERIES_FIELDNAME);
+        return timeSeriesFieldType != null && timeSeriesFieldType instanceof DateFieldMapper.DateFieldType; // has to be Date field type
     }
 
     private static String parentObject(String field) {

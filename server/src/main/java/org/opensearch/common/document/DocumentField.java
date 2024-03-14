@@ -32,9 +32,10 @@
 
 package org.opensearch.common.document;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -47,8 +48,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.opensearch.common.xcontent.XContentParserUtils.parseFieldsValue;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.parseFieldsValue;
 
 /**
  * A single field name and values part of {@link SearchHit} and {@link GetResult}.
@@ -56,8 +57,9 @@ import static org.opensearch.common.xcontent.XContentParserUtils.parseFieldsValu
  * @see SearchHit
  * @see GetResult
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DocumentField implements Writeable, ToXContentFragment, Iterable<Object> {
 
     private final String name;

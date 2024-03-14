@@ -72,6 +72,8 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
         for (LeafReaderContext ctx : standardDirectoryReader.leaves()) {
             subs.add(ctx.reader());
         }
+        // Segment_n here is ignored because it is either already committed on disk as part of previous commit point or
+        // does not yet exist on store (not yet committed)
         final Collection<String> files = currentInfos.files(false);
         DirectoryReader innerReader = StandardDirectoryReader.open(referenceToRefresh.directory(), currentInfos, subs, null);
         final DirectoryReader softDeletesDirectoryReaderWrapper = new SoftDeletesDirectoryReaderWrapper(
@@ -96,7 +98,7 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
      * @param infos {@link SegmentInfos} infos
      * @throws IOException - When Refresh fails with an IOException.
      */
-    public synchronized void updateSegments(SegmentInfos infos) throws IOException {
+    public void updateSegments(SegmentInfos infos) throws IOException {
         // roll over the currentInfo's generation, this ensures the on-disk gen
         // is always increased.
         infos.updateGeneration(currentInfos);

@@ -69,3 +69,32 @@
         include_defaults: true
 
  - match: {defaults.node.attr.testattr: "test"}
+
+---
+"Test set search backpressure mode":
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search_backpressure.mode: "monitor_only"
+
+  - match: {persistent: {search_backpressure: {mode: "monitor_only"}}}
+
+---
+"Test set invalid search backpressure mode":
+
+  - skip:
+      version: "- 2.99.99"
+      reason: "Parsing and validation of SearchBackpressureMode does not exist in versions < 3.0"
+
+  - do:
+      catch: bad_request
+      cluster.put_settings:
+        body:
+          persistent:
+            search_backpressure.mode: "monitor-only"
+
+  - match: {error.root_cause.0.type: "illegal_argument_exception"}
+  - match: { error.root_cause.0.reason: "Invalid SearchBackpressureMode: monitor-only" }
+  - match: { status: 400 }

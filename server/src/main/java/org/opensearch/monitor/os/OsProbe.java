@@ -59,13 +59,13 @@ import java.util.stream.Collectors;
 /**
  * The {@link OsProbe} class retrieves information about the physical and swap size of the machine
  * memory, as well as the system load average and cpu load.
- *
+ * <p>
  * In some exceptional cases, it's possible the underlying native methods used by
  * {@link #getFreePhysicalMemorySize()}, {@link #getTotalPhysicalMemorySize()},
  * {@link #getFreeSwapSpaceSize()}, and {@link #getTotalSwapSpaceSize()} can return a
  * negative value. Because of this, we prevent those methods from returning negative values,
  * returning 0 instead.
- *
+ * <p>
  * The OS can report a negative number in a number of cases:
  * - Non-supported OSes (HP-UX, or AIX)
  * - A failure of macOS to initialize host statistics
@@ -183,11 +183,11 @@ public class OsProbe {
 
     /**
      * The system load averages as an array.
-     *
+     * <p>
      * On Windows, this method returns {@code null}.
-     *
+     * <p>
      * On Linux, this method returns the 1, 5, and 15-minute load averages.
-     *
+     * <p>
      * On macOS, this method should return the 1-minute load average.
      *
      * @return the available system load averages or {@code null}

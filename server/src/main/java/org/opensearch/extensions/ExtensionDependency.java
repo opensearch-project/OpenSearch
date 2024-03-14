@@ -9,13 +9,13 @@
 
 package org.opensearch.extensions;
 
+import org.opensearch.Version;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+
 import java.io.IOException;
 import java.util.Objects;
-
-import org.opensearch.Version;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
 
 /**
  * This class handles the dependent extensions information
@@ -25,6 +25,8 @@ import org.opensearch.common.io.stream.Writeable;
 public class ExtensionDependency implements Writeable {
     private String uniqueId;
     private Version version;
+    private static final String UNIQUE_ID = "uniqueId";
+    private static final String VERSION = "version";
 
     public ExtensionDependency(String uniqueId, Version version) {
         this.uniqueId = uniqueId;
@@ -45,13 +47,13 @@ public class ExtensionDependency implements Writeable {
     */
     public ExtensionDependency(StreamInput in) throws IOException {
         uniqueId = in.readString();
-        version = Version.readVersion(in);
+        version = in.readVersion();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(uniqueId);
-        Version.writeVersion(version, out);
+        out.writeVersion(version);
     }
 
     /**

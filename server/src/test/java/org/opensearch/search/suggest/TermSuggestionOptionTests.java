@@ -32,18 +32,19 @@
 
 package org.opensearch.search.suggest;
 
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.text.Text;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.text.Text;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.suggest.term.TermSuggestion.Entry.Option;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
@@ -90,7 +91,7 @@ public class TermSuggestionOptionTests extends OpenSearchTestCase {
 
     public void testToXContent() throws IOException {
         Option option = new Option(new Text("someText"), 100, 1.3f);
-        BytesReference xContent = toXContent(option, XContentType.JSON, randomBoolean());
+        BytesReference xContent = toXContent(option, MediaTypeRegistry.JSON, randomBoolean());
         assertEquals("{\"text\":\"someText\",\"score\":1.3,\"freq\":100}", xContent.utf8ToString());
     }
 

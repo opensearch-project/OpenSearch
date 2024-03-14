@@ -8,13 +8,6 @@
 
 package org.opensearch.index.store.remote.directory;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.function.Supplier;
-
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -22,6 +15,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.opensearch.index.snapshots.blobstore.IndexShardSnapshot;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.utils.TransferManager;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -30,6 +24,13 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.threadpool.ThreadPool;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.function.Supplier;
 
 /**
  * Factory for a Directory implementation that can read directly from index
@@ -89,7 +90,10 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
         // index restore is invoked
         return threadPool.executor(ThreadPool.Names.SNAPSHOT).submit(() -> {
             final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(blobPath);
-            final BlobStoreIndexShardSnapshot snapshot = blobStoreRepository.loadShardSnapshot(blobContainer, snapshotId);
+            final IndexShardSnapshot indexShardSnapshot = blobStoreRepository.loadShardSnapshot(blobContainer, snapshotId);
+            assert indexShardSnapshot instanceof BlobStoreIndexShardSnapshot
+                : "indexShardSnapshot should be an instance of BlobStoreIndexShardSnapshot";
+            final BlobStoreIndexShardSnapshot snapshot = (BlobStoreIndexShardSnapshot) indexShardSnapshot;
             TransferManager transferManager = new TransferManager(blobContainer, remoteStoreFileCache);
             return new RemoteSnapshotDirectory(snapshot, localStoreDir, transferManager);
         });

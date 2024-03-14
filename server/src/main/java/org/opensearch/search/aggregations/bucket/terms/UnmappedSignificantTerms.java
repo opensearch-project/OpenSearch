@@ -32,8 +32,8 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -77,8 +77,12 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
         }
     }
 
-    public UnmappedSignificantTerms(String name, int requiredSize, long minDocCount, Map<String, Object> metadata) {
-        super(name, requiredSize, minDocCount, metadata);
+    public UnmappedSignificantTerms(
+        String name,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds,
+        Map<String, Object> metadata
+    ) {
+        super(name, bucketCountThresholds, metadata);
     }
 
     /**
@@ -105,7 +109,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
 
     @Override
     public UnmappedSignificantTerms create(List<Bucket> buckets) {
-        return new UnmappedSignificantTerms(name, requiredSize, minDocCount, metadata);
+        return new UnmappedSignificantTerms(name, bucketCountThresholds, metadata);
     }
 
     @Override
@@ -132,7 +136,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        return new UnmappedSignificantTerms(name, requiredSize, minDocCount, metadata);
+        return new UnmappedSignificantTerms(name, bucketCountThresholds, metadata);
     }
 
     @Override

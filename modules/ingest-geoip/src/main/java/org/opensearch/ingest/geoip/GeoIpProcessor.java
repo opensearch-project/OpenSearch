@@ -42,6 +42,7 @@ import com.maxmind.geoip2.record.Continent;
 import com.maxmind.geoip2.record.Country;
 import com.maxmind.geoip2.record.Location;
 import com.maxmind.geoip2.record.Subdivision;
+
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.SpecialPermission;
 import org.opensearch.common.network.InetAddresses;
@@ -217,6 +218,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return properties;
     }
 
+    @SuppressWarnings("removal")
     private Map<String, Object> retrieveCityGeoData(InetAddress ipAddress) {
         SpecialPermission.check();
         CityResponse response = AccessController.doPrivileged(
@@ -304,6 +306,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
+    @SuppressWarnings("removal")
     private Map<String, Object> retrieveCountryGeoData(InetAddress ipAddress) {
         SpecialPermission.check();
         CountryResponse response = AccessController.doPrivileged(
@@ -350,6 +353,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
+    @SuppressWarnings("removal")
     private Map<String, Object> retrieveAsnGeoData(InetAddress ipAddress) {
         SpecialPermission.check();
         AsnResponse response = AccessController.doPrivileged(

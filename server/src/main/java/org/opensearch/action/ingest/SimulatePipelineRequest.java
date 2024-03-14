@@ -32,15 +32,18 @@
 
 package org.opensearch.action.ingest;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.ingest.IngestDocument;
@@ -58,22 +61,23 @@ import java.util.Objects;
 /**
  * transport request to simulate a pipeline
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SimulatePipelineRequest extends ActionRequest implements ToXContentObject {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimulatePipelineRequest.class);
     private String id;
     private boolean verbose;
     private BytesReference source;
-    private XContentType xContentType;
+    private MediaType mediaType;
 
     /**
      * Creates a new request with the given source and its content type
      */
-    public SimulatePipelineRequest(BytesReference source, XContentType xContentType) {
+    public SimulatePipelineRequest(BytesReference source, MediaType mediaType) {
         this.source = Objects.requireNonNull(source);
-        this.xContentType = Objects.requireNonNull(xContentType);
+        this.mediaType = Objects.requireNonNull(mediaType);
     }
 
     SimulatePipelineRequest() {}
@@ -83,7 +87,11 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         id = in.readOptionalString();
         verbose = in.readBoolean();
         source = in.readBytesReference();
-        xContentType = in.readEnum(XContentType.class);
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
+            mediaType = in.readMediaType();
+        } else {
+            mediaType = in.readEnum(XContentType.class);
+        }
     }
 
     @Override
@@ -111,8 +119,8 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         return source;
     }
 
-    public XContentType getXContentType() {
-        return xContentType;
+    public MediaType getXContentType() {
+        return mediaType;
     }
 
     @Override
@@ -121,12 +129,16 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         out.writeOptionalString(id);
         out.writeBoolean(verbose);
         out.writeBytesReference(source);
-        out.writeEnum(xContentType);
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
+            mediaType.writeTo(out);
+        } else {
+            out.writeEnum((XContentType) mediaType);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.rawValue(source.streamInput(), xContentType);
+        builder.rawValue(source.streamInput(), mediaType);
         return builder;
     }
 
@@ -208,7 +220,12 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             String routing = ConfigurationUtils.readOptionalStringOrIntProperty(null, null, dataMap, Metadata.ROUTING.getFieldName());
             Long version = null;
             if (dataMap.containsKey(Metadata.VERSION.getFieldName())) {
-                version = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.VERSION.getFieldName());
+                Object versionFieldValue = ConfigurationUtils.readObject(null, null, dataMap, Metadata.VERSION.getFieldName());
+                if (versionFieldValue instanceof Integer || versionFieldValue instanceof Long) {
+                    version = ((Number) versionFieldValue).longValue();
+                } else {
+                    throw new IllegalArgumentException("Failed to parse parameter [_version], only int or long is accepted");
+                }
             }
             VersionType versionType = null;
             if (dataMap.containsKey(Metadata.VERSION_TYPE.getFieldName())) {
@@ -218,12 +235,25 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             }
             IngestDocument ingestDocument = new IngestDocument(index, id, routing, version, versionType, document);
             if (dataMap.containsKey(Metadata.IF_SEQ_NO.getFieldName())) {
-                Long ifSeqNo = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.IF_SEQ_NO.getFieldName());
-                ingestDocument.setFieldValue(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo);
+                Object ifSeqNoFieldValue = ConfigurationUtils.readObject(null, null, dataMap, Metadata.IF_SEQ_NO.getFieldName());
+                if (ifSeqNoFieldValue instanceof Integer || ifSeqNoFieldValue instanceof Long) {
+                    ingestDocument.setFieldValue(Metadata.IF_SEQ_NO.getFieldName(), ((Number) ifSeqNoFieldValue).longValue());
+                } else {
+                    throw new IllegalArgumentException("Failed to parse parameter [_if_seq_no], only int or long is accepted");
+                }
             }
             if (dataMap.containsKey(Metadata.IF_PRIMARY_TERM.getFieldName())) {
-                Long ifPrimaryTerm = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.IF_PRIMARY_TERM.getFieldName());
-                ingestDocument.setFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm);
+                Object ifPrimaryTermFieldValue = ConfigurationUtils.readObject(
+                    null,
+                    null,
+                    dataMap,
+                    Metadata.IF_PRIMARY_TERM.getFieldName()
+                );
+                if (ifPrimaryTermFieldValue instanceof Integer || ifPrimaryTermFieldValue instanceof Long) {
+                    ingestDocument.setFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), ((Number) ifPrimaryTermFieldValue).longValue());
+                } else {
+                    throw new IllegalArgumentException("Failed to parse parameter [_if_primary_term], only int or long is accepted");
+                }
             }
             ingestDocumentList.add(ingestDocument);
         }

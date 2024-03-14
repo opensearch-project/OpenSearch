@@ -38,14 +38,14 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.tests.search.QueryUtils;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.search.QueryUtils;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.opensearch.common.UUIDs;
@@ -120,7 +120,7 @@ public class TermsSliceQueryTests extends OpenSearchTestCase {
 
                         @Override
                         public void collect(int doc) throws IOException {
-                            Document d = context.reader().document(doc, Collections.singleton("uuid"));
+                            Document d = context.reader().storedFields().document(doc, Collections.singleton("uuid"));
                             String uuid = d.get("uuid");
                             assertThat(keys.contains(uuid), equalTo(true));
                             keys.remove(uuid);

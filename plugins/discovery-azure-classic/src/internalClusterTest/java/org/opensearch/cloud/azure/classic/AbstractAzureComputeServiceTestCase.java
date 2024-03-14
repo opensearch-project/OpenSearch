@@ -39,7 +39,6 @@ import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
 import com.microsoft.windowsazure.management.compute.models.RoleInstance;
 import com.microsoft.windowsazure.management.compute.models.RoleInstancePowerState;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
-
 import org.opensearch.cloud.azure.classic.management.AzureComputeService;
 import org.opensearch.cloud.azure.classic.management.AzureComputeService.Discovery;
 import org.opensearch.cloud.azure.classic.management.AzureComputeService.Management;
@@ -47,13 +46,12 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.discovery.azure.classic.AzureSeedHostsProvider;
 import org.opensearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.TransportService;
-
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -63,7 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.opensearch.common.util.CollectionUtils.newSingletonArrayList;
+import static org.opensearch.core.common.util.CollectionUtils.newSingletonArrayList;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 
 public abstract class AbstractAzureComputeServiceTestCase extends OpenSearchIntegTestCase {

@@ -184,7 +184,8 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
             if (numberType == NumberFieldMapper.NumberType.BYTE
                 || numberType == NumberFieldMapper.NumberType.SHORT
                 || numberType == NumberFieldMapper.NumberType.INTEGER
-                || numberType == NumberFieldMapper.NumberType.LONG) {
+                || numberType == NumberFieldMapper.NumberType.LONG
+                || numberType == NumberFieldMapper.NumberType.UNSIGNED_LONG) {
 
                 source = new LongValuesSource(
                     BigArrays.NON_RECYCLING_INSTANCE,

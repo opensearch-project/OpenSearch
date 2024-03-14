@@ -218,3 +218,103 @@ setup:
           settings:
             index.number_of_replicas: 0
             index.number_of_shards: 6
+
+---
+"Returns error if target index's metadata write is blocked":
+
+  - skip:
+      version: " - 2.99.99"
+      reason: "only available in 3.0+"
+
+  # block source index's write operations
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+          index.number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        index: source
+
+  # set `index.blocks.read_only` to `true` for target index
+  - do:
+      catch: /action_request_validation_exception/
+      indices.split:
+        index: "source"
+        target: "new_split_index"
+        wait_for_active_shards: 1
+        cluster_manager_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 4
+            index.blocks.read_only: true
+
+  # set `index.blocks.metadata` to `true` for target index
+  - do:
+      catch: /action_request_validation_exception/
+      indices.split:
+        index: "source"
+        target: "new_split_index"
+        wait_for_active_shards: 1
+        cluster_manager_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 4
+            index.blocks.metadata: true
+
+  # set source index's setting `index.blocks.read_only` to `true`
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.read_only: true
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.split:
+        index: "source"
+        target: "new_split_index"
+        wait_for_active_shards: 1
+        cluster_manager_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 4
+
+  # overwrite the source index's setting, everything is fine
+  - do:
+      indices.split:
+        index: "source"
+        target: "new_split_index"
+        wait_for_active_shards: 1
+        cluster_manager_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 4
+            index.blocks.read_only: null
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      get:
+        index: new_split_index
+        id:    "1"
+
+  - match: { _index:   new_split_index }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }
+
+  # clear the source index's read_only blocks because it will block deleting index
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.read_only: null

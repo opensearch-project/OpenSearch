@@ -32,7 +32,6 @@
 
 package org.opensearch.index.search;
 
-import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -44,8 +43,8 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.settings.Settings;
@@ -58,8 +57,8 @@ import org.opensearch.index.query.MultiMatchQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.search.MultiMatchQuery.FieldAndBoost;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.MockKeywordPlugin;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -285,31 +284,30 @@ public class MultiMatchQueryTests extends OpenSearchSingleNodeTestCase {
                 .build()
         );
         MapperService mapperService = indexService.mapperService();
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("field_normalizer")
-                .field("type", "keyword")
-                .field("normalizer", "my_lowercase")
-                .endObject()
-                .startObject("field_split")
-                .field("type", "keyword")
-                .field("split_queries_on_whitespace", true)
-                .endObject()
-                .startObject("field_split_normalizer")
-                .field("type", "keyword")
-                .field("normalizer", "my_lowercase")
-                .field("split_queries_on_whitespace", true)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("field_normalizer")
+            .field("type", "keyword")
+            .field("normalizer", "my_lowercase")
+            .endObject()
+            .startObject("field_split")
+            .field("type", "keyword")
+            .field("split_queries_on_whitespace", true)
+            .endObject()
+            .startObject("field_split_normalizer")
+            .field("type", "keyword")
+            .field("normalizer", "my_lowercase")
+            .field("split_queries_on_whitespace", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         QueryShardContext queryShardContext = indexService.newQueryShardContext(randomInt(20), null, () -> {
             throw new UnsupportedOperationException();

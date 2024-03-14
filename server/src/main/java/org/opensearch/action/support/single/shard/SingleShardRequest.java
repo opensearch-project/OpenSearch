@@ -38,9 +38,9 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -55,7 +55,7 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
 
     /**
      * The concrete index name
-     *
+     * <p>
      * Whether index property is optional depends on the concrete implementation. If index property is required the
      * concrete implementation should use {@link #validateNonNullIndex()} to check if the index property has been set
      */

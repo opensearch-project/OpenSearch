@@ -35,12 +35,12 @@ package org.opensearch.action.admin.cluster.node.stats;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.ClusterName;
-import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -48,8 +48,9 @@ import java.util.List;
 /**
  * Transport response for obtaining OpenSearch Node Stats
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class NodesStatsResponse extends BaseNodesResponse<NodeStats> implements ToXContentFragment {
 
     public NodesStatsResponse(StreamInput in) throws IOException {
@@ -92,7 +93,7 @@ public class NodesStatsResponse extends BaseNodesResponse<NodeStats> implements 
             builder.startObject();
             toXContent(builder, EMPTY_PARAMS);
             builder.endObject();
-            return Strings.toString(builder);
+            return builder.toString();
         } catch (IOException e) {
             return "{ \"error\" : \"" + e.getMessage() + "\"}";
         }

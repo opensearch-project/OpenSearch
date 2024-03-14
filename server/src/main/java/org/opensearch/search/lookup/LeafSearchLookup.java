@@ -33,6 +33,7 @@
 package org.opensearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -42,8 +43,9 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * Per-segment version of {@link SearchLookup}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class LeafSearchLookup {
 
     final LeafReaderContext ctx;

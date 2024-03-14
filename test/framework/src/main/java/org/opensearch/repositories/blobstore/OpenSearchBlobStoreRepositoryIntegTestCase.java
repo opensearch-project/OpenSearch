@@ -46,10 +46,11 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -92,7 +93,13 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
     protected abstract String repositoryType();
 
     protected Settings repositorySettings() {
-        return Settings.builder().put("compress", randomBoolean()).build();
+        final boolean compress = randomBoolean();
+        final Settings.Builder builder = Settings.builder();
+        builder.put("compress", compress);
+        if (compress) {
+            builder.put("compression_type", randomFrom(CompressorRegistry.registeredCompressors().keySet()));
+        }
+        return builder.build();
     }
 
     protected final String createRepository(final String name) {
@@ -153,6 +160,27 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
                 }
                 assertEquals(data.length, target.length());
                 assertArrayEquals(data, Arrays.copyOfRange(target.bytes(), 0, target.length()));
+            }
+            container.delete();
+        }
+    }
+
+    public void testReadRange() throws IOException {
+        try (BlobStore store = newBlobStore()) {
+            final BlobContainer container = store.blobContainer(new BlobPath());
+            final byte[] data = randomBytes(4096);
+
+            // Pick a subrange starting somewhere between position 100 and 1000
+            // and ending somewhere between 100 bytes past that position and
+            // 100 bytes before the end
+            final int startOffset = randomIntBetween(100, 1000);
+            final int endOffset = randomIntBetween(startOffset + 100, data.length - 100);
+            final byte[] subrangeData = Arrays.copyOfRange(data, startOffset, endOffset);
+
+            writeBlob(container, "foobar", new BytesArray(data), randomBoolean());
+            try (InputStream stream = container.readBlob("foobar", startOffset, subrangeData.length)) {
+                final byte[] actual = stream.readAllBytes();
+                assertArrayEquals(subrangeData, actual);
             }
             container.delete();
         }

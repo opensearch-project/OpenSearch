@@ -32,14 +32,19 @@
 
 package org.opensearch.common.io.stream;
 
-import static java.util.Collections.singletonList;
-import static org.hamcrest.Matchers.equalTo;
+import org.opensearch.Version;
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 
-import org.opensearch.Version;
-import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.VersionUtils;
+import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DelayableWriteableTests extends OpenSearchTestCase {
     // NOTE: we don't use AbstractWireSerializingTestCase because we don't implement equals and hashCode.
@@ -118,12 +123,12 @@ public class DelayableWriteableTests extends OpenSearchTestCase {
         }
 
         SneakOtherSideVersionOnWire(StreamInput in) throws IOException {
-            version = Version.readVersion(in);
+            version = in.readVersion();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            Version.writeVersion(out.getVersion(), out);
+            out.writeVersion(out.getVersion());
         }
     }
 

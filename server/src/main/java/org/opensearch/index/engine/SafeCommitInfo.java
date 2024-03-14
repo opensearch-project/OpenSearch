@@ -31,13 +31,15 @@
 
 package org.opensearch.index.engine;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.seqno.SequenceNumbers;
 
 /**
  * Information about the safe commit, for making decisions about recoveries.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SafeCommitInfo {
 
     public final long localCheckpoint;

@@ -36,10 +36,10 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -282,7 +282,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         }
 
         public static IsCloseToRelative closeToRelative(double expected) {
-            return closeToRelative(expected, 0.1);
+            return closeToRelative(expected, 0.25); // 0.25 = q(1-q) where q = quartile; for median, q = 0.5.
         }
     }
 

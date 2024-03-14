@@ -15,12 +15,11 @@ public class FeatureFlagTests extends OpenSearchTestCase {
 
     private final String FLAG_PREFIX = "opensearch.experimental.feature.";
 
-    public void testFeatureFlagSet() throws Exception {
+    public void testFeatureFlagSet() {
         final String testFlag = FLAG_PREFIX + "testFlag";
-        try (FeatureFlagSetter f = FeatureFlagSetter.set(testFlag)) {
-            assertNotNull(System.getProperty(testFlag));
-            assertTrue(FeatureFlags.isEnabled(testFlag));
-        }
+        FeatureFlagSetter.set(testFlag);
+        assertNotNull(System.getProperty(testFlag));
+        assertTrue(FeatureFlags.isEnabled(testFlag));
     }
 
     public void testMissingFeatureFlag() {

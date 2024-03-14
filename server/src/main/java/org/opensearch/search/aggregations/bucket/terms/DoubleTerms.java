@@ -31,8 +31,8 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.BucketOrder;
@@ -130,29 +130,27 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         String name,
         BucketOrder reduceOrder,
         BucketOrder order,
-        int requiredSize,
-        long minDocCount,
         Map<String, Object> metadata,
         DocValueFormat format,
         int shardSize,
         boolean showTermDocCountError,
         long otherDocCount,
         List<Bucket> buckets,
-        long docCountError
+        long docCountError,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds
     ) {
         super(
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             metadata,
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError
+            docCountError,
+            bucketCountThresholds
         );
     }
 
@@ -174,15 +172,14 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             metadata,
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError
+            docCountError,
+            bucketCountThresholds
         );
     }
 
@@ -204,15 +201,14 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             getMetadata(),
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError
+            docCountError,
+            bucketCountThresholds
         );
     }
 
@@ -233,7 +229,17 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
                  */
                 promoteToDouble = true;
                 break;
-            }
+            } else if (agg instanceof UnsignedLongTerms
+                && (((UnsignedLongTerms) agg).format == DocValueFormat.RAW
+                    || ((UnsignedLongTerms) agg).format == DocValueFormat.UNSIGNED_LONG_SHIFTED
+                    || ((UnsignedLongTerms) agg).format == DocValueFormat.UNSIGNED_LONG)) {
+                        /*
+                         * this terms agg mixes unsigned longs and doubles, we must promote unsigned longs to doubles to make the internal aggs
+                         * compatible
+                         */
+                        promoteToDouble = true;
+                        break;
+                    }
         }
         if (promoteToDouble == false) {
             return super.reduce(aggregations, reduceContext);
@@ -242,6 +248,9 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         for (InternalAggregation agg : aggregations) {
             if (agg instanceof LongTerms) {
                 DoubleTerms dTerms = LongTerms.convertLongTermsToDouble((LongTerms) agg, format);
+                newAggs.add(dTerms);
+            } else if (agg instanceof UnsignedLongTerms) {
+                DoubleTerms dTerms = UnsignedLongTerms.convertUnsignedLongTermsToDouble((UnsignedLongTerms) agg, format);
                 newAggs.add(dTerms);
             } else {
                 newAggs.add(agg);

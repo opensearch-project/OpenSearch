@@ -32,6 +32,7 @@
 
 package org.opensearch.search.internal;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
@@ -57,8 +58,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * ie. when an index gets removed. To prevent accessing closed IndexReader / IndexSearcher instances the SearchContext
  * can be guarded by a reference count and fail if it's been closed by an external event.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ReaderContext implements Releasable {
     private final ShardSearchContextId id;
     private final IndexService indexService;

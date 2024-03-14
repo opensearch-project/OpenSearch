@@ -35,7 +35,8 @@ apply plugin: 'opensearch.test-with-dependencies'
 
 dependencies {
   testImplementation project(path: ':modules:transport-netty4') // for http
-  testImplementation project(path: ':plugins:transport-nio') // for http
+  testImplementation project(path: ':plugins:transport-nio')
+  testImplementation project(path: ':plugins:identity-shiro') // for http
 }
 
 integTest {

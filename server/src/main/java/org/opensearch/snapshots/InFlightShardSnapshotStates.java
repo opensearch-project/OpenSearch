@@ -32,10 +32,9 @@
 
 package org.opensearch.snapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.Nullable;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoryShardId;
 import org.opensearch.repositories.ShardGenerations;
@@ -73,14 +72,15 @@ public final class InFlightShardSnapshotStates {
                 continue;
             }
             if (runningSnapshot.isClone()) {
-                for (ObjectObjectCursor<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> clone : runningSnapshot.clones()) {
-                    final RepositoryShardId repoShardId = clone.key;
-                    addStateInformation(generations, busyIds, clone.value, repoShardId.shardId(), repoShardId.indexName());
+                for (final Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> clone : runningSnapshot.clones()
+                    .entrySet()) {
+                    final RepositoryShardId repoShardId = clone.getKey();
+                    addStateInformation(generations, busyIds, clone.getValue(), repoShardId.shardId(), repoShardId.indexName());
                 }
             } else {
-                for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot.shards()) {
-                    final ShardId sid = shard.key;
-                    addStateInformation(generations, busyIds, shard.value, sid.id(), sid.getIndexName());
+                for (final Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot.shards().entrySet()) {
+                    final ShardId sid = shard.getKey();
+                    addStateInformation(generations, busyIds, shard.getValue(), sid.id(), sid.getIndexName());
                 }
             }
         }

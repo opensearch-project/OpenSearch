@@ -32,13 +32,13 @@
 
 package org.opensearch.common.settings;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 import joptsimple.OptionSet;
 import org.opensearch.cli.Terminal;
 import org.opensearch.env.Environment;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * A subcommand for the keystore cli to list all settings in the keystore.

@@ -33,6 +33,7 @@
 package org.opensearch.indices.recovery;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
@@ -41,19 +42,19 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.bulk.BulkShardRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.MergePolicyConfig;
+import org.opensearch.index.MergePolicyProvider;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
@@ -78,6 +79,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
@@ -166,7 +168,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10)
             // If soft-deletes is enabled, delete#1 will be reclaimed because its segment (segment_1) is fully deleted
             // index#0 will be retained if merge is disabled; otherwise it will be reclaimed because gcp=3 and retained_ops=0
-            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            .put(MergePolicyProvider.INDEX_MERGE_ENABLED, false)
             .build();
         try (ReplicationGroup shards = createGroup(1, settings)) {
             shards.startAll();
@@ -181,43 +183,47 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             orgReplica.flush(new FlushRequest().force(true)); // isolate delete#1 in its own translog generation and lucene segment
             // index #0
             orgReplica.applyIndexOperationOnReplica(
+                UUID.randomUUID().toString(),
                 0,
                 primaryTerm,
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "id", new BytesArray("{}"), XContentType.JSON)
+                new SourceToParse(indexName, "id", new BytesArray("{}"), MediaTypeRegistry.JSON)
             );
             // index #3
             orgReplica.applyIndexOperationOnReplica(
+                UUID.randomUUID().toString(),
                 3,
                 primaryTerm,
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "id-3", new BytesArray("{}"), XContentType.JSON)
+                new SourceToParse(indexName, "id-3", new BytesArray("{}"), MediaTypeRegistry.JSON)
             );
             // Flushing a new commit with local checkpoint=1 allows to delete the translog gen #1.
             orgReplica.flush(new FlushRequest().force(true).waitIfOngoing(true));
             // index #2
             orgReplica.applyIndexOperationOnReplica(
+                UUID.randomUUID().toString(),
                 2,
                 primaryTerm,
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "id-2", new BytesArray("{}"), XContentType.JSON)
+                new SourceToParse(indexName, "id-2", new BytesArray("{}"), MediaTypeRegistry.JSON)
             );
             orgReplica.sync(); // advance local checkpoint
             orgReplica.updateGlobalCheckpointOnReplica(3L, "test");
             // index #5 -> force NoOp #4.
             orgReplica.applyIndexOperationOnReplica(
+                UUID.randomUUID().toString(),
                 5,
                 primaryTerm,
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "id-5", new BytesArray("{}"), XContentType.JSON)
+                new SourceToParse(indexName, "id-5", new BytesArray("{}"), MediaTypeRegistry.JSON)
             );
 
             if (randomBoolean()) {
@@ -262,7 +268,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             final String historyUUID = replica.getHistoryUUID();
             Translog.TranslogGeneration translogGeneration = getTranslog(replica).getGeneration();
             shards.removeReplica(replica);
-            replica.close("test", false);
+            replica.close("test", false, false);
             IndexWriterConfig iwc = new IndexWriterConfig(null).setCommitOnClose(false)
                 // we don't want merges to happen here - we call maybe merge on the engine
                 // later once we stared it up otherwise we would need to wait for it here
@@ -326,7 +332,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             Engine.IndexResult result = primaryShard.applyIndexOperationOnPrimary(
                 Versions.MATCH_ANY,
                 VersionType.INTERNAL,
-                new SourceToParse(primaryShard.shardId().getIndexName(), Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
+                new SourceToParse(primaryShard.shardId().getIndexName(), Integer.toString(i), new BytesArray("{}"), MediaTypeRegistry.JSON),
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 0,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
@@ -386,7 +392,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             if (randomBoolean()) {
                 shards.flush();
             }
-            replica.close("test", randomBoolean());
+            replica.close("test", randomBoolean(), false);
             replica.store().close();
             final IndexShard newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
             shards.recoverReplica(newReplica);
@@ -493,7 +499,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             }
             int inflightDocs = scaledRandomIntBetween(1, 100);
             for (int i = 0; i < inflightDocs; i++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName()).id("extra_" + i).source("{}", XContentType.JSON);
+                final IndexRequest indexRequest = new IndexRequest(index.getName()).id("extra_" + i).source("{}", MediaTypeRegistry.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
                 for (IndexShard replica : randomSubsetOf(shards.getReplicas())) {
                     indexOnReplica(bulkShardRequest, shards, replica);
@@ -504,7 +510,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             }
             shards.syncGlobalCheckpoint();
             shards.promoteReplicaToPrimary(randomFrom(shards.getReplicas())).get();
-            oldPrimary.close("demoted", false);
+            oldPrimary.close("demoted", false, false);
             oldPrimary.store().close();
             oldPrimary = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
             shards.recoverReplica(oldPrimary);

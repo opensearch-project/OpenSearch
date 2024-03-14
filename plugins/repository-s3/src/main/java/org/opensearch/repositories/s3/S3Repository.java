@@ -32,24 +32,28 @@
 
 package org.opensearch.repositories.s3;
 
+import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
+import software.amazon.awssdk.services.s3.model.StorageClass;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.SecureSetting;
-import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.settings.SecureString;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.monitor.jvm.JvmInfo;
@@ -57,11 +61,17 @@ import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
+import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.threadpool.Scheduler;
 
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -76,7 +86,6 @@ import java.util.function.Function;
  * <dt>{@code concurrent_streams}</dt><dd>Number of concurrent read/write stream (per repository on each node). Defaults to 5.</dd>
  * <dt>{@code chunk_size}</dt>
  * <dd>Large file can be divided into chunks. This parameter specifies the chunk size. Defaults to not chucked.</dd>
- * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
 class S3Repository extends MeteredBlobStoreRepository {
@@ -100,6 +109,11 @@ class S3Repository extends MeteredBlobStoreRepository {
             ByteSizeUnit.MB.toBytes(5), // minimum value
             Math.min(ByteSizeUnit.MB.toBytes(100), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)
         ),
+        ByteSizeUnit.BYTES
+    );
+
+    private static final ByteSizeValue DEFAULT_MULTIPART_UPLOAD_MINIMUM_PART_SIZE = new ByteSizeValue(
+        ByteSizeUnit.MB.toBytes(16),
         ByteSizeUnit.BYTES
     );
 
@@ -134,6 +148,20 @@ class S3Repository extends MeteredBlobStoreRepository {
     static final ByteSizeValue MAX_FILE_SIZE_USING_MULTIPART = new ByteSizeValue(5, ByteSizeUnit.TB);
 
     /**
+     * Whether large uploads need to be redirected to slow sync s3 client.
+     */
+    static final Setting<Boolean> REDIRECT_LARGE_S3_UPLOAD = Setting.boolSetting(
+        "redirect_large_s3_upload",
+        true,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Whether retry on uploads are enabled. This setting wraps inputstream with buffered stream to enable retries.
+     */
+    static final Setting<Boolean> UPLOAD_RETRY_ENABLED = Setting.boolSetting("s3_upload_retry_enabled", true, Setting.Property.NodeScope);
+
+    /**
      * Minimum threshold below which the chunk is uploaded using a single request. Beyond this threshold,
      * the S3 repository will use the AWS Multipart Upload API to split the chunk into several parts, each of buffer_size length, and
      * to upload each part in its own request. Note that setting a buffer size lower than 5mb is not allowed since it will prevents the
@@ -147,6 +175,26 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
+     * Minimum part size for parallel multipart uploads
+     */
+    static final Setting<ByteSizeValue> PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING = Setting.byteSizeSetting(
+        "parallel_multipart_upload.minimum_part_size",
+        DEFAULT_MULTIPART_UPLOAD_MINIMUM_PART_SIZE,
+        MIN_PART_SIZE_USING_MULTIPART,
+        MAX_PART_SIZE_USING_MULTIPART,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * This setting controls whether parallel multipart uploads will be used when calling S3 or not
+     */
+    public static Setting<Boolean> PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING = Setting.boolSetting(
+        "parallel_multipart_upload.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Big files can be broken down into chunks during snapshotting if needed. Defaults to 1g.
      */
     static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
@@ -157,10 +205,11 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
-     * When set to true metadata files are stored in compressed format. This setting doesn’t affect index
-     * files that are already compressed by default. Defaults to false.
+     * Maximum number of deletes in a DeleteObjectsRequest.
+     *
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html">S3 Documentation</a>.
      */
-    static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false);
+    static final Setting<Integer> BULK_DELETE_SIZE = Setting.intSetting("bulk_delete_size", 1000, 1, 1000);
 
     /**
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
@@ -183,21 +232,58 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private final S3Service service;
 
-    private final String bucket;
+    private volatile String bucket;
 
-    private final ByteSizeValue bufferSize;
+    private volatile ByteSizeValue bufferSize;
 
-    private final ByteSizeValue chunkSize;
+    private volatile ByteSizeValue chunkSize;
 
-    private final BlobPath basePath;
+    private volatile BlobPath basePath;
 
-    private final boolean serverSideEncryption;
+    private volatile boolean serverSideEncryption;
 
-    private final String storageClass;
+    private volatile String storageClass;
 
-    private final String cannedACL;
+    private volatile String cannedACL;
+    private final AsyncTransferManager asyncUploadUtils;
+    private final S3AsyncService s3AsyncService;
+    private final boolean multipartUploadEnabled;
+    private final AsyncExecutorContainer urgentExecutorBuilder;
+    private final AsyncExecutorContainer priorityExecutorBuilder;
+    private final AsyncExecutorContainer normalExecutorBuilder;
+    private final Path pluginConfigPath;
 
-    private final RepositoryMetadata repositoryMetadata;
+    private volatile int bulkDeletesSize;
+
+    // Used by test classes
+    S3Repository(
+        final RepositoryMetadata metadata,
+        final NamedXContentRegistry namedXContentRegistry,
+        final S3Service service,
+        final ClusterService clusterService,
+        final RecoverySettings recoverySettings,
+        final AsyncTransferManager asyncUploadUtils,
+        final AsyncExecutorContainer urgentExecutorBuilder,
+        final AsyncExecutorContainer priorityExecutorBuilder,
+        final AsyncExecutorContainer normalExecutorBuilder,
+        final S3AsyncService s3AsyncService,
+        final boolean multipartUploadEnabled
+    ) {
+        this(
+            metadata,
+            namedXContentRegistry,
+            service,
+            clusterService,
+            recoverySettings,
+            asyncUploadUtils,
+            urgentExecutorBuilder,
+            priorityExecutorBuilder,
+            normalExecutorBuilder,
+            s3AsyncService,
+            multipartUploadEnabled,
+            Path.of("")
+        );
+    }
 
     /**
      * Constructs an s3 backed repository
@@ -207,74 +293,27 @@ class S3Repository extends MeteredBlobStoreRepository {
         final NamedXContentRegistry namedXContentRegistry,
         final S3Service service,
         final ClusterService clusterService,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        final AsyncTransferManager asyncUploadUtils,
+        final AsyncExecutorContainer urgentExecutorBuilder,
+        final AsyncExecutorContainer priorityExecutorBuilder,
+        final AsyncExecutorContainer normalExecutorBuilder,
+        final S3AsyncService s3AsyncService,
+        final boolean multipartUploadEnabled,
+        Path pluginConfigPath
     ) {
-        super(
-            metadata,
-            COMPRESS_SETTING.get(metadata.settings()),
-            namedXContentRegistry,
-            clusterService,
-            recoverySettings,
-            buildLocation(metadata)
-        );
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.service = service;
+        this.s3AsyncService = s3AsyncService;
+        this.multipartUploadEnabled = multipartUploadEnabled;
+        this.pluginConfigPath = pluginConfigPath;
+        this.asyncUploadUtils = asyncUploadUtils;
+        this.urgentExecutorBuilder = urgentExecutorBuilder;
+        this.priorityExecutorBuilder = priorityExecutorBuilder;
+        this.normalExecutorBuilder = normalExecutorBuilder;
 
-        this.repositoryMetadata = metadata;
-
-        // Parse and validate the user's S3 Storage Class setting
-        this.bucket = BUCKET_SETTING.get(metadata.settings());
-        if (bucket == null) {
-            throw new RepositoryException(metadata.name(), "No bucket defined for s3 repository");
-        }
-
-        this.bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
-        this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
-
-        // We make sure that chunkSize is bigger or equal than/to bufferSize
-        if (this.chunkSize.getBytes() < bufferSize.getBytes()) {
-            throw new RepositoryException(
-                metadata.name(),
-                CHUNK_SIZE_SETTING.getKey()
-                    + " ("
-                    + this.chunkSize
-                    + ") can't be lower than "
-                    + BUFFER_SIZE_SETTING.getKey()
-                    + " ("
-                    + bufferSize
-                    + ")."
-            );
-        }
-
-        final String basePath = BASE_PATH_SETTING.get(metadata.settings());
-        if (Strings.hasLength(basePath)) {
-            this.basePath = new BlobPath().add(basePath);
-        } else {
-            this.basePath = BlobPath.cleanPath();
-        }
-
-        this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
-
-        this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
-        this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
-
-        if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
-            // provided repository settings
-            deprecationLogger.deprecate(
-                "s3_repository_secret_settings",
-                "Using s3 access/secret key from repository settings. Instead "
-                    + "store these in named clients and the opensearch keystore for secure settings."
-            );
-        }
-
-        logger.debug(
-            "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], cannedACL [{}], storageClass [{}]",
-            bucket,
-            chunkSize,
-            serverSideEncryption,
-            bufferSize,
-            cannedACL,
-            storageClass
-        );
+        validateRepositoryMetadata(metadata);
+        readRepositoryMetadata();
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
@@ -320,10 +359,25 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     @Override
     protected S3BlobStore createBlobStore() {
-        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, repositoryMetadata);
+        return new S3BlobStore(
+            service,
+            s3AsyncService,
+            multipartUploadEnabled,
+            bucket,
+            serverSideEncryption,
+            bufferSize,
+            cannedACL,
+            storageClass,
+            bulkDeletesSize,
+            metadata,
+            asyncUploadUtils,
+            urgentExecutorBuilder,
+            priorityExecutorBuilder,
+            normalExecutorBuilder
+        );
     }
 
-    // only use for testing
+    // only use for testing (S3RepositoryTests)
     @Override
     protected BlobStore getBlobStore() {
         return super.getBlobStore();
@@ -335,8 +389,141 @@ class S3Repository extends MeteredBlobStoreRepository {
     }
 
     @Override
+    public boolean isReloadable() {
+        return true;
+    }
+
+    @Override
+    public void reload(RepositoryMetadata newRepositoryMetadata) {
+        if (isReloadable() == false) {
+            return;
+        }
+
+        // Reload configs for S3Repository
+        super.reload(newRepositoryMetadata);
+        readRepositoryMetadata();
+
+        // Reload configs for S3RepositoryPlugin
+        service.settings(metadata);
+        service.releaseCachedClients();
+        s3AsyncService.settings(metadata);
+        s3AsyncService.releaseCachedClients();
+
+        // Reload configs for S3BlobStore
+        BlobStore blobStore = getBlobStore();
+        blobStore.reload(metadata);
+    }
+
+    /**
+     * Reloads the values derived from the Repository Metadata
+     */
+    private void readRepositoryMetadata() {
+        this.bucket = BUCKET_SETTING.get(metadata.settings());
+        this.bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
+        this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
+        final String basePath = BASE_PATH_SETTING.get(metadata.settings());
+        if (Strings.hasLength(basePath)) {
+            this.basePath = new BlobPath().add(basePath);
+        } else {
+            this.basePath = BlobPath.cleanPath();
+        }
+
+        this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
+        this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
+        this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
+        this.bulkDeletesSize = BULK_DELETE_SIZE.get(metadata.settings());
+        if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
+            // provided repository settings
+            deprecationLogger.deprecate(
+                "s3_repository_secret_settings",
+                "Using s3 access/secret key from repository settings. Instead "
+                    + "store these in named clients and the opensearch keystore for secure settings."
+            );
+        }
+
+        logger.debug(
+            "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], cannedACL [{}], storageClass [{}]",
+            bucket,
+            chunkSize,
+            serverSideEncryption,
+            bufferSize,
+            cannedACL,
+            storageClass
+        );
+    }
+
+    @Override
+    public void validateMetadata(RepositoryMetadata newRepositoryMetadata) {
+        super.validateMetadata(newRepositoryMetadata);
+        validateRepositoryMetadata(newRepositoryMetadata);
+    }
+
+    private void validateRepositoryMetadata(RepositoryMetadata newRepositoryMetadata) {
+        Settings settings = newRepositoryMetadata.settings();
+        if (BUCKET_SETTING.get(settings) == null) {
+            throw new RepositoryException(newRepositoryMetadata.name(), "No bucket defined for s3 repository");
+        }
+
+        // We make sure that chunkSize is bigger or equal than/to bufferSize
+        if (CHUNK_SIZE_SETTING.get(settings).getBytes() < BUFFER_SIZE_SETTING.get(settings).getBytes()) {
+            throw new RepositoryException(
+                newRepositoryMetadata.name(),
+                CHUNK_SIZE_SETTING.getKey()
+                    + " ("
+                    + CHUNK_SIZE_SETTING.get(settings)
+                    + ") can't be lower than "
+                    + BUFFER_SIZE_SETTING.getKey()
+                    + " ("
+                    + BUFFER_SIZE_SETTING.get(settings)
+                    + ")."
+            );
+        }
+
+        validateStorageClass(STORAGE_CLASS_SETTING.get(settings));
+        validateCannedACL(CANNED_ACL_SETTING.get(settings));
+    }
+
+    private static void validateStorageClass(String storageClassStringValue) {
+        if ((storageClassStringValue == null) || storageClassStringValue.equals("")) {
+            return;
+        }
+
+        final StorageClass storageClass = StorageClass.fromValue(storageClassStringValue.toUpperCase(Locale.ENGLISH));
+        if (storageClass.equals(StorageClass.GLACIER)) {
+            throw new BlobStoreException("Glacier storage class is not supported");
+        }
+
+        if (storageClass == StorageClass.UNKNOWN_TO_SDK_VERSION) {
+            throw new BlobStoreException("`" + storageClassStringValue + "` is not a valid S3 Storage Class.");
+        }
+    }
+
+    private static void validateCannedACL(String cannedACLStringValue) {
+        if ((cannedACLStringValue == null) || cannedACLStringValue.equals("")) {
+            return;
+        }
+
+        for (final ObjectCannedACL cur : ObjectCannedACL.values()) {
+            if (cur.toString().equalsIgnoreCase(cannedACLStringValue)) {
+                return;
+            }
+        }
+
+        throw new BlobStoreException("cannedACL is not valid: [" + cannedACLStringValue + "]");
+    }
+
+    @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
+    }
+
+    @Override
+    public List<Setting<?>> getRestrictedSystemRepositorySettings() {
+        List<Setting<?>> restrictedSettings = new ArrayList<>();
+        restrictedSettings.addAll(super.getRestrictedSystemRepositorySettings());
+        restrictedSettings.add(BUCKET_SETTING);
+        restrictedSettings.add(BASE_PATH_SETTING);
+        return restrictedSettings;
     }
 
     @Override

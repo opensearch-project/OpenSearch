@@ -32,12 +32,11 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -185,7 +184,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertEquals(
             "{\"_doc\":{\"properties\":{\"foo\":{\"type\":\"text\",\"fields\":"
                 + "{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}",
-            Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate())
+            Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate())
         );
     }
 
@@ -201,9 +200,9 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         }));
         assertNotNull(doc.dynamicMappingsUpdate());
 
-        assertThat(Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate()), containsString("{\"bar\":"));
+        assertThat(Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate()), containsString("{\"bar\":"));
         // field is NOT in the update
-        assertThat(Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate()), not(containsString("{\"field\":")));
+        assertThat(Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate()), not(containsString("{\"field\":")));
     }
 
     public void testIntroduceTwoFields() throws Exception {
@@ -215,8 +214,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         }));
 
         assertNotNull(doc.dynamicMappingsUpdate());
-        assertThat(Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate()), containsString("\"foo\":{"));
-        assertThat(Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate()), containsString("\"bar\":{"));
+        assertThat(Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate()), containsString("\"foo\":{"));
+        assertThat(Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate()), containsString("\"bar\":{"));
     }
 
     public void testObject() throws Exception {
@@ -231,7 +230,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
 
         assertNotNull(doc.dynamicMappingsUpdate());
         assertThat(
-            Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate()),
+            Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate()),
             containsString("{\"foo\":{\"properties\":{\"bar\":{\"properties\":{\"baz\":{\"type\":\"text\"")
         );
     }
@@ -242,7 +241,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value("bar").value("baz").endArray()));
 
         assertNotNull(doc.dynamicMappingsUpdate());
-        assertThat(Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate()), containsString("{\"foo\":{\"type\":\"text\""));
+        assertThat(Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate()), containsString("{\"foo\":{\"type\":\"text\""));
     }
 
     public void testInnerDynamicMapping() throws Exception {
@@ -258,7 +257,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
 
         assertNotNull(doc.dynamicMappingsUpdate());
         assertThat(
-            Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate()),
+            Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate()),
             containsString("{\"field\":{\"properties\":{\"bar\":{\"properties\":{\"baz\":{\"type\":\"text\"")
         );
     }
@@ -278,7 +277,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertEquals(
             "{\"_doc\":{\"properties\":{\"foo\":{\"properties\":{\"bar\":{\"type\":\"text\",\"fields\":{"
                 + "\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}},\"baz\":{\"type\":\"long\"}}}}}}",
-            Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate())
+            Strings.toString(MediaTypeRegistry.JSON, doc.dynamicMappingsUpdate())
         );
     }
 
@@ -368,9 +367,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
                 .field("quux", "3.2") // float detected through numeric detection
                 .endObject()
         );
-        ParsedDocument parsedDocument = mapper.parse(
-            new SourceToParse("index", "id", source, XContentType.fromMediaType(builder.contentType()))
-        );
+        ParsedDocument parsedDocument = mapper.parse(new SourceToParse("index", "id", source, builder.contentType()));
         Mapping update = parsedDocument.dynamicMappingsUpdate();
         assertNotNull(update);
         assertThat(((FieldMapper) update.root().getMapper("foo")).fieldType().typeName(), equalTo("float"));

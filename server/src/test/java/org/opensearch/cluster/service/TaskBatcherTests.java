@@ -397,7 +397,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
             submitTask("blocking", blockingTask);
 
             TestExecutor<SimpleTask> executor = tasks -> {};
-            SimpleTask task = new SimpleTask(1);
+            SimpleTask task1 = new SimpleTask(1);
             TestListener listener = new TestListener() {
                 @Override
                 public void processed(String source) {
@@ -410,19 +410,108 @@ public class TaskBatcherTests extends TaskExecutorTests {
                 }
             };
 
-            submitTask("first time", task, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+            submitTask("first time", task1, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
 
+            // submitting same task1 again, it should throw exception.
             final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
-                () -> submitTask("second time", task, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener)
+                () -> submitTask("second time", task1, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener)
             );
             assertThat(e, hasToString(containsString("task [1] with source [second time] is already queued")));
 
-            submitTask("third time a charm", new SimpleTask(1), ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+            // inserting new task with same data, this should pass as it is new object and reference is different.
+            SimpleTask task2 = new SimpleTask(1);
+            // equals method returns true for both task
+            assertTrue(task1.equals(task2));
+            // references of both tasks are different.
+            assertFalse(task1 == task2);
+            // submitting this task should be allowed, as it is new object.
+            submitTask("third time a charm", task2, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+
+            // submitting same task2 again, it should throw exception, since it was submitted last time
+            final IllegalStateException e2 = expectThrows(
+                IllegalStateException.class,
+                () -> submitTask("second time", task2, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener)
+            );
+            assertThat(e2, hasToString(containsString("task [1] with source [second time] is already queued")));
 
             assertThat(latch.getCount(), equalTo(2L));
         }
         latch.await();
+    }
+
+    public void testDuplicateSubmissionAfterTimeout() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(2);
+        final CountDownLatch timeOutLatch = new CountDownLatch(1);
+        try (BlockingTask blockingTask = new BlockingTask(Priority.IMMEDIATE)) {
+            submitTask("blocking", blockingTask);
+
+            TestExecutor<SimpleTask> executor = tasks -> {};
+            SimpleTask task1 = new SimpleTask(1);
+            TestListener listener = new TestListener() {
+                @Override
+                public void processed(String source) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    if (e instanceof ProcessClusterEventTimeoutException) {
+                        timeOutLatch.countDown();
+                    } else {
+                        throw new AssertionError(e);
+                    }
+                }
+            };
+
+            submitTask("first time", task1, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+            ArrayList<TaskBatcher.BatchedTask> tasks = new ArrayList();
+            tasks.add(
+                taskBatcher.new UpdateTask(
+                    ClusterStateTaskConfig.build(Priority.NORMAL).priority(), "first time", task1, listener, executor
+                )
+            );
+
+            // task1 got timed out, it will be removed from map.
+            taskBatcher.onTimeoutInternal(tasks, TimeValue.ZERO);
+            timeOutLatch.await(); // wait for task to get timeout
+            // submitting same task1 again, it should get submitted, since last task was timeout.
+            submitTask("first time", task1, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+            assertThat(latch.getCount(), equalTo(2L));
+        }
+        latch.await();
+    }
+
+    public void testDuplicateSubmissionAfterExecution() throws InterruptedException {
+        final CountDownLatch firstTaskLatch = new CountDownLatch(1);
+        final CountDownLatch latch = new CountDownLatch(2);
+
+        TestExecutor<SimpleTask> executor = tasks -> {};
+        SimpleTask task1 = new SimpleTask(1);
+        TestListener listener = new TestListener() {
+            @Override
+            public void processed(String source) {
+                firstTaskLatch.countDown();
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                if (e instanceof ProcessClusterEventTimeoutException) {
+                    latch.countDown();
+                } else {
+                    throw new AssertionError(e);
+                }
+            }
+        };
+        submitTask("first time", task1, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+
+        firstTaskLatch.await(); // wait till task is not executed
+
+        // submitting same task1 again, it should get submitted, since last task was executed.
+        submitTask("first time", task1, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+
+        latch.await(); // wait till all tasks are not completed.
     }
 
     protected static TaskBatcherListener getMockListener() {
@@ -458,12 +547,16 @@ public class TaskBatcherTests extends TaskExecutorTests {
 
         @Override
         public int hashCode() {
-            return super.hashCode();
+            return this.id;
         }
 
         @Override
         public boolean equals(Object obj) {
-            return super.equals(obj);
+            return ((SimpleTask) obj).getId() == this.id;
+        }
+
+        public int getId() {
+            return id;
         }
 
         @Override

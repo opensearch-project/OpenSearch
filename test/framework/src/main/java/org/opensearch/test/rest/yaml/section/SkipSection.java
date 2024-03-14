@@ -32,8 +32,8 @@
 package org.opensearch.test.rest.yaml.section;
 
 import org.opensearch.Version;
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.rest.yaml.Features;
@@ -117,10 +117,10 @@ public class SkipSection {
 
         parser.nextToken();
 
-        if (!Strings.hasLength(version) && features.isEmpty()) {
+        if (Strings.hasLength(version) == false && features.isEmpty() == true) {
             throw new ParsingException(parser.getTokenLocation(), "version or features is mandatory within skip section");
         }
-        if (Strings.hasLength(version) && !Strings.hasLength(reason)) {
+        if (Strings.hasLength(version) == true && Strings.hasLength(reason) == false) {
             throw new ParsingException(parser.getTokenLocation(), "reason is mandatory within skip version section");
         }
         return new SkipSection(version, features, reason);

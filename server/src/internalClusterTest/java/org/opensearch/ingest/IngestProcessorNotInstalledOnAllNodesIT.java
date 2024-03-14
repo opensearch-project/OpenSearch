@@ -32,13 +32,17 @@
 
 package org.opensearch.ingest;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.node.NodeService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -52,12 +56,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 @OpenSearchIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = OpenSearchIntegTestCase.Scope.TEST)
-public class IngestProcessorNotInstalledOnAllNodesIT extends OpenSearchIntegTestCase {
+public class IngestProcessorNotInstalledOnAllNodesIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    private final BytesReference pipelineSource;
-    private volatile boolean installPlugin;
-
-    public IngestProcessorNotInstalledOnAllNodesIT() throws IOException {
+    public IngestProcessorNotInstalledOnAllNodesIT(Settings settings) throws IOException {
+        super(settings);
         pipelineSource = BytesReference.bytes(
             jsonBuilder().startObject()
                 .startArray("processors")
@@ -69,6 +71,14 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends OpenSearchIntegTest
                 .endObject()
         );
     }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return replicationSettings;
+    }
+
+    private final BytesReference pipelineSource;
+    private volatile boolean installPlugin;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -84,7 +94,7 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends OpenSearchIntegTest
         ensureStableCluster(2, node2);
 
         try {
-            client().admin().cluster().preparePutPipeline("_id", pipelineSource, XContentType.JSON).get();
+            client().admin().cluster().preparePutPipeline("_id", pipelineSource, MediaTypeRegistry.JSON).get();
             fail("exception expected");
         } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), containsString("Processor type [test] is not installed on node"));
@@ -97,7 +107,7 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends OpenSearchIntegTest
         internalCluster().startNode();
 
         try {
-            client().admin().cluster().preparePutPipeline("_id", pipelineSource, XContentType.JSON).get();
+            client().admin().cluster().preparePutPipeline("_id", pipelineSource, MediaTypeRegistry.JSON).get();
             fail("exception expected");
         } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), equalTo("No processor type exists with name [test]"));
@@ -110,7 +120,7 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends OpenSearchIntegTest
         installPlugin = true;
         String node1 = internalCluster().startNode();
 
-        AcknowledgedResponse response = client().admin().cluster().preparePutPipeline("_id", pipelineSource, XContentType.JSON).get();
+        AcknowledgedResponse response = client().admin().cluster().preparePutPipeline("_id", pipelineSource, MediaTypeRegistry.JSON).get();
         assertThat(response.isAcknowledged(), is(true));
         Pipeline pipeline = internalCluster().getInstance(NodeService.class, node1).getIngestService().getPipeline("_id");
         assertThat(pipeline, notNullValue());

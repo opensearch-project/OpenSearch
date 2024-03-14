@@ -32,9 +32,11 @@
 
 package org.opensearch.ingest;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkRequest;
@@ -51,12 +53,13 @@ import org.opensearch.action.ingest.SimulatePipelineResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.client.Requests;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -73,7 +76,16 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
 @OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class IngestClientIT extends OpenSearchIntegTestCase {
+public class IngestClientIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public IngestClientIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return replicationSettings;
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -100,7 +112,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 .endArray()
                 .endObject()
         );
-        client().admin().cluster().preparePutPipeline("_id", pipelineSource, XContentType.JSON).get();
+        client().admin().cluster().preparePutPipeline("_id", pipelineSource, MediaTypeRegistry.JSON).get();
         GetPipelineResponse getResponse = client().admin().cluster().prepareGetPipeline("_id").get();
         assertThat(getResponse.isFound(), is(true));
         assertThat(getResponse.pipelines().size(), equalTo(1));
@@ -122,9 +134,9 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
         );
         SimulatePipelineResponse response;
         if (randomBoolean()) {
-            response = client().admin().cluster().prepareSimulatePipeline(bytes, XContentType.JSON).setId("_id").get();
+            response = client().admin().cluster().prepareSimulatePipeline(bytes, MediaTypeRegistry.JSON).setId("_id").get();
         } else {
-            SimulatePipelineRequest request = new SimulatePipelineRequest(bytes, XContentType.JSON);
+            SimulatePipelineRequest request = new SimulatePipelineRequest(bytes, MediaTypeRegistry.JSON);
             request.setId("_id");
             response = client().admin().cluster().simulatePipeline(request).get();
         }
@@ -160,7 +172,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 .endArray()
                 .endObject()
         );
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, MediaTypeRegistry.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         int numRequests = scaledRandomIntBetween(32, 128);
@@ -211,7 +223,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 .endArray()
                 .endObject()
         );
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, MediaTypeRegistry.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         BulkRequest bulkRequest = new BulkRequest();
@@ -220,7 +232,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
         bulkRequest.add(indexRequest);
         UpdateRequest updateRequest = new UpdateRequest("index", "2");
         updateRequest.doc("{}", Requests.INDEX_CONTENT_TYPE);
-        updateRequest.upsert("{\"field1\":\"upserted_val\"}", XContentType.JSON).upsertRequest().setPipeline("_id");
+        updateRequest.upsert("{\"field1\":\"upserted_val\"}", MediaTypeRegistry.JSON).upsertRequest().setPipeline("_id");
         bulkRequest.add(updateRequest);
 
         BulkResponse response = client().bulk(bulkRequest).actionGet();
@@ -246,7 +258,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 .endArray()
                 .endObject()
         );
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, MediaTypeRegistry.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         GetPipelineRequest getPipelineRequest = new GetPipelineRequest("_id");
@@ -290,7 +302,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 .endArray()
                 .endObject()
         );
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id2", source, XContentType.JSON);
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id2", source, MediaTypeRegistry.JSON);
         Exception e = expectThrows(
             OpenSearchParseException.class,
             () -> client().admin().cluster().putPipeline(putPipelineRequest).actionGet()
@@ -314,7 +326,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 .endArray()
                 .endObject()
         );
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, MediaTypeRegistry.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         BulkItemResponse item = client(clusterManagerOnlyNode).prepareBulk()
@@ -340,7 +352,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("1", BytesReference.bytes(source), XContentType.JSON);
+            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("1", BytesReference.bytes(source), MediaTypeRegistry.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         }
         {
@@ -357,7 +369,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("2", BytesReference.bytes(source), XContentType.JSON);
+            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("2", BytesReference.bytes(source), MediaTypeRegistry.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         }
         {
@@ -373,13 +385,13 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("3", BytesReference.bytes(source), XContentType.JSON);
+            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("3", BytesReference.bytes(source), MediaTypeRegistry.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         }
 
         Exception e = expectThrows(Exception.class, () -> {
             IndexRequest indexRequest = new IndexRequest("test");
-            indexRequest.source("{}", XContentType.JSON);
+            indexRequest.source("{}", MediaTypeRegistry.JSON);
             indexRequest.setPipeline("1");
             client().index(indexRequest).get();
         });
@@ -413,7 +425,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("1", BytesReference.bytes(source), XContentType.JSON);
+            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("1", BytesReference.bytes(source), MediaTypeRegistry.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         }
         {
@@ -430,7 +442,7 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("2", BytesReference.bytes(source), XContentType.JSON);
+            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("2", BytesReference.bytes(source), MediaTypeRegistry.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         }
         {
@@ -446,11 +458,11 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("3", BytesReference.bytes(source), XContentType.JSON);
+            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("3", BytesReference.bytes(source), MediaTypeRegistry.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         }
 
-        client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).setPipeline("1").get();
+        client().prepareIndex("test").setId("1").setSource("{}", MediaTypeRegistry.JSON).setPipeline("1").get();
         Map<String, Object> inserted = client().prepareGet("test", "1").get().getSourceAsMap();
         assertThat(inserted.get("readme"), equalTo("pipeline with id [3] is a bad pipeline"));
     }

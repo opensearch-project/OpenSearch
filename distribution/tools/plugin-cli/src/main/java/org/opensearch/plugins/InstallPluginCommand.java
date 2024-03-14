@@ -34,6 +34,8 @@ package org.opensearch.plugins;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import org.apache.commons.compress.archivers.zip.ZipFile;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
@@ -89,6 +91,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -99,14 +102,12 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 import static org.opensearch.cli.Terminal.Verbosity.VERBOSE;
 
 /**
  * A command for the plugin cli to install a plugin into opensearch.
- *
+ * <p>
  * The install command takes a plugin id, which may be any of the following:
  * <ul>
  * <li>An official opensearch plugin name</li>
@@ -410,7 +411,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /**
      * Returns {@code true} if the given url exists, and {@code false} otherwise.
-     *
+     * <p>
      * The given url must be {@code https} and existing means a {@code HEAD} request returns 200.
      */
     // pkg private for tests to manipulate
@@ -697,7 +698,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /**
      * Creates a URL and opens a connection.
-     *
      * If the URL returns a 404, {@code null} is returned, otherwise the open URL opject is returned.
      */
     // pkg private for tests
@@ -716,10 +716,12 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final Path target = stagingDirectory(pluginsDir);
         pathsToDeleteOnShutdown.add(target);
 
-        try (ZipInputStream zipInput = new ZipInputStream(Files.newInputStream(zip))) {
-            ZipEntry entry;
+        try (ZipFile zipFile = new ZipFile(zip, "UTF8", true, false)) {
+            final Enumeration<? extends ZipArchiveEntry> entries = zipFile.getEntries();
+            ZipArchiveEntry entry;
             byte[] buffer = new byte[8192];
-            while ((entry = zipInput.getNextEntry()) != null) {
+            while (entries.hasMoreElements()) {
+                entry = entries.nextElement();
                 if (entry.getName().startsWith("opensearch/")) {
                     throw new UserException(
                         PLUGIN_MALFORMED,
@@ -747,14 +749,11 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                     Files.createDirectories(targetFile.getParent());
                 }
                 if (entry.isDirectory() == false) {
-                    try (OutputStream out = Files.newOutputStream(targetFile)) {
-                        int len;
-                        while ((len = zipInput.read(buffer)) >= 0) {
-                            out.write(buffer, 0, len);
-                        }
+                    // streams will be auto-closed with try-with-resources
+                    try (OutputStream out = Files.newOutputStream(targetFile); InputStream input = zipFile.getInputStream(entry)) {
+                        input.transferTo(out);
                     }
                 }
-                zipInput.closeEntry();
             }
         } catch (UserException e) {
             IOUtils.rm(target);

@@ -33,12 +33,14 @@
 package org.opensearch.gradle.precommit;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaException;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SchemaValidatorsConfig;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
+
 import org.gradle.api.DefaultTask;
 import org.gradle.api.UncheckedIOException;
 import org.gradle.api.file.FileCollection;
@@ -103,6 +105,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
         File jsonSchemaOnDisk = getJsonSchema();
         getLogger().debug("JSON schema : [{}]", jsonSchemaOnDisk.getAbsolutePath());
         SchemaValidatorsConfig config = new SchemaValidatorsConfig();
+        config.setEcma262Validator(true);
         JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
         JsonSchema jsonSchema = factory.getSchema(mapper.readTree(jsonSchemaOnDisk), config);
         Map<File, Set<String>> errors = new LinkedHashMap<>();

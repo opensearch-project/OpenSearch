@@ -35,18 +35,18 @@ import org.opensearch.Version;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class SnapshotUtilsTests extends OpenSearchTestCase {
     public void testIndexNameFiltering() {
@@ -114,7 +114,7 @@ public class SnapshotUtilsTests extends OpenSearchTestCase {
         );
     }
 
-    private static ImmutableOpenMap<String, IndexMetadata> getIndexMetadata(SnapshotId snapshotId, String repoName) {
+    private static Map<String, IndexMetadata> getIndexMetadata(SnapshotId snapshotId, String repoName) {
         final String index = "test-index";
         Snapshot snapshot = new Snapshot(repoName, snapshotId);
         final Metadata.Builder builder = Metadata.builder();

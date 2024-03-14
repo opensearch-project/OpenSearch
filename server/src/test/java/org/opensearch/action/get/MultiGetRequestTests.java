@@ -32,13 +32,14 @@
 
 package org.opensearch.action.get;
 
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.action.get.MultiGetRequest.Item;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.test.OpenSearchTestCase;
@@ -126,7 +127,7 @@ public class MultiGetRequestTests extends OpenSearchTestCase {
             MultiGetRequest expected = createTestInstance();
             XContentType xContentType = randomFrom(XContentType.values());
             BytesReference shuffled = toShuffledXContent(expected, xContentType, ToXContent.EMPTY_PARAMS, false);
-            try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {
+            try (XContentParser parser = createParser(xContentType.xContent(), shuffled)) {
                 MultiGetRequest actual = new MultiGetRequest();
                 actual.add(null, null, null, null, parser, true);
                 assertThat(parser.nextToken(), nullValue());
@@ -138,6 +139,13 @@ public class MultiGetRequestTests extends OpenSearchTestCase {
                     assertThat(actualItem, equalTo(expectedItem));
                 }
             }
+        }
+    }
+
+    public void testToString() {
+        MultiGetRequest req = createTestInstance();
+        for (Item items : req.getItems()) {
+            assertThat(req.toString(), containsString(items.toString()));
         }
     }
 

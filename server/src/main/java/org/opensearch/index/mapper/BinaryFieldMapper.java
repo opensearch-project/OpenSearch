@@ -38,10 +38,10 @@ import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.BytesBinaryIndexFieldData;
@@ -242,6 +242,10 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
      */
     public static class CustomBinaryDocValuesField extends CustomDocValuesField {
 
+        // We considered using a TreeSet instead of an ArrayList here.
+        // Benchmarks show that ArrayList performs much better
+        // For details, see: https://github.com/opensearch-project/OpenSearch/pull/9426
+        // Benchmarks are in CustomBinaryDocValuesFiledBenchmark
         private final ArrayList<byte[]> bytesList;
 
         public CustomBinaryDocValuesField(String name, byte[] bytes) {

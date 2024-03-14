@@ -46,6 +46,8 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.engine.EngineConfigFactory;
@@ -54,8 +56,6 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.index.shard.ShardId;
-import org.opensearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -162,7 +162,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
         } finally {
             if (shard != null && shard.state() != IndexShardState.CLOSED) {
                 try {
-                    shard.close("test", false);
+                    shard.close("test", false, false);
                 } finally {
                     IOUtils.close(shard.store());
                 }
@@ -212,7 +212,8 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                         6,
                         Collections.emptyList(),
                         true,
-                        Collections.emptyMap()
+                        Collections.emptyMap(),
+                        false
                     ),
                     Version.CURRENT,
                     Function.identity(),
@@ -227,7 +228,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
         } finally {
             if (shard != null && shard.state() != IndexShardState.CLOSED) {
                 try {
-                    shard.close("test", false);
+                    shard.close("test", false, false);
                 } finally {
                     IOUtils.close(shard.store());
                 }

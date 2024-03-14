@@ -32,12 +32,15 @@
 
 package org.opensearch.cluster.routing;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Represents the current state of a {@link ShardRouting} as defined by the
  * cluster.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public enum ShardRoutingState {
     /**
      * The shard is not assigned to any node.

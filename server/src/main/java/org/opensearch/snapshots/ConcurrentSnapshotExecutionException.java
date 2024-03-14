@@ -32,8 +32,8 @@
 
 package org.opensearch.snapshots;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -58,6 +58,6 @@ public class ConcurrentSnapshotExecutionException extends SnapshotException {
 
     @Override
     public RestStatus status() {
-        return RestStatus.SERVICE_UNAVAILABLE;
+        return RestStatus.CONFLICT;
     }
 }

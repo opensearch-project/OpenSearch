@@ -31,12 +31,14 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.http.AmazonHttpClient;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import fixture.s3.S3HttpHandler;
 
+import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
+
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SuppressForbidden;
@@ -47,13 +49,19 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryMissingException;
+import org.opensearch.repositories.RepositoryStats;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
+import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import org.opensearch.snapshots.mockstore.BlobStoreWrapper;
+import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -62,31 +70,43 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.StreamSupport;
 
+import fixture.s3.S3HttpHandler;
+
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.equalTo;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepositoryIntegTestCase {
 
-    private String region;
+    private final String region = "test-region";
     private String signerOverride;
+    private String previousOpenSearchPathConf;
 
     @Override
     public void setUp() throws Exception {
-        if (randomBoolean()) {
-            region = "test-region";
-        }
-        if (region != null && randomBoolean()) {
-            signerOverride = randomFrom("AWS3SignerType", "AWS4SignerType");
-        } else if (randomBoolean()) {
-            signerOverride = "AWS3SignerType";
-        }
+        signerOverride = AwsRequestSigner.VERSION_FOUR_SIGNER.getName();
+        previousOpenSearchPathConf = SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
         super.setUp();
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        if (previousOpenSearchPathConf != null) {
+            SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", previousOpenSearchPathConf));
+        } else {
+            SocketAccess.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
+        }
+        super.tearDown();
     }
 
     @Override
@@ -133,16 +153,77 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             .put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), true)
             // Disable request throttling because some random values in tests might generate too many failures for the S3 client
             .put(S3ClientSettings.USE_THROTTLE_RETRIES_SETTING.getConcreteSettingForNamespace("test").getKey(), false)
+            .put(S3ClientSettings.PROXY_TYPE_SETTING.getConcreteSettingForNamespace("test").getKey(), ProxySettings.ProxyType.DIRECT)
             .put(super.nodeSettings(nodeOrdinal))
             .setSecureSettings(secureSettings);
 
         if (signerOverride != null) {
             builder.put(S3ClientSettings.SIGNER_OVERRIDE.getConcreteSettingForNamespace("test").getKey(), signerOverride);
         }
-        if (region != null) {
-            builder.put(S3ClientSettings.REGION.getConcreteSettingForNamespace("test").getKey(), region);
-        }
+
+        builder.put(S3ClientSettings.REGION.getConcreteSettingForNamespace("test").getKey(), region);
         return builder.build();
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10735")
+    @Override
+    public void testRequestStats() throws Exception {
+        final String repository = createRepository(randomName());
+        final String index = "index-no-merges";
+        createIndex(
+            index,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+
+        final long nbDocs = randomLongBetween(10_000L, 20_000L);
+        try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), (int) nbDocs)) {
+            waitForDocs(nbDocs, indexer);
+        }
+
+        flushAndRefresh(index);
+        ForceMergeResponse forceMerge = client().admin().indices().prepareForceMerge(index).setFlush(true).setMaxNumSegments(1).get();
+        assertThat(forceMerge.getSuccessfulShards(), equalTo(1));
+        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
+
+        final String snapshot = "snapshot";
+        assertSuccessfulSnapshot(
+            client().admin().cluster().prepareCreateSnapshot(repository, snapshot).setWaitForCompletion(true).setIndices(index)
+        );
+
+        assertAcked(client().admin().indices().prepareDelete(index));
+
+        assertSuccessfulRestore(client().admin().cluster().prepareRestoreSnapshot(repository, snapshot).setWaitForCompletion(true));
+        ensureGreen(index);
+        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
+
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repository, snapshot).get());
+
+        final RepositoryStats repositoryStats = StreamSupport.stream(
+            internalCluster().getInstances(RepositoriesService.class).spliterator(),
+            false
+        ).map(repositoriesService -> {
+            try {
+                return repositoriesService.repository(repository);
+            } catch (RepositoryMissingException e) {
+                return null;
+            }
+        }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
+
+        Map<BlobStore.Metric, Map<String, Long>> extendedStats = repositoryStats.extendedStats;
+        Map<String, Long> aggregatedStats = new HashMap<>();
+        extendedStats.forEach((k, v) -> {
+            if (k == BlobStore.Metric.RETRY_COUNT || k == BlobStore.Metric.REQUEST_SUCCESS || k == BlobStore.Metric.REQUEST_FAILURE) {
+                for (Map.Entry<String, Long> entry : v.entrySet()) {
+                    aggregatedStats.merge(entry.getKey(), entry.getValue(), Math::addExact);
+                }
+            }
+
+        });
+        final Map<String, Long> mockCalls = getMockRequestCounts();
+
+        String assertionErrorMsg = String.format("SDK sent [%s] calls and handler measured [%s] calls", aggregatedStats, mockCalls);
+
+        assertEquals(assertionErrorMsg, mockCalls, aggregatedStats);
     }
 
     /**
@@ -168,7 +249,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             ClusterService clusterService,
             RecoverySettings recoverySettings
         ) {
-            return new S3Repository(metadata, registry, service, clusterService, recoverySettings) {
+            return new S3Repository(metadata, registry, service, clusterService, recoverySettings, null, null, null, null, null, false) {
 
                 @Override
                 public BlobStore blobStore() {
@@ -206,14 +287,11 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
 
         private void validateAuthHeader(HttpExchange exchange) {
             final String authorizationHeaderV4 = exchange.getRequestHeaders().getFirst("Authorization");
-            final String authorizationHeaderV3 = exchange.getRequestHeaders().getFirst("X-amzn-authorization");
 
-            if ("AWS3SignerType".equals(signerOverride)) {
-                assertThat(authorizationHeaderV3, startsWith("AWS3"));
-            } else if ("AWS4SignerType".equals(signerOverride)) {
+            if ("AWS4SignerType".equals(signerOverride)) {
                 assertThat(authorizationHeaderV4, containsString("aws4_request"));
             }
-            if (region != null && authorizationHeaderV4 != null) {
+            if (authorizationHeaderV4 != null) {
                 assertThat(authorizationHeaderV4, containsString("/" + region + "/s3/"));
             }
         }
@@ -221,7 +299,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
 
     /**
      * HTTP handler that injects random S3 service errors
-     *
+     * <p>
      * Note: it is not a good idea to allow this handler to simulate too many errors as it would
      * slow down the test suite.
      */
@@ -235,7 +313,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
         @Override
         protected String requestUniqueId(final HttpExchange exchange) {
             // Amazon SDK client provides a unique ID per request
-            return exchange.getRequestHeaders().getFirst(AmazonHttpClient.HEADER_SDK_TRANSACTION_ID);
+            return exchange.getRequestHeaders().getFirst(ApplyTransactionIdStage.HEADER_SDK_TRANSACTION_ID);
         }
     }
 
@@ -251,7 +329,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
 
         @Override
         public void maybeTrack(final String request, Headers requestHeaders) {
-            if (Regex.simpleMatch("GET /*/?prefix=*", request)) {
+            if (Regex.simpleMatch("GET /*?list-type=*", request)) {
                 trackRequest("ListObjects");
             } else if (Regex.simpleMatch("GET /*/*", request)) {
                 trackRequest("GetObject");
@@ -259,6 +337,8 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
                 trackRequest("PutMultipartObject");
             } else if (Regex.simpleMatch("PUT /*/*", request)) {
                 trackRequest("PutObject");
+            } else if (Regex.simpleMatch("POST /*?delete*", request)) {
+                trackRequest("DeleteObjects");
             }
         }
 

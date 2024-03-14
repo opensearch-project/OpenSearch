@@ -8,6 +8,22 @@
 
 package org.opensearch.index.store.remote.utils;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.SimpleFSLockFactory;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
+import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
+import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.FileCacheFactory;
+import org.opensearch.test.OpenSearchTestCase;
+import org.hamcrest.MatcherAssert;
+import org.junit.After;
+import org.junit.Before;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -17,22 +33,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.store.SimpleFSLockFactory;
-import org.hamcrest.MatcherAssert;
-import org.junit.After;
-import org.junit.Before;
-import org.opensearch.common.blobstore.BlobContainer;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.breaker.NoopCircuitBreaker;
-import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
-import org.opensearch.index.store.remote.filecache.FileCache;
-import org.opensearch.index.store.remote.filecache.FileCacheFactory;
-import org.opensearch.test.OpenSearchTestCase;
-
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -163,17 +163,11 @@ public class TransferManagerTests extends OpenSearchTestCase {
 
     public void testDownloadFails() throws Exception {
         doThrow(new IOException("Expected test exception")).when(blobContainer).readBlob(eq("failure-blob"), anyLong(), anyLong());
+        List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
+        blobParts.add(new BlobFetchRequest.BlobPart("failure-blob", 0, EIGHT_MB));
         expectThrows(
             IOException.class,
-            () -> transferManager.fetchBlob(
-                BlobFetchRequest.builder()
-                    .blobName("failure-blob")
-                    .position(0)
-                    .fileName("file")
-                    .directory(directory)
-                    .length(EIGHT_MB)
-                    .build()
-            )
+            () -> transferManager.fetchBlob(BlobFetchRequest.builder().fileName("file").directory(directory).blobParts(blobParts).build())
         );
         MatcherAssert.assertThat(fileCache.usage().activeUsage(), equalTo(0L));
         MatcherAssert.assertThat(fileCache.usage().usage(), equalTo(0L));
@@ -187,16 +181,13 @@ public class TransferManagerTests extends OpenSearchTestCase {
             latch.await();
             return new ByteArrayInputStream(createData());
         }).when(blobContainer).readBlob(eq("blocking-blob"), anyLong(), anyLong());
+        List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
+        blobParts.add(new BlobFetchRequest.BlobPart("blocking-blob", 0, EIGHT_MB));
+
         final Thread blockingThread = new Thread(() -> {
             try {
                 transferManager.fetchBlob(
-                    BlobFetchRequest.builder()
-                        .blobName("blocking-blob")
-                        .position(0)
-                        .fileName("blocking-file")
-                        .directory(directory)
-                        .length(EIGHT_MB)
-                        .build()
+                    BlobFetchRequest.builder().fileName("blocking-file").directory(directory).blobParts(blobParts).build()
                 );
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -216,9 +207,9 @@ public class TransferManagerTests extends OpenSearchTestCase {
     }
 
     private IndexInput fetchBlobWithName(String blobname) throws IOException {
-        return transferManager.fetchBlob(
-            BlobFetchRequest.builder().blobName("blob").position(0).fileName(blobname).directory(directory).length(EIGHT_MB).build()
-        );
+        List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
+        blobParts.add(new BlobFetchRequest.BlobPart("blob", 0, EIGHT_MB));
+        return transferManager.fetchBlob(BlobFetchRequest.builder().fileName(blobname).directory(directory).blobParts(blobParts).build());
     }
 
     private static void assertIndexInputIsFunctional(IndexInput indexInput) throws IOException {

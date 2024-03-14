@@ -49,12 +49,12 @@ import java.util.regex.Pattern;
  * A factory for creating keyword marker token filters that prevent tokens from
  * being modified by stemmers.  Two types of keyword marker filters are available:
  * the {@link SetKeywordMarkerFilter} and the {@link PatternKeywordMarkerFilter}.
- *
+ * <p>
  * The {@link SetKeywordMarkerFilter} uses a set of keywords to denote which tokens
  * should be excluded from stemming.  This filter is created if the settings include
  * {@code keywords}, which contains the list of keywords, or {@code `keywords_path`},
  * which contains a path to a file in the config directory with the keywords.
- *
+ * <p>
  * The {@link PatternKeywordMarkerFilter} uses a regular expression pattern to match
  * against tokens that should be excluded from stemming.  This filter is created if
  * the settings include {@code keywords_pattern}, which contains the regular expression

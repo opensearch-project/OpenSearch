@@ -33,47 +33,7 @@
 package org.opensearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.search.ClearScrollRequest;
-import org.opensearch.action.search.ClearScrollResponse;
-import org.opensearch.action.search.SearchResponse;
-import org.opensearch.action.search.SearchResponseSections;
-import org.opensearch.action.search.SearchScrollRequest;
-import org.opensearch.action.search.ShardSearchFailure;
-import org.opensearch.client.core.MainRequest;
-import org.opensearch.client.core.MainResponse;
-import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.util.set.Sets;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.ToXContentFragment;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.cbor.CborXContent;
-import org.opensearch.common.xcontent.smile.SmileXContent;
-import org.opensearch.index.rankeval.DiscountedCumulativeGain;
-import org.opensearch.index.rankeval.EvaluationMetric;
-import org.opensearch.index.rankeval.ExpectedReciprocalRank;
-import org.opensearch.index.rankeval.MeanReciprocalRank;
-import org.opensearch.index.rankeval.MetricDetail;
-import org.opensearch.index.rankeval.PrecisionAtK;
-import org.opensearch.index.rankeval.RecallAtK;
-import org.opensearch.join.aggregations.ChildrenAggregationBuilder;
-import org.opensearch.rest.RestStatus;
-import org.opensearch.search.SearchHits;
-import org.opensearch.search.aggregations.Aggregation;
-import org.opensearch.search.aggregations.InternalAggregations;
-import org.opensearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
-import org.opensearch.search.suggest.Suggest;
-import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.InternalAggregationTestCase;
-import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
-import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
+
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ContentType;
@@ -85,6 +45,47 @@ import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.http.message.BasicClassicHttpResponse;
 import org.apache.hc.core5.http.message.RequestLine;
 import org.apache.hc.core5.http.message.StatusLine;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.search.ClearScrollRequest;
+import org.opensearch.action.search.ClearScrollResponse;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchResponseSections;
+import org.opensearch.action.search.SearchScrollRequest;
+import org.opensearch.action.search.ShardSearchFailure;
+import org.opensearch.client.core.MainRequest;
+import org.opensearch.client.core.MainResponse;
+import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.common.xcontent.cbor.CborXContent;
+import org.opensearch.common.xcontent.smile.SmileXContent;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.rankeval.DiscountedCumulativeGain;
+import org.opensearch.index.rankeval.EvaluationMetric;
+import org.opensearch.index.rankeval.ExpectedReciprocalRank;
+import org.opensearch.index.rankeval.MeanReciprocalRank;
+import org.opensearch.index.rankeval.MetricDetail;
+import org.opensearch.index.rankeval.PrecisionAtK;
+import org.opensearch.index.rankeval.RecallAtK;
+import org.opensearch.join.aggregations.ChildrenAggregationBuilder;
+import org.opensearch.search.SearchHits;
+import org.opensearch.search.aggregations.Aggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
+import org.opensearch.search.suggest.Suggest;
+import org.opensearch.test.InternalAggregationTestCase;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
+import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -106,7 +107,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -875,6 +876,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             "nodes.reload_secure_settings",
             "search_shards",
             "remote_store.restore",
+            "remote_store.stats",
             "cluster.put_weighted_routing",
             "cluster.get_weighted_routing",
             "cluster.delete_weighted_routing",

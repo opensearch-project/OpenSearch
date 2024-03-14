@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchTask;
-import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.monitor.jvm.JvmStats;
@@ -255,8 +255,8 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         return isNodeInDuress;
     }
 
-    /**
-     * Returns true if the increase in heap usage is due to search requests.
+    /*
+      Returns true if the increase in heap usage is due to search requests.
      */
 
     /**
@@ -399,6 +399,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         SearchTaskStats searchTaskStats = new SearchTaskStats(
             searchBackpressureStates.get(SearchTask.class).getCancellationCount(),
             searchBackpressureStates.get(SearchTask.class).getLimitReachedCount(),
+            searchBackpressureStates.get(SearchTask.class).getCompletionCount(),
             taskTrackers.get(SearchTask.class)
                 .stream()
                 .collect(Collectors.toUnmodifiableMap(t -> TaskResourceUsageTrackerType.fromName(t.name()), t -> t.stats(searchTasks)))
@@ -407,6 +408,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         SearchShardTaskStats searchShardTaskStats = new SearchShardTaskStats(
             searchBackpressureStates.get(SearchShardTask.class).getCancellationCount(),
             searchBackpressureStates.get(SearchShardTask.class).getLimitReachedCount(),
+            searchBackpressureStates.get(SearchShardTask.class).getCompletionCount(),
             taskTrackers.get(SearchShardTask.class)
                 .stream()
                 .collect(Collectors.toUnmodifiableMap(t -> TaskResourceUsageTrackerType.fromName(t.name()), t -> t.stats(searchShardTasks)))

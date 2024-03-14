@@ -8,15 +8,20 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.allocator.RemoteShardsBalancer;
 
+import java.util.HashMap;
 import java.util.Map;
+
+import static org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus.DECIDERS_NO;
+import static org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED;
+import static org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus.NO_ATTEMPT;
 
 public class RemoteShardsAllocateUnassignedTests extends RemoteShardsBalancerBaseTestCase {
 
@@ -68,7 +73,7 @@ public class RemoteShardsAllocateUnassignedTests extends RemoteShardsBalancerBas
 
         assertEquals(0, routingNodes.unassigned().size());
 
-        ObjectIntHashMap<String> nodePrimariesCounter = new ObjectIntHashMap<>();
+        final Map<String, Integer> nodePrimariesCounter = new HashMap<>();
         for (ShardRouting shard : clusterState.getRoutingTable().allShards()) {
             assertFalse(shard.unassigned());
             RoutingNode node = routingNodes.node(shard.currentNodeId());
@@ -80,12 +85,44 @@ public class RemoteShardsAllocateUnassignedTests extends RemoteShardsBalancerBas
             if (RoutingPool.getNodePool(node) == RoutingPool.REMOTE_CAPABLE
                 && RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shard, allocation))
                 && shard.primary()) {
-                nodePrimariesCounter.putOrAdd(node.nodeId(), 1, 1);
+                nodePrimariesCounter.compute(node.nodeId(), (k, v) -> (v == null) ? 1 : v + 1);
             }
         }
         final int indexShardLimit = (int) Math.ceil(totalPrimaries(remoteIndices) / (float) remoteCapableNodes);
-        for (int primaries : nodePrimariesCounter.values) {
+        for (int primaries : nodePrimariesCounter.values()) {
             assertTrue(primaries <= indexShardLimit);
+        }
+    }
+
+    /**
+     * Test remote unassigned shard allocation when deciders make NO or THROTTLED decision.
+     */
+    public void testNoRemoteAllocation() {
+        final int localOnlyNodes = 10;
+        final int remoteCapableNodes = 5;
+        final int localIndices = 2;
+        final int remoteIndices = 1;
+        final ClusterState oldState = createInitialCluster(localOnlyNodes, remoteCapableNodes, localIndices, remoteIndices);
+        final boolean throttle = randomBoolean();
+        final AllocationService service = this.createRejectRemoteAllocationService(throttle);
+        final ClusterState newState = allocateShardsAndBalance(oldState, service);
+        final RoutingNodes routingNodes = newState.getRoutingNodes();
+        final RoutingAllocation allocation = getRoutingAllocation(newState, routingNodes);
+
+        assertEquals(totalShards(remoteIndices), routingNodes.unassigned().size());
+
+        for (ShardRouting shard : newState.getRoutingTable().allShards()) {
+            if (RoutingPool.getShardPool(shard, allocation) == RoutingPool.REMOTE_CAPABLE) {
+                assertTrue(shard.unassigned());
+                if (shard.primary()) {
+                    final UnassignedInfo.AllocationStatus expect = throttle ? DECIDERS_THROTTLED : DECIDERS_NO;
+                    assertEquals(expect, shard.unassignedInfo().getLastAllocationStatus());
+                } else {
+                    assertEquals(NO_ATTEMPT, shard.unassignedInfo().getLastAllocationStatus());
+                }
+            } else {
+                assertFalse(shard.unassigned());
+            }
         }
     }
 

@@ -8,9 +8,10 @@
 
 package org.opensearch.cluster.routing;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -20,8 +21,9 @@ import java.util.Objects;
 /**
  * Entity for Weighted Round Robin weights
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.4.0")
 public class WeightedRouting implements Writeable {
     private String attributeName;
     private Map<String, Double> weights;
@@ -47,11 +49,12 @@ public class WeightedRouting implements Writeable {
     }
 
     public boolean isSet() {
-        return (!this.attributeName.isEmpty() && !this.weights.isEmpty());
+        return this.attributeName != null && !this.attributeName.isEmpty() && this.weights != null && !this.weights.isEmpty();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+
         out.writeString(attributeName);
         out.writeGenericValue(weights);
     }

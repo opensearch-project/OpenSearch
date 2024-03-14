@@ -36,6 +36,7 @@ import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.script.Script;
@@ -58,8 +59,9 @@ import java.util.List;
 /**
  * A search action request builder.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse> {
 
     public SearchRequestBuilder(OpenSearchClient client, SearchAction action) {
@@ -151,7 +153,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
+     * {@code _local} to prefer local shards, {@code _primary} to execute only on primary shards,
+     * or a custom value, which guarantees that the same order
      * will be used across different requests.
      */
     public SearchRequestBuilder setPreference(String preference) {
@@ -404,6 +407,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Applies when fetching scores with named queries, and controls if scores will be tracked as well.
+     * Defaults to {@code false}.
+     */
+    public SearchRequestBuilder setIncludeNamedQueriesScore(boolean includeNamedQueriesScore) {
+        sourceBuilder().includeNamedQueriesScores(includeNamedQueriesScore);
+        return this;
+    }
+
+    /**
      * Indicates if the total hit count for the query should be tracked. Requests will count total hit count accurately
      * up to 10,000 by default, see {@link #setTrackTotalHitsUpTo(int)} to change this value or set to true/false to always/never
      * count accurately.
@@ -604,7 +616,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
      * instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard
      * bounds and the query are disjoint.
-     *
+     * <p>
      * When unspecified, the pre-filter phase is executed if any of these conditions is met:
      * <ul>
      * <li>The request targets more than 128 shards</li>

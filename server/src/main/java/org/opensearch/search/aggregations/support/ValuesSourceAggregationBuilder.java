@@ -33,8 +33,8 @@ package org.opensearch.search.aggregations.support;
 
 import org.opensearch.Version;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.AbstractObjectParser;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -264,7 +264,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
 
     /**
      * DO NOT OVERRIDE THIS!
-     *
+     * <p>
      * This method only exists for legacy support.  No new aggregations need this, nor should they override it.
      *
      * @param version For backwards compatibility, subclasses can change behavior based on the version

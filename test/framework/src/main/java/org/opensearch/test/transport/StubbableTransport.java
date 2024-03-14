@@ -33,12 +33,12 @@
 package org.opensearch.test.transport;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.component.Lifecycle;
-import org.opensearch.common.component.LifecycleListener;
-import org.opensearch.common.transport.BoundTransportAddress;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.lifecycle.Lifecycle;
+import org.opensearch.common.lifecycle.LifecycleListener;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.ConnectionProfile;
 import org.opensearch.transport.RequestHandlerRegistry;

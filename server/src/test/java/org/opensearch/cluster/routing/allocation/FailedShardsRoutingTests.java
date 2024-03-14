@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
@@ -49,7 +48,8 @@ import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
@@ -648,10 +648,21 @@ public class FailedShardsRoutingTests extends OpenSearchAllocationTestCase {
     }
 
     public void testReplicaOnNewestVersionIsPromoted() {
+        testReplicaIsPromoted(false);
+    }
+
+    public void testReplicaOnOldestVersionIsPromoted() {
+        testReplicaIsPromoted(true);
+    }
+
+    private void testReplicaIsPromoted(boolean isSegmentReplicationEnabled) {
         AllocationService allocation = createAllocationService(Settings.builder().build());
 
+        Settings.Builder settingsBuilder = isSegmentReplicationEnabled
+            ? settings(Version.CURRENT).put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            : settings(Version.CURRENT);
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(3))
+            .put(IndexMetadata.builder("test").settings(settingsBuilder).numberOfShards(1).numberOfReplicas(3))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
@@ -715,7 +726,12 @@ public class FailedShardsRoutingTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(4));
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(0));
 
-        ShardRouting startedReplica = clusterState.getRoutingNodes().activeReplicaWithHighestVersion(shardId);
+        ShardRouting startedReplica;
+        if (isSegmentReplicationEnabled) {
+            startedReplica = clusterState.getRoutingNodes().activeReplicaWithOldestVersion(shardId);
+        } else {
+            startedReplica = clusterState.getRoutingNodes().activeReplicaWithHighestVersion(shardId);
+        }
         logger.info("--> all shards allocated, replica that should be promoted: {}", startedReplica);
 
         // fail the primary shard again and make sure the correct replica is promoted
@@ -734,19 +750,30 @@ public class FailedShardsRoutingTests extends OpenSearchAllocationTestCase {
         assertNotNull(replicaNodeVersion);
         logger.info("--> shard {} got assigned to node with version {}", startedReplica, replicaNodeVersion);
 
-        for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().getDataNodes().values()) {
-            if ("node1".equals(cursor.value.getId())) {
+        for (final DiscoveryNode cursor : clusterState.nodes().getDataNodes().values()) {
+            if ("node1".equals(cursor.getId())) {
                 // Skip the node that the primary was on, it doesn't have a replica so doesn't need a version check
                 continue;
             }
-            Version nodeVer = cursor.value.getVersion();
-            assertTrue(
-                "expected node [" + cursor.value.getId() + "] with version " + nodeVer + " to be before " + replicaNodeVersion,
-                replicaNodeVersion.onOrAfter(nodeVer)
-            );
+            Version nodeVer = cursor.getVersion();
+            if (isSegmentReplicationEnabled) {
+                assertTrue(
+                    "expected node [" + cursor.getId() + "] with version " + nodeVer + " to be after " + replicaNodeVersion,
+                    replicaNodeVersion.onOrBefore(nodeVer)
+                );
+            } else {
+                assertTrue(
+                    "expected node [" + cursor.getId() + "] with version " + nodeVer + " to be before " + replicaNodeVersion,
+                    replicaNodeVersion.onOrAfter(nodeVer)
+                );
+            }
         }
 
-        startedReplica = clusterState.getRoutingNodes().activeReplicaWithHighestVersion(shardId);
+        if (isSegmentReplicationEnabled) {
+            startedReplica = clusterState.getRoutingNodes().activeReplicaWithOldestVersion(shardId);
+        } else {
+            startedReplica = clusterState.getRoutingNodes().activeReplicaWithHighestVersion(shardId);
+        }
         logger.info("--> failing primary shard a second time, should select: {}", startedReplica);
 
         // fail the primary shard again, and ensure the same thing happens
@@ -765,17 +792,24 @@ public class FailedShardsRoutingTests extends OpenSearchAllocationTestCase {
         assertNotNull(replicaNodeVersion);
         logger.info("--> shard {} got assigned to node with version {}", startedReplica, replicaNodeVersion);
 
-        for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().getDataNodes().values()) {
-            if (primaryShardToFail.currentNodeId().equals(cursor.value.getId())
-                || secondPrimaryShardToFail.currentNodeId().equals(cursor.value.getId())) {
+        for (final DiscoveryNode cursor : clusterState.nodes().getDataNodes().values()) {
+            if (primaryShardToFail.currentNodeId().equals(cursor.getId())
+                || secondPrimaryShardToFail.currentNodeId().equals(cursor.getId())) {
                 // Skip the node that the primary was on, it doesn't have a replica so doesn't need a version check
                 continue;
             }
-            Version nodeVer = cursor.value.getVersion();
-            assertTrue(
-                "expected node [" + cursor.value.getId() + "] with version " + nodeVer + " to be before " + replicaNodeVersion,
-                replicaNodeVersion.onOrAfter(nodeVer)
-            );
+            Version nodeVer = cursor.getVersion();
+            if (isSegmentReplicationEnabled) {
+                assertTrue(
+                    "expected node [" + cursor.getId() + "] with version " + nodeVer + " to be after " + replicaNodeVersion,
+                    replicaNodeVersion.onOrBefore(nodeVer)
+                );
+            } else {
+                assertTrue(
+                    "expected node [" + cursor.getId() + "] with version " + nodeVer + " to be before " + replicaNodeVersion,
+                    replicaNodeVersion.onOrAfter(nodeVer)
+                );
+            }
         }
     }
 }

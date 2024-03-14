@@ -33,9 +33,9 @@
 package org.opensearch.example.customsuggester;
 
 import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.text.Text;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.text.Text;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -53,7 +53,6 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
 
     /**
      * An integer representing the type of the suggestion formerly used for internal serialization over the network.
-     *
      * This class is now serialized as a NamedWriteable and this value only remains for backwards compatibility
      */
     public static final int TYPE = 999;
@@ -106,7 +105,7 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
 
     /**
      * A meaningless value used to test that plugin suggesters can add fields to their Suggestion types
-     *
+     * <p>
      * This can't be serialized to xcontent because Suggestions appear in xcontent as an array of entries, so there is no place
      * to add a custom field. But we can still use a custom field internally and use it to define a Suggestion's behavior
      *

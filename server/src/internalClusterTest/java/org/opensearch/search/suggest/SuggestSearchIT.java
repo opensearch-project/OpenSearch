@@ -32,16 +32,17 @@
 
 package org.opensearch.search.suggest;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.ScriptPlugin;
@@ -55,7 +56,7 @@ import org.opensearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.opensearch.search.suggest.phrase.StupidBackoff;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.IOException;
@@ -74,6 +75,7 @@ import java.util.concurrent.ExecutionException;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.suggest.SuggestBuilders.phraseSuggestion;
 import static org.opensearch.search.suggest.SuggestBuilders.termSuggestion;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -93,7 +95,18 @@ import static org.hamcrest.Matchers.nullValue;
  * possible these tests should declare for the first request, make the request, modify the configuration for the next request, make that
  * request, modify again, request again, etc.  This makes it very obvious what changes between requests.
  */
-public class SuggestSearchIT extends OpenSearchIntegTestCase {
+public class SuggestSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+    public SuggestSearchIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
 
     // see #3196
     public void testSuggestAcrossMultipleIndices() throws IOException {
@@ -268,6 +281,7 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
             index("test", "type1", Integer.toString(i), "text", "abc" + i);
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse search = client().prepareSearch().setQuery(matchQuery("text", "spellchecker")).get();
         assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());
@@ -350,6 +364,7 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
         index("test", "type1", "3", "text", "abbd");
         index("test", "type1", "4", "text", "abcc");
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse search = client().prepareSearch().setQuery(matchQuery("text", "spellcecker")).get();
         assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());
@@ -1305,14 +1320,13 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
         assertSuggestionSize(searchSuggest, 0, 10, "title");
 
         // suggest with collate
-        String filterString = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("match_phrase")
-                .field("{{field}}", "{{suggestion}}")
-                .endObject()
-                .endObject()
-        );
+        String filterString = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("match_phrase")
+            .field("{{field}}", "{{suggestion}}")
+            .endObject()
+            .endObject()
+            .toString();
         PhraseSuggestionBuilder filteredQuerySuggest = suggest.collateQuery(filterString);
         filteredQuerySuggest.collateParams(Collections.singletonMap("field", "title"));
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", "title", filteredQuerySuggest);
@@ -1325,9 +1339,13 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         // collate suggest with bad query
-        String incorrectFilterString = Strings.toString(
-            XContentFactory.jsonBuilder().startObject().startObject("test").field("title", "{{suggestion}}").endObject().endObject()
-        );
+        String incorrectFilterString = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("test")
+            .field("title", "{{suggestion}}")
+            .endObject()
+            .endObject()
+            .toString();
         PhraseSuggestionBuilder incorrectFilteredSuggest = suggest.collateQuery(incorrectFilterString);
         Map<String, SuggestionBuilder<?>> namedSuggestion = new HashMap<>();
         namedSuggestion.put("my_title_suggestion", incorrectFilteredSuggest);
@@ -1339,9 +1357,13 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
         }
 
         // suggest with collation
-        String filterStringAsFilter = Strings.toString(
-            XContentFactory.jsonBuilder().startObject().startObject("match_phrase").field("title", "{{suggestion}}").endObject().endObject()
-        );
+        String filterStringAsFilter = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("match_phrase")
+            .field("title", "{{suggestion}}")
+            .endObject()
+            .endObject()
+            .toString();
 
         PhraseSuggestionBuilder filteredFilterSuggest = suggest.collateQuery(filterStringAsFilter);
         searchSuggest = searchSuggest(
@@ -1352,9 +1374,13 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
         assertSuggestionSize(searchSuggest, 0, 2, "title");
 
         // collate suggest with bad query
-        String filterStr = Strings.toString(
-            XContentFactory.jsonBuilder().startObject().startObject("pprefix").field("title", "{{suggestion}}").endObject().endObject()
-        );
+        String filterStr = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("pprefix")
+            .field("title", "{{suggestion}}")
+            .endObject()
+            .endObject()
+            .toString();
 
         suggest.collateQuery(filterStr);
         try {
@@ -1365,14 +1391,13 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
         }
 
         // collate script failure due to no additional params
-        String collateWithParams = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("{{query_type}}")
-                .field("{{query_field}}", "{{suggestion}}")
-                .endObject()
-                .endObject()
-        );
+        String collateWithParams = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("{{query_type}}")
+            .field("{{query_field}}", "{{suggestion}}")
+            .endObject()
+            .endObject()
+            .toString();
 
         try {
             searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, namedSuggestion);

@@ -38,16 +38,15 @@ import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.TimedRequest;
 import org.opensearch.client.Validatable;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -77,7 +76,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
     private Settings settings = EMPTY_SETTINGS;
 
     private BytesReference mappings;
-    private XContentType mappingsXContentType;
+    private MediaType mappingsMediaType;
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -125,17 +124,6 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
 
     /**
      * The settings to create the index with (either json or yaml format)
-     *
-     * @deprecated use {@link #settings(String source, MediaType mediaType)} instead
-     */
-    @Deprecated
-    public CreateIndexRequest settings(String source, XContentType xContentType) {
-        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
-        return this;
-    }
-
-    /**
-     * The settings to create the index with (either json or yaml format)
      */
     public CreateIndexRequest settings(String source, MediaType mediaType) {
         this.settings = Settings.builder().loadFromSource(source, mediaType).build();
@@ -146,7 +134,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
      * Allows to set the settings using a json builder.
      */
     public CreateIndexRequest settings(XContentBuilder builder) {
-        settings(Strings.toString(builder), builder.contentType());
+        settings(builder.toString(), builder.contentType());
         return this;
     }
 
@@ -162,28 +150,13 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
         return mappings;
     }
 
-    public XContentType mappingsXContentType() {
-        return mappingsXContentType;
+    public MediaType mappingsMediaType() {
+        return mappingsMediaType;
     }
 
     /**
      * Adds mapping that will be added when the index gets created.
-     *
-     * Note that the definition should *not* be nested under a type name.
-     *
-     * @param source The mapping source
-     * @param xContentType The content type of the source
-     *
-     * @deprecated use {@link #mapping(String source, MediaType mediaType)} instead
-     */
-    @Deprecated
-    public CreateIndexRequest mapping(String source, XContentType xContentType) {
-        return mapping(new BytesArray(source), xContentType);
-    }
-
-    /**
-     * Adds mapping that will be added when the index gets created.
-     *
+     * <p>
      * Note that the definition should *not* be nested under a type name.
      *
      * @param source The mapping source
@@ -195,7 +168,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
 
     /**
      * Adds mapping that will be added when the index gets created.
-     *
+     * <p>
      * Note that the definition should *not* be nested under a type name.
      *
      * @param source The mapping source
@@ -206,14 +179,14 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
 
     /**
      * Adds mapping that will be added when the index gets created.
-     *
+     * <p>
      * Note that the definition should *not* be nested under a type name.
      *
      * @param source The mapping source
      */
     public CreateIndexRequest mapping(Map<String, ?> source) {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.getDefaultMediaType());
             builder.map(source);
             return mapping(BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
@@ -223,25 +196,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
 
     /**
      * Adds mapping that will be added when the index gets created.
-     *
-     * Note that the definition should *not* be nested under a type name.
-     *
-     * @param source The mapping source
-     * @param xContentType the content type of the mapping source
-     *
-     * @deprecated use {@link #mapping(BytesReference source, MediaType mediaType)} instead
-     */
-    @Deprecated
-    public CreateIndexRequest mapping(BytesReference source, XContentType xContentType) {
-        Objects.requireNonNull(xContentType);
-        mappings = source;
-        mappingsXContentType = xContentType;
-        return this;
-    }
-
-    /**
-     * Adds mapping that will be added when the index gets created.
-     *
+     * <p>
      * Note that the definition should *not* be nested under a type name.
      *
      * @param source The mapping source
@@ -250,7 +205,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
     public CreateIndexRequest mapping(BytesReference source, MediaType mediaType) {
         Objects.requireNonNull(mediaType);
         mappings = source;
-        mappingsXContentType = XContentType.fromMediaType(mediaType);
+        mappingsMediaType = mediaType;
         return this;
     }
 
@@ -280,29 +235,9 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
 
     /**
      * Sets the aliases that will be associated with the index when it gets created
-     *
-     * @deprecated use {@link #aliases(String, MediaType)} instead
-     */
-    @Deprecated
-    public CreateIndexRequest aliases(String source, XContentType contentType) {
-        return aliases(new BytesArray(source), contentType);
-    }
-
-    /**
-     * Sets the aliases that will be associated with the index when it gets created
      */
     public CreateIndexRequest aliases(String source, MediaType mediaType) {
         return aliases(new BytesArray(source), mediaType);
-    }
-
-    /**
-     * Sets the aliases that will be associated with the index when it gets created
-     *
-     * @deprecated use {@link #aliases(BytesReference source, MediaType contentType)} instead
-     */
-    @Deprecated
-    public CreateIndexRequest aliases(BytesReference source, XContentType contentType) {
-        return aliases(source, (MediaType) contentType);
     }
 
     /**
@@ -347,19 +282,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
 
     /**
      * Sets the settings and mappings as a single source.
-     *
-     * Note that the mapping definition should *not* be nested under a type name.
-     *
-     * @deprecated use {@link #source(String, MediaType)} instead
-     */
-    @Deprecated
-    public CreateIndexRequest source(String source, XContentType xContentType) {
-        return source(new BytesArray(source), xContentType);
-    }
-
-    /**
-     * Sets the settings and mappings as a single source.
-     *
+     * <p>
      * Note that the mapping definition should *not* be nested under a type name.
      */
     public CreateIndexRequest source(String source, MediaType mediaType) {
@@ -368,7 +291,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
 
     /**
      * Sets the settings and mappings as a single source.
-     *
+     * <p>
      * Note that the mapping definition should *not* be nested under a type name.
      */
     public CreateIndexRequest source(XContentBuilder source) {
@@ -377,21 +300,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
 
     /**
      * Sets the settings and mappings as a single source.
-     *
-     * Note that the mapping definition should *not* be nested under a type name.
-     *
-     * @deprecated use {@link #source(BytesReference, MediaType)} instead
-     */
-    @Deprecated
-    public CreateIndexRequest source(BytesReference source, XContentType xContentType) {
-        Objects.requireNonNull(xContentType);
-        source(XContentHelper.convertToMap(source, false, xContentType).v2());
-        return this;
-    }
-
-    /**
-     * Sets the settings and mappings as a single source.
-     *
+     * <p>
      * Note that the mapping definition should *not* be nested under a type name.
      */
     public CreateIndexRequest source(BytesReference source, MediaType mediaType) {
@@ -402,7 +311,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
 
     /**
      * Sets the settings and mappings as a single source.
-     *
+     * <p>
      * Note that the mapping definition should *not* be nested under a type name.
      */
     @SuppressWarnings("unchecked")
@@ -458,7 +367,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
 
         if (mappings != null) {
             try (InputStream stream = mappings.streamInput()) {
-                builder.rawField(MAPPINGS.getPreferredName(), stream, mappingsXContentType);
+                builder.rawField(MAPPINGS.getPreferredName(), stream, mappingsMediaType);
             }
         }
 

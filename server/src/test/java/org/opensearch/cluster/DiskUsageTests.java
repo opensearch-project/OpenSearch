@@ -41,8 +41,8 @@ import org.opensearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.cluster.routing.UnassignedInfo;
-import org.opensearch.index.Index;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.monitor.fs.FsInfo;
@@ -188,6 +188,12 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null
             ),
             new NodeStats(
@@ -212,6 +218,12 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null
             ),
             new NodeStats(
@@ -223,6 +235,12 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 new FsInfo(0, null, node3FSInfo),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -291,6 +309,12 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null
             ),
             new NodeStats(
@@ -315,6 +339,12 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null
             ),
             new NodeStats(
@@ -326,6 +356,12 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 new FsInfo(0, null, node3FSInfo),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,

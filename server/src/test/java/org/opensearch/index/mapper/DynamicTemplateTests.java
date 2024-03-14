@@ -32,10 +32,9 @@
 
 package org.opensearch.index.mapper;
 
-import org.opensearch.common.Strings;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -107,7 +106,7 @@ public class DynamicTemplateTests extends OpenSearchTestCase {
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         XContentBuilder builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match_mapping_type\":\"string\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
+        assertEquals("{\"match_mapping_type\":\"string\",\"mapping\":{\"store\":true}}", builder.toString());
 
         // name-based template
         templateDef = new HashMap<>();
@@ -117,7 +116,7 @@ public class DynamicTemplateTests extends OpenSearchTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match\":\"*name\",\"unmatch\":\"first_name\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
+        assertEquals("{\"match\":\"*name\",\"unmatch\":\"first_name\",\"mapping\":{\"store\":true}}", builder.toString());
 
         // path-based template
         templateDef = new HashMap<>();
@@ -127,7 +126,7 @@ public class DynamicTemplateTests extends OpenSearchTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"path_match\":\"*name\",\"path_unmatch\":\"first_name\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
+        assertEquals("{\"path_match\":\"*name\",\"path_unmatch\":\"first_name\",\"mapping\":{\"store\":true}}", builder.toString());
 
         // regex matching
         templateDef = new HashMap<>();
@@ -137,6 +136,6 @@ public class DynamicTemplateTests extends OpenSearchTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match\":\"^a$\",\"match_pattern\":\"regex\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
+        assertEquals("{\"match\":\"^a$\",\"match_pattern\":\"regex\",\"mapping\":{\"store\":true}}", builder.toString());
     }
 }

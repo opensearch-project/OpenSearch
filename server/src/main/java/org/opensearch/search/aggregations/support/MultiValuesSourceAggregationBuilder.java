@@ -32,8 +32,8 @@
 package org.opensearch.search.aggregations.support;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
@@ -51,7 +51,7 @@ import java.util.Objects;
 /**
  * Similar to {@link ValuesSourceAggregationBuilder}, except it references multiple ValuesSources (e.g. so that an aggregation
  * can pull values from multiple fields).
- *
+ * <p>
  * A limitation of this class is that all the ValuesSource's being refereenced must be of the same type.
  *
  * @opensearch.internal

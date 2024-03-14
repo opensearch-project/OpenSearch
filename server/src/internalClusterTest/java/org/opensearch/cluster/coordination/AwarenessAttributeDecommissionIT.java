@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
-import org.junit.After;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateAction;
 import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequest;
@@ -49,6 +48,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
+import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -507,7 +507,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         assertEquals(clusterState.nodes().getDataNodes().size(), 8);
         assertEquals(clusterState.nodes().getClusterManagerNodes().size(), 2);
 
-        Iterator<DiscoveryNode> discoveryNodeIterator = clusterState.nodes().getNodes().valuesIt();
+        Iterator<DiscoveryNode> discoveryNodeIterator = clusterState.nodes().getNodes().values().iterator();
         while (discoveryNodeIterator.hasNext()) {
             // assert no node has decommissioned attribute
             DiscoveryNode node = discoveryNodeIterator.next();
@@ -717,7 +717,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
 
         logger.info("--> Got cluster state with 4 nodes.");
         // assert status on nodes that are part of cluster currently
-        Iterator<DiscoveryNode> discoveryNodeIterator = clusterState.nodes().getNodes().valuesIt();
+        Iterator<DiscoveryNode> discoveryNodeIterator = clusterState.nodes().getNodes().values().iterator();
         DiscoveryNode clusterManagerNodeAfterDecommission = null;
         while (discoveryNodeIterator.hasNext()) {
             // assert no node has decommissioned attribute

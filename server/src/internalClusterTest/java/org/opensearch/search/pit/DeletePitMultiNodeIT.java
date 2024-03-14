@@ -8,13 +8,10 @@
 
 package org.opensearch.search.pit;
 
-import org.junit.After;
-import org.junit.Before;
-import org.opensearch.action.ActionFuture;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.opensearch.action.ActionListener;
-import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
@@ -22,13 +19,21 @@ import org.opensearch.action.search.DeletePitAction;
 import org.opensearch.action.search.DeletePitInfo;
 import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.ShardSearchFailure;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.search.SearchContextMissingException;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,10 +43,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
-import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 
 /**
  * Multi node integration tests for delete PIT use cases
@@ -88,8 +93,8 @@ public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
             assertTrue(deletePitInfo.isSuccessful());
         }
         validatePitStats("index", 0, 10);
-        /**
-         * Checking deleting the same PIT id again results in succeeded
+        /*
+          Checking deleting the same PIT id again results in succeeded
          */
         deleteExecute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         deletePITResponse = deleteExecute.get();
@@ -108,8 +113,8 @@ public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
         pitIds.add(pitResponse.getId());
         validatePitStats("index", 5, 0);
 
-        /**
-         * Delete Pit #1
+        /*
+          Delete Pit #1
          */
         DeletePitRequest deletePITRequest = new DeletePitRequest(pitIds);
         ActionFuture<DeletePitResponse> deleteExecute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
@@ -123,8 +128,8 @@ public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
         pitResponse = execute.get();
         pitIds.add(pitResponse.getId());
         validatePitStats("index", 5, 5);
-        /**
-         * Delete PIT with both Ids #1 (which is deleted) and #2 (which is present)
+        /*
+          Delete PIT with both Ids #1 (which is deleted) and #2 (which is present)
          */
         deletePITRequest = new DeletePitRequest(pitIds);
         deleteExecute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
@@ -160,9 +165,9 @@ public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
         validatePitStats("index1", 5, 0);
         DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
 
-        /**
-         * When we invoke delete again, returns success after clearing the remaining readers. Asserting reader context
-         * not found exceptions don't result in failures ( as deletion in one node is successful )
+        /*
+          When we invoke delete again, returns success after clearing the remaining readers. Asserting reader context
+          not found exceptions don't result in failures ( as deletion in one node is successful )
          */
         ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         DeletePitResponse deletePITResponse = execute.get();
@@ -202,9 +207,9 @@ public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
         });
 
         ensureGreen();
-        /**
-         * When we invoke delete again, returns success after clearing the remaining readers. Asserting reader context
-         * not found exceptions don't result in failures ( as deletion in one node is successful )
+        /*
+          When we invoke delete again, returns success after clearing the remaining readers. Asserting reader context
+          not found exceptions don't result in failures ( as deletion in one node is successful )
          */
         ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         DeletePitResponse deletePITResponse = execute.get();
@@ -237,9 +242,9 @@ public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
             }
         });
         ensureGreen();
-        /**
-         * When we invoke delete again, returns success as all readers are cleared. (Delete all on node which is Up and
-         * once the node restarts, all active contexts are cleared in the node )
+        /*
+          When we invoke delete again, returns success as all readers are cleared. (Delete all on node which is Up and
+          once the node restarts, all active contexts are cleared in the node )
          */
         ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         DeletePitResponse deletePITResponse = execute.get();
@@ -263,18 +268,23 @@ public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
                 try {
                     latch.await();
                     for (int j = 0; j < 30; j++) {
-                        client().prepareSearch()
+                        SearchResponse searchResponse = client().prepareSearch()
                             .setSize(2)
                             .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
                             .execute()
                             .get();
+                        if (searchResponse.getFailedShards() != 0) {
+                            verifySearchContextMissingException(searchResponse.getShardFailures());
+                        }
                     }
                 } catch (Exception e) {
-                    /**
-                     * assert for exception once delete pit goes through. throw error in case of any exeption before that.
+                    /*
+                      assert for exception once delete pit goes through. throw error in case of any exeption before that.
                      */
                     if (deleted.get() == true) {
-                        if (!e.getMessage().contains("all shards failed")) throw new AssertionError(e);
+                        Throwable t = ExceptionsHelper.unwrapCause(e.getCause());
+                        assertTrue(e.toString(), t instanceof SearchPhaseExecutionException);
+                        verifySearchContextMissingException(((SearchPhaseExecutionException) t).shardFailures());
                         return;
                     }
                     throw new AssertionError(e);
@@ -283,9 +293,9 @@ public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
             threads[i].setName("opensearch[node_s_0][search]");
             threads[i].start();
         }
+        deleted.set(true);
         ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         DeletePitResponse deletePITResponse = execute.get();
-        deleted.set(true);
         for (DeletePitInfo deletePitInfo : deletePITResponse.getDeletePitResults()) {
             assertTrue(pitIds.contains(deletePitInfo.getPitId()));
             assertTrue(deletePitInfo.isSuccessful());
@@ -293,6 +303,17 @@ public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
 
         for (Thread thread : threads) {
             thread.join();
+        }
+    }
+
+    private void verifySearchContextMissingException(ShardSearchFailure[] failures) {
+        for (ShardSearchFailure failure : failures) {
+            Throwable cause = ExceptionsHelper.unwrapCause(failure.getCause());
+            if (failure.toString().contains("reader_context is already closed can't increment refCount current count")) {
+                // this is fine, expected search error when context is already deleted
+            } else {
+                assertTrue(failure.toString(), cause instanceof SearchContextMissingException);
+            }
         }
     }
 

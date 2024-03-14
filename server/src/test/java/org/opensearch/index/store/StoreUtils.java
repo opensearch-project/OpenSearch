@@ -34,8 +34,8 @@ package org.opensearch.index.store;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.shard.ShardId;
 
 import java.nio.file.Path;
 

@@ -12,13 +12,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -62,8 +61,8 @@ class OngoingSegmentReplications {
         this.allocationIdToHandlers = ConcurrentCollections.newConcurrentMap();
     }
 
-    /**
-     * Operations on the {@link #copyStateMap} member.
+    /*
+      Operations on the {@link #copyStateMap} member.
      */
 
     /**
@@ -86,12 +85,12 @@ class OngoingSegmentReplications {
             // build the CopyState object and cache it before returning
             final CopyState copyState = new CopyState(checkpoint, indexShard);
 
-            /**
-             * Use the checkpoint from the request as the key in the map, rather than
-             * the checkpoint from the created CopyState. This maximizes cache hits
-             * if replication targets make a request with an older checkpoint.
-             * Replication targets are expected to fetch the checkpoint in the response
-             * CopyState to bring themselves up to date.
+            /*
+              Use the checkpoint from the request as the key in the map, rather than
+              the checkpoint from the created CopyState. This maximizes cache hits
+              if replication targets make a request with an older checkpoint.
+              Replication targets are expected to fetch the checkpoint in the response
+              CopyState to bring themselves up to date.
              */
             addToCopyStateMap(checkpoint, copyState);
             return copyState;
@@ -121,15 +120,7 @@ class OngoingSegmentReplications {
                     removeCopyState(sourceHandler.getCopyState());
                 }
             });
-            if (request.getFilesToFetch().isEmpty()) {
-                // before completion, alert the primary of the replica's state.
-                handler.getCopyState()
-                    .getShard()
-                    .updateVisibleCheckpointForShard(request.getTargetAllocationId(), handler.getCopyState().getCheckpoint());
-                wrappedListener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
-            } else {
-                handler.sendFiles(request, wrappedListener);
-            }
+            handler.sendFiles(request, wrappedListener);
         } else {
             listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
         }
@@ -148,19 +139,25 @@ class OngoingSegmentReplications {
      */
     CopyState prepareForReplication(CheckpointInfoRequest request, FileChunkWriter fileChunkWriter) throws IOException {
         final CopyState copyState = getCachedCopyState(request.getCheckpoint());
-        if (copyState.getCheckpoint().getCodec().equals(request.getCheckpoint().getCodec()) == false) {
-            logger.trace("Requested unsupported codec version {}", request.getCheckpoint().getCodec());
-            throw new CancellableThreads.ExecutionCancelledException(
-                new ParameterizedMessage("Requested unsupported codec version {}", request.getCheckpoint().getCodec()).toString()
-            );
+        final SegmentReplicationSourceHandler newHandler = createTargetHandler(
+            request.getTargetNode(),
+            copyState,
+            request.getTargetAllocationId(),
+            fileChunkWriter
+        );
+        final SegmentReplicationSourceHandler existingHandler = allocationIdToHandlers.putIfAbsent(
+            request.getTargetAllocationId(),
+            newHandler
+        );
+        // If we are already replicating to this allocation Id, cancel the old and replace with a new execution.
+        // This will clear the old handler & referenced copy state holding an incref'd indexCommit.
+        if (existingHandler != null) {
+            logger.warn("Override handler for allocation id {}", request.getTargetAllocationId());
+            cancelHandlers(handler -> handler.getAllocationId().equals(request.getTargetAllocationId()), "cancel due to retry");
+            assert allocationIdToHandlers.containsKey(request.getTargetAllocationId()) == false;
+            allocationIdToHandlers.put(request.getTargetAllocationId(), newHandler);
         }
-        allocationIdToHandlers.compute(request.getTargetAllocationId(), (allocationId, segrepHandler) -> {
-            if (segrepHandler != null) {
-                logger.warn("Override handler for allocation id {}", request.getTargetAllocationId());
-                cancelHandlers(handler -> handler.getAllocationId().equals(request.getTargetAllocationId()), "cancel due to retry");
-            }
-            return createTargetHandler(request.getTargetNode(), copyState, request.getTargetAllocationId(), fileChunkWriter);
-        });
+        assert allocationIdToHandlers.containsKey(request.getTargetAllocationId());
         return copyState;
     }
 

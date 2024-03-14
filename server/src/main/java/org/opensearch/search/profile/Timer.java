@@ -51,7 +51,19 @@ package org.opensearch.search.profile;
 public class Timer {
 
     private boolean doTiming;
-    private long timing, count, lastCount, start;
+    private long timing, count, lastCount, start, earliestTimerStartTime;
+
+    public Timer() {
+        this(0, 0, 0, 0, 0);
+    }
+
+    public Timer(long timing, long count, long lastCount, long start, long earliestTimerStartTime) {
+        this.timing = timing;
+        this.count = count;
+        this.lastCount = lastCount;
+        this.start = start;
+        this.earliestTimerStartTime = earliestTimerStartTime;
+    }
 
     /** pkg-private for testing */
     long nanoTime() {
@@ -71,6 +83,9 @@ public class Timer {
         doTiming = (count - lastCount) >= Math.min(lastCount >>> 8, 1024);
         if (doTiming) {
             start = nanoTime();
+            if (count == 0) {
+                earliestTimerStartTime = start;
+            }
         }
         count++;
     }
@@ -90,6 +105,14 @@ public class Timer {
             throw new IllegalStateException("#start call misses a matching #stop call");
         }
         return count;
+    }
+
+    /** Return the timer start time in nanoseconds.*/
+    public final long getEarliestTimerStartTime() {
+        if (start != 0) {
+            throw new IllegalStateException("#start call misses a matching #stop call");
+        }
+        return earliestTimerStartTime;
     }
 
     /** Return an approximation of the total time spent between consecutive calls of #start and #stop. */

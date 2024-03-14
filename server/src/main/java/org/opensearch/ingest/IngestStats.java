@@ -32,10 +32,11 @@
 
 package org.opensearch.ingest;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.metrics.OperationMetrics;
+import org.opensearch.common.metrics.OperationStats;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -46,15 +47,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 /**
- * Stats for an ingest processor pipeline
+ * OperationStats for an ingest processor pipeline
  *
  * @opensearch.internal
  */
 public class IngestStats implements Writeable, ToXContentFragment {
-    private final Stats totalStats;
+    private final OperationStats totalStats;
     private final List<PipelineStat> pipelineStats;
     private final Map<String, List<ProcessorStat>> processorStats;
 
@@ -64,7 +64,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
      * @param pipelineStats - The stats for a given ingest pipeline.
      * @param processorStats - The per-processor stats for a given pipeline. A map keyed by the pipeline identifier.
      */
-    public IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Map<String, List<ProcessorStat>> processorStats) {
+    public IngestStats(OperationStats totalStats, List<PipelineStat> pipelineStats, Map<String, List<ProcessorStat>> processorStats) {
         this.totalStats = totalStats;
         this.pipelineStats = pipelineStats;
         this.processorStats = processorStats;
@@ -74,13 +74,13 @@ public class IngestStats implements Writeable, ToXContentFragment {
      * Read from a stream.
      */
     public IngestStats(StreamInput in) throws IOException {
-        this.totalStats = new Stats(in);
+        this.totalStats = new OperationStats(in);
         int size = in.readVInt();
         this.pipelineStats = new ArrayList<>(size);
         this.processorStats = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
             String pipelineId = in.readString();
-            Stats pipelineStat = new Stats(in);
+            OperationStats pipelineStat = new OperationStats(in);
             this.pipelineStats.add(new PipelineStat(pipelineId, pipelineStat));
             int processorsSize = in.readVInt();
             List<ProcessorStat> processorStatsPerPipeline = new ArrayList<>(processorsSize);
@@ -88,7 +88,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
                 String processorName = in.readString();
                 String processorType = "_NOT_AVAILABLE";
                 processorType = in.readString();
-                Stats processorStat = new Stats(in);
+                OperationStats processorStat = new OperationStats(in);
                 processorStatsPerPipeline.add(new ProcessorStat(processorName, processorType, processorStat));
             }
             this.processorStats.put(pipelineId, processorStatsPerPipeline);
@@ -148,7 +148,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
-    public Stats getTotalStats() {
+    public OperationStats getTotalStats() {
         return totalStats;
     }
 
@@ -176,115 +176,24 @@ public class IngestStats implements Writeable, ToXContentFragment {
     }
 
     /**
-     * The ingest statistics.
-     *
-     * @opensearch.internal
-     */
-    public static class Stats implements Writeable, ToXContentFragment {
-
-        private final long ingestCount;
-        private final long ingestTimeInMillis;
-        private final long ingestCurrent;
-        private final long ingestFailedCount;
-
-        public Stats(long ingestCount, long ingestTimeInMillis, long ingestCurrent, long ingestFailedCount) {
-            this.ingestCount = ingestCount;
-            this.ingestTimeInMillis = ingestTimeInMillis;
-            this.ingestCurrent = ingestCurrent;
-            this.ingestFailedCount = ingestFailedCount;
-        }
-
-        /**
-         * Read from a stream.
-         */
-        public Stats(StreamInput in) throws IOException {
-            ingestCount = in.readVLong();
-            ingestTimeInMillis = in.readVLong();
-            ingestCurrent = in.readVLong();
-            ingestFailedCount = in.readVLong();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(ingestCount);
-            out.writeVLong(ingestTimeInMillis);
-            out.writeVLong(ingestCurrent);
-            out.writeVLong(ingestFailedCount);
-        }
-
-        /**
-         * @return The total number of executed ingest preprocessing operations.
-         */
-        public long getIngestCount() {
-            return ingestCount;
-        }
-
-        /**
-         * @return The total time spent of ingest preprocessing in millis.
-         */
-        public long getIngestTimeInMillis() {
-            return ingestTimeInMillis;
-        }
-
-        /**
-         * @return The total number of ingest preprocessing operations currently executing.
-         */
-        public long getIngestCurrent() {
-            return ingestCurrent;
-        }
-
-        /**
-         * @return The total number of ingest preprocessing operations that have failed.
-         */
-        public long getIngestFailedCount() {
-            return ingestFailedCount;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("count", ingestCount);
-            builder.humanReadableField("time_in_millis", "time", new TimeValue(ingestTimeInMillis, TimeUnit.MILLISECONDS));
-            builder.field("current", ingestCurrent);
-            builder.field("failed", ingestFailedCount);
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            IngestStats.Stats that = (IngestStats.Stats) o;
-            return Objects.equals(ingestCount, that.ingestCount)
-                && Objects.equals(ingestTimeInMillis, that.ingestTimeInMillis)
-                && Objects.equals(ingestFailedCount, that.ingestFailedCount)
-                && Objects.equals(ingestCurrent, that.ingestCurrent);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(ingestCount, ingestTimeInMillis, ingestFailedCount, ingestCurrent);
-        }
-    }
-
-    /**
-     * Easy conversion from scoped {@link IngestMetric} objects to a serializable Stats objects
+     * Easy conversion from scoped {@link OperationMetrics} objects to a serializable OperationStats objects
      */
     static class Builder {
-        private Stats totalStats;
+        private OperationStats totalStats;
         private List<PipelineStat> pipelineStats = new ArrayList<>();
         private Map<String, List<ProcessorStat>> processorStats = new HashMap<>();
 
-        Builder addTotalMetrics(IngestMetric totalMetric) {
+        Builder addTotalMetrics(OperationMetrics totalMetric) {
             this.totalStats = totalMetric.createStats();
             return this;
         }
 
-        Builder addPipelineMetrics(String pipelineId, IngestMetric pipelineMetric) {
+        Builder addPipelineMetrics(String pipelineId, OperationMetrics pipelineMetric) {
             this.pipelineStats.add(new PipelineStat(pipelineId, pipelineMetric.createStats()));
             return this;
         }
 
-        Builder addProcessorMetrics(String pipelineId, String processorName, String processorType, IngestMetric metric) {
+        Builder addProcessorMetrics(String pipelineId, String processorName, String processorType, OperationMetrics metric) {
             this.processorStats.computeIfAbsent(pipelineId, k -> new ArrayList<>())
                 .add(new ProcessorStat(processorName, processorType, metric.createStats()));
             return this;
@@ -300,9 +209,9 @@ public class IngestStats implements Writeable, ToXContentFragment {
      */
     public static class PipelineStat {
         private final String pipelineId;
-        private final Stats stats;
+        private final OperationStats stats;
 
-        public PipelineStat(String pipelineId, Stats stats) {
+        public PipelineStat(String pipelineId, OperationStats stats) {
             this.pipelineId = pipelineId;
             this.stats = stats;
         }
@@ -311,7 +220,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
             return pipelineId;
         }
 
-        public Stats getStats() {
+        public OperationStats getStats() {
             return stats;
         }
 
@@ -335,9 +244,9 @@ public class IngestStats implements Writeable, ToXContentFragment {
     public static class ProcessorStat {
         private final String name;
         private final String type;
-        private final Stats stats;
+        private final OperationStats stats;
 
-        public ProcessorStat(String name, String type, Stats stats) {
+        public ProcessorStat(String name, String type, OperationStats stats) {
             this.name = name;
             this.type = type;
             this.stats = stats;
@@ -351,7 +260,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
             return type;
         }
 
-        public Stats getStats() {
+        public OperationStats getStats() {
             return stats;
         }
 

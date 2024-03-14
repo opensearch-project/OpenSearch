@@ -33,13 +33,14 @@
 package org.opensearch.search;
 
 import org.opensearch.action.search.ClearScrollResponse;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentHelper;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -58,17 +59,17 @@ public class ClearScrollResponseTests extends OpenSearchTestCase {
     }
 
     public void testToAndFromXContent() throws IOException {
-        XContentType xContentType = randomFrom(XContentType.values());
+        MediaType mediaType = randomFrom(XContentType.values());
         ClearScrollResponse originalResponse = createTestItem();
-        BytesReference originalBytes = toShuffledXContent(originalResponse, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
+        BytesReference originalBytes = toShuffledXContent(originalResponse, mediaType, ToXContent.EMPTY_PARAMS, randomBoolean());
         ClearScrollResponse parsedResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+        try (XContentParser parser = createParser(mediaType.xContent(), originalBytes)) {
             parsedResponse = ClearScrollResponse.fromXContent(parser);
         }
         assertEquals(originalResponse.isSucceeded(), parsedResponse.isSucceeded());
         assertEquals(originalResponse.getNumFreed(), parsedResponse.getNumFreed());
-        BytesReference parsedBytes = XContentHelper.toXContent(parsedResponse, xContentType, randomBoolean());
-        assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
+        BytesReference parsedBytes = XContentHelper.toXContent(parsedResponse, mediaType, randomBoolean());
+        assertToXContentEquivalent(originalBytes, parsedBytes, mediaType);
     }
 
     private static ClearScrollResponse createTestItem() {

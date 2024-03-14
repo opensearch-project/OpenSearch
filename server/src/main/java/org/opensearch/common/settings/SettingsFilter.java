@@ -32,8 +32,8 @@
 
 package org.opensearch.common.settings;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent.Params;
 import org.opensearch.rest.RestRequest;
 

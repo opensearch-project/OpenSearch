@@ -32,7 +32,6 @@
 
 package org.opensearch.index.engine;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
@@ -45,6 +44,7 @@ import org.opensearch.index.translog.TranslogDeletionPolicy;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -64,7 +64,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LongSupplier globalCheckpointSupplier;
-    private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
+    private final Map<IndexCommit, Integer> snapshottedCommits; // Number of snapshots held against each commit point.
     private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
     private volatile long maxSeqNoOfNextSafeCommit;
     private volatile IndexCommit lastCommit; // the most recent commit point
@@ -80,7 +80,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         this.translogDeletionPolicy = translogDeletionPolicy;
         this.softDeletesPolicy = softDeletesPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
-        this.snapshottedCommits = new ObjectIntHashMap<>();
+        this.snapshottedCommits = new HashMap<>();
     }
 
     @Override
@@ -174,7 +174,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert safeCommit != null : "Safe commit is not initialized yet";
         assert lastCommit != null : "Last commit is not initialized yet";
         final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;
-        snapshottedCommits.addTo(snapshotting, 1); // increase refCount
+        snapshottedCommits.merge(snapshotting, 1, Integer::sum); // increase refCount
         return new SnapshotIndexCommit(snapshotting);
     }
 
@@ -191,7 +191,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             + "], releasing commit ["
             + releasingCommit
             + "]";
-        final int refCount = snapshottedCommits.addTo(releasingCommit, -1); // release refCount
+        final int refCount = snapshottedCommits.merge(releasingCommit, -1, Integer::sum); // release refCount
         assert refCount >= 0 : "Number of snapshots can not be negative [" + refCount + "]";
         if (refCount == 0) {
             snapshottedCommits.remove(releasingCommit);

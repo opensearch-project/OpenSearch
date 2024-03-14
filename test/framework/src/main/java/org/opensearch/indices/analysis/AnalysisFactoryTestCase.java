@@ -98,6 +98,7 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
         .put("czechstem", MovedToAnalysisCommon.class)
         .put("decimaldigit", MovedToAnalysisCommon.class)
         .put("delimitedpayload", MovedToAnalysisCommon.class)
+        .put("delimitedtermfrequency", MovedToAnalysisCommon.class)
         .put("dictionarycompoundword", MovedToAnalysisCommon.class)
         .put("edgengram", MovedToAnalysisCommon.class)
         .put("elision", MovedToAnalysisCommon.class)
@@ -201,9 +202,6 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
         .put("daterecognizer", Void.class)
         // for token filters that generate bad offsets, which are now rejected since Lucene 7
         .put("fixbrokenoffsets", Void.class)
-        // should we expose it, or maybe think about higher level integration of the
-        // fake term frequency feature (LUCENE-7854)
-        .put("delimitedtermfrequency", Void.class)
         // LUCENE-8273: ProtectedTermFilterFactory allows analysis chains to skip
         // particular token filters based on the attributes of the current token.
         .put("protectedterm", Void.class)
@@ -222,6 +220,8 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
         // LUCENE-10352
         .put("daitchmokotoffsoundex", Void.class)
         .put("persianstem", Void.class)
+        // https://github.com/apache/lucene/pull/12169
+        .put("word2vecsynonym", Void.class)
         .immutableMap();
 
     static final Map<String, Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String, Class<?>>()

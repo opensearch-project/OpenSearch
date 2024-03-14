@@ -32,14 +32,14 @@
 package org.opensearch.action.admin.cluster.node.tasks;
 
 import org.opensearch.action.search.SearchAction;
-import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.tasks.resourcetracker.ResourceStats;
+import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
+import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
-import org.opensearch.tasks.ResourceUsageMetric;
-import org.opensearch.tasks.ResourceStats;
-import org.opensearch.tasks.ResourceStatsType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
@@ -89,6 +89,7 @@ public class TaskTests extends OpenSearchTestCase {
         long taskId = randomIntBetween(0, 100000);
         long startTime = randomNonNegativeLong();
         long runningTime = randomNonNegativeLong();
+        long cancellationStartTime = randomNonNegativeLong();
         boolean cancellable = true;
         boolean cancelled = true;
         TaskInfo taskInfo = new TaskInfo(
@@ -103,12 +104,14 @@ public class TaskTests extends OpenSearchTestCase {
             cancelled,
             TaskId.EMPTY_TASK_ID,
             Collections.singletonMap("foo", "bar"),
-            randomResourceStats(randomBoolean())
+            randomResourceStats(randomBoolean()),
+            cancellationStartTime
         );
         String taskInfoString = taskInfo.toString();
         Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(taskInfoString.getBytes(StandardCharsets.UTF_8)), true).v2();
         assertEquals(map.get("cancellable"), cancellable);
         assertEquals(map.get("cancelled"), cancelled);
+        assertEquals(map.get("cancellation_time_millis"), cancellationStartTime);
     }
 
     public void testCancellableOptionWhenCancelledFalse() {
@@ -179,7 +182,7 @@ public class TaskTests extends OpenSearchTestCase {
         long totalCPU = 0L;
 
         // reporting resource consumption events and checking total consumption values
-        for (int i = 0; i < randomInt(10); i++) {
+        for (int i = 0; i < randomIntBetween(2, 10); i++) {
             long initial_memory = randomLongBetween(1, 100);
             long initial_cpu = randomLongBetween(1, 100);
 
@@ -202,6 +205,10 @@ public class TaskTests extends OpenSearchTestCase {
         }
         assertEquals(task.getTotalResourceStats().getMemoryInBytes(), totalMemory);
         assertEquals(task.getTotalResourceStats().getCpuTimeInNanos(), totalCPU);
+        // Basic sanity testing that min < average < max < total
+        assertTrue(task.getMinResourceStats().getMemoryInBytes() < task.getAverageResourceStats().getMemoryInBytes());
+        assertTrue(task.getAverageResourceStats().getMemoryInBytes() < task.getMaxResourceStats().getMemoryInBytes());
+        assertTrue(task.getMaxResourceStats().getMemoryInBytes() < task.getTotalResourceStats().getMemoryInBytes());
 
         // updating should throw an IllegalStateException when active entry is not present.
         try {

@@ -38,13 +38,15 @@ import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperat
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 
 /**
  * Builder for requesting cluster health
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterHealthRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     ClusterHealthRequest,
     ClusterHealthResponse,

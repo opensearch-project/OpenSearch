@@ -1,0 +1,180 @@
+---
+teardown:
+  - do:
+      search_pipeline.delete:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test filter_query processor":
+  - do:
+      search_pipeline.put:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "test pipeline",
+            "response_processors": [
+              {
+                "rename_field":
+                  {
+                    "field": "a",
+                    "target_field": "b"
+                  }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      search_pipeline.put:
+        id: "my_pipeline_2"
+        body: >
+          {
+            "description": "test pipeline with ignore missing true",
+            "response_processors": [
+              {
+                "rename_field":
+                  {
+                    "field": "aa",
+                    "target_field": "b",
+                    "ignore_missing": true
+                  }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      search_pipeline.put:
+        id: "my_pipeline_3"
+        body: >
+          {
+            "description": "test pipeline with ignore missing false",
+            "response_processors": [
+              {
+                "rename_field":
+                  {
+                    "field": "aa",
+                    "target_field": "b",
+                    "ignore_missing": false
+                  }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      search_pipeline.put:
+        id: "my_pipeline_4"
+        body: >
+          {
+            "description": "test pipeline with ignore missing false and ignore failure true",
+            "response_processors": [
+              {
+                "rename_field":
+                  {
+                    "field": "aa",
+                    "target_field": "b",
+                    "ignore_missing": false,
+                    "ignore_failure": true
+                  }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create:
+        index: test
+
+  - do:
+      indices.put_mapping:
+        index: test
+        body:
+          properties:
+            a:
+              type: keyword
+              store: true
+              doc_values: true
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: {
+          "a": "foo"
+        }
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      search:
+        body: { }
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline"
+        body: { }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source: { "b": "foo" } }
+
+  # Should also work with no search body specified
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source: { "b": "foo" } }
+
+  # Pipeline with ignore_missing set to true
+  # Should still pass even though index does not contain field
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline_2"
+  - match: { hits.total.value: 1 }
+  - match: {hits.hits.0._source: { "a": "foo" } }
+
+  # Pipeline with ignore_missing set to false
+  # Should throw illegal_argument_exception
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        search_pipeline: "my_pipeline_3"
+  - match: { error.type: "illegal_argument_exception" }
+
+  # Pipeline with ignore_missing set to false and ignore_failure set to true
+  # Should return while catching error
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline_4"
+  - match: { hits.total.value: 1 }
+  - match: {hits.hits.0._source: { "a": "foo" } }
+
+  # No source, using stored_fields
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline"
+        body: {
+          "_source": false,
+          "stored_fields": [ "a" ]
+        }
+  - match: { hits.hits.0.fields: { "b": ["foo"] } }
+
+  # No source, using docvalue_fields
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline"
+        body: {
+          "_source": false,
+          "docvalue_fields": [ "a" ]
+        }
+  - match: { hits.hits.0.fields: { "b": [ "foo" ] } }

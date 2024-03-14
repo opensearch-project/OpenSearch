@@ -88,7 +88,7 @@ public interface FetchSubPhase {
         /**
          * This lookup provides access to the source for the given hit document. Note
          * that it should always be set to the correct doc ID and {@link LeafReaderContext}.
-         *
+         * <p>
          * In most cases, the hit document's source is loaded eagerly at the start of the
          * {@link FetchPhase}. This lookup will contain the preloaded source.
          */
@@ -103,7 +103,7 @@ public interface FetchSubPhase {
 
     /**
      * Returns a {@link FetchSubPhaseProcessor} for this sub phase.
-     *
+     * <p>
      * If nothing should be executed for the provided {@code FetchContext}, then the
      * implementation should return {@code null}
      */

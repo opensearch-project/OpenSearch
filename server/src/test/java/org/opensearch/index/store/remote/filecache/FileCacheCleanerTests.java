@@ -8,30 +8,29 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import org.apache.lucene.store.IndexInput;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.test.OpenSearchTestCase;
+import org.hamcrest.MatcherAssert;
+import org.junit.After;
+import org.junit.Before;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.lucene.store.IndexInput;
-import org.hamcrest.MatcherAssert;
-import org.junit.After;
-import org.junit.Before;
-import org.opensearch.Version;
-import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.breaker.NoopCircuitBreaker;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.shard.ShardId;
-import org.opensearch.index.shard.ShardPath;
-import org.opensearch.indices.cluster.IndicesClusterStateService;
-import org.opensearch.test.OpenSearchTestCase;
-
-import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION;
+import static org.hamcrest.Matchers.equalTo;
 
 public class FileCacheCleanerTests extends OpenSearchTestCase {
     private static final ShardId SHARD_0 = new ShardId("index", "uuid-0", 0);
@@ -48,7 +47,7 @@ public class FileCacheCleanerTests extends OpenSearchTestCase {
     );
 
     private final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-        1024 * 1024 * 1024,
+        1024 * 1024,
         1,
         new NoopCircuitBreaker(CircuitBreaker.REQUEST)
     );
@@ -59,7 +58,7 @@ public class FileCacheCleanerTests extends OpenSearchTestCase {
     @Before
     public void setUpFileCache() throws IOException {
         env = newNodeEnvironment(SETTINGS);
-        cleaner = new FileCacheCleaner(env, fileCache);
+        cleaner = new FileCacheCleaner(() -> fileCache);
         files.put(SHARD_0, addFile(fileCache, env, SHARD_0));
         files.put(SHARD_1, addFile(fileCache, env, SHARD_1));
         MatcherAssert.assertThat(fileCache.size(), equalTo(2L));
@@ -103,12 +102,11 @@ public class FileCacheCleanerTests extends OpenSearchTestCase {
         final Path cachePath = ShardPath.loadFileCachePath(env, SHARD_0).getDataPath();
         assertTrue(Files.exists(cachePath));
 
-        cleaner.beforeIndexShardDeleted(SHARD_0, SETTINGS);
+        cleaner.beforeShardPathDeleted(SHARD_0, INDEX_SETTINGS, env);
         MatcherAssert.assertThat(fileCache.size(), equalTo(1L));
         assertNull(fileCache.get(files.get(SHARD_0)));
         assertFalse(Files.exists(files.get(SHARD_0)));
         assertTrue(Files.exists(files.get(SHARD_1)));
-        cleaner.afterIndexShardDeleted(SHARD_0, SETTINGS);
         assertFalse(Files.exists(cachePath));
     }
 
@@ -116,15 +114,9 @@ public class FileCacheCleanerTests extends OpenSearchTestCase {
         final Path indexCachePath = env.fileCacheNodePath().fileCachePath.resolve(SHARD_0.getIndex().getUUID());
         assertTrue(Files.exists(indexCachePath));
 
-        cleaner.beforeIndexShardDeleted(SHARD_0, SETTINGS);
-        cleaner.afterIndexShardDeleted(SHARD_0, SETTINGS);
-        cleaner.beforeIndexShardDeleted(SHARD_1, SETTINGS);
-        cleaner.afterIndexShardDeleted(SHARD_1, SETTINGS);
-        cleaner.afterIndexRemoved(
-            SHARD_0.getIndex(),
-            INDEX_SETTINGS,
-            IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED
-        );
+        cleaner.beforeShardPathDeleted(SHARD_0, INDEX_SETTINGS, env);
+        cleaner.beforeShardPathDeleted(SHARD_1, INDEX_SETTINGS, env);
+        cleaner.beforeIndexPathDeleted(SHARD_0.getIndex(), INDEX_SETTINGS, env);
         MatcherAssert.assertThat(fileCache.size(), equalTo(0L));
         assertFalse(Files.exists(indexCachePath));
     }

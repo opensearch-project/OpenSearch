@@ -58,7 +58,7 @@ public class DetailedErrorsEnabledIT extends HttpSmokeTestCase {
             Response response = e.getResponse();
             assertThat(response.getHeader("Content-Type"), containsString("application/json"));
             assertThat(EntityUtils.toString(response.getEntity()),
-                    containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; " +
+                    containsString("\"stack_trace\":\"OpenSearchException[Validation Failed: 1: index / indices is missing;]; " +
                     "nested: ActionRequestValidationException[Validation Failed: 1:"));
         }
 

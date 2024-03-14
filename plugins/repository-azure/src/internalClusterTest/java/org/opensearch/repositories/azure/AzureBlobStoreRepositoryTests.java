@@ -31,25 +31,25 @@
 
 package org.opensearch.repositories.azure;
 
+import com.sun.net.httpserver.Headers;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+
 import com.azure.storage.blob.models.ParallelTransferOptions;
 import com.azure.storage.common.implementation.Constants;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
-import com.sun.net.httpserver.Headers;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
-import fixture.azure.AzureHttpHandler;
-import reactor.core.scheduler.Schedulers;
-
-import org.junit.AfterClass;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
-import org.opensearch.rest.RestStatus;
+import org.junit.AfterClass;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -58,6 +58,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.regex.Pattern;
+
+import fixture.azure.AzureHttpHandler;
+import reactor.core.scheduler.Schedulers;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
 public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepositoryIntegTestCase {
@@ -153,7 +156,7 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
 
     /**
      * HTTP handler that injects random Azure service errors
-     *
+     * <p>
      * Note: it is not a good idea to allow this handler to simulate too many errors as it would
      * slow down the test suite.
      */
@@ -187,6 +190,7 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
     private static class AzureHTTPStatsCollectorHandler extends HttpStatsCollectorHandler {
 
+        private static final Logger testLogger = LogManager.getLogger(AzureHTTPStatsCollectorHandler.class);
         private static final Pattern listPattern = Pattern.compile("GET /[a-zA-Z0-9]+\\??.+");
         private static final Pattern getPattern = Pattern.compile("GET /[^?/]+/[^?/]+\\??.*");
 
@@ -196,6 +200,7 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
 
         @Override
         protected void maybeTrack(String request, Headers headers) {
+            testLogger.info(request, headers);
             if (getPattern.matcher(request).matches()) {
                 trackRequest("GetBlob");
             } else if (Regex.simpleMatch("HEAD /*/*", request)) {

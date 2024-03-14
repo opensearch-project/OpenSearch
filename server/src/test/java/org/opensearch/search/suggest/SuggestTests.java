@@ -33,20 +33,21 @@
 package org.opensearch.search.suggest;
 
 import org.opensearch.Version;
-import org.opensearch.core.ParseField;
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.text.Text;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.text.Text;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.suggest.Suggest.Suggestion;
@@ -66,9 +67,9 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.opensearch.common.xcontent.XContentHelper.stripWhitespace;
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -162,7 +163,7 @@ public class SuggestTests extends OpenSearchTestCase {
         PhraseSuggestion suggestion = new PhraseSuggestion("suggestionName", 5);
         suggestion.addTerm(entry);
         Suggest suggest = new Suggest(Collections.singletonList(suggestion));
-        BytesReference xContent = toXContent(suggest, XContentType.JSON, randomBoolean());
+        BytesReference xContent = toXContent(suggest, MediaTypeRegistry.JSON, randomBoolean());
         assertEquals(
             stripWhitespace(
                 "{"

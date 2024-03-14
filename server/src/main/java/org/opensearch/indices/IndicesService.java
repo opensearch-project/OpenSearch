@@ -47,6 +47,7 @@ import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
@@ -60,43 +61,45 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.component.AbstractLifecycleComponent;
-import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
-import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.MetadataStateFormat;
-import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
@@ -121,6 +124,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
+import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.seqno.RetentionLeaseStats;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
@@ -131,24 +135,22 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
-import org.opensearch.index.shard.ShardId;
-import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
+import org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.index.translog.TranslogStats;
-import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.IndexStorePlugin;
-import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -194,8 +196,8 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
-import static org.opensearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
+import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
 import static org.opensearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.opensearch.index.IndexService.IndexCreationContext.METADATA_VERIFICATION;
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -204,8 +206,9 @@ import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 /**
  * Main OpenSearch indices service
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndicesService extends AbstractLifecycleComponent
     implements
         IndicesClusterStateService.AllocatedIndices<IndexShard, IndexService>,
@@ -245,41 +248,68 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
-     * Used to specify if all indexes are to create with remote store enabled by default
+     * Used to specify the default translog buffer interval for remote store backed indexes.
      */
-    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_ENABLED_SETTING = Setting.boolSetting(
-        "cluster.remote_store.enabled",
+    public static final Setting<TimeValue> CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.remote_store.translog.buffer_interval",
+        IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
+        IndexSettings.MINIMUM_REMOTE_TRANSLOG_BUFFER_INTERVAL,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
+     * This setting is used to set the refresh interval when the {@code index.refresh_interval} index setting is not
+     * provided during index creation or when the existing {@code index.refresh_interval} index setting is set as null.
+     * This comes handy when the user wants to set a default refresh interval across all indexes created in a cluster
+     * which is different from 1s and also at the same time have searchIdle feature supported. The setting can only be
+     * as low as the {@code cluster.minimum.index.refresh_interval}.
+     */
+    public static final Setting<TimeValue> CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.default.index.refresh_interval",
+        IndexSettings.DEFAULT_REFRESH_INTERVAL,
+        IndexSettings.MINIMUM_REFRESH_INTERVAL,
+        new ClusterDefaultRefreshIntervalValidator(),
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
+     * This setting is used to set the minimum refresh interval applicable for all indexes in a cluster. The
+     * {@code cluster.default.index.refresh_interval} setting value needs to be higher than this setting's value. Index
+     * creation will fail if the index setting {@code index.refresh_interval} is supplied with a value lower than the
+     * cluster minimum refresh interval.
+     */
+    public static final Setting<TimeValue> CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.minimum.index.refresh_interval",
+        IndexSettings.MINIMUM_REFRESH_INTERVAL,
+        IndexSettings.MINIMUM_REFRESH_INTERVAL,
+        new ClusterMinimumRefreshIntervalValidator(),
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
+     * This setting is used to restrict creation or updation of index where the `index.translog.durability` index setting
+     * is set as ASYNC if enabled. If disabled, any of the durability mode can be used and switched at any later time from
+     * one to another.
+     */
+    public static final Setting<Boolean> CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING = Setting.boolSetting(
+        "cluster.remote_store.index.restrict.async-durability",
         false,
         Property.NodeScope,
         Property.Final
     );
 
     /**
-     * Used to specify default repo to use for segment upload for remote store backed indices
+     * If enabled, this setting enforces that indexes will be created with a replication type matching the cluster setting
+     * defined in cluster.indices.replication.strategy by rejecting any request that specifies a replication type that
+     * does not match the cluster setting. If disabled, a user can choose a replication type on a per-index basis using
+     * the index.replication.type setting.
      */
-    public static final Setting<String> CLUSTER_REMOTE_STORE_REPOSITORY_SETTING = Setting.simpleString(
-        "cluster.remote_store.repository",
-        "",
-        Property.NodeScope,
-        Property.Final
-    );
-
-    /**
-     * Used to specify if all indexes are to create with translog remote store enabled by default
-     */
-    public static final Setting<Boolean> CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING = Setting.boolSetting(
-        "cluster.remote_store.translog.enabled",
+    public static final Setting<Boolean> CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING = Setting.boolSetting(
+        "cluster.index.restrict.replication.type",
         false,
-        Property.NodeScope,
-        Property.Final
-    );
-
-    /**
-     * Used to specify default repo to use for translog upload for remote store backed indices
-     */
-    public static final Setting<String> CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING = Setting.simpleString(
-        "cluster.remote_store.translog.repository",
-        "",
         Property.NodeScope,
         Property.Final
     );
@@ -289,7 +319,6 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     private final Settings settings;
     private final PluginsService pluginsService;
-    private final ExtensionsManager extensionsManager;
     private final NodeEnvironment nodeEnv;
     private final NamedXContentRegistry xContentRegistry;
     private final TimeValue shardsClosedTimeout;
@@ -322,6 +351,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
     private volatile boolean allowExpensiveQueries;
+    private final RecoverySettings recoverySettings;
 
     @Nullable
     private final OpenSearchThreadPoolExecutor danglingIndicesThreadPoolExecutor;
@@ -330,8 +360,10 @@ public class IndicesService extends AbstractLifecycleComponent
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
+    private volatile TimeValue clusterDefaultRefreshInterval;
+    private volatile TimeValue clusterRemoteTranslogBufferInterval;
 
-    private final FileCacheCleaner fileCacheCleaner;
+    private final SearchRequestStats searchRequestStats;
 
     @Override
     protected void doStart() {
@@ -362,19 +394,27 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        FileCacheCleaner fileCacheCleaner
+        SearchRequestStats searchRequestStats,
+        @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        RecoverySettings recoverySettings,
+        CacheService cacheService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
-        this.extensionsManager = null;
         this.nodeEnv = nodeEnv;
         this.xContentRegistry = xContentRegistry;
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
         this.analysisRegistry = analysisRegistry;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.indicesRequestCache = new IndicesRequestCache(settings);
+        this.indicesRequestCache = new IndicesRequestCache(settings, (shardId -> {
+            IndexService indexService = this.indices.get(shardId.getIndex().getUUID());
+            if (indexService == null) {
+                return Optional.empty();
+            }
+            return Optional.of(new IndexShardCacheEntity(indexService.getShard(shardId.id())));
+        }), cacheService);
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -409,7 +449,6 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
-        this.fileCacheCleaner = fileCacheCleaner;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -452,136 +491,45 @@ public class IndicesService extends AbstractLifecycleComponent
         this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
         this.remoteDirectoryFactory = remoteDirectoryFactory;
-        this.translogFactorySupplier = getTranslogFactorySupplier(repositoriesServiceSupplier, threadPool);
+        this.translogFactorySupplier = getTranslogFactorySupplier(repositoriesServiceSupplier, threadPool, remoteStoreStatsTrackerFactory);
+        this.searchRequestStats = searchRequestStats;
+        this.clusterDefaultRefreshInterval = CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING, this::onRefreshIntervalUpdate);
+        this.clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING, this::setClusterRemoteTranslogBufferInterval);
+        this.recoverySettings = recoverySettings;
     }
 
-    public IndicesService(
-        Settings settings,
-        PluginsService pluginsService,
-        ExtensionsManager extensionsManager,
-        NodeEnvironment nodeEnv,
-        NamedXContentRegistry xContentRegistry,
-        AnalysisRegistry analysisRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        MapperRegistry mapperRegistry,
-        NamedWriteableRegistry namedWriteableRegistry,
-        ThreadPool threadPool,
-        IndexScopedSettings indexScopedSettings,
-        CircuitBreakerService circuitBreakerService,
-        BigArrays bigArrays,
-        ScriptService scriptService,
-        ClusterService clusterService,
-        Client client,
-        MetaStateService metaStateService,
-        Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
-        Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
-        ValuesSourceRegistry valuesSourceRegistry,
-        Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        FileCacheCleaner fileCacheCleaner
-    ) {
-        this.settings = settings;
-        this.threadPool = threadPool;
-        this.pluginsService = pluginsService;
-        this.extensionsManager = extensionsManager;
-        this.nodeEnv = nodeEnv;
-        this.xContentRegistry = xContentRegistry;
-        this.valuesSourceRegistry = valuesSourceRegistry;
-        this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
-        this.analysisRegistry = analysisRegistry;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.indicesRequestCache = new IndicesRequestCache(settings);
-        this.indicesQueryCache = new IndicesQueryCache(settings);
-        this.mapperRegistry = mapperRegistry;
-        this.namedWriteableRegistry = namedWriteableRegistry;
-        indexingMemoryController = new IndexingMemoryController(
-            settings,
-            threadPool,
-            // ensure we pull an iter with new shards - flatten makes a copy
-            () -> Iterables.flatten(this).iterator()
-        );
-        this.indexScopedSettings = indexScopedSettings;
-        this.circuitBreakerService = circuitBreakerService;
-        this.bigArrays = bigArrays;
-        this.scriptService = scriptService;
-        this.clusterService = clusterService;
-        this.client = client;
-        this.idFieldDataEnabled = INDICES_ID_FIELD_DATA_ENABLED_SETTING.get(clusterService.getSettings());
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_ID_FIELD_DATA_ENABLED_SETTING, this::setIdFieldDataEnabled);
-        this.indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
-            @Override
-            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
-                assert sizeInBytes >= 0 : "When reducing circuit breaker, it should be adjusted with a number higher or "
-                    + "equal to 0 and not ["
-                    + sizeInBytes
-                    + "]";
-                circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(-sizeInBytes);
-            }
-        });
-        this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
-        this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, indicesRequestCache, logger, threadPool, this.cleanInterval);
-        this.metaStateService = metaStateService;
-        this.engineFactoryProviders = engineFactoryProviders;
-
-        this.directoryFactories = directoryFactories;
-        this.recoveryStateFactories = recoveryStateFactories;
-        this.fileCacheCleaner = fileCacheCleaner;
-        // doClose() is called when shutting down a node, yet there might still be ongoing requests
-        // that we need to wait for before closing some resources such as the caches. In order to
-        // avoid closing these resources while ongoing requests are still being processed, we use a
-        // ref count which will only close them when both this service and all index services are
-        // actually closed
-        indicesRefCount = new AbstractRefCounted("indices") {
-            @Override
-            protected void closeInternal() {
-                try {
-                    IOUtils.close(
-                        analysisRegistry,
-                        indexingMemoryController,
-                        indicesFieldDataCache,
-                        cacheCleaner,
-                        indicesRequestCache,
-                        indicesQueryCache
-                    );
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                } finally {
-                    closeLatch.countDown();
-                }
-            }
-        };
-
-        final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
-        nodeWriteDanglingIndicesInfo = WRITE_DANGLING_INDICES_INFO_SETTING.get(settings);
-        danglingIndicesThreadPoolExecutor = nodeWriteDanglingIndicesInfo
-            ? OpenSearchExecutors.newScaling(
-                nodeName + "/" + DANGLING_INDICES_UPDATE_THREAD_NAME,
-                1,
-                1,
-                0,
-                TimeUnit.MILLISECONDS,
-                daemonThreadFactory(nodeName, DANGLING_INDICES_UPDATE_THREAD_NAME),
-                threadPool.getThreadContext()
-            )
-            : null;
-
-        this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
-        this.remoteDirectoryFactory = remoteDirectoryFactory;
-        this.translogFactorySupplier = getTranslogFactorySupplier(repositoriesServiceSupplier, threadPool);
+    /**
+     * The changes to dynamic cluster setting {@code cluster.default.index.refresh_interval} needs to be updated. This
+     * method gets called whenever the setting changes. We set the instance variable with the updated value as this is
+     * also a supplier to all IndexService that have been created on the node. We also notify the change to all
+     * IndexService instances that are created on this node.
+     *
+     * @param clusterDefaultRefreshInterval the updated cluster default refresh interval.
+     */
+    private void onRefreshIntervalUpdate(TimeValue clusterDefaultRefreshInterval) {
+        this.clusterDefaultRefreshInterval = clusterDefaultRefreshInterval;
+        for (Map.Entry<String, IndexService> entry : indices.entrySet()) {
+            IndexService indexService = entry.getValue();
+            indexService.onRefreshIntervalChange();
+        }
     }
 
     private static BiFunction<IndexSettings, ShardRouting, TranslogFactory> getTranslogFactorySupplier(
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
     ) {
         return (indexSettings, shardRouting) -> {
             if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
                 return new RemoteBlobStoreInternalTranslogFactory(
                     repositoriesServiceSupplier,
                     threadPool,
-                    indexSettings.getRemoteStoreTranslogRepository()
+                    indexSettings.getRemoteStoreTranslogRepository(),
+                    remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId())
                 );
             }
             return new InternalTranslogFactory();
@@ -669,7 +617,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
 
-        return new NodeIndicesStats(commonStats, statsByShard(this, flags));
+        return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats);
     }
 
     Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
@@ -816,7 +764,6 @@ public class IndicesService extends AbstractLifecycleComponent
         };
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
-        finalListeners.add(fileCacheCleaner);
         final IndexService indexService = createIndexService(
             CREATE_INDEX,
             indexMetadata,
@@ -926,9 +873,6 @@ public class IndicesService extends AbstractLifecycleComponent
             indexModule.addIndexOperationListener(operationListener);
         }
         pluginsService.onIndexModule(indexModule);
-        if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-            extensionsManager.onIndexModule(indexModule);
-        }
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
@@ -950,7 +894,10 @@ public class IndicesService extends AbstractLifecycleComponent
             this::isIdFieldDataEnabled,
             valuesSourceRegistry,
             remoteDirectoryFactory,
-            translogFactorySupplier
+            translogFactorySupplier,
+            this::getClusterDefaultRefreshInterval,
+            this::getClusterRemoteTranslogBufferInterval,
+            this.recoverySettings
         );
     }
 
@@ -997,7 +944,7 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * creates a new mapper service for the given index, in order to do administrative work like mapping updates.
      * This *should not* be used for document parsing. Doing so will result in an exception.
-     *
+     * <p>
      * Note: the returned {@link MapperService} should be closed when unneeded.
      */
     public synchronized MapperService createIndexMapperService(IndexMetadata indexMetadata) throws IOException {
@@ -1060,14 +1007,21 @@ public class IndicesService extends AbstractLifecycleComponent
         final Consumer<ShardId> globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode targetNode,
-        final DiscoveryNode sourceNode
+        final DiscoveryNode sourceNode,
+        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer, checkpointPublisher);
+        IndexShard indexShard = indexService.createShard(
+            shardRouting,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            checkpointPublisher,
+            remoteStoreStatsTrackerFactory
+        );
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
@@ -1076,7 +1030,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 .indices()
                 .preparePutMapping()
                 .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
-                .setSource(mapping.source().string(), XContentType.JSON)
+                .setSource(mapping.source().string(), MediaTypeRegistry.JSON)
                 .get();
         }, this);
         return indexShard;
@@ -1126,6 +1080,15 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public IndicesQueryCache getIndicesQueryCache() {
         return indicesQueryCache;
+    }
+
+    /**
+     * Accumulate stats from the passed Object
+     *
+     * @param stats Instance storing {@link DocStatusStats}
+     */
+    public void addDocStatusStats(final DocStatusStats stats) {
+        oldShardsStats.indexingStats.getTotal().getDocStatusStats().add(stats);
     }
 
     /**
@@ -1193,7 +1156,7 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Deletes the index store trying to acquire all shards locks for this index.
      * This method will delete the metadata for the index even if the actual shards can't be locked.
-     *
+     * <p>
      * Package private for testing
      */
     void deleteIndexStore(String reason, IndexMetadata metadata) throws IOException {
@@ -1274,7 +1237,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * This method deletes the shard contents on disk for the given shard ID. This method will fail if the shard deleting
      * is prevented by {@link #canDeleteShardContent(ShardId, IndexSettings)}
      * of if the shards lock can not be acquired.
-     *
+     * <p>
      * On data nodes, if the deleted shard is the last shard folder in its index, the method will attempt to remove
      * the index folder as well.
      *
@@ -1375,7 +1338,10 @@ public class IndicesService extends AbstractLifecycleComponent
 
     /**
      * result type returned by {@link #canDeleteShardContent signaling different reasons why a shard can / cannot be deleted}
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum ShardDeletionCheckResult {
         FOLDER_FOUND_CAN_DELETE, // shard data exists and can be deleted
         STILL_ALLOCATED, // the shard is still allocated / active on this node
@@ -1781,7 +1747,6 @@ public class IndicesService extends AbstractLifecycleComponent
         BytesReference cacheKey,
         CheckedConsumer<StreamOutput, IOException> loader
     ) throws Exception {
-        IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
         CheckedSupplier<BytesReference, IOException> supplier = () -> {
             /* BytesStreamOutput allows to pass the expected size but by default uses
              * BigArrays.PAGE_SIZE_IN_BYTES which is 16k. A common cached result ie.
@@ -1798,7 +1763,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 return out.bytes();
             }
         };
-        return indicesRequestCache.getOrCompute(cacheEntity, supplier, reader, cacheKey);
+        return indicesRequestCache.getOrCompute(new IndexShardCacheEntity(shard), supplier, reader, cacheKey);
     }
 
     /**
@@ -1806,11 +1771,12 @@ public class IndicesService extends AbstractLifecycleComponent
      *
      * @opensearch.internal
      */
-    static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
+    public static class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
+
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexShardCacheEntity.class);
         private final IndexShard indexShard;
 
-        protected IndexShardCacheEntity(IndexShard indexShard) {
+        public IndexShardCacheEntity(IndexShard indexShard) {
             this.indexShard = indexShard;
         }
 
@@ -1853,7 +1819,7 @@ public class IndicesService extends AbstractLifecycleComponent
         CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
             try (
                 InputStream inputStream = bytes.streamInput();
-                XContentParser parser = XContentFactory.xContentType(inputStream)
+                XContentParser parser = MediaTypeRegistry.xContentType(inputStream)
                     .xContent()
                     .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, inputStream)
             ) {
@@ -1984,5 +1950,86 @@ public class IndicesService extends AbstractLifecycleComponent
     public boolean allPendingDanglingIndicesWritten() {
         return nodeWriteDanglingIndicesInfo == false
             || (danglingIndicesToWrite.isEmpty() && danglingIndicesThreadPoolExecutor.getActiveCount() == 0);
+    }
+
+    /**
+     * Validates the cluster default index refresh interval.
+     *
+     * @opensearch.internal
+     */
+    private static final class ClusterDefaultRefreshIntervalValidator implements Setting.Validator<TimeValue> {
+
+        @Override
+        public void validate(TimeValue value) {
+
+        }
+
+        @Override
+        public void validate(final TimeValue defaultRefreshInterval, final Map<Setting<?>, Object> settings) {
+            final TimeValue minimumRefreshInterval = (TimeValue) settings.get(CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING);
+            validateRefreshIntervalSettings(minimumRefreshInterval, defaultRefreshInterval);
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = List.of(CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING);
+            return settings.iterator();
+        }
+    }
+
+    /**
+     * Validates the cluster minimum index refresh interval.
+     *
+     * @opensearch.internal
+     */
+    private static final class ClusterMinimumRefreshIntervalValidator implements Setting.Validator<TimeValue> {
+
+        @Override
+        public void validate(TimeValue value) {
+
+        }
+
+        @Override
+        public void validate(final TimeValue minimumRefreshInterval, final Map<Setting<?>, Object> settings) {
+            final TimeValue defaultRefreshInterval = (TimeValue) settings.get(CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING);
+            validateRefreshIntervalSettings(minimumRefreshInterval, defaultRefreshInterval);
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = List.of(CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING);
+            return settings.iterator();
+        }
+    }
+
+    /**
+     * Validates that the cluster minimum refresh interval is not more than the cluster default refresh interval.
+     *
+     * @param minimumRefreshInterval value of cluster minimum index refresh interval setting
+     * @param defaultRefreshInterval value of cluster default index refresh interval setting
+     */
+    private static void validateRefreshIntervalSettings(TimeValue minimumRefreshInterval, TimeValue defaultRefreshInterval) {
+        if (minimumRefreshInterval.compareTo(defaultRefreshInterval) > 0) {
+            throw new IllegalArgumentException(
+                "cluster minimum index refresh interval ["
+                    + minimumRefreshInterval
+                    + "] more than cluster default index refresh interval ["
+                    + defaultRefreshInterval
+                    + "]"
+            );
+        }
+    }
+
+    private TimeValue getClusterDefaultRefreshInterval() {
+        return this.clusterDefaultRefreshInterval;
+    }
+
+    // Exclusively for testing, please do not use it elsewhere.
+    public TimeValue getClusterRemoteTranslogBufferInterval() {
+        return clusterRemoteTranslogBufferInterval;
+    }
+
+    private void setClusterRemoteTranslogBufferInterval(TimeValue clusterRemoteTranslogBufferInterval) {
+        this.clusterRemoteTranslogBufferInterval = clusterRemoteTranslogBufferInterval;
     }
 }

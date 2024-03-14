@@ -45,13 +45,14 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -67,12 +68,13 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * A bulk request holds an ordered {@link IndexRequest}s, {@link DeleteRequest}s and {@link UpdateRequest}s
  * and allows to executes it in a single batch.
- *
+ * <p>
  * Note that we only support refresh on the bulk request not per item.
  * @see org.opensearch.client.Client#bulk(BulkRequest)
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class BulkRequest extends ActionRequest implements CompositeIndicesRequest, WriteRequest<BulkRequest>, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
@@ -123,7 +125,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     /**
      * Add a request to the current BulkRequest.
-     *
+     * <p>
      * Note for internal callers: This method does not respect all global parameters.
      *                            Only the global index is applied to the request objects.
      *                            Global parameters would be respected if the request was serialized for a REST call as it is
@@ -236,30 +238,30 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(byte[] data, int from, int length, XContentType xContentType) throws IOException {
-        return add(data, from, length, null, xContentType);
+    public BulkRequest add(byte[] data, int from, int length, MediaType mediaType) throws IOException {
+        return add(data, from, length, null, mediaType);
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex, XContentType xContentType) throws IOException {
-        return add(new BytesArray(data, from, length), defaultIndex, xContentType);
+    public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex, MediaType mediaType) throws IOException {
+        return add(new BytesArray(data, from, length), defaultIndex, mediaType);
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, XContentType xContentType) throws IOException {
-        return add(data, defaultIndex, null, null, null, null, true, xContentType);
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, MediaType mediaType) throws IOException {
+        return add(data, defaultIndex, null, null, null, null, true, mediaType);
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, boolean allowExplicitIndex, XContentType xContentType)
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, boolean allowExplicitIndex, MediaType mediaType)
         throws IOException {
-        return add(data, defaultIndex, null, null, null, null, allowExplicitIndex, xContentType);
+        return add(data, defaultIndex, null, null, null, null, allowExplicitIndex, mediaType);
     }
 
     public BulkRequest add(
@@ -269,9 +271,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         @Nullable FetchSourceContext defaultFetchSourceContext,
         @Nullable String defaultPipeline,
         boolean allowExplicitIndex,
-        XContentType xContentType
+        MediaType mediaType
     ) throws IOException {
-        return add(data, defaultIndex, defaultRouting, defaultFetchSourceContext, defaultPipeline, null, allowExplicitIndex, xContentType);
+        return add(data, defaultIndex, defaultRouting, defaultFetchSourceContext, defaultPipeline, null, allowExplicitIndex, mediaType);
     }
 
     public BulkRequest add(
@@ -282,7 +284,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         @Nullable String defaultPipeline,
         @Nullable Boolean defaultRequireAlias,
         boolean allowExplicitIndex,
-        XContentType xContentType
+        MediaType mediaType
     ) throws IOException {
         String routing = valueOrDefault(defaultRouting, globalRouting);
         String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
@@ -295,7 +297,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             pipeline,
             requireAlias,
             allowExplicitIndex,
-            xContentType,
+            mediaType,
             this::internalAdd,
             this::internalAdd,
             this::add
@@ -347,7 +349,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     /**
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
-     *
+     * <p>
      * - {@link BulkRequest#add(IndexRequest)}
      * - {@link BulkRequest#add(UpdateRequest)}
      * - {@link BulkRequest#add(DocWriteRequest)}
@@ -364,7 +366,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     /**
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
-     *
+     * <p>
       - {@link BulkRequest#add(IndexRequest)}
       - {@link BulkRequest#add(UpdateRequest)}
       - {@link BulkRequest#add(DocWriteRequest)}
@@ -404,7 +406,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     /**
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
-     *
+     * <p>
      * - {@link BulkRequest#add(IndexRequest)}
      * - {@link BulkRequest#add(UpdateRequest)}
      * - {@link BulkRequest#add(DocWriteRequest)}
@@ -463,7 +465,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     }
 
     private static String valueOrDefault(String value, String globalDefault) {
-        if (Strings.isNullOrEmpty(value) && !Strings.isNullOrEmpty(globalDefault)) {
+        if (Strings.isNullOrEmpty(value) && Strings.isNullOrEmpty(globalDefault) == false) {
             return globalDefault;
         }
         return value;

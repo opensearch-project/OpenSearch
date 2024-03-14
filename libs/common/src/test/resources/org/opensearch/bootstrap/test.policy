@@ -1,0 +1,16 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+grant {
+  // allow to use JVM tooling (Java Compiler) in tests for annotation processing 
+  permission java.io.FilePermission "${java.home}/lib/*", "read";
+  permission java.io.FilePermission "${java.home}/lib/modules/*", "read";
+  permission java.lang.RuntimePermission "accessSystemModules";
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.RuntimePermission "accessClassInPackage.*";
+};

@@ -32,11 +32,16 @@
 
 package org.opensearch.core.xcontent;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.io.IOException;
 
 /**
  * Reads an object from a parser using some context.
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 @FunctionalInterface
 public interface ContextParser<Context, T> {
     T parse(XContentParser p, Context c) throws IOException;

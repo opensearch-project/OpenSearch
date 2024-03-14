@@ -1,8 +1,8 @@
 ---
 "Test basic pipeline crud":
   - skip:
-      version: " - 2.99.99"
-      reason: "to be introduced in future release / TODO: change if/when we backport to 2.x"
+      version: " - 2.6.99"
+      reason: "Added in 2.7.0"
   - do:
       search_pipeline.put:
         id: "my_pipeline"
@@ -32,8 +32,8 @@
 ---
 "Test Put Versioned Pipeline":
   - skip:
-      version: " - 2.99.99"
-      reason: "to be introduced in future release / TODO: change if/when we backport to 2.x"
+      version: " - 2.6.99"
+      reason: "Added in 2.7.0"
   - do:
       search_pipeline.put:
         id: "my_pipeline"
@@ -125,8 +125,8 @@
 ---
 "Test Get All Pipelines":
   - skip:
-      version: " - 2.99.99"
-      reason: "to be introduced in future release / TODO: change if/when we backport to 2.x"
+      version: " - 2.6.99"
+      reason: "Added in 2.7.0"
   - do:
       search_pipeline.put:
         id: "first_pipeline"
@@ -152,8 +152,8 @@
 ---
 "Test invalid config":
   - skip:
-      version: " - 2.99.99"
-      reason: "to be introduced in future release / TODO: change if/when we backport to 2.x"
+      version: " - 2.6.99"
+      reason: "Added in 2.7.0"
   - do:
       catch: /parse_exception/
       search_pipeline.put:

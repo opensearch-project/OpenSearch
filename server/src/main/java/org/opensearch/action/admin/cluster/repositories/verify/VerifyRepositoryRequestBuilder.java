@@ -34,12 +34,14 @@ package org.opensearch.action.admin.cluster.repositories.verify;
 
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Builder for verify repository request
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class VerifyRepositoryRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
     VerifyRepositoryRequest,
     VerifyRepositoryResponse,

@@ -32,8 +32,8 @@
 
 package org.opensearch.snapshots;
 
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -73,6 +73,8 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
 
         Map<String, Object> userMetadata = randomUserMetadata();
 
+        Boolean remoteStoreIndexShallowCopy = randomBoolean() ? null : randomBoolean();
+
         return new SnapshotInfo(
             snapshotId,
             indices,
@@ -83,7 +85,8 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
             totalShards,
             shardFailures,
             includeGlobalState,
-            userMetadata
+            userMetadata,
+            remoteStoreIndexShallowCopy
         );
     }
 
@@ -94,7 +97,7 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
 
     @Override
     protected SnapshotInfo mutateInstance(SnapshotInfo instance) {
-        switch (randomIntBetween(0, 8)) {
+        switch (randomIntBetween(0, 9)) {
             case 0:
                 SnapshotId snapshotId = new SnapshotId(
                     randomValueOtherThan(instance.snapshotId().getName(), () -> randomAlphaOfLength(5)),
@@ -110,7 +113,8 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.totalShards(),
                     instance.shardFailures(),
                     instance.includeGlobalState(),
-                    instance.userMetadata()
+                    instance.userMetadata(),
+                    instance.isRemoteStoreIndexShallowCopyEnabled()
                 );
             case 1:
                 int indicesSize = randomValueOtherThan(instance.indices().size(), () -> randomIntBetween(1, 10));
@@ -127,7 +131,8 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.totalShards(),
                     instance.shardFailures(),
                     instance.includeGlobalState(),
-                    instance.userMetadata()
+                    instance.userMetadata(),
+                    instance.isRemoteStoreIndexShallowCopyEnabled()
                 );
             case 2:
                 return new SnapshotInfo(
@@ -140,7 +145,8 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.totalShards(),
                     instance.shardFailures(),
                     instance.includeGlobalState(),
-                    instance.userMetadata()
+                    instance.userMetadata(),
+                    instance.isRemoteStoreIndexShallowCopyEnabled()
                 );
             case 3:
                 return new SnapshotInfo(
@@ -153,7 +159,8 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.totalShards(),
                     instance.shardFailures(),
                     instance.includeGlobalState(),
-                    instance.userMetadata()
+                    instance.userMetadata(),
+                    instance.isRemoteStoreIndexShallowCopyEnabled()
                 );
             case 4:
                 return new SnapshotInfo(
@@ -166,7 +173,8 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.totalShards(),
                     instance.shardFailures(),
                     instance.includeGlobalState(),
-                    instance.userMetadata()
+                    instance.userMetadata(),
+                    instance.isRemoteStoreIndexShallowCopyEnabled()
                 );
             case 5:
                 int totalShards = randomValueOtherThan(instance.totalShards(), () -> randomIntBetween(0, 100));
@@ -191,7 +199,8 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     totalShards,
                     shardFailures,
                     instance.includeGlobalState(),
-                    instance.userMetadata()
+                    instance.userMetadata(),
+                    instance.isRemoteStoreIndexShallowCopyEnabled()
                 );
             case 6:
                 return new SnapshotInfo(
@@ -204,7 +213,8 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.totalShards(),
                     instance.shardFailures(),
                     Boolean.FALSE.equals(instance.includeGlobalState()),
-                    instance.userMetadata()
+                    instance.userMetadata(),
+                    instance.isRemoteStoreIndexShallowCopyEnabled()
                 );
             case 7:
                 return new SnapshotInfo(
@@ -217,7 +227,8 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.totalShards(),
                     instance.shardFailures(),
                     instance.includeGlobalState(),
-                    randomValueOtherThan(instance.userMetadata(), SnapshotInfoTests::randomUserMetadata)
+                    randomValueOtherThan(instance.userMetadata(), SnapshotInfoTests::randomUserMetadata),
+                    instance.isRemoteStoreIndexShallowCopyEnabled()
                 );
             case 8:
                 List<String> dataStreams = randomValueOtherThan(
@@ -234,7 +245,22 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.totalShards(),
                     instance.shardFailures(),
                     instance.includeGlobalState(),
-                    instance.userMetadata()
+                    instance.userMetadata(),
+                    instance.isRemoteStoreIndexShallowCopyEnabled()
+                );
+            case 9:
+                return new SnapshotInfo(
+                    instance.snapshotId(),
+                    instance.indices(),
+                    instance.dataStreams(),
+                    instance.startTime(),
+                    instance.reason(),
+                    instance.endTime(),
+                    instance.totalShards(),
+                    instance.shardFailures(),
+                    instance.includeGlobalState(),
+                    instance.userMetadata(),
+                    Boolean.FALSE.equals(instance.isRemoteStoreIndexShallowCopyEnabled())
                 );
             default:
                 throw new IllegalArgumentException("invalid randomization case");

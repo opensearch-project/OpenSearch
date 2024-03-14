@@ -8,8 +8,10 @@
 
 package org.opensearch.extensions.action;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import com.google.protobuf.ByteString;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.extensions.proto.ExtensionTransportMessageProto.ExtensionTransportMessage;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -21,14 +23,7 @@ import java.util.Objects;
  * @opensearch.api
  */
 public class ExtensionHandleTransportRequest extends TransportRequest {
-    /**
-     * action is the transport action intended to be invoked which is registered by an extension via {@link ExtensionTransportActionsHandler}.
-     */
-    private final String action;
-    /**
-     * requestBytes is the raw bytes being transported between extensions.
-     */
-    private final byte[] requestBytes;
+    private final ExtensionTransportMessage request;
 
     /**
      * ExtensionHandleTransportRequest constructor.
@@ -36,9 +31,8 @@ public class ExtensionHandleTransportRequest extends TransportRequest {
      * @param action is the transport action intended to be invoked which is registered by an extension via {@link ExtensionTransportActionsHandler}.
      * @param requestBytes is the raw bytes being transported between extensions.
      */
-    public ExtensionHandleTransportRequest(String action, byte[] requestBytes) {
-        this.action = action;
-        this.requestBytes = requestBytes;
+    public ExtensionHandleTransportRequest(String action, ByteString requestBytes) {
+        this.request = ExtensionTransportMessage.newBuilder().setAction(action).setRequestBytes(requestBytes).build();
     }
 
     /**
@@ -49,28 +43,26 @@ public class ExtensionHandleTransportRequest extends TransportRequest {
      */
     public ExtensionHandleTransportRequest(StreamInput in) throws IOException {
         super(in);
-        this.action = in.readString();
-        this.requestBytes = in.readByteArray();
+        this.request = ExtensionTransportMessage.parseFrom(in.readByteArray());
     }
 
     public String getAction() {
-        return this.action;
+        return this.request.getAction();
     }
 
-    public byte[] getRequestBytes() {
-        return this.requestBytes;
+    public ByteString getRequestBytes() {
+        return this.request.getRequestBytes();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(action);
-        out.writeByteArray(requestBytes);
+        out.writeByteArray(request.toByteArray());
     }
 
     @Override
     public String toString() {
-        return "ExtensionHandleTransportRequest{action=" + action + ", requestBytes=" + requestBytes + "}";
+        return "ExtensionHandleTransportRequest{action=" + request.getAction() + ", requestBytes=" + request.getRequestBytes() + "}";
     }
 
     @Override
@@ -78,12 +70,13 @@ public class ExtensionHandleTransportRequest extends TransportRequest {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         ExtensionHandleTransportRequest that = (ExtensionHandleTransportRequest) obj;
-        return Objects.equals(action, that.action) && Objects.equals(requestBytes, that.requestBytes);
+        return Objects.equals(request.getAction(), that.request.getAction())
+            && Objects.equals(request.getRequestBytes(), that.request.getRequestBytes());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(action, requestBytes);
+        return Objects.hash(request.getAction(), request.getRequestBytes());
     }
 
 }

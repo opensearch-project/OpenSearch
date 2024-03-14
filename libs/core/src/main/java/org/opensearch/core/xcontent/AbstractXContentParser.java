@@ -34,9 +34,9 @@ package org.opensearch.core.xcontent;
 
 import org.opensearch.common.Booleans;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.Numbers;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.util.ArrayList;
@@ -85,6 +85,18 @@ public abstract class AbstractXContentParser implements XContentParser {
         if (!coerce) {
             double fullVal = doDoubleValue();
             if (result != fullVal) {
+                // Need to throw type IllegalArgumentException as current catch
+                // logic in NumberFieldMapper.parseCreateField relies on this
+                // for "malformed" value detection
+                throw new IllegalArgumentException(fullVal + " cannot be converted to " + clazz.getSimpleName() + " without data loss");
+            }
+        }
+    }
+
+    void ensureNumberConversion(boolean coerce, BigInteger result, Class<? extends Number> clazz) throws IOException {
+        if (!coerce) {
+            double fullVal = doDoubleValue();
+            if (result.doubleValue() != fullVal) {
                 // Need to throw type IllegalArgumentException as current catch
                 // logic in NumberFieldMapper.parseCreateField relies on this
                 // for "malformed" value detection
@@ -167,44 +179,6 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     protected abstract int doIntValue() throws IOException;
 
-    private static BigInteger LONG_MAX_VALUE_AS_BIGINTEGER = BigInteger.valueOf(Long.MAX_VALUE);
-    private static BigInteger LONG_MIN_VALUE_AS_BIGINTEGER = BigInteger.valueOf(Long.MIN_VALUE);
-    // weak bounds on the BigDecimal representation to allow for coercion
-    private static BigDecimal BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE = BigDecimal.valueOf(Long.MAX_VALUE).add(BigDecimal.ONE);
-    private static BigDecimal BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE = BigDecimal.valueOf(Long.MIN_VALUE).subtract(BigDecimal.ONE);
-
-    /** Return the long that {@code stringValue} stores or throws an exception if the
-     *  stored value cannot be converted to a long that stores the exact same
-     *  value and {@code coerce} is false. */
-    private static long toLong(String stringValue, boolean coerce) {
-        try {
-            return Long.parseLong(stringValue);
-        } catch (NumberFormatException e) {
-            // we will try again with BigDecimal
-        }
-
-        final BigInteger bigIntegerValue;
-        try {
-            final BigDecimal bigDecimalValue = new BigDecimal(stringValue);
-            if (bigDecimalValue.compareTo(BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE) >= 0
-                || bigDecimalValue.compareTo(BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE) <= 0) {
-                throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");
-            }
-            bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
-        } catch (ArithmeticException e) {
-            throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
-        }
-
-        if (bigIntegerValue.compareTo(LONG_MAX_VALUE_AS_BIGINTEGER) > 0 || bigIntegerValue.compareTo(LONG_MIN_VALUE_AS_BIGINTEGER) < 0) {
-            throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");
-        }
-
-        assert bigIntegerValue.longValueExact() <= Long.MAX_VALUE; // asserting that no ArithmeticException is thrown
-        return bigIntegerValue.longValue();
-    }
-
     @Override
     public long longValue() throws IOException {
         return longValue(DEFAULT_NUMBER_COERCE_POLICY);
@@ -215,7 +189,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Long.class);
-            return toLong(text(), coerce);
+            return Numbers.toLong(text(), coerce);
         }
         long result = doLongValue();
         ensureNumberConversion(coerce, result, Long.class);
@@ -257,6 +231,25 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     protected abstract double doDoubleValue() throws IOException;
+
+    @Override
+    public BigInteger bigIntegerValue() throws IOException {
+        return bigIntegerValue(DEFAULT_NUMBER_COERCE_POLICY);
+    }
+
+    @Override
+    public BigInteger bigIntegerValue(boolean coerce) throws IOException {
+        Token token = currentToken();
+        if (token == Token.VALUE_STRING) {
+            checkCoerceString(coerce, BigInteger.class);
+            return Numbers.toUnsignedLong(text(), coerce);
+        }
+        BigInteger result = doBigIntegerValue();
+        ensureNumberConversion(coerce, result, BigInteger.class);
+        return result;
+    }
+
+    protected abstract BigInteger doBigIntegerValue() throws IOException;
 
     @Override
     public final String textOrNull() throws IOException {

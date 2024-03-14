@@ -34,9 +34,9 @@ package org.opensearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -157,6 +157,17 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                                 compositeValuesSourceConfig.reverseMul()
                             );
 
+                        } else if (vs.isBigInteger()) {
+                            return new UnsignedLongValuesSource(
+                                bigArrays,
+                                compositeValuesSourceConfig.fieldType(),
+                                vs::longValues,
+                                compositeValuesSourceConfig.format(),
+                                compositeValuesSourceConfig.missingBucket(),
+                                compositeValuesSourceConfig.missingOrder(),
+                                size,
+                                compositeValuesSourceConfig.reverseMul()
+                            );
                         } else {
                             final LongUnaryOperator rounding;
                             rounding = LongUnaryOperator.identity();

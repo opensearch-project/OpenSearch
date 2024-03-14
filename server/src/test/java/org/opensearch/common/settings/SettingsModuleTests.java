@@ -34,9 +34,11 @@ package org.opensearch.common.settings;
 
 import org.opensearch.common.inject.ModuleTestCase;
 import org.opensearch.common.settings.Setting.Property;
-import org.hamcrest.Matchers;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.search.SearchService;
 import org.opensearch.test.FeatureFlagSetter;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 
@@ -240,48 +242,87 @@ public class SettingsModuleTests extends ModuleTestCase {
         );
     }
 
-    public void testDynamicNodeSettingsRegistration() throws Exception {
-        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.EXTENSIONS)) {
-            Settings settings = Settings.builder().put("some.custom.setting", "2.0").build();
-            SettingsModule module = new SettingsModule(settings, Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope));
-            assertNotNull(module.getClusterSettings().get("some.custom.setting"));
-            // For unregistered setting the value is expected to be null
-            assertNull(module.getClusterSettings().get("some.custom.setting2"));
-            assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+    public void testDynamicNodeSettingsRegistration() {
+        FeatureFlagSetter.set(FeatureFlags.EXTENSIONS);
+        Settings settings = Settings.builder().put("some.custom.setting", "2.0").build();
+        SettingsModule module = new SettingsModule(settings, Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope));
+        assertNotNull(module.getClusterSettings().get("some.custom.setting"));
+        // For unregistered setting the value is expected to be null
+        assertNull(module.getClusterSettings().get("some.custom.setting2"));
+        assertInstanceBinding(module, Settings.class, (s) -> s == settings);
 
-            assertTrue(module.registerDynamicSetting(Setting.floatSetting("some.custom.setting2", 1.0f, Property.NodeScope)));
-            assertNotNull(module.getClusterSettings().get("some.custom.setting2"));
-            // verify if some.custom.setting still exists
-            assertNotNull(module.getClusterSettings().get("some.custom.setting"));
+        assertTrue(module.registerDynamicSetting(Setting.floatSetting("some.custom.setting2", 1.0f, Property.NodeScope)));
+        assertNotNull(module.getClusterSettings().get("some.custom.setting2"));
+        // verify if some.custom.setting still exists
+        assertNotNull(module.getClusterSettings().get("some.custom.setting"));
 
-            // verify exception is thrown when setting registration fails
-            expectThrows(
-                SettingsException.class,
-                () -> module.registerDynamicSetting(Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope))
-            );
-        }
+        // verify exception is thrown when setting registration fails
+        expectThrows(
+            SettingsException.class,
+            () -> module.registerDynamicSetting(Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope))
+        );
     }
 
-    public void testDynamicIndexSettingsRegistration() throws Exception {
-        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.EXTENSIONS)) {
-            Settings settings = Settings.builder().put("some.custom.setting", "2.0").build();
-            SettingsModule module = new SettingsModule(settings, Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope));
-            assertNotNull(module.getClusterSettings().get("some.custom.setting"));
-            // For unregistered setting the value is expected to be null
-            assertNull(module.getIndexScopedSettings().get("index.custom.setting2"));
-            assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+    public void testDynamicIndexSettingsRegistration() {
+        FeatureFlagSetter.set(FeatureFlags.EXTENSIONS);
+        Settings settings = Settings.builder().put("some.custom.setting", "2.0").build();
+        SettingsModule module = new SettingsModule(settings, Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope));
+        assertNotNull(module.getClusterSettings().get("some.custom.setting"));
+        // For unregistered setting the value is expected to be null
+        assertNull(module.getIndexScopedSettings().get("index.custom.setting2"));
+        assertInstanceBinding(module, Settings.class, (s) -> s == settings);
 
-            assertTrue(module.registerDynamicSetting(Setting.floatSetting("index.custom.setting2", 1.0f, Property.IndexScope)));
-            assertNotNull(module.getIndexScopedSettings().get("index.custom.setting2"));
+        assertTrue(module.registerDynamicSetting(Setting.floatSetting("index.custom.setting2", 1.0f, Property.IndexScope)));
+        assertNotNull(module.getIndexScopedSettings().get("index.custom.setting2"));
 
-            // verify if some.custom.setting still exists
-            assertNotNull(module.getClusterSettings().get("some.custom.setting"));
+        // verify if some.custom.setting still exists
+        assertNotNull(module.getClusterSettings().get("some.custom.setting"));
 
-            // verify exception is thrown when setting registration fails
-            expectThrows(
-                SettingsException.class,
-                () -> module.registerDynamicSetting(Setting.floatSetting("index.custom.setting2", 1.0f, Property.IndexScope))
-            );
-        }
+        // verify exception is thrown when setting registration fails
+        expectThrows(
+            SettingsException.class,
+            () -> module.registerDynamicSetting(Setting.floatSetting("index.custom.setting2", 1.0f, Property.IndexScope))
+        );
+    }
+
+    public void testConcurrentSegmentSearchClusterSettings() {
+        boolean settingValue = randomBoolean();
+        Settings settings = Settings.builder().put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), settingValue).build();
+        SettingsModule settingsModule = new SettingsModule(settings);
+        assertEquals(settingValue, SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.get(settingsModule.getSettings()));
+    }
+
+    public void testConcurrentSegmentSearchIndexSettings() {
+        Settings.Builder target = Settings.builder().put(Settings.EMPTY);
+        Settings.Builder update = Settings.builder();
+
+        SettingsModule module = new SettingsModule(Settings.EMPTY);
+        IndexScopedSettings indexScopedSettings = module.getIndexScopedSettings();
+        indexScopedSettings.updateDynamicSettings(
+            Settings.builder().put(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build(),
+            target,
+            update,
+            "node"
+        );
+    }
+
+    public void testMaxSliceCountClusterSettingsForConcurrentSearch() {
+        int settingValue = randomIntBetween(0, 10);
+        Settings settings = Settings.builder()
+            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), settingValue)
+            .build();
+        SettingsModule settingsModule = new SettingsModule(settings);
+        assertEquals(
+            settingValue,
+            (int) SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.get(settingsModule.getSettings())
+        );
+
+        // Test that negative value is not allowed
+        settingValue = -1;
+        final Settings settings_2 = Settings.builder()
+            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey(), settingValue)
+            .build();
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(settings_2));
+        assertTrue(iae.getMessage().contains(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING.getKey()));
     }
 }

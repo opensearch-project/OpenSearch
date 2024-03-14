@@ -32,8 +32,6 @@
 
 package org.opensearch.common.util;
 
-import com.carrotsearch.hppc.BitMixer;
-
 import org.opensearch.common.lease.Releasables;
 
 /**

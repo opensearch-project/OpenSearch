@@ -41,10 +41,10 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.geo.GeoPoint;
@@ -428,6 +428,8 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             case NUMERIC:
             case LONG:
                 return new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.LONG);
+            case UNSIGNED_LONG:
+                return new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.UNSIGNED_LONG);
             case DATE:
                 return new DateFieldMapper.DateFieldType(name);
             case IP:

@@ -36,6 +36,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
 import java.util.Arrays;
+import java.util.Collections;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
@@ -55,7 +56,12 @@ public class ClearIndicesCacheBlocksIT extends OpenSearchIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         // Request is not blocked
-        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
+        for (String blockSetting : Arrays.asList(
+            SETTING_BLOCKS_READ,
+            SETTING_BLOCKS_WRITE,
+            SETTING_READ_ONLY,
+            SETTING_READ_ONLY_ALLOW_DELETE
+        )) {
             try {
                 enableIndexBlock("test", blockSetting);
                 ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin()
@@ -73,12 +79,50 @@ public class ClearIndicesCacheBlocksIT extends OpenSearchIntegTestCase {
             }
         }
         // Request is blocked
-        for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA, SETTING_READ_ONLY_ALLOW_DELETE)) {
+        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_METADATA)) {
             try {
                 enableIndexBlock("test", blockSetting);
                 assertBlocked(
                     client().admin().indices().prepareClearCache("test").setFieldDataCache(true).setQueryCache(true).setFieldDataCache(true)
                 );
+            } finally {
+                disableIndexBlock("test", blockSetting);
+            }
+        }
+    }
+
+    public void testClearIndicesFileCacheWithBlocks() {
+        createIndex("test");
+        ensureGreen("test");
+
+        NumShards numShards = getNumShards("test");
+
+        // Request is not blocked
+        for (String blockSetting : Arrays.asList(
+            SETTING_BLOCKS_READ,
+            SETTING_BLOCKS_WRITE,
+            SETTING_READ_ONLY,
+            SETTING_READ_ONLY_ALLOW_DELETE
+        )) {
+            try {
+                enableIndexBlock("test", blockSetting);
+                ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin()
+                    .indices()
+                    .prepareClearCache("test")
+                    .setFileCache(true)
+                    .execute()
+                    .actionGet();
+                assertNoFailures(clearIndicesCacheResponse);
+                assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
+            } finally {
+                disableIndexBlock("test", blockSetting);
+            }
+        }
+
+        for (String blockSetting : Collections.singletonList(SETTING_BLOCKS_METADATA)) {
+            try {
+                enableIndexBlock("test", blockSetting);
+                assertBlocked(client().admin().indices().prepareClearCache("test").setQueryCache(true).setFileCache(true));
             } finally {
                 disableIndexBlock("test", blockSetting);
             }

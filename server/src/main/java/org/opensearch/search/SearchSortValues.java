@@ -33,14 +33,15 @@
 package org.opensearch.search;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.search.SearchHit.Fields;
 
 import java.io.IOException;
@@ -50,8 +51,9 @@ import java.util.Objects;
 /**
  * Values to sort during search
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SearchSortValues implements ToXContentFragment, Writeable {
 
     private static final Object[] EMPTY_ARRAY = new Object[0];
@@ -78,6 +80,8 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
             if (sortValue instanceof BytesRef) {
                 this.formattedSortValues[i] = sortValueFormats[i].format((BytesRef) sortValue);
             } else if ((sortValue instanceof Long) && (sortValueFormats[i] == DocValueFormat.UNSIGNED_LONG_SHIFTED)) {
+                this.formattedSortValues[i] = sortValueFormats[i].format((Long) sortValue);
+            } else if ((sortValue instanceof Long) && (sortValueFormats[i] == DocValueFormat.UNSIGNED_LONG)) {
                 this.formattedSortValues[i] = sortValueFormats[i].format((Long) sortValue);
             } else {
                 this.formattedSortValues[i] = sortValue;

@@ -35,22 +35,22 @@ package org.opensearch.index.reindex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.ingest.DeletePipelineRequest;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.action.ActionFuture;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.tasks.TaskCancelledException;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.Engine.Operation.Origin;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.shard.IndexingOperationListener;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.ingest.IngestTestPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.tasks.TaskInfo;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -263,7 +263,7 @@ public class CancelTests extends ReindexTestCase {
                 + "  } ]\n"
                 + "}"
         );
-        assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, XContentType.JSON).get());
+        assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, MediaTypeRegistry.JSON).get());
 
         testCancel(UpdateByQueryAction.NAME, updateByQuery().setPipeline("set-processed").source(INDEX), (response, total, modified) -> {
             assertThat(response, matcher().updated(modified).reasonCancelled(equalTo("by user request")));
@@ -307,7 +307,7 @@ public class CancelTests extends ReindexTestCase {
                 + "  } ]\n"
                 + "}"
         );
-        assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, XContentType.JSON).get());
+        assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, MediaTypeRegistry.JSON).get());
 
         testCancel(
             UpdateByQueryAction.NAME,

@@ -35,6 +35,7 @@ package org.opensearch.common.logging;
 import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.common.logging.LoggerMessageFormat;
 import org.opensearch.tasks.Task;
 
 import java.nio.charset.Charset;

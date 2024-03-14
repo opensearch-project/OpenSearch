@@ -42,11 +42,13 @@ import org.opensearch.client.cluster.RemoteConnectionInfo;
 import org.opensearch.client.cluster.RemoteInfoRequest;
 import org.opensearch.client.indices.CreateIndexRequest;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 
 public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
@@ -112,7 +114,7 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
         assertFalse(rci.isConnected());
     }
 
-    public void testHAProxyModeConnectionWorks() throws IOException {
+    public void testHAProxyModeConnectionWorks() throws Exception {
         String proxyAddress = "haproxy:9600";
         logger.info("Configuring remote cluster [{}]", proxyAddress);
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(Settings.builder()
@@ -121,12 +123,14 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
             .build());
         assertTrue(cluster1Client().cluster().putSettings(request, RequestOptions.DEFAULT).isAcknowledged());
 
-        RemoteConnectionInfo rci = cluster1Client().cluster().remoteInfo(new RemoteInfoRequest(), RequestOptions.DEFAULT).getInfos().get(0);
-        logger.info("Connection info: {}", rci);
-        if (!rci.isConnected()) {    
-            logger.info("Cluster health: {}", cluster1Client().cluster().health(new ClusterHealthRequest(), RequestOptions.DEFAULT));
-        }
-        assertTrue(rci.isConnected());
+        assertBusy(() -> {
+            RemoteConnectionInfo rci = cluster1Client().cluster().remoteInfo(new RemoteInfoRequest(), RequestOptions.DEFAULT).getInfos().get(0);
+            logger.info("Connection info: {}", rci);
+            if (!rci.isConnected()) {
+                logger.info("Cluster health: {}", cluster1Client().cluster().health(new ClusterHealthRequest(), RequestOptions.DEFAULT));
+            }
+            assertTrue(rci.isConnected());
+        }, 10, TimeUnit.SECONDS);
 
         assertEquals(2L, cluster1Client().search(
             new SearchRequest("haproxynosn:test2"), RequestOptions.DEFAULT).getHits().getTotalHits().value);

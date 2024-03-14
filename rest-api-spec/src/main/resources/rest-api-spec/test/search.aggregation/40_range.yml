@@ -427,3 +427,104 @@ setup:
   - match: { aggregations.date_range.buckets.0.key: "2020-01-01T00:00:00.000Z-*" }
   - is_false: aggregations.date_range.buckets.0.to
   - match: { aggregations.date_range.buckets.0.sounds.value: 0 }
+
+---
+"Unsigned long range":
+  - skip:
+      version: " - 2.7.99"
+      reason: unsigned_long is not supported before 2.8.0
+
+  - do:
+      indices.put_mapping:
+        index: test
+        body:
+          properties:
+            unsigned:
+              type: unsigned_long
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "unsigned" : 42 }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "unsigned" : 100 }
+
+  - do:
+      index:
+        index: test
+        id: 3
+        body: { "unsigned" : 50 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "unsigned_long_range" : { "range" : { "field" : "unsigned", "ranges": [ { "to": 50 }, { "from": 50, "to": 150 }, { "from": 150 } ] } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.unsigned_long_range.buckets: 3 }
+
+  - match: { aggregations.unsigned_long_range.buckets.0.key: "*-50.0" }
+
+  - is_false: aggregations.unsigned_long_range.buckets.0.from
+
+  - match: { aggregations.unsigned_long_range.buckets.0.to: 50.0 }
+
+  - match: { aggregations.unsigned_long_range.buckets.0.doc_count: 1 }
+
+  - match: { aggregations.unsigned_long_range.buckets.1.key: "50.0-150.0" }
+
+  - match: { aggregations.unsigned_long_range.buckets.1.from: 50.0 }
+
+  - match: { aggregations.unsigned_long_range.buckets.1.to: 150.0 }
+
+  - match: { aggregations.unsigned_long_range.buckets.1.doc_count: 2 }
+
+  - match: { aggregations.unsigned_long_range.buckets.2.key: "150.0-*" }
+
+  - match: { aggregations.unsigned_long_range.buckets.2.from: 150.0 }
+
+  - is_false:  aggregations.unsigned_long_range.buckets.2.to
+
+  - match: { aggregations.unsigned_long_range.buckets.2.doc_count: 0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "unsigned_long_range" : { "range" : { "field" : "unsigned", "ranges": [ { "from": null, "to": 50 }, { "from": 50, "to": 150 }, { "from": 150, "to": null } ] } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.unsigned_long_range.buckets: 3 }
+
+  - match: { aggregations.unsigned_long_range.buckets.0.key: "*-50.0" }
+
+  - is_false: aggregations.unsigned_long_range.buckets.0.from
+
+  - match: { aggregations.unsigned_long_range.buckets.0.to: 50.0 }
+
+  - match: { aggregations.unsigned_long_range.buckets.0.doc_count: 1 }
+
+  - match: { aggregations.unsigned_long_range.buckets.1.key: "50.0-150.0" }
+
+  - match: { aggregations.unsigned_long_range.buckets.1.from: 50.0 }
+
+  - match: { aggregations.unsigned_long_range.buckets.1.to: 150.0 }
+
+  - match: { aggregations.unsigned_long_range.buckets.1.doc_count: 2 }
+
+  - match: { aggregations.unsigned_long_range.buckets.2.key: "150.0-*" }
+
+  - match: { aggregations.unsigned_long_range.buckets.2.from: 150.0 }
+
+  - is_false:  aggregations.unsigned_long_range.buckets.2.to
+
+  - match: { aggregations.unsigned_long_range.buckets.2.doc_count: 0 }

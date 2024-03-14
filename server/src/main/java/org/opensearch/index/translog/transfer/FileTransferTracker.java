@@ -8,12 +8,16 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,14 +30,43 @@ public class FileTransferTracker implements FileTransferListener {
 
     private final ConcurrentHashMap<String, TransferState> fileTransferTracker;
     private final ShardId shardId;
+    private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
+    private Map<String, Long> bytesForTlogCkpFileToUpload;
+    private long fileTransferStartTime = -1;
 
-    public FileTransferTracker(ShardId shardId) {
+    public FileTransferTracker(ShardId shardId, RemoteTranslogTransferTracker remoteTranslogTransferTracker) {
         this.shardId = shardId;
         this.fileTransferTracker = new ConcurrentHashMap<>();
+        this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
+    }
+
+    void recordFileTransferStartTime(long uploadStartTime) {
+        // Recording the start time more than once for a sync is invalid
+        if (fileTransferStartTime == -1) {
+            fileTransferStartTime = uploadStartTime;
+        }
+    }
+
+    void recordBytesForFiles(Set<TransferFileSnapshot> toUpload) {
+        bytesForTlogCkpFileToUpload = new HashMap<>();
+        toUpload.forEach(file -> {
+            try {
+                bytesForTlogCkpFileToUpload.put(file.getName(), file.getContentLength());
+            } catch (IOException ignored) {
+                bytesForTlogCkpFileToUpload.put(file.getName(), 0L);
+            }
+        });
+    }
+
+    long getTotalBytesToUpload() {
+        return bytesForTlogCkpFileToUpload.values().stream().reduce(0L, Long::sum);
     }
 
     @Override
     public void onSuccess(TransferFileSnapshot fileSnapshot) {
+        long durationInMillis = (System.nanoTime() - fileTransferStartTime) / 1_000_000L;
+        remoteTranslogTransferTracker.addUploadTimeInMillis(durationInMillis);
+        remoteTranslogTransferTracker.addUploadBytesSucceeded(bytesForTlogCkpFileToUpload.get(fileSnapshot.getName()));
         add(fileSnapshot.getName(), TransferState.SUCCESS);
     }
 
@@ -53,6 +86,9 @@ public class FileTransferTracker implements FileTransferListener {
 
     @Override
     public void onFailure(TransferFileSnapshot fileSnapshot, Exception e) {
+        long durationInMillis = (System.nanoTime() - fileTransferStartTime) / 1_000_000L;
+        remoteTranslogTransferTracker.addUploadTimeInMillis(durationInMillis);
+        remoteTranslogTransferTracker.addUploadBytesFailed(bytesForTlogCkpFileToUpload.get(fileSnapshot.getName()));
         add(fileSnapshot.getName(), TransferState.FAILED);
     }
 

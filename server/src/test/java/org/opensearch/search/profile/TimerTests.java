@@ -71,10 +71,14 @@ public class TimerTests extends OpenSearchTestCase {
                 return time += 42;
             }
         };
-        for (int i = 1; i < 100000; ++i) {
+        t.start();
+        t.stop();
+        long timerStartTime = t.getEarliestTimerStartTime();
+        for (int i = 2; i < 100000; ++i) {
             t.start();
             t.stop();
             assertEquals(i, t.getCount());
+            assertEquals(timerStartTime, t.getEarliestTimerStartTime());
             // Make sure the cumulated timing is 42 times the number of calls as expected
             assertEquals(i * 42L, t.getApproximateTiming());
         }

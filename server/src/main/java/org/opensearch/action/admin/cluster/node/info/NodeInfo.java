@@ -37,16 +37,16 @@ import org.opensearch.Version;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.service.ReportingService;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.ingest.IngestInfo;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.monitor.process.ProcessInfo;
-import org.opensearch.node.ReportingService;
 import org.opensearch.search.aggregations.support.AggregationInfo;
 import org.opensearch.search.pipeline.SearchPipelineInfo;
 import org.opensearch.threadpool.ThreadPoolInfo;
@@ -81,8 +81,8 @@ public class NodeInfo extends BaseNodeResponse {
 
     public NodeInfo(StreamInput in) throws IOException {
         super(in);
-        version = Version.readVersion(in);
-        build = Build.readBuild(in);
+        version = in.readVersion();
+        build = in.readBuild();
         if (in.readBoolean()) {
             totalIndexingBuffer = new ByteSizeValue(in.readLong());
         } else {
@@ -202,7 +202,7 @@ public class NodeInfo extends BaseNodeResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(version.id);
-        Build.writeBuild(build, out);
+        out.writeBuild(build);
         if (totalIndexingBuffer == null) {
             out.writeBoolean(false);
         } else {

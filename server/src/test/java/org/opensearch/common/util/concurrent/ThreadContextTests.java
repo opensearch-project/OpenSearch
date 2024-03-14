@@ -44,11 +44,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import org.mockito.Mockito;
+
+import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 public class ThreadContextTests extends OpenSearchTestCase {
 
@@ -69,6 +71,35 @@ public class ThreadContextTests extends OpenSearchTestCase {
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
+    }
+
+    public void testStashContextWithPersistentHeaders() {
+        Settings build = Settings.builder().put("request.headers.default", "1").build();
+        ThreadContext threadContext = new ThreadContext(build);
+        threadContext.putHeader("foo", "bar");
+        threadContext.putTransient("ctx.foo", 1);
+        threadContext.putPersistent("persistent_foo", "baz");
+        threadContext.putPersistent("ctx.persistent_foo", 10);
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
+        assertEquals("1", threadContext.getHeader("default"));
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("ctx.foo"));
+            assertEquals("1", threadContext.getHeader("default"));
+
+            assertEquals("baz", threadContext.getPersistent("persistent_foo"));
+            assertEquals(Integer.valueOf(10), threadContext.getPersistent("ctx.persistent_foo"));
+            assertNull(threadContext.getPersistent("default"));
+        }
+
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
+        assertEquals("1", threadContext.getHeader("default"));
+
+        assertEquals("baz", threadContext.getPersistent("persistent_foo"));
+        assertEquals(Integer.valueOf(10), threadContext.getPersistent("ctx.persistent_foo"));
+        assertNull(threadContext.getPersistent("default"));
     }
 
     public void testNewContextWithClearedTransients() {
@@ -709,6 +740,71 @@ public class ThreadContextTests extends OpenSearchTestCase {
             assertTrue(threadContext.isSystemContext());
         }
         assertFalse(threadContext.isSystemContext());
+    }
+
+    public void testSystemContextWithPropagator() {
+        Settings build = Settings.builder().put("request.headers.default", "1").build();
+        Map<String, Object> transientHeaderMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, Object> transientHeaderTransformedMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, Object> headerMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, String> headerTransformedMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        ThreadContext threadContext = new ThreadContext(build);
+        ThreadContextStatePropagator mockPropagator = Mockito.mock(ThreadContextStatePropagator.class);
+        Mockito.when(mockPropagator.transients(transientHeaderMap, true)).thenReturn(Collections.emptyMap());
+        Mockito.when(mockPropagator.transients(transientHeaderMap, false)).thenReturn(transientHeaderTransformedMap);
+
+        Mockito.when(mockPropagator.headers(headerMap, true)).thenReturn(headerTransformedMap);
+        Mockito.when(mockPropagator.headers(headerMap, false)).thenReturn(headerTransformedMap);
+        threadContext.registerThreadContextStatePropagator(mockPropagator);
+        threadContext.putHeader("foo", "bar");
+        threadContext.putTransient("test_transient_propagation_key", 1);
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("test_transient_propagation_key"));
+        assertEquals("bar", threadContext.getHeader("foo"));
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+            threadContext.markAsSystemContext();
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("test_transient_propagation_key"));
+            assertEquals("1", threadContext.getHeader("default"));
+        }
+
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("test_transient_propagation_key"));
+        assertEquals("1", threadContext.getHeader("default"));
+    }
+
+    public void testSerializeSystemContext() throws IOException {
+        Settings build = Settings.builder().put("request.headers.default", "1").build();
+        Map<String, Object> transientHeaderMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, Object> transientHeaderTransformedMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, Object> headerMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, String> headerTransformedMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        ThreadContext threadContext = new ThreadContext(build);
+        ThreadContextStatePropagator mockPropagator = Mockito.mock(ThreadContextStatePropagator.class);
+        Mockito.when(mockPropagator.transients(transientHeaderMap, true)).thenReturn(Collections.emptyMap());
+        Mockito.when(mockPropagator.transients(transientHeaderMap, false)).thenReturn(transientHeaderTransformedMap);
+
+        Mockito.when(mockPropagator.headers(headerMap, true)).thenReturn(headerTransformedMap);
+        Mockito.when(mockPropagator.headers(headerMap, false)).thenReturn(headerTransformedMap);
+        threadContext.registerThreadContextStatePropagator(mockPropagator);
+        threadContext.putHeader("foo", "bar");
+        threadContext.putTransient("test_transient_propagation_key", "test");
+        BytesStreamOutput out = new BytesStreamOutput();
+        BytesStreamOutput outFromSystemContext = new BytesStreamOutput();
+        threadContext.writeTo(out);
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+            assertEquals("test", threadContext.getTransient("test_transient_propagation_key"));
+            threadContext.markAsSystemContext();
+            threadContext.writeTo(outFromSystemContext);
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("test_transient_propagation_key"));
+            threadContext.readHeaders(outFromSystemContext.bytes().streamInput());
+            assertNull(threadContext.getHeader("test_transient_propagation_key"));
+        }
+        assertEquals("test", threadContext.getTransient("test_transient_propagation_key"));
+        threadContext.readHeaders(out.bytes().streamInput());
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals("test", threadContext.getHeader("test_transient_propagation_key"));
+        assertEquals("1", threadContext.getHeader("default"));
     }
 
     public void testPutHeaders() {

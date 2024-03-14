@@ -33,9 +33,10 @@
 package org.opensearch.cluster.routing.allocation.decider;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -54,8 +55,9 @@ import java.util.Objects;
  *
  * @see AllocationDecider
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class Decision implements ToXContent, Writeable {
 
     public static final Decision ALWAYS = new Single(Type.YES);
@@ -98,8 +100,9 @@ public abstract class Decision implements ToXContent, Writeable {
      * This enumeration defines the
      * possible types of decisions
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Type implements Writeable {
         YES(1),
         THROTTLE(2),
@@ -141,7 +144,7 @@ public abstract class Decision implements ToXContent, Writeable {
             return false;
         }
 
-        public boolean canPremptivelyReturn() {
+        public boolean canPreemptivelyReturn() {
             return this == THROTTLE || this == NO;
         }
 

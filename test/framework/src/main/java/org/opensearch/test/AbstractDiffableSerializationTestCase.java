@@ -34,15 +34,15 @@ package org.opensearch.test;
 
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.Diffable;
-import org.opensearch.common.io.stream.Writeable.Reader;
+import org.opensearch.core.common.io.stream.Writeable.Reader;
 import org.opensearch.core.xcontent.ToXContent;
 
 import java.io.IOException;
 
 /**
  * An abstract test case to ensure correct behavior of Diffable.
- *
- * This class can be used as a based class for tests of Metadata.Custom classes and other classes that support,
+ * <p>
+ * This class can be used as a based class for tests of Metadata.Custom classes and other classes that support {@link org.opensearch.core.common.io.stream.Writeable } serialization, XContent-based serialization and is diffable.
  * Writable serialization, XContent-based serialization and is diffable.
  */
 public abstract class AbstractDiffableSerializationTestCase<T extends Diffable<T> & ToXContent> extends AbstractSerializingTestCase<T> {

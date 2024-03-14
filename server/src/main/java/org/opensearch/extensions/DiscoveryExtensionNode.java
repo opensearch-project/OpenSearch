@@ -12,10 +12,10 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -54,7 +54,7 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        Version.writeVersion(minimumCompatibleVersion, out);
+        out.writeVersion(minimumCompatibleVersion);
         out.writeVInt(dependencies.size());
         for (ExtensionDependency dependency : dependencies) {
             dependency.writeTo(out);
@@ -69,7 +69,7 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
      */
     public DiscoveryExtensionNode(final StreamInput in) throws IOException {
         super(in);
-        minimumCompatibleVersion = Version.readVersion(in);
+        minimumCompatibleVersion = in.readVersion();
         int size = in.readVInt();
         dependencies = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
