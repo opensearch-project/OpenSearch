@@ -81,4 +81,17 @@ public class ConstraintTypes {
             return primaryShardCount >= allowedPrimaryShardCount;
         };
     }
+
+    /**
+     * Defines a predicate which returns true when a node contains more than average number of primary shards. This
+     * constraint is used in weight calculation during allocation only. When breached a high weight {@link ConstraintTypes#CONSTRAINT_WEIGHT}
+     * is assigned to node resulting in lesser chances of node being selected as allocation target
+     */
+    public static Predicate<Constraint.ConstraintParams> isPrimaryShardsPerNodeBreached(float buffer) {
+        return (params) -> {
+            int primaryShardCount = params.getNode().numPrimaryShards();
+            int allowedPrimaryShardCount = (int) Math.ceil(params.getBalancer().avgPrimaryShardsPerNode() * (1 + buffer));
+            return primaryShardCount >= allowedPrimaryShardCount;
+        };
+    }
 }
