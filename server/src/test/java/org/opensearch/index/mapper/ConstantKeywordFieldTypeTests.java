@@ -76,6 +76,14 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
 
     }
 
+    public void testExistsQuery() {
+        ConstantKeywordFieldMapper.ConstantKeywordFieldType ft = new ConstantKeywordFieldMapper.ConstantKeywordFieldType(
+            "field",
+            "default"
+        );
+        assertEquals(new MatchAllDocsQuery(), ft.existsQuery(createContext()));
+    }
+
     private QueryShardContext createContext() {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
