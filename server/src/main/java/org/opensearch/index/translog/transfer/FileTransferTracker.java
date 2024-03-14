@@ -76,12 +76,7 @@ public class FileTransferTracker implements FileTransferListener {
             logger.error("Failure to update translog upload success stats", ex);
         }
 
-        try {
-            // add() gets a dedicated try/catch as its on the critical path
-            add(fileSnapshot.getName(), TransferState.SUCCESS);
-        } catch (IllegalStateException ex) {
-            throw new FileTransferException(fileSnapshot, ex);
-        }
+        add(fileSnapshot.getName(), TransferState.SUCCESS);
     }
 
     void add(String file, boolean success) {
