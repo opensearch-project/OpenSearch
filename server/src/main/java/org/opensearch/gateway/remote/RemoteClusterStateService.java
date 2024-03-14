@@ -525,22 +525,16 @@ public class RemoteClusterStateService implements Closeable {
                 )
             );
         }
-        customToUpload.forEach(
-            (key, value) -> {
-                String customComponent = String.join(CUSTOM_DELIMITER, CUSTOM_METADATA, key);
-                uploadTasks.put(
-                    customComponent,
-                    getAsyncMetadataWriteAction(
-                        clusterState,
-                        customComponent,
-                        CUSTOM_METADATA_FORMAT,
-                        value,
-                        listener
-                    )
-                );
-            }
-        );
-        indexToUpload.forEach(indexMetadata -> { uploadTasks.put(indexMetadata.getIndexName(), getIndexMetadataAsyncAction(clusterState, indexMetadata, listener)); });
+        customToUpload.forEach((key, value) -> {
+            String customComponent = String.join(CUSTOM_DELIMITER, CUSTOM_METADATA, key);
+            uploadTasks.put(
+                customComponent,
+                getAsyncMetadataWriteAction(clusterState, customComponent, CUSTOM_METADATA_FORMAT, value, listener)
+            );
+        });
+        indexToUpload.forEach(indexMetadata -> {
+            uploadTasks.put(indexMetadata.getIndexName(), getIndexMetadataAsyncAction(clusterState, indexMetadata, listener));
+        });
 
         // start async upload of all required metadata files
         for (CheckedRunnable<IOException> uploadTask : uploadTasks.values()) {
@@ -554,7 +548,7 @@ public class RemoteClusterStateService implements Closeable {
                     String.format(
                         Locale.ROOT,
                         "Timed out waiting for transfer of following metadata to complete - %s",
-                            String.join(", ", uploadTasks.keySet())
+                        String.join(", ", uploadTasks.keySet())
                     )
                 );
                 exceptionList.forEach(ex::addSuppressed);
@@ -591,8 +585,10 @@ public class RemoteClusterStateService implements Closeable {
             } else if (uploadedMetadata.getComponent().contains(CUSTOM_METADATA)) {
                 // component name for custom metadata will look like custom--<metadata-attribute>
                 String custom = name.split(DELIMITER)[0].split(CUSTOM_DELIMITER)[1];
-                response.uploadedCustomMetadataMap.put(custom,
-                    new UploadedMetadataAttribute(custom, uploadedMetadata.getUploadedFilename()));
+                response.uploadedCustomMetadataMap.put(
+                    custom,
+                    new UploadedMetadataAttribute(custom, uploadedMetadata.getUploadedFilename())
+                );
             } else if (COORDINATION_METADATA.equals(uploadedMetadata.getComponent())) {
                 response.uploadedCoordinationMetadata = (UploadedMetadataAttribute) uploadedMetadata;
             } else if (SETTING_METADATA.equals(uploadedMetadata.getComponent())) {
@@ -1091,8 +1087,13 @@ public class RemoteClusterStateService implements Closeable {
                 builder.coordinationMetadata(coordinationMetadata);
                 builder.persistentSettings(settingsMetadata);
                 builder.templates(templatesMetadata);
-                clusterMetadataManifest.getCustomMetadataMap().forEach((key, value) ->
-                    builder.putCustom(key, getCustomsMetadata(clusterName, clusterUUID, value.getUploadedFilename(), key)));
+                clusterMetadataManifest.getCustomMetadataMap()
+                    .forEach(
+                        (key, value) -> builder.putCustom(
+                            key,
+                            getCustomsMetadata(clusterName, clusterUUID, value.getUploadedFilename(), key)
+                        )
+                    );
                 return builder.build();
             } else {
                 return Metadata.EMPTY_METADATA;
@@ -1168,12 +1169,7 @@ public class RemoteClusterStateService implements Closeable {
         }
     }
 
-    private Metadata.Custom getCustomsMetadata(
-        String clusterName,
-        String clusterUUID,
-        String customMetadataFileName,
-        String custom
-    ) {
+    private Metadata.Custom getCustomsMetadata(String clusterName, String clusterUUID, String customMetadataFileName, String custom) {
         requireNonNull(customMetadataFileName);
         try {
             // Fetch Custom metadata

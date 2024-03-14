@@ -94,8 +94,8 @@ public class TemplatesMetadata extends AbstractDiffable<TemplatesMetadata> imple
             this.templates = templates;
         }
 
-        public Builder put(IndexTemplateMetadata.Builder template) {
-            return put(template.build());
+        public Builder put(IndexTemplateMetadata.Builder templateBuilder) {
+            return put(templateBuilder.build());
         }
 
         public Builder put(IndexTemplateMetadata template) {
@@ -117,18 +117,15 @@ public class TemplatesMetadata extends AbstractDiffable<TemplatesMetadata> imple
             return new TemplatesMetadata(templates);
         }
 
-        public static void toXContent(TemplatesMetadata templates, XContentBuilder builder, Params params) throws IOException {
-            // builder.startObject("templates-metadata");
-            for (IndexTemplateMetadata cursor : templates.getTemplates().values()) {
+        public static void toXContent(TemplatesMetadata templatesMetadata, XContentBuilder builder, Params params) throws IOException {
+            for (IndexTemplateMetadata cursor : templatesMetadata.getTemplates().values()) {
                 IndexTemplateMetadata.Builder.toXContentWithTypes(cursor, builder, params);
             }
-            // builder.endObject();
         }
 
         public static TemplatesMetadata fromXContent(XContentParser parser) throws IOException {
             Builder builder = new Builder();
 
-            // we might get here after the templates-metadata element, or on a fresh parser
             XContentParser.Token token = parser.currentToken();
             String currentFieldName = parser.currentName();
             if (currentFieldName == null) {

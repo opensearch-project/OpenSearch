@@ -188,13 +188,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         static Custom fromXContent(XContentParser parser) throws IOException {
             String currentFieldName = parser.currentName();
-            try {
-                return parser.namedObject(Custom.class, currentFieldName, null);
-            } catch (NamedObjectNotFoundException e) {
-                logger.warn("Unknown custom object with type {}", currentFieldName);
-                parser.skipChildren();
-                throw e;
-            }
+            return fromXContent(parser, currentFieldName);
         }
     }
 

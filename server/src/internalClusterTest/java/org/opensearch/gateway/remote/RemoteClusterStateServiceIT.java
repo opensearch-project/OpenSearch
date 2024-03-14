@@ -8,16 +8,12 @@
 
 package org.opensearch.gateway.remote;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.DiscoveryStats;
-import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -25,16 +21,11 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.COORDINATION_METADATA;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.CUSTOM_METADATA;
@@ -198,7 +189,7 @@ public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
-    public void testRemoteRestoreOnClusterManagerRestartCorruptedLocal() throws IOException {
+    public void testRemoteClusterStateMetadataSplit() throws IOException {
         initialTestSetup(1, 0, 1, 1);
 
         RemoteClusterStateService remoteClusterStateService = internalCluster().getClusterManagerNodeInstance(
@@ -206,13 +197,21 @@ public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
         );
         RepositoriesService repositoriesService = internalCluster().getClusterManagerNodeInstance(RepositoriesService.class);
         BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(REPOSITORY_NAME);
-        BlobPath globalMetadataPath = repository.basePath().add(
-            Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(getClusterState().getClusterName().value().getBytes(StandardCharsets.UTF_8))
-        ).add("cluster-state").add(getClusterState().metadata().clusterUUID()).add("global-metadata");
+        BlobPath globalMetadataPath = repository.basePath()
+            .add(
+                Base64.getUrlEncoder()
+                    .withoutPadding()
+                    .encodeToString(getClusterState().getClusterName().value().getBytes(StandardCharsets.UTF_8))
+            )
+            .add("cluster-state")
+            .add(getClusterState().metadata().clusterUUID())
+            .add("global-metadata");
 
-        Map<String, Integer> metadataFiles = repository.blobStore().blobContainer(globalMetadataPath).listBlobs()
-            .keySet().stream()
+        Map<String, Integer> metadataFiles = repository.blobStore()
+            .blobContainer(globalMetadataPath)
+            .listBlobs()
+            .keySet()
+            .stream()
             .map(fileName -> {
                 logger.info(fileName);
                 return fileName.split(DELIMITER)[0];
