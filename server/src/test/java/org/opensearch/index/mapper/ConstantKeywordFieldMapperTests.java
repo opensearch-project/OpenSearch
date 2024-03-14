@@ -9,6 +9,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -79,6 +80,28 @@ public class ConstantKeywordFieldMapperTests extends OpenSearchSingleNodeTestCas
 
         // constantKeywordField should not be stored
         assertNull(field);
+    }
+
+    public void testMissingDefaultIndexMapper() throws Exception {
+
+        final XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "constant_keyword")
+            .endObject()
+            .startObject("field2")
+            .field("type", "keyword")
+            .endObject().endObject().endObject().endObject();
+
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> parser.parse("type", new CompressedXContent(mapping.toString())));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Field [field] is missing required parameter [value]"
+            )
+        );
     }
 
     private final SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
