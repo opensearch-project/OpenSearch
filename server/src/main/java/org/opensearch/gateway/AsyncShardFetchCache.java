@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import reactor.util.annotation.NonNull;
+
 /**
  * AsyncShardFetchCache will operate on the node level cache which is map of String and BaseNodeEntry. initData,
  * putData and getData needs to be called for all the nodes. This class is responsible for managing the flow for all
@@ -46,7 +48,8 @@ import java.util.Set;
  * @opensearch.internal
  */
 public abstract class AsyncShardFetchCache<K extends BaseNodeResponse> {
-    final Logger logger;
+
+    private final Logger logger;
     private final String type;
 
     protected AsyncShardFetchCache(Logger logger, String type) {
@@ -60,6 +63,7 @@ public abstract class AsyncShardFetchCache<K extends BaseNodeResponse> {
 
     abstract K getData(DiscoveryNode node);
 
+    @NonNull
     abstract Map<String, ? extends BaseNodeEntry> getCache();
 
     /**

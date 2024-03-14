@@ -54,6 +54,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+import reactor.util.annotation.NonNull;
+
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
@@ -301,6 +303,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             return cache.get(node.getId()).getValue();
         }
 
+        @NonNull
         @Override
         public Map<String, ? extends BaseNodeEntry> getCache() {
             return cache;
