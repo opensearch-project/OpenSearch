@@ -93,15 +93,16 @@ public class ConstantKeywordFieldMapperTests extends OpenSearchSingleNodeTestCas
             .endObject()
             .startObject("field2")
             .field("type", "keyword")
-            .endObject().endObject().endObject().endObject();
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
 
-        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> parser.parse("type", new CompressedXContent(mapping.toString())));
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "Field [field] is missing required parameter [value]"
-            )
+        OpenSearchParseException e = expectThrows(
+            OpenSearchParseException.class,
+            () -> parser.parse("type", new CompressedXContent(mapping.toString()))
         );
+        assertThat(e.getMessage(), containsString("Field [field] is missing required parameter [value]"));
     }
 
     private final SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
