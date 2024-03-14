@@ -51,8 +51,8 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.store.StoreFileMetadata;
-import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
+import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -106,7 +106,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 assert primaryShard != null : "the replica shard can be allocated on at least one node, so there must be an active primary";
                 assert primaryShard.currentNodeId() != null;
                 final DiscoveryNode primaryNode = allocation.nodes().get(primaryShard.currentNodeId());
-                final TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore = findStore(primaryNode, shardStores);
+                final StoreFilesMetadata primaryStore = findStore(primaryNode, shardStores);
                 if (primaryStore == null) {
                     // if we can't find the primary data, it is probably because the primary shard is corrupted (and listing failed)
                     // just let the recovery find it out, no need to do anything about it for the initializing shard
@@ -223,7 +223,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         }
         assert primaryShard.currentNodeId() != null;
         final DiscoveryNode primaryNode = allocation.nodes().get(primaryShard.currentNodeId());
-        final TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore = findStore(primaryNode, shardStores);
+        final StoreFilesMetadata primaryStore = findStore(primaryNode, shardStores);
         if (primaryStore == null) {
             // if we can't find the primary data, it is probably because the primary shard is corrupted (and listing failed)
             // we want to let the replica be allocated in order to expose the actual problem with the primary that the replica
@@ -357,10 +357,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     /**
      * Finds the store for the assigned shard in the fetched data, returns null if none is found.
      */
-    private static TransportNodesListShardStoreMetadata.StoreFilesMetadata findStore(
-        DiscoveryNode node,
-        AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> data
-    ) {
+    private static StoreFilesMetadata findStore(DiscoveryNode node, AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> data) {
         NodeStoreFilesMetadata nodeFilesStore = data.getData().get(node);
         if (nodeFilesStore == null) {
             return null;
@@ -373,7 +370,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         RoutingAllocation allocation,
         boolean noMatchFailedNodes,
         DiscoveryNode primaryNode,
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
+        StoreFilesMetadata primaryStore,
         AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> data,
         boolean explain
     ) {
@@ -386,7 +383,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 && shard.unassignedInfo().getFailedNodeIds().contains(discoNode.getId())) {
                 continue;
             }
-            TransportNodesListShardStoreMetadata.StoreFilesMetadata storeFilesMetadata = nodeStoreEntry.getValue().storeFilesMetadata();
+            StoreFilesMetadata storeFilesMetadata = nodeStoreEntry.getValue().storeFilesMetadata();
             // we don't have any files at all, it is an empty index
             if (storeFilesMetadata.isEmpty()) {
                 continue;
@@ -441,10 +438,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return new MatchingNodes(matchingNodes, nodeDecisions);
     }
 
-    private static long computeMatchingBytes(
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata storeFilesMetadata
-    ) {
+    private static long computeMatchingBytes(StoreFilesMetadata primaryStore, StoreFilesMetadata storeFilesMetadata) {
         long sizeMatched = 0;
         for (StoreFileMetadata storeFileMetadata : storeFilesMetadata) {
             String metadataFileName = storeFileMetadata.name();
@@ -455,19 +449,16 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return sizeMatched;
     }
 
-    private static boolean hasMatchingSyncId(
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata replicaStore
-    ) {
+    private static boolean hasMatchingSyncId(StoreFilesMetadata primaryStore, StoreFilesMetadata replicaStore) {
         String primarySyncId = primaryStore.syncId();
         return primarySyncId != null && primarySyncId.equals(replicaStore.syncId());
     }
 
     private static MatchingNode computeMatchingNode(
         DiscoveryNode primaryNode,
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
+        StoreFilesMetadata primaryStore,
         DiscoveryNode replicaNode,
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata replicaStore
+        StoreFilesMetadata replicaStore
     ) {
         final long retainingSeqNoForPrimary = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(primaryNode);
         final long retainingSeqNoForReplica = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(replicaNode);
@@ -478,7 +469,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     }
 
     private static boolean canPerformOperationBasedRecovery(
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
+        StoreFilesMetadata primaryStore,
         AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores,
         DiscoveryNode targetNode
     ) {
