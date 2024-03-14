@@ -24,7 +24,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * and admission control can be applied if configured limit has been reached
  */
 public abstract class AdmissionController {
-
     private final String admissionControllerName;
     final ResourceUsageCollectorService resourceUsageCollectorService;
     public final Map<String, AtomicLong> rejectionCountMap;
