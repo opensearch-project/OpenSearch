@@ -21,6 +21,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
 import org.opensearch.index.translog.transfer.TransferSnapshot;
@@ -35,9 +36,11 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -219,7 +222,7 @@ public class RemoteFsTranslog extends Translog {
         throw ex;
     }
 
-    static private void downloadOnce(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
+    private static void downloadOnce(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
         logger.debug("Downloading translog files from remote");
         RemoteTranslogTransferTracker statsTracker = translogTransferManager.getRemoteTranslogTransferTracker();
         long prevDownloadBytesSucceeded = statsTracker.getDownloadBytesSucceeded();
@@ -254,8 +257,51 @@ public class RemoteFsTranslog extends Translog {
                 location.resolve(Translog.getCommitCheckpointFileName(translogMetadata.getGeneration())),
                 location.resolve(Translog.CHECKPOINT_FILE_NAME)
             );
+        } else {
+            // When code flow reaches this block, it means we don't have any translog files uploaded to remote store.
+            // If local filesystem contains empty translog or no translog, we don't do anything.
+            // If local filesystem contains non-empty translog, we clean up these files and create empty translog.
+            logger.debug("No translog files found on remote, checking local filesystem for cleanup");
+            if (FileSystemUtils.exists(location.resolve(CHECKPOINT_FILE_NAME))) {
+                final Checkpoint checkpoint = readCheckpoint(location);
+                if (isEmptyTranslog(checkpoint) == false) {
+                    logger.debug("Translog files exist on local without any metadata in remote, cleaning up these files");
+                    // Creating empty translog will cleanup the older un-referenced tranlog files, we don't have to explicitly delete
+                    createEmptyTranslog(translogTransferManager, location, checkpoint);
+                } else {
+                    logger.debug("Empty translog on local, skipping clean-up");
+                }
+            }
         }
         logger.debug("downloadOnce execution completed");
+    }
+
+    private static boolean isEmptyTranslog(Checkpoint checkpoint) {
+        return checkpoint.generation == checkpoint.minTranslogGeneration
+            && checkpoint.minSeqNo == SequenceNumbers.NO_OPS_PERFORMED
+            && checkpoint.maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED
+            && checkpoint.numOps == 0;
+    }
+
+    private static void createEmptyTranslog(TranslogTransferManager translogTransferManager, Path location, Checkpoint checkpoint)
+        throws IOException {
+        final Path highestGenTranslogFile = location.resolve(getFilename(checkpoint.generation));
+        final TranslogHeader translogHeader;
+        try (FileChannel channel = FileChannel.open(highestGenTranslogFile, StandardOpenOption.READ)) {
+            translogHeader = TranslogHeader.read(highestGenTranslogFile, channel);
+        }
+        final String translogUUID = translogHeader.getTranslogUUID();
+        final long primaryTerm = translogHeader.getPrimaryTerm();
+        final ChannelFactory channelFactory = FileChannel::open;
+        Translog.createEmptyTranslog(
+            location,
+            translogTransferManager.getShardId(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            primaryTerm,
+            translogUUID,
+            channelFactory,
+            checkpoint.generation + 1
+        );
     }
 
     public static TranslogTransferManager buildTranslogTransferManager(

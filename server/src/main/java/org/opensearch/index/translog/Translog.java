@@ -2012,16 +2012,26 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         @Nullable final String translogUUID,
         @Nullable final ChannelFactory factory
     ) throws IOException {
+        return createEmptyTranslog(location, shardId, initialGlobalCheckpoint, primaryTerm, translogUUID, factory, 1);
+    }
+
+    public static String createEmptyTranslog(
+        final Path location,
+        final ShardId shardId,
+        final long initialGlobalCheckpoint,
+        final long primaryTerm,
+        @Nullable final String translogUUID,
+        @Nullable final ChannelFactory factory,
+        final long generation
+    ) throws IOException {
         IOUtils.rm(location);
         Files.createDirectories(location);
 
-        final long generation = 1L;
-        final long minTranslogGeneration = 1L;
         final ChannelFactory channelFactory = factory != null ? factory : FileChannel::open;
         final String uuid = Strings.hasLength(translogUUID) ? translogUUID : UUIDs.randomBase64UUID();
         final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
         final Path translogFile = location.resolve(getFilename(generation));
-        final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, initialGlobalCheckpoint, minTranslogGeneration);
+        final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, initialGlobalCheckpoint, generation);
 
         Checkpoint.write(channelFactory, checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
         final TranslogWriter writer = TranslogWriter.create(
@@ -2031,7 +2041,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             translogFile,
             channelFactory,
             EMPTY_TRANSLOG_BUFFER_SIZE,
-            minTranslogGeneration,
+            generation,
             initialGlobalCheckpoint,
             () -> {
                 throw new UnsupportedOperationException();
