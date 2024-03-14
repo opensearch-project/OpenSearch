@@ -942,7 +942,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                         /* If updateMinNode is true, it means the earlier nodes had decision type THROTTLE. We will need to clear the list,
                          * and add new nodes to the list.
                          */
-                        if(updateMinNode) {
+                        if (updateMinNode) {
                             minNodes.clear();
                             minNodes.add(node);
                         }
@@ -980,7 +980,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
             }
         }
 
-        if(preferRandomShardAllocation && !minNodes.isEmpty()){
+        if (preferRandomShardAllocation && !minNodes.isEmpty()) {
             minNode = minNodes.get(Randomness.get().nextInt(minNodes.size()));
         }
 

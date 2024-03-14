@@ -225,6 +225,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private void setPreferRandomShardAllocation(boolean preferRandomShardAllocation) {
         this.preferRandomShardAllocation = preferRandomShardAllocation;
     }
+
     @Override
     public void allocate(RoutingAllocation allocation) {
         if (allocation.routingNodes().size() == 0) {
