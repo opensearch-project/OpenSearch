@@ -150,7 +150,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      */
     public static final Setting<Boolean> PREFER_RANDOM_SHARD_ALLOCATION = Setting.boolSetting(
         "cluster.routing.allocation.balance.prefer_random_allocation",
-        false,
+        true,
         Property.Dynamic,
         Property.NodeScope
     );
