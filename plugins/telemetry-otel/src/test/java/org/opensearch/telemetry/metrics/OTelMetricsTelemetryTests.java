@@ -156,7 +156,8 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         verify(mockOTelDoubleHistogram).record(2.0, OTelAttributesConverter.convert(tags));
     }
 
-    public void testObservableGauge() throws Exception {
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public void testGauge() throws Exception {
         String observableGaugeName = "test-gauge";
         String description = "test";
         String unit = "1";

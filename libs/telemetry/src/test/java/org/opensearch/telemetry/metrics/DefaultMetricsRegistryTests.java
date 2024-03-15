@@ -63,7 +63,8 @@ public class DefaultMetricsRegistryTests extends OpenSearchTestCase {
         assertSame(mockHistogram, histogram);
     }
 
-    public void testObservableGauge() {
+    @SuppressWarnings("unchecked")
+    public void testGauge() {
         Closeable mockCloseable = mock(Closeable.class);
         when(
             defaultMeterRegistry.createGauge(any(String.class), any(String.class), any(String.class), any(Supplier.class), any(Tags.class))
