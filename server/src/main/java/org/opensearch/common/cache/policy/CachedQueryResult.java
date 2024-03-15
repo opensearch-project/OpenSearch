@@ -59,6 +59,10 @@ public class CachedQueryResult {
         qsr.writeToNoId(out);
     }
 
+    /**
+     * A class containing information needed for all cache policies
+     *  to decide whether to admit a given value.
+     */
     public static class PolicyValues implements Writeable {
         final long tookTimeNanos;
         // More values can be added here as they're needed for future policies
