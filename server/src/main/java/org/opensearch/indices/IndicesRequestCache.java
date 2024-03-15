@@ -612,7 +612,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                     iterator.remove();
                 } else {
                     CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId);
-                    if(cleanupKeysFromOutdatedReaders.contains(cleanupKey)) {
+                    if (cleanupKeysFromOutdatedReaders.contains(cleanupKey)) {
                         iterator.remove();
                     }
                 }
