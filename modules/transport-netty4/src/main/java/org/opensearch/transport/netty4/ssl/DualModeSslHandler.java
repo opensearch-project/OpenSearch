@@ -33,6 +33,8 @@ import io.netty.handler.ssl.SslHandler;
 
 /**
  * Modifies the current pipeline dynamically to enable TLS
+ *
+ * @see <a href="https://github.com/opensearch-project/security/blob/main/src/main/java/org/opensearch/security/ssl/transport/DualModeSSLHandler.java">DualModeSSLHandler</a>
  */
 public class DualModeSslHandler extends ByteToMessageDecoder {
 

@@ -28,17 +28,19 @@ public interface SecureTransportSettingsProvider {
     /**
      * An exception handler for errors that might happen while secure transport handle the requests.
      *
+     * @see <a href="https://github.com/opensearch-project/security/blob/main/src/main/java/org/opensearch/security/ssl/SslExceptionHandler.java">SslExceptionHandler</a>
+     *
      * @opensearch.experimental
      */
     @ExperimentalApi
+    @FunctionalInterface
     interface ServerExceptionHandler {
-        static ServerExceptionHandler NOOP = new ServerExceptionHandler() {
-            @Override
-            public void onError(Throwable t) {
-                // NOOP
-            }
-        };
+        static ServerExceptionHandler NOOP = t -> {};
 
+        /**
+         * Handler for errors happening during the server side processing of the requests
+         * @param t the error
+         */
         void onError(Throwable t);
     }
 

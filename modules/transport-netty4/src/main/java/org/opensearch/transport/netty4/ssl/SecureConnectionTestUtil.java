@@ -28,6 +28,8 @@ import java.nio.charset.StandardCharsets;
  * SSL Check will be done by sending an OpenSearch Ping to see if server is replying to pings.
  * Following that a custom client hello message will be sent to the server, if the server
  * side has OpenSearchPortUnificationHandler it will reply with server hello message.
+ *
+ * @see <a href="https://github.com/opensearch-project/security/blob/main/src/main/java/org/opensearch/security/ssl/util/SSLConnectionTestUtil.java">SSLConnectionTestUtil</a>
  */
 class SecureConnectionTestUtil {
     private static final Logger logger = LogManager.getLogger(SecureConnectionTestUtil.class);

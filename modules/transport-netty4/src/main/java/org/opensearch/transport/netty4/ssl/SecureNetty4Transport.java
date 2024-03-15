@@ -65,6 +65,9 @@ import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.DecoderException;
 import io.netty.handler.ssl.SslHandler;
 
+/**
+ * @see <a href="https://github.com/opensearch-project/security/blob/main/src/main/java/org/opensearch/security/ssl/transport/SecuritySSLNettyTransport.java">SecuritySSLNettyTransport</a>
+ */
 public class SecureNetty4Transport extends Netty4Transport {
 
     private static final Logger logger = LogManager.getLogger(SecureNetty4Transport.class);
