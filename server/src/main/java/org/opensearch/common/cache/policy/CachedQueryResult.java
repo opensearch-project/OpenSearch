@@ -68,7 +68,7 @@ public class CachedQueryResult {
         }
 
         public PolicyValues(StreamInput in) throws IOException {
-            this.tookTimeNanos = in.readVLong();
+            this.tookTimeNanos = in.readZLong();
         }
 
         public long getTookTimeNanos() {
@@ -77,7 +77,7 @@ public class CachedQueryResult {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(tookTimeNanos);
+            out.writeZLong(tookTimeNanos);
         }
     }
 }

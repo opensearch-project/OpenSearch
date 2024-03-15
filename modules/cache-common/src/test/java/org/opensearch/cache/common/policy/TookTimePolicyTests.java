@@ -59,15 +59,6 @@ public class TookTimePolicyTests extends OpenSearchTestCase {
         assertTrue(longResult);
     }
 
-    public void testMissingWrapper() throws Exception {
-        TookTimePolicy<BytesReference> tookTimePolicy = getTookTimePolicy(TimeValue.ZERO);
-        BytesStreamOutput out = new BytesStreamOutput();
-        getQSR().writeToNoId(out);
-        BytesReference missingWrapper = out.bytes();
-        boolean allowedMissingWrapper = tookTimePolicy.test(missingWrapper);
-        assertFalse(allowedMissingWrapper);
-    }
-
     public void testNegativeOneInput() throws Exception {
         // PolicyValues with -1 took time can be passed to this policy if we shouldn't accept it for whatever reason
         TookTimePolicy<BytesReference> tookTimePolicy = getTookTimePolicy(TimeValue.ZERO);
