@@ -9,7 +9,6 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.action.support.replication.ReplicationOperation.ReplicaResponse;
-import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.core.action.ActionListener;
 

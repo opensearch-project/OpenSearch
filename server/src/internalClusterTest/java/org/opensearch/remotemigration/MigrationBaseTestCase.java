@@ -85,11 +85,19 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
     }
 
     public void initDocRepToRemoteMigration() {
-        assertTrue(internalCluster().client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
-            Settings.builder()
-                .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed")
-                .put(MIGRATION_DIRECTION_SETTING.getKey(), "remote_store")
-        ).get().isAcknowledged());
+        assertTrue(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed")
+                        .put(MIGRATION_DIRECTION_SETTING.getKey(), "remote_store")
+                )
+                .get()
+                .isAcknowledged()
+        );
     }
 
     public BulkResponse indexBulk(String indexName, int numDocs) {
@@ -144,9 +152,9 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
         public Thread getIndexingThread() {
             return indexingThread;
         }
-     }
+    }
 
-     public class SyncIndexingService {
+    public class SyncIndexingService {
         private int maxDocs;
         private int currentIndexedDocs;
         private boolean forceStop;
@@ -162,24 +170,24 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
             this.forceStop = false;
         }
 
-         public void forceStopIndexing() throws InterruptedException {
-             this.forceStop = true;
-         }
+        public void forceStopIndexing() throws InterruptedException {
+            this.forceStop = true;
+        }
 
-         public int getCurrentIndexedDocs() {
-             return currentIndexedDocs;
-         }
+        public int getCurrentIndexedDocs() {
+            return currentIndexedDocs;
+        }
 
-         public void startIndexing() {
-             while (currentIndexedDocs < maxDocs && forceStop == false) {
-                 IndexResponse indexResponse = client().prepareIndex(indexName).setId("id").setSource("field", "value").get();
-                 assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
-                 DeleteResponse deleteResponse = client().prepareDelete(indexName, "id").get();
-                 assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-                 client().prepareIndex(indexName).setSource("auto", true).get();
-                 currentIndexedDocs += 1;
-                 logger.info("Indexed {} docs here", currentIndexedDocs);
-             }
-         }
-     }
+        public void startIndexing() {
+            while (currentIndexedDocs < maxDocs && forceStop == false) {
+                IndexResponse indexResponse = client().prepareIndex(indexName).setId("id").setSource("field", "value").get();
+                assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+                DeleteResponse deleteResponse = client().prepareDelete(indexName, "id").get();
+                assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+                client().prepareIndex(indexName).setSource("auto", true).get();
+                currentIndexedDocs += 1;
+                logger.info("Indexed {} docs here", currentIndexedDocs);
+            }
+        }
+    }
 }

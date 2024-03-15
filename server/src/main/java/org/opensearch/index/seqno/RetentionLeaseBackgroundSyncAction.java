@@ -39,7 +39,11 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardCount;
-import org.opensearch.action.support.replication.*;
+import org.opensearch.action.support.replication.ReplicationMode;
+import org.opensearch.action.support.replication.ReplicationRequest;
+import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.action.support.replication.ReplicationTask;
+import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -87,6 +91,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     }
 
     private final ClusterService clusterService;
+
     @Inject
     public RetentionLeaseBackgroundSyncAction(
         final Settings settings,
