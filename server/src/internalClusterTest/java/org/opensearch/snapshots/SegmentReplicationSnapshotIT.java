@@ -342,9 +342,20 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
 
         createSnapshot();
 
-        // Delete index
+        RestoreSnapshotResponse restoreSnapshotResponse = restoreSnapshotWithSettings(restoreIndexSegRepSettings(), RESTORED_INDEX_NAME);
+        assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
+        ensureGreen(RESTORED_INDEX_NAME);
+        GetSettingsResponse settingsResponse = client().admin()
+            .indices()
+            .getSettings(new GetSettingsRequest().indices(RESTORED_INDEX_NAME).includeDefaults(true))
+            .get();
+        assertEquals(settingsResponse.getSetting(RESTORED_INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.SEGMENT.toString());
+
+        // Delete indices
         assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
         assertFalse("index [" + INDEX_NAME + "] should have been deleted", indexExists(INDEX_NAME));
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(RESTORED_INDEX_NAME)).get());
+        assertFalse("index [" + RESTORED_INDEX_NAME + "] should have been deleted", indexExists(RESTORED_INDEX_NAME));
 
         // Start new set of nodes with cluster level replication type setting and restrict replication type setting.
         Settings settings = Settings.builder()
@@ -366,16 +377,19 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         // Perform snapshot restore
         logger.info("--> Performing snapshot restore to target index");
 
-        RestoreSnapshotResponse restoreSnapshotResponse = restoreSnapshotWithSettings(null);
+        restoreSnapshotResponse = restoreSnapshotWithSettings(null);
 
         // Assertions
         assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
         ensureGreen(RESTORED_INDEX_NAME);
-        GetSettingsResponse settingsResponse = client().admin()
+        settingsResponse = client().admin()
             .indices()
             .getSettings(new GetSettingsRequest().indices(RESTORED_INDEX_NAME).includeDefaults(true))
             .get();
         assertEquals(settingsResponse.getSetting(RESTORED_INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.SEGMENT.toString());
+
+        // restore index with cluster default setting
+        restoreSnapshotWithSettings(restoreIndexSegRepSettings(), RESTORED_INDEX_NAME + "1");
 
         // Perform Snapshot Restore with different index name
         IllegalArgumentException exception = expectThrows(

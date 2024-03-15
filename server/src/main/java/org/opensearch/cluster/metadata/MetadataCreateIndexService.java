@@ -1008,7 +1008,7 @@ public class MetadataCreateIndexService {
         final ReplicationType indexReplicationType;
         if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings)) {
             indexReplicationType = INDEX_REPLICATION_TYPE_SETTING.get(requestSettings);
-        } else if (INDEX_REPLICATION_TYPE_SETTING.exists(combinedTemplateSettings)) {
+        } else if (combinedTemplateSettings != null && INDEX_REPLICATION_TYPE_SETTING.exists(combinedTemplateSettings)) {
             indexReplicationType = INDEX_REPLICATION_TYPE_SETTING.get(combinedTemplateSettings);
         } else if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings)) {
             indexReplicationType = CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings);
