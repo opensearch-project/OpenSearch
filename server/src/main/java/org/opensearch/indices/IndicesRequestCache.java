@@ -468,7 +468,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
          * @param cleanupKey the CleanupKey to be updated in the map
          */
         private void updateCleanupKeyToCountMapOnCacheInsertion(CleanupKey cleanupKey) {
-            if (stalenessThreshold == 0.0) {
+            if (stalenessThreshold == 0.0 || cleanupKey.entity == null) {
                 return;
             }
             IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
@@ -485,7 +485,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         }
 
         private synchronized void updateCleanupKeyToCountMapOnCacheEviction(CleanupKey cleanupKey) {
-            if (stalenessThreshold == 0.0) {
+            if (stalenessThreshold == 0.0 || cleanupKey.entity == null) {
                 return;
             }
             IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
@@ -521,6 +521,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
          * @param cleanupKey the CleanupKey that has been marked for cleanup
          */
         private void incrementStaleKeysCount(CleanupKey cleanupKey) {
+            if (stalenessThreshold == 0.0 || cleanupKey.entity == null) {
                 return;
             }
             IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
