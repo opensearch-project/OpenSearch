@@ -32,8 +32,10 @@
 package org.opensearch.action.admin.indices.forcemerge;
 
 import org.opensearch.Version;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
@@ -100,20 +102,26 @@ public class ForceMergeRequestTests extends OpenSearchTestCase {
                 out.setVersion(compatibleVersion);
                 sample.writeTo(out);
 
-                final ForceMergeRequest deserializedRequest;
                 try (StreamInput in = out.bytes().streamInput()) {
                     in.setVersion(Version.CURRENT);
-                    deserializedRequest = new ForceMergeRequest(in);
-                }
-
-                assertEquals(sample.maxNumSegments(), deserializedRequest.maxNumSegments());
-                assertEquals(sample.onlyExpungeDeletes(), deserializedRequest.onlyExpungeDeletes());
-                assertEquals(sample.flush(), deserializedRequest.flush());
-                if (compatibleVersion.onOrAfter(Version.V_2_13_0)) {
-                    assertEquals(sample.primaryOnly(), deserializedRequest.primaryOnly());
+                    TaskId.readFromStream(in);
+                    in.readStringArray();
+                    IndicesOptions.readIndicesOptions(in);
+                    int maxNumSegments = in.readInt();
+                    boolean onlyExpungeDeletes = in.readBoolean();
+                    boolean flush = in.readBoolean();
+                    boolean primaryOnly = in.readBoolean();
+                    String forceMergeUUID;
                     if (compatibleVersion.onOrAfter(Version.V_3_0_0)) {
-                        assertEquals(sample.forceMergeUUID(), deserializedRequest.forceMergeUUID());
+                        forceMergeUUID = in.readString();
+                    } else {
+                        forceMergeUUID = in.readOptionalString();
                     }
+                    assertEquals(sample.maxNumSegments(), maxNumSegments);
+                    assertEquals(sample.onlyExpungeDeletes(), onlyExpungeDeletes);
+                    assertEquals(sample.flush(), flush);
+                    assertEquals(sample.primaryOnly(), primaryOnly);
+                    assertEquals(sample.forceMergeUUID(), forceMergeUUID);
                 }
             }
         }
@@ -129,9 +137,7 @@ public class ForceMergeRequestTests extends OpenSearchTestCase {
                 out.writeInt(sample.maxNumSegments());
                 out.writeBoolean(sample.onlyExpungeDeletes());
                 out.writeBoolean(sample.flush());
-                if (compatibleVersion.onOrAfter(Version.V_2_13_0)) {
-                    out.writeBoolean(sample.primaryOnly());
-                }
+                out.writeBoolean(sample.primaryOnly());
                 if (compatibleVersion.onOrAfter(Version.V_3_0_0)) {
                     out.writeString(sample.forceMergeUUID());
                 } else {
@@ -149,7 +155,6 @@ public class ForceMergeRequestTests extends OpenSearchTestCase {
                 assertEquals(sample.flush(), deserializedRequest.flush());
                 assertEquals(sample.primaryOnly(), deserializedRequest.primaryOnly());
                 assertEquals(sample.forceMergeUUID(), deserializedRequest.forceMergeUUID());
-
             }
         }
     }
