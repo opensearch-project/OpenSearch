@@ -499,12 +499,8 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .build();
 
             int randomKeys = randomIntBetween(2, 100);
-            Map<String, String> keyValueMap = new HashMap<>();
             for (int i = 0; i < randomKeys; i++) {
-                keyValueMap.put(UUID.randomUUID().toString(), UUID.randomUUID().toString());
-            }
-            for (Map.Entry<String, String> entry : keyValueMap.entrySet()) {
-                ehcacheTest.put(entry.getKey(), entry.getValue());
+                ehcacheTest.put(UUID.randomUUID().toString(), UUID.randomUUID().toString());
             }
             long originalSize = ehcacheTest.count();
             assertEquals(randomKeys, originalSize);
