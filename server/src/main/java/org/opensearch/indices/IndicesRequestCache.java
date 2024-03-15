@@ -497,13 +497,10 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             // If the key doesn't exist, ignore
             ConcurrentMap<String, Integer> keyCountMap = cleanupKeyToCountMap.get(shardId);
             if (keyCountMap != null) {
-                keyCountMap.compute(cleanupKey.readerCacheKeyId, (key, currentValue) -> {
-                    // If the key is not present, no action is needed, return null.
-                    if (currentValue == null) return null;
-                    // Calculate the new value.
-                    int newValue = currentValue - 1;
+                keyCountMap.computeIfPresent(cleanupKey.readerCacheKeyId, (key, currentValue) -> {
                     // decrement the stale key count
                     staleKeysCount.decrementAndGet();
+                    int newValue = currentValue - 1;
                     // Remove the key if the new value is zero by returning null; otherwise, update with the new value.
                     return newValue == 0 ? null : newValue;
                 });
