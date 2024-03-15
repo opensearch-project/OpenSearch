@@ -652,10 +652,14 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             if (cleanThresholdPercent == 0.0) {
                 return false;
             }
-            if (staleKeysInCachePercentage() < cleanThresholdPercent) {
+            double staleKeysInCachePercentage = staleKeysInCachePercentage();
+            if (staleKeysInCachePercentage < cleanThresholdPercent) {
                 if (logger.isDebugEnabled()) {
                     logger.debug(
-                        "Skipping cache cleanup since the percentage of stale keys is less than the threshold : " + stalenessThreshold
+                        "Skipping Indices Request cache cleanup since the percentage of stale keys : "
+                            + staleKeysInCachePercentage
+                            + " is less than the threshold : "
+                            + stalenessThreshold
                     );
                 }
                 return true;
