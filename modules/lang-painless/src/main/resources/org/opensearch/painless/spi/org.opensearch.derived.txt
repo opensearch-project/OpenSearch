@@ -24,7 +24,6 @@ class org.opensearch.script.DerivedFieldScript @no_import {
 
 static_import {
     void emit(org.opensearch.script.DerivedFieldScript, long) bound_to org.opensearch.script.ScriptEmitValues$Long
-    # May need to combine ScriptEmitValues$Date with Long since the method signatures match
     void emit(org.opensearch.script.DerivedFieldScript, double) bound_to org.opensearch.script.ScriptEmitValues$Double
     void emit(org.opensearch.script.DerivedFieldScript, double, double) bound_to org.opensearch.script.ScriptEmitValues$GeoPoint
     void emit(org.opensearch.script.DerivedFieldScript, boolean) bound_to org.opensearch.script.ScriptEmitValues$Boolean

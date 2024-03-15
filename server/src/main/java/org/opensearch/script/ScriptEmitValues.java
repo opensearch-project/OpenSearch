@@ -8,11 +8,7 @@
 
 package org.opensearch.script;
 
-import org.opensearch.common.geo.GeoPoint;
-
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
+import org.opensearch.common.collect.Tuple;
 
 /**
  * Values that can be emitted in a derived field script context.
@@ -22,7 +18,7 @@ import java.time.ZonedDateTime;
  */
 public final class ScriptEmitValues {
 
-    // Emits a Long value
+    // Emits a Long value  (ex. from a long or date field type)
     public static final class Long {
 
         private final DerivedFieldScript derivedFieldScript;
@@ -33,23 +29,6 @@ public final class ScriptEmitValues {
 
         public void emit(long val) {
             derivedFieldScript.addEmittedValue(val);
-        }
-
-    }
-
-    // Emits a ZonedDateTime value
-    public static final class Date {
-
-        private final DerivedFieldScript derivedFieldScript;
-
-        public Date(DerivedFieldScript derivedFieldScript) {
-            this.derivedFieldScript = derivedFieldScript;
-        }
-
-        public void emit(long dateInMillis) {
-            derivedFieldScript.addEmittedValue(
-                ZonedDateTime.ofInstant(Instant.ofEpochMilli(dateInMillis), ZoneOffset.UTC)
-            );
         }
 
     }
@@ -78,7 +57,7 @@ public final class ScriptEmitValues {
         }
 
         public void emit(double lat, double lon) {
-            derivedFieldScript.addEmittedValue(new org.opensearch.common.geo.GeoPoint(lat, lon));
+            derivedFieldScript.addEmittedValue(new Tuple<>(lat, lon));
         }
 
     }
