@@ -136,15 +136,12 @@ public class RemoteStoreMigrationAllocationDecider extends AllocationDecider {
     private Decision replicaShardDecision(ShardRouting replicaShardRouting, DiscoveryNode targetNode, RoutingAllocation allocation) {
         if (targetNode.isRemoteStoreNode()) {
             ShardRouting primaryShardRouting = allocation.routingNodes().activePrimary(replicaShardRouting.shardId());
-            if (primaryShardRouting == null) {
-                return allocation.decision(
-                    Decision.NO,
-                    NAME,
-                    getDecisionDetails(false, replicaShardRouting, targetNode, " since primary shard for this replica is not yet active")
-                );
+            boolean primaryHasMigratedToRemote = false;
+            if (primaryShardRouting != null) {
+                DiscoveryNode primaryShardNode = allocation.nodes().getNodes().get(primaryShardRouting.currentNodeId());
+                primaryHasMigratedToRemote = primaryShardNode.isRemoteStoreNode();
             }
-            DiscoveryNode primaryShardNode = allocation.nodes().getNodes().get(primaryShardRouting.currentNodeId());
-            if (primaryShardNode.isRemoteStoreNode() == false) {
+            if (primaryHasMigratedToRemote == false) {
                 return allocation.decision(
                     Decision.NO,
                     NAME,
