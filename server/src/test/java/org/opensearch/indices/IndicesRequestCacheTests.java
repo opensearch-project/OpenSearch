@@ -519,7 +519,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
         // Close the reader, to be enqueued for cleanup
         reader.close();
-        AtomicInteger staleKeysCount = cache.cacheCleanupManager.getStaleKeysCountForTesting();
+        AtomicInteger staleKeysCount = cache.cacheCleanupManager.getStaleKeysCount();
         // 1 out of 2 keys ie 50% are now stale.
         assertEquals(1, staleKeysCount.get());
         // cache count should not be affected
@@ -535,7 +535,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         );
 
         cache.onRemoval(new RemovalNotification<IndicesRequestCache.Key, BytesReference>(key, termBytes, RemovalReason.EVICTED));
-        staleKeysCount = cache.cacheCleanupManager.getStaleKeysCountForTesting();
+        staleKeysCount = cache.cacheCleanupManager.getStaleKeysCount();
         // eviction of previous stale key from the cache should decrement staleKeysCount in iRC
         assertEquals(0, staleKeysCount.get());
 
@@ -592,7 +592,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
         // Close the reader, to be enqueued for cleanup
         reader.close();
-        AtomicInteger staleKeysCount = cache.cacheCleanupManager.getStaleKeysCountForTesting();
+        AtomicInteger staleKeysCount = cache.cacheCleanupManager.getStaleKeysCount();
         // 1 out of 2 keys ie 50% are now stale.
         assertEquals(1, staleKeysCount.get());
         // cache count should not be affected
@@ -608,7 +608,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         );
 
         cache.onRemoval(new RemovalNotification<IndicesRequestCache.Key, BytesReference>(key, termBytes, RemovalReason.EVICTED));
-        staleKeysCount = cache.cacheCleanupManager.getStaleKeysCountForTesting();
+        staleKeysCount = cache.cacheCleanupManager.getStaleKeysCount();
         // eviction of NON-stale key from the cache should NOT decrement staleKeysCount in iRC
         assertEquals(1, staleKeysCount.get());
 

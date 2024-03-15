@@ -555,7 +555,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             });
         }
 
-        AtomicInteger getStaleKeysCountForTesting() {
+        // package private for testing
+        AtomicInteger getStaleKeysCount() {
             return staleKeysCount;
         }
 
