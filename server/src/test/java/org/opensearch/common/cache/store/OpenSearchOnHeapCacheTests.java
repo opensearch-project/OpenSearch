@@ -92,6 +92,7 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
             .setRemovalListener(listener)
             .setSettings(settings)
             .setDimensionNames(dimensionNames)
+            .setMaxSizeInBytes(maxSizeKeys * keyValueSize)
             .build();
         return (OpenSearchOnHeapCache<String, String>) onHeapCacheFactory.create(cacheConfig, CacheType.INDICES_REQUEST_CACHE, null);
     }
