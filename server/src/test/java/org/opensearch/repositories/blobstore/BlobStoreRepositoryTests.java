@@ -42,6 +42,8 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -64,6 +66,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -318,4 +321,38 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         return repoData;
     }
 
+    public void testRemoteStoreShardCleanupTask() {
+        // todo: move it to separate class and add more scenarios.
+        AtomicBoolean executed1 = new AtomicBoolean(false);
+        Runnable task1 = () -> executed1.set(true);
+        String indexName = "test-idx";
+        String testIndexUUID = "test-idx-uuid";
+        ShardId shardId = new ShardId(new Index(indexName, testIndexUUID), 0);
+
+        // Scenario 1: pending = empty, ongoing = false => executed
+        RemoteStoreShardCleanupTask remoteStoreShardCleanupTask = new RemoteStoreShardCleanupTask(task1, testIndexUUID, shardId);
+        remoteStoreShardCleanupTask.run();
+        assertTrue(executed1.get());
+
+        // Scenario 2: pending = empty, ongoing = true => pending = currentTask
+        executed1.set(false);
+        String shardIdentifier = String.join("/", testIndexUUID, String.valueOf(shardId.id()));
+        RemoteStoreShardCleanupTask.ongoingRemoteDirectoryCleanups.add(shardIdentifier);
+
+        remoteStoreShardCleanupTask = new RemoteStoreShardCleanupTask(task1, testIndexUUID, shardId);
+        remoteStoreShardCleanupTask.run();
+        assertFalse(executed1.get());
+        assertSame(RemoteStoreShardCleanupTask.pendingRemoteDirectoryCleanups.get(shardIdentifier), task1);
+
+        // Scenario3: pending = anotherTask, ongoing = true => pending = currentTask
+        AtomicBoolean executed2 = new AtomicBoolean(false);
+        Runnable task2 = () -> executed2.set(true);
+        RemoteStoreShardCleanupTask.pendingRemoteDirectoryCleanups.put(shardIdentifier, task1);
+        RemoteStoreShardCleanupTask.ongoingRemoteDirectoryCleanups.add(shardIdentifier);
+
+        remoteStoreShardCleanupTask = new RemoteStoreShardCleanupTask(task2, testIndexUUID, shardId);
+        remoteStoreShardCleanupTask.run();
+        assertFalse(executed1.get());
+        assertSame(RemoteStoreShardCleanupTask.pendingRemoteDirectoryCleanups.get(shardIdentifier), task2);
+    }
 }
