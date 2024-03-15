@@ -608,37 +608,16 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
             for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext();) {
                 Key key = iterator.next();
-                if (shouldRemoveKey(key, cleanupKeysFromOutdatedReaders, cleanupKeysFromClosedShards)) {
+                if (cleanupKeysFromClosedShards.contains(key.shardId)) {
                     iterator.remove();
+                } else {
+                    CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId);
+                    if(cleanupKeysFromOutdatedReaders.contains(cleanupKey)) {
+                        iterator.remove();
+                    }
                 }
             }
             cache.refresh();
-        }
-
-        /**
-         * Determines whether a key should be removed from the cache.
-         *
-         * <p>This method checks if the key's shardId is present in the cleanupKeysFromClosedShards set,
-         * indicating that the shard has been closed and the key should be removed. If the shardId is not present,
-         * it checks if the key's readerCacheKeyId is present in the cleanupKeysFromOutdatedReaders set,
-         * indicating that the reader has been invalidated and the key should be removed.
-         *
-         * @param key The key to check for removal.
-         * @param cleanupKeysFromOutdatedReaders A set of CleanupKeys with open shard but invalidated readerCacheKeyId.
-         * @param cleanupKeysFromClosedShards A set of CleanupKeys of a closed shard.
-         * @return true if the key should be removed, false otherwise.
-         */
-        private synchronized boolean shouldRemoveKey(
-            Key key,
-            Set<CleanupKey> cleanupKeysFromOutdatedReaders,
-            Set<Object> cleanupKeysFromClosedShards
-        ) {
-            if (cleanupKeysFromClosedShards.contains(key.shardId)) {
-                return true;
-            } else {
-                CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId);
-                return cleanupKeysFromOutdatedReaders.contains(cleanupKey);
-            }
         }
 
         /**
