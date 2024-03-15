@@ -1611,6 +1611,10 @@ public class IndicesService extends AbstractLifecycleComponent
                     TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)
                 );
             }
+            // Reschedule itself to run again if not closed
+            if (closed.get() == false) {
+                threadPool.scheduleUnlessShuttingDown(interval, ThreadPool.Names.SAME, this);
+            }
         }
 
         @Override
