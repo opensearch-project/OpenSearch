@@ -44,7 +44,12 @@ public class TieredSpilloverCacheSettings {
      */
     public static final Setting.AffixSetting<TimeValue> TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD = Setting.suffixKeySetting(
         TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".disk.store.policies.took_time.threshold",
-        (key) -> Setting.timeSetting(key, new TimeValue(10, TimeUnit.MILLISECONDS), NodeScope)
+        (key) -> Setting.timeSetting(
+            key,
+            new TimeValue(10, TimeUnit.MILLISECONDS), // Default value for this setting
+            TimeValue.ZERO, // Minimum value for this setting
+            NodeScope
+        )
     );
     // 10 ms was chosen as a safe value based on proof of concept, where we saw disk latencies in this range.
     // Will be tuned further with future benchmarks.

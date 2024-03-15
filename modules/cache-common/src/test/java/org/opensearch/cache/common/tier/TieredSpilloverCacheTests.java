@@ -19,6 +19,7 @@ import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
 import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
@@ -1016,6 +1017,20 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 assertNull(computedValue);
             }
         }
+    }
+
+    public void testMinimumThresholdSettingValue() throws Exception {
+        // Confirm we can't set TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD to below
+        // TimeValue.ZERO (for example, MINUS_ONE)
+        Setting<TimeValue> concreteSetting = TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD
+            .getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix());
+        TimeValue validDuration = new TimeValue(0, TimeUnit.MILLISECONDS);
+        Settings validSettings = Settings.builder().put(concreteSetting.getKey(), validDuration).build();
+
+        Settings belowThresholdSettings = Settings.builder().put(concreteSetting.getKey(), TimeValue.MINUS_ONE).build();
+
+        assertThrows(IllegalArgumentException.class, () -> concreteSetting.get(belowThresholdSettings));
+        assertEquals(validDuration, concreteSetting.get(validSettings));
     }
 
     private static class AllowFirstLetterA implements Predicate<String> {

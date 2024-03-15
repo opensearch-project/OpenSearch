@@ -66,6 +66,10 @@ public class TookTimePolicyTests extends OpenSearchTestCase {
         assertFalse(tookTimePolicy.test(minusOne));
     }
 
+    public void testInvalidThreshold() throws Exception {
+        assertThrows(IllegalArgumentException.class, () -> getTookTimePolicy(TimeValue.MINUS_ONE));
+    }
+
     private BytesReference getValidPolicyInput(Long tookTimeNanos) throws IOException {
         // When it's used in the cache, the policy will receive BytesReferences which come from
         // serializing a CachedQueryResult.

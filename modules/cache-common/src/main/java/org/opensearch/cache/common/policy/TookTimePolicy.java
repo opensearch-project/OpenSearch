@@ -43,6 +43,9 @@ public class TookTimePolicy<V> implements Predicate<V> {
      * @param cachedResultParser the function providing policy values
      */
     public TookTimePolicy(TimeValue threshold, Function<V, CachedQueryResult.PolicyValues> cachedResultParser) {
+        if (threshold.compareTo(TimeValue.ZERO) < 0) {
+            throw new IllegalArgumentException("Threshold for TookTimePolicy must be >= 0ms but was " + threshold.getStringRep());
+        }
         this.threshold = threshold;
         this.cachedResultParser = cachedResultParser;
     }
