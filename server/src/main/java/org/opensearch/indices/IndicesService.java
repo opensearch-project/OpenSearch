@@ -1700,10 +1700,10 @@ public class IndicesService extends AbstractLifecycleComponent
         BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), out -> {
             long beforeQueryPhase = System.nanoTime();
             queryPhase.execute(context);
-            CachedQueryResult cachedQueryResult = new CachedQueryResult(context.queryResult(), System.nanoTime() - beforeQueryPhase);
-            cachedQueryResult.writeToNoId(out);
             // Write relevant info for cache tier policies before the whole QuerySearchResult, so we don't have to read
             // the whole QSR into memory when we decide whether to allow it into a particular cache tier based on took time/other info
+            CachedQueryResult cachedQueryResult = new CachedQueryResult(context.queryResult(), System.nanoTime() - beforeQueryPhase);
+            cachedQueryResult.writeToNoId(out);
             loadedFromCache[0] = false;
         });
 
