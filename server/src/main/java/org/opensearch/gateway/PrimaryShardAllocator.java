@@ -142,10 +142,10 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         shardsState.getData().forEach((node, nodeGatewayStartedShard) -> {
             nodeShardStates.add(
                 new NodeGatewayShardStarted(
-                    nodeGatewayStartedShard.allocationId(),
-                    nodeGatewayStartedShard.primary(),
-                    nodeGatewayStartedShard.replicationCheckpoint(),
-                    nodeGatewayStartedShard.storeException(),
+                    nodeGatewayStartedShard.getGatewayShardStarted().allocationId(),
+                    nodeGatewayStartedShard.getGatewayShardStarted().primary(),
+                    nodeGatewayStartedShard.getGatewayShardStarted().replicationCheckpoint(),
+                    nodeGatewayStartedShard.getGatewayShardStarted().storeException(),
                     node
                 )
             );

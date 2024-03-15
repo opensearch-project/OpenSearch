@@ -721,11 +721,11 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         );
 
         assertThat(response.getNodes(), hasSize(1));
-        assertThat(response.getNodes().get(0).allocationId(), notNullValue());
+        assertThat(response.getNodes().get(0).getGatewayShardStarted().allocationId(), notNullValue());
         if (corrupt) {
-            assertThat(response.getNodes().get(0).storeException(), notNullValue());
+            assertThat(response.getNodes().get(0).getGatewayShardStarted().storeException(), notNullValue());
         } else {
-            assertThat(response.getNodes().get(0).storeException(), nullValue());
+            assertThat(response.getNodes().get(0).getGatewayShardStarted().storeException(), nullValue());
         }
 
         // start another node so cluster consistency checks won't time out due to the lack of state
