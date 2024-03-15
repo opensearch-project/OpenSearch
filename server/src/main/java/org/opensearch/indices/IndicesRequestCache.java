@@ -452,7 +452,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
          */
         void enqueueCleanupKey(CleanupKey cleanupKey) {
             keysToClean.add(cleanupKey);
-            updateStaleKeysCount(cleanupKey);
+            incrementStaleKeysCount(cleanupKey);
         }
 
         /**
@@ -520,8 +520,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
          *
          * @param cleanupKey the CleanupKey that has been marked for cleanup
          */
-        private void updateStaleKeysCount(CleanupKey cleanupKey) {
-            if (stalenessThreshold == 0.0) {
+        private void incrementStaleKeysCount(CleanupKey cleanupKey) {
                 return;
             }
             IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
