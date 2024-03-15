@@ -27,8 +27,8 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.indices.IndicesService;
 import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayShardStarted;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.store.ShardAttributes;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
@@ -247,8 +247,6 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
             out.writeMap(shardAttributes, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
         }
     }
-
-
 
     /**
      * This is the response from a single node, this is used in {@link NodesGatewayStartedShardsBatch} for creating

@@ -139,13 +139,17 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             return null;
         }
         List<NodeGatewayShardStarted> nodeShardStates = new ArrayList<>();
-        shardsState.getData().forEach((node, nodeGatewayStartedShard) -> { nodeShardStates.add(new NodeGatewayShardStarted(
-            nodeGatewayStartedShard.allocationId(),
-            nodeGatewayStartedShard.primary(),
-            nodeGatewayStartedShard.replicationCheckpoint(),
-            nodeGatewayStartedShard.storeException(),
-            node
-        )); });
+        shardsState.getData().forEach((node, nodeGatewayStartedShard) -> {
+            nodeShardStates.add(
+                new NodeGatewayShardStarted(
+                    nodeGatewayStartedShard.allocationId(),
+                    nodeGatewayStartedShard.primary(),
+                    nodeGatewayStartedShard.replicationCheckpoint(),
+                    nodeGatewayStartedShard.storeException(),
+                    node
+                )
+            );
+        });
         return nodeShardStates;
     }
 
@@ -439,10 +443,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         return new NodeShardsResult(nodeShardStates, numberOfAllocationsFound);
     }
 
-    private static Comparator<NodeGatewayShardStarted> createActiveShardComparator(
-        boolean matchAnyShard,
-        Set<String> inSyncAllocationIds
-    ) {
+    private static Comparator<NodeGatewayShardStarted> createActiveShardComparator(boolean matchAnyShard, Set<String> inSyncAllocationIds) {
         /**
          * Orders the active shards copies based on below comparators
          * 1. No store exception i.e. shard copy is readable

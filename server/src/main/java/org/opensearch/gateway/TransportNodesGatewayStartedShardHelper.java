@@ -95,12 +95,7 @@ public class TransportNodesGatewayStartedShardHelper {
                         exception
                     );
                     String allocationId = shardStateMetadata.allocationId != null ? shardStateMetadata.allocationId.getId() : null;
-                    return new GatewayShardStarted(
-                        allocationId,
-                        shardStateMetadata.primary,
-                        null,
-                        exception
-                    );
+                    return new GatewayShardStarted(allocationId, shardStateMetadata.primary, null, exception);
                 }
             }
 
@@ -241,9 +236,13 @@ public class TransportNodesGatewayStartedShardHelper {
 
         private final DiscoveryNode node;
 
-        public NodeGatewayShardStarted(String allocationId, boolean primary,
-                                       ReplicationCheckpoint replicationCheckpoint, Exception storeException,
-                                       DiscoveryNode node) {
+        public NodeGatewayShardStarted(
+            String allocationId,
+            boolean primary,
+            ReplicationCheckpoint replicationCheckpoint,
+            Exception storeException,
+            DiscoveryNode node
+        ) {
             super(allocationId, primary, replicationCheckpoint, storeException);
             this.node = node;
         }

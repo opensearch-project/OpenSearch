@@ -793,10 +793,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             ShardId shardId = clusterSearchShardsGroup.getShardId();
             assertEquals(1, clusterSearchShardsGroup.getShards().length);
             String nodeId = clusterSearchShardsGroup.getShards()[0].currentNodeId();
-            GatewayShardStarted gatewayShardStarted = response.getNodesMap()
-                .get(nodeId)
-                .getNodeGatewayStartedShardsBatch()
-                .get(shardId);
+            GatewayShardStarted gatewayShardStarted = response.getNodesMap().get(nodeId).getNodeGatewayStartedShardsBatch().get(shardId);
             assertNodeGatewayStartedShardsHappyCase(gatewayShardStarted);
         }
     }
@@ -951,9 +948,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         assertNotNull(storeFileMetadata.peerRecoveryRetentionLeases());
     }
 
-    private void assertNodeGatewayStartedShardsHappyCase(
-        GatewayShardStarted gatewayShardStarted
-    ) {
+    private void assertNodeGatewayStartedShardsHappyCase(GatewayShardStarted gatewayShardStarted) {
         assertNull(gatewayShardStarted.storeException());
         assertNotNull(gatewayShardStarted.allocationId());
         assertTrue(gatewayShardStarted.primary());

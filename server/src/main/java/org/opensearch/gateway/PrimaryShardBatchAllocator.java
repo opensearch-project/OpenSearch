@@ -99,10 +99,7 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
 
         // process the received data
         for (ShardRouting unassignedShard : eligibleShards) {
-            List<NodeGatewayShardStarted> nodeShardStates = adaptToNodeShardStates(
-                unassignedShard,
-                shardsState
-            );
+            List<NodeGatewayShardStarted> nodeShardStates = adaptToNodeShardStates(unassignedShard, shardsState);
             // get allocation decision for this shard
             shardAllocationDecisions.put(unassignedShard, getAllocationDecision(unassignedShard, allocation, nodeShardStates, logger));
         }
@@ -135,7 +132,8 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
 
         // build data for a shard from all the nodes
         nodeResponses.forEach((node, nodeGatewayStartedShardsBatch) -> {
-            TransportNodesGatewayStartedShardHelper.GatewayShardStarted shardData = nodeGatewayStartedShardsBatch.getNodeGatewayStartedShardsBatch()
+            TransportNodesGatewayStartedShardHelper.GatewayShardStarted shardData = nodeGatewayStartedShardsBatch
+                .getNodeGatewayStartedShardsBatch()
                 .get(unassignedShard.shardId());
             nodeShardStates.add(
                 new NodeGatewayShardStarted(
