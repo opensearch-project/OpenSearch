@@ -84,16 +84,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             builder.cacheFactories
 
         );
-        this.diskCache = builder.diskCacheFactory.create(
-            new CacheConfig.Builder<K, V>().setRemovalListener(removalListener) // TODO: change
-                .setKeyType(builder.cacheConfig.getKeyType())
-                .setValueType(builder.cacheConfig.getValueType())
-                .setSettings(builder.cacheConfig.getSettings())
-                .setWeigher(builder.cacheConfig.getWeigher())
-                .build(),
-            builder.cacheType,
-            builder.cacheFactories
-        );
+        this.diskCache = builder.diskCacheFactory.create(builder.cacheConfig, builder.cacheType, builder.cacheFactories);
         this.cacheList = Arrays.asList(onHeapCache, diskCache);
         this.stats = null; // TODO - in next stats rework PR
         this.dimensionNames = builder.cacheConfig.getDimensionNames();

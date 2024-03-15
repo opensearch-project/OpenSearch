@@ -132,8 +132,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
         long sizeInBytes = size.getBytes();
-        ToLongBiFunction<ICacheKey<Key>, BytesReference> weigher = (k, v) -> k.key.ramBytesUsed() + k.dimensionBytesEstimate() + v
-            .ramBytesUsed();
+        ToLongBiFunction<ICacheKey<Key>, BytesReference> weigher = (k, v) -> k.ramBytesUsed(k.key.ramBytesUsed()) + v.ramBytesUsed();
         this.cacheEntityLookup = cacheEntityFunction;
         this.cache = cacheService.createCache(
             new CacheConfig.Builder<Key, BytesReference>().setSettings(settings)

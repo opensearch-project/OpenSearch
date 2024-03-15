@@ -16,9 +16,20 @@ public class ICacheKey<K> {
     public final K key; // K must implement equals()
     public final List<CacheStatsDimension> dimensions;
 
+    /**
+     * Constructor to use when specifying dimensions.
+     */
     public ICacheKey(K key, List<CacheStatsDimension> dimensions) {
         this.key = key;
         this.dimensions = dimensions;
+    }
+
+    /**
+     * Constructor to use when no dimensions are needed.
+     */
+    public ICacheKey(K key) {
+        this.key = key;
+        this.dimensions = List.of();
     }
 
     @Override
@@ -41,10 +52,11 @@ public class ICacheKey<K> {
         return 31 * key.hashCode() + dimensions.hashCode();
     }
 
-    public long dimensionBytesEstimate() {
-        long estimate = 0L;
+    // As K might not be Accountable, directly pass in its memory usage to be added.
+    public long ramBytesUsed(long underlyingKeyRamBytes) {
+        long estimate = underlyingKeyRamBytes;
         for (CacheStatsDimension dim : dimensions) {
-            estimate += dim.dimensionName.length() + dim.dimensionValue.length();
+            estimate += dim.ramBytesUsed();
         }
         return estimate;
     }

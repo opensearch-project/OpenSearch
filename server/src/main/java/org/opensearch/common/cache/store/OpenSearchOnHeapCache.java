@@ -33,6 +33,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongBiFunction;
 
 import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.EXPIRE_AFTER_ACCESS_KEY;
 import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES_KEY;
@@ -50,6 +51,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
     private final StatsHolder statsHolder;
     private final RemovalListener<ICacheKey<K>, V> removalListener;
     private final List<String> dimensionNames;
+    private final ToLongBiFunction<ICacheKey<K>, V> weigher;
 
     public OpenSearchOnHeapCache(Builder<K, V> builder) {
         CacheBuilder<ICacheKey<K>, V> cacheBuilder = CacheBuilder.<ICacheKey<K>, V>builder()
@@ -63,6 +65,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         this.dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
         this.statsHolder = new StatsHolder(dimensionNames);
         this.removalListener = builder.getRemovalListener();
+        this.weigher = builder.getWeigher();
     }
 
     @Override
@@ -80,7 +83,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
     public void put(ICacheKey<K> key, V value) {
         cache.put(key, value);
         statsHolder.incrementEntries(key);
-        statsHolder.incrementSizeInBytes(key, cache.getWeigher().applyAsLong(key, value));
+        statsHolder.incrementSizeInBytes(key, weigher.applyAsLong(key, value));
     }
 
     @Override

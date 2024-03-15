@@ -8,6 +8,7 @@
 
 package org.opensearch.common.cache.stats;
 
+import org.apache.lucene.util.Accountable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -15,7 +16,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Objects;
 
-public class CacheStatsDimension implements Writeable {
+public class CacheStatsDimension implements Writeable, Accountable {
     public final String dimensionName;
     public final String dimensionValue;
 
@@ -56,5 +57,11 @@ public class CacheStatsDimension implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(dimensionName, dimensionValue);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        // Estimate of bytes used by the two strings.
+        return dimensionName.length() + dimensionValue.length();
     }
 }
