@@ -21,7 +21,7 @@ import java.security.NoSuchAlgorithmException;
 import io.netty.buffer.ByteBuf;
 
 /**
- * @see <a href="https://github.com/opensearch-project/security/blob/main/src/main/java/org/opensearch/security/ssl/util/TLSUtil.java">TLSUtil</a>
+ * @see <a href="https://github.com/opensearch-project/security/blob/d526c9f6c2a438c14db8b413148204510b9fe2e2/src/main/java/org/opensearch/security/ssl/util/TLSUtil.java">TLSUtil</a>
  */
 public class SslUtils {
     private static final String[] DEFAULT_SSL_PROTOCOLS = { "TLSv1.3", "TLSv1.2", "TLSv1.1" };

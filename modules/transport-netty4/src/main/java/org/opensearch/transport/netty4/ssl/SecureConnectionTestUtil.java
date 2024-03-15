@@ -29,7 +29,7 @@ import java.nio.charset.StandardCharsets;
  * Following that a custom client hello message will be sent to the server, if the server
  * side has OpenSearchPortUnificationHandler it will reply with server hello message.
  *
- * @see <a href="https://github.com/opensearch-project/security/blob/main/src/main/java/org/opensearch/security/ssl/util/SSLConnectionTestUtil.java">SSLConnectionTestUtil</a>
+ * @see <a href="https://github.com/opensearch-project/security/blob/d526c9f6c2a438c14db8b413148204510b9fe2e2/src/main/java/org/opensearch/security/ssl/util/SSLConnectionTestUtil.java">SSLConnectionTestUtil</a>
  */
 class SecureConnectionTestUtil {
     private static final Logger logger = LogManager.getLogger(SecureConnectionTestUtil.class);
