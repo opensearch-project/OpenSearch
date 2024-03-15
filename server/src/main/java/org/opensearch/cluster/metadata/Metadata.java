@@ -177,13 +177,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         EnumSet<XContentContext> context();
 
         static Custom fromXContent(XContentParser parser, String name) throws IOException {
-            try {
-                return parser.namedObject(Custom.class, name, null);
-            } catch (NamedObjectNotFoundException e) {
-                logger.warn("Unknown custom object with type {}", name);
-                parser.skipChildren();
-                throw e;
-            }
+            // handling any Exception is caller's responsibility
+            return parser.namedObject(Custom.class, name, null);
         }
 
         static Custom fromXContent(XContentParser parser) throws IOException {
@@ -1849,6 +1844,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                             builder.putCustom(custom.getWriteableName(), custom);
                         } catch (NamedObjectNotFoundException ex) {
                             logger.warn("Skipping unknown custom object with type {}", currentFieldName);
+                            parser.skipChildren();
                         }
                     }
                 } else if (token.isValue()) {
