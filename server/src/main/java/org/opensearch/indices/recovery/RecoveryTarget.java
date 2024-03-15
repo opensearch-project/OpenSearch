@@ -96,7 +96,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
      * @param indexShard local shard where we want to recover to
      * @param sourceNode source node of the recovery where we recover from
      * @param listener   called when recovery is completed/failed
-     * @param threadPool
+     * @param threadPool threadpool instance
      */
     public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, ReplicationListener listener, ThreadPool threadPool) {
         super("recovery_status", indexShard, indexShard.recoveryState().getIndex(), listener);
