@@ -1250,7 +1250,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                      - Segrep enabled without remote store
                      - Destination replica shard is hosted on a remote store enabled node (Remote store enabled nodes have segrep enabled implicitly)
                     */
-                    && (indexSettings.isSegRepLocalEnabled() == true || routingTable.getByAllocationId(allocationId).isAssignedToRemoteStoreNode() == true)) {
+                    && (indexSettings.isSegRepLocalEnabled() == true
+                        || routingTable.getByAllocationId(allocationId).isAssignedToRemoteStoreNode() == true)) {
                     cps.checkpointTimers.computeIfAbsent(latestReplicationCheckpoint, ignored -> new SegmentReplicationLagTimer());
                     logger.trace(
                         () -> new ParameterizedMessage(
@@ -1448,7 +1449,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                             + " as in-sync but it does not exist locally";
                         final long localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
                         final long globalCheckpoint = localCheckpoint;
-                        final boolean assignedToRemoteStoreNode = routingTable.getByAllocationId(initializingId).isAssignedToRemoteStoreNode();
+                        final boolean assignedToRemoteStoreNode = routingTable.getByAllocationId(initializingId)
+                            .isAssignedToRemoteStoreNode();
                         checkpoints.put(
                             initializingId,
                             new CheckpointState(
@@ -1518,7 +1520,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @param primaryTargetAllocationId primary target allocation id
      * @return the replication mode.
      */
-    private boolean isReplicated(String allocationId, String primaryAllocationId, String primaryTargetAllocationId, boolean assignedToRemoteStoreNode) {
+    private boolean isReplicated(
+        String allocationId,
+        String primaryAllocationId,
+        String primaryTargetAllocationId,
+        boolean assignedToRemoteStoreNode
+    ) {
         /*
          - If remote translog is enabled, then returns replication mode checking current allocation id against the primary and primary target allocation id.
          - If remote translog is enabled, then returns true if given allocation id matches the primary or it's relocation target allocation primary and primary target allocation id.

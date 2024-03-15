@@ -3494,7 +3494,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              * update local checkpoint at replica, so the local checkpoint at replica can be less than globalCheckpoint.
              */
             assert (state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED)
-                || indexSettings.isRemoteTranslogStoreEnabled() || indexSettings.isRemoteNode() : "supposedly in-sync shard copy received a global checkpoint ["
+                || indexSettings.isRemoteTranslogStoreEnabled()
+                || indexSettings.isRemoteNode() : "supposedly in-sync shard copy received a global checkpoint ["
                     + globalCheckpoint
                     + "] "
                     + "that is higher than its local checkpoint ["

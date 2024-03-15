@@ -8,10 +8,8 @@
 
 package org.opensearch.index.remote;
 
-import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 
 import java.util.Arrays;
@@ -108,7 +106,6 @@ public class RemoteStoreUtils {
         });
     }
 
-
     /**
      * Helper method to check the values for the following cluster settings:
      * - `remote_store.compatibility_mode` (should be `mixed`)
@@ -118,7 +115,9 @@ public class RemoteStoreUtils {
      */
     public static boolean isMigrationDirectionSet(ClusterService clusterService) {
         RemoteStoreNodeService.Direction migrationDirection = clusterService.getClusterSettings().get(MIGRATION_DIRECTION_SETTING);
-        RemoteStoreNodeService.CompatibilityMode currentCompatiblityMode = clusterService.getClusterSettings().get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING);
-        return currentCompatiblityMode.equals(RemoteStoreNodeService.CompatibilityMode.MIXED) == true && migrationDirection.equals(RemoteStoreNodeService.Direction.NONE) == false;
+        RemoteStoreNodeService.CompatibilityMode currentCompatiblityMode = clusterService.getClusterSettings()
+            .get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING);
+        return currentCompatiblityMode.equals(RemoteStoreNodeService.CompatibilityMode.MIXED) == true
+            && migrationDirection.equals(RemoteStoreNodeService.Direction.NONE) == false;
     }
 }

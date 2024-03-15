@@ -18,7 +18,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.junit.annotations.TestLogging;
 
 import java.util.Map;
 
@@ -54,7 +53,16 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
         addRemote = true;
         String remoteNodeName = internalCluster().startDataOnlyNode();
         internalCluster().validateClusterFormed();
-        assertEquals(internalCluster().client().admin().cluster().prepareGetRepositories(REPOSITORY_NAME, REPOSITORY_2_NAME).get().repositories().size(), 2);
+        assertEquals(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareGetRepositories(REPOSITORY_NAME, REPOSITORY_2_NAME)
+                .get()
+                .repositories()
+                .size(),
+            2
+        );
 
         logger.info("---> Excluding remote node from shard assignment");
         Settings excludeRemoteNode = Settings.builder()
@@ -72,12 +80,27 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
         Settings includeRemoteNode = Settings.builder()
             .putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
             .build();
-        assertAcked(internalCluster().client().admin().indices().prepareUpdateSettings().setIndices(REMOTE_PRI_DOCREP_REP).setSettings(includeRemoteNode).get());
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings()
+                .setIndices(REMOTE_PRI_DOCREP_REP)
+                .setSettings(includeRemoteNode)
+                .get()
+        );
         ensureGreen(REMOTE_PRI_DOCREP_REP);
 
         String primaryShardHostingNode = primaryNodeName(REMOTE_PRI_DOCREP_REP);
         logger.info("---> Moving primary copy from {} to remote enabled node {}", primaryShardHostingNode, remoteNodeName);
-        assertAcked(internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(REMOTE_PRI_DOCREP_REP, 0, primaryShardHostingNode, remoteNodeName)).get());
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareReroute()
+                .add(new MoveAllocationCommand(REMOTE_PRI_DOCREP_REP, 0, primaryShardHostingNode, remoteNodeName))
+                .get()
+        );
         ensureGreen(REMOTE_PRI_DOCREP_REP);
 
         int secondBatch = randomIntBetween(1, 10);
@@ -85,7 +108,13 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
         indexBulk(REMOTE_PRI_DOCREP_REP, secondBatch);
         // Defensive check to ensure that doc count in replica shard catches up to the primary copy
         flush(REMOTE_PRI_DOCREP_REP);
-        Map<ShardRouting, ShardStats> shardStatsMap = internalCluster().client().admin().indices().prepareStats(REMOTE_PRI_DOCREP_REP).setDocs(true).get().asMap();
+        Map<ShardRouting, ShardStats> shardStatsMap = internalCluster().client()
+            .admin()
+            .indices()
+            .prepareStats(REMOTE_PRI_DOCREP_REP)
+            .setDocs(true)
+            .get()
+            .asMap();
         DiscoveryNodes nodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
         assertReplicaAndPrimaryConsistencySingle(shardStatsMap, initialBatch, secondBatch, nodes);
     }
@@ -113,8 +142,7 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
         assertEquals(internalCluster().client().admin().cluster().prepareGetRepositories().get().repositories().size(), 0);
 
         logger.info("---> Creating index with 0 replica");
-        Settings excludeRemoteNode = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
+        Settings excludeRemoteNode = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
         createIndex(REMOTE_PRI_DOCREP_REMOTE_REP, excludeRemoteNode);
         ensureGreen(REMOTE_PRI_DOCREP_REMOTE_REP);
 
@@ -122,7 +150,16 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
         addRemote = true;
         String remoteNodeName = internalCluster().startDataOnlyNode();
         internalCluster().validateClusterFormed();
-        assertEquals(internalCluster().client().admin().cluster().prepareGetRepositories(REPOSITORY_NAME, REPOSITORY_2_NAME).get().repositories().size(), 2);
+        assertEquals(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareGetRepositories(REPOSITORY_NAME, REPOSITORY_2_NAME)
+                .get()
+                .repositories()
+                .size(),
+            2
+        );
 
         int firstBatch = randomIntBetween(1, 100);
         logger.info("---> Indexing {} docs", firstBatch);
@@ -131,7 +168,14 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
 
         String primaryShardHostingNode = primaryNodeName(REMOTE_PRI_DOCREP_REMOTE_REP);
         logger.info("---> Moving primary copy from {} to remote enabled node {}", primaryShardHostingNode, remoteNodeName);
-        assertAcked(internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(REMOTE_PRI_DOCREP_REMOTE_REP, 0, primaryShardHostingNode, remoteNodeName)).get());
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareReroute()
+                .add(new MoveAllocationCommand(REMOTE_PRI_DOCREP_REMOTE_REP, 0, primaryShardHostingNode, remoteNodeName))
+                .get()
+        );
         ensureGreen(REMOTE_PRI_DOCREP_REMOTE_REP);
 
         logger.info("---> Starting another remote enabled node");
@@ -139,10 +183,16 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
         internalCluster().validateClusterFormed();
 
         logger.info("---> Expanding index to 2 replica copies");
-        Settings twoReplicas = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-            .build();
-        assertAcked(internalCluster().client().admin().indices().prepareUpdateSettings().setIndices(REMOTE_PRI_DOCREP_REMOTE_REP).setSettings(twoReplicas).get());
+        Settings twoReplicas = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2).build();
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings()
+                .setIndices(REMOTE_PRI_DOCREP_REMOTE_REP)
+                .setSettings(twoReplicas)
+                .get()
+        );
         ensureGreen(REMOTE_PRI_DOCREP_REMOTE_REP);
 
         int secondBatch = randomIntBetween(1, 10);
@@ -151,7 +201,13 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
         // Defensive check to ensure that doc count in replica shard catches up to the primary copy
         flush(REMOTE_PRI_DOCREP_REMOTE_REP);
 
-        Map<ShardRouting, ShardStats> shardStatsMap = internalCluster().client().admin().indices().prepareStats(REMOTE_PRI_DOCREP_REMOTE_REP).setDocs(true).get().asMap();
+        Map<ShardRouting, ShardStats> shardStatsMap = internalCluster().client()
+            .admin()
+            .indices()
+            .prepareStats(REMOTE_PRI_DOCREP_REMOTE_REP)
+            .setDocs(true)
+            .get()
+            .asMap();
         DiscoveryNodes nodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
         assertReplicaAndPrimaryConsistencyMultiCopy(shardStatsMap, firstBatch, secondBatch, nodes);
     }
@@ -167,8 +223,7 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
         assertEquals(internalCluster().client().admin().cluster().prepareGetRepositories().get().repositories().size(), 0);
 
         logger.info("---> Creating index with 0 replica");
-        Settings excludeRemoteNode = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
+        Settings excludeRemoteNode = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
         createIndex(FAILOVER_REMOTE_TO_DOCREP, excludeRemoteNode);
         ensureGreen(FAILOVER_REMOTE_TO_DOCREP);
 
@@ -176,7 +231,16 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
         addRemote = true;
         String remoteNodeName = internalCluster().startDataOnlyNode();
         internalCluster().validateClusterFormed();
-        assertEquals(internalCluster().client().admin().cluster().prepareGetRepositories(REPOSITORY_NAME, REPOSITORY_2_NAME).get().repositories().size(), 2);
+        assertEquals(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareGetRepositories(REPOSITORY_NAME, REPOSITORY_2_NAME)
+                .get()
+                .repositories()
+                .size(),
+            2
+        );
 
         int firstBatch = randomIntBetween(1, 100);
         logger.info("---> Indexing {} docs", firstBatch);
@@ -185,21 +249,40 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
 
         String primaryShardHostingNode = primaryNodeName(FAILOVER_REMOTE_TO_DOCREP);
         logger.info("---> Moving primary copy from {} to remote enabled node {}", primaryShardHostingNode, remoteNodeName);
-        assertAcked(internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(FAILOVER_REMOTE_TO_DOCREP, 0, primaryShardHostingNode, remoteNodeName)).get());
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareReroute()
+                .add(new MoveAllocationCommand(FAILOVER_REMOTE_TO_DOCREP, 0, primaryShardHostingNode, remoteNodeName))
+                .get()
+        );
         ensureGreen(FAILOVER_REMOTE_TO_DOCREP);
 
         logger.info("---> Expanding index to 1 replica copy");
-        Settings twoReplicas = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
-        assertAcked(internalCluster().client().admin().indices().prepareUpdateSettings().setIndices(FAILOVER_REMOTE_TO_DOCREP).setSettings(twoReplicas).get());
+        Settings twoReplicas = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings()
+                .setIndices(FAILOVER_REMOTE_TO_DOCREP)
+                .setSettings(twoReplicas)
+                .get()
+        );
         ensureGreen(FAILOVER_REMOTE_TO_DOCREP);
 
         flush(FAILOVER_REMOTE_TO_DOCREP);
-        Map<ShardRouting, ShardStats> shardStatsMap = internalCluster().client().admin().indices().prepareStats(FAILOVER_REMOTE_TO_DOCREP).setDocs(true).get().asMap();
+        Map<ShardRouting, ShardStats> shardStatsMap = internalCluster().client()
+            .admin()
+            .indices()
+            .prepareStats(FAILOVER_REMOTE_TO_DOCREP)
+            .setDocs(true)
+            .get()
+            .asMap();
         DiscoveryNodes nodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
         long initialPrimaryDocCount = 0;
-        for (ShardRouting shardRouting: shardStatsMap.keySet()) {
+        for (ShardRouting shardRouting : shardStatsMap.keySet()) {
             if (shardRouting.primary()) {
                 initialPrimaryDocCount = shardStatsMap.get(shardRouting).getStats().getDocs().getCount();
             }
@@ -213,7 +296,7 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
 
         shardStatsMap = internalCluster().client().admin().indices().prepareStats(FAILOVER_REMOTE_TO_DOCREP).setDocs(true).get().asMap();
         long primaryDocCountAfterFailover = 0;
-        for (ShardRouting shardRouting: shardStatsMap.keySet()) {
+        for (ShardRouting shardRouting : shardStatsMap.keySet()) {
             if (shardRouting.primary()) {
                 assertFalse(shardRouting.isAssignedToRemoteStoreNode());
                 primaryDocCountAfterFailover = shardStatsMap.get(shardRouting).getStats().getDocs().getCount();
@@ -231,65 +314,73 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
         shardStatsMap = internalCluster().client().admin().indices().prepareStats(FAILOVER_REMOTE_TO_DOCREP).setDocs(true).get().asMap();
         assertEquals(1, shardStatsMap.size());
         shardStatsMap.forEach(
-            (shardRouting, shardStats) -> {
-                assertEquals(firstBatch + secondBatch, shardStats.getStats().getDocs().getCount());
-            }
+            (shardRouting, shardStats) -> { assertEquals(firstBatch + secondBatch, shardStats.getStats().getDocs().getCount()); }
         );
     }
 
-    private void assertReplicaAndPrimaryConsistencyMultiCopy(Map<ShardRouting, ShardStats> shardStatsMap, int firstBatch, int secondBatch, DiscoveryNodes nodes) throws Exception {
-        assertBusy(
-            () -> {
-                for (ShardRouting shardRouting : shardStatsMap.keySet()) {
-                    CommonStats shardStats = shardStatsMap.get(shardRouting).getStats();
-                    if (shardRouting.primary()) {
-                        assertEquals(firstBatch + secondBatch, shardStats.getDocs().getCount());
-                        assertTrue(nodes.get(shardRouting.currentNodeId()).isRemoteStoreNode());
-                        RemoteSegmentStats remoteSegmentStats = shardStats.getSegments().getRemoteSegmentStats();
-                        assertTrue(remoteSegmentStats.getUploadBytesSucceeded() > 0);
-                        assertTrue(remoteSegmentStats.getTotalUploadTime() > 0);
+    private void assertReplicaAndPrimaryConsistencyMultiCopy(
+        Map<ShardRouting, ShardStats> shardStatsMap,
+        int firstBatch,
+        int secondBatch,
+        DiscoveryNodes nodes
+    ) throws Exception {
+        assertBusy(() -> {
+            for (ShardRouting shardRouting : shardStatsMap.keySet()) {
+                CommonStats shardStats = shardStatsMap.get(shardRouting).getStats();
+                if (shardRouting.primary()) {
+                    assertEquals(firstBatch + secondBatch, shardStats.getDocs().getCount());
+                    assertTrue(nodes.get(shardRouting.currentNodeId()).isRemoteStoreNode());
+                    RemoteSegmentStats remoteSegmentStats = shardStats.getSegments().getRemoteSegmentStats();
+                    assertTrue(remoteSegmentStats.getUploadBytesSucceeded() > 0);
+                    assertTrue(remoteSegmentStats.getTotalUploadTime() > 0);
+                } else {
+                    boolean remoteNode = nodes.get(shardRouting.currentNodeId()).isRemoteStoreNode();
+                    assertEquals(
+                        "Mismatched doc count. Is this on remote node ? " + remoteNode,
+                        firstBatch + secondBatch,
+                        shardStats.getDocs().getCount()
+                    );
+                    RemoteSegmentStats remoteSegmentStats = shardStats.getSegments().getRemoteSegmentStats();
+                    if (remoteNode) {
+                        assertTrue(remoteSegmentStats.getDownloadBytesStarted() > 0);
+                        assertTrue(remoteSegmentStats.getTotalDownloadTime() > 0);
                     } else {
-                        boolean remoteNode = nodes.get(shardRouting.currentNodeId()).isRemoteStoreNode();
-                        assertEquals("Mismatched doc count. Is this on remote node ? " + remoteNode, firstBatch + secondBatch, shardStats.getDocs().getCount());
-                        RemoteSegmentStats remoteSegmentStats = shardStats.getSegments().getRemoteSegmentStats();
-                        if (remoteNode) {
-                            assertTrue(remoteSegmentStats.getDownloadBytesStarted() > 0);
-                            assertTrue(remoteSegmentStats.getTotalDownloadTime() > 0);
-                        } else {
-                            assertEquals(0, remoteSegmentStats.getUploadBytesSucceeded());
-                            assertEquals(0, remoteSegmentStats.getTotalUploadTime());
-                        }
+                        assertEquals(0, remoteSegmentStats.getUploadBytesSucceeded());
+                        assertEquals(0, remoteSegmentStats.getTotalUploadTime());
                     }
                 }
             }
-        );
+        });
     }
 
-    private void assertReplicaAndPrimaryConsistencySingle(Map<ShardRouting, ShardStats> shardStatsMap, int initialBatch, int secondBatch, DiscoveryNodes nodes) throws Exception {
-        assertBusy(
-            () -> {
-                long primaryDocCount = 0, replicaDocCount = 0;
-                for (ShardRouting shardRouting : shardStatsMap.keySet()) {
-                    CommonStats shardStats = shardStatsMap.get(shardRouting).getStats();
-                    if (shardRouting.primary()) {
-                        primaryDocCount = shardStats.getDocs().getCount();
-                        assertTrue(nodes.get(shardRouting.currentNodeId()).isRemoteStoreNode());
-                        RemoteSegmentStats remoteSegmentStats = shardStats.getSegments().getRemoteSegmentStats();
-                        assertTrue(remoteSegmentStats.getUploadBytesSucceeded() > 0);
-                        assertTrue(remoteSegmentStats.getTotalUploadTime() > 0);
-                    } else {
-                        replicaDocCount = shardStats.getDocs().getCount();
-                        assertFalse(nodes.get(shardRouting.currentNodeId()).isRemoteStoreNode());
-                        RemoteSegmentStats remoteSegmentStats = shardStats.getSegments().getRemoteSegmentStats();
-                        assertEquals(0, remoteSegmentStats.getDownloadBytesStarted());
-                        assertEquals(0, remoteSegmentStats.getTotalDownloadTime());
-                    }
+    private void assertReplicaAndPrimaryConsistencySingle(
+        Map<ShardRouting, ShardStats> shardStatsMap,
+        int initialBatch,
+        int secondBatch,
+        DiscoveryNodes nodes
+    ) throws Exception {
+        assertBusy(() -> {
+            long primaryDocCount = 0, replicaDocCount = 0;
+            for (ShardRouting shardRouting : shardStatsMap.keySet()) {
+                CommonStats shardStats = shardStatsMap.get(shardRouting).getStats();
+                if (shardRouting.primary()) {
+                    primaryDocCount = shardStats.getDocs().getCount();
+                    assertTrue(nodes.get(shardRouting.currentNodeId()).isRemoteStoreNode());
+                    RemoteSegmentStats remoteSegmentStats = shardStats.getSegments().getRemoteSegmentStats();
+                    assertTrue(remoteSegmentStats.getUploadBytesSucceeded() > 0);
+                    assertTrue(remoteSegmentStats.getTotalUploadTime() > 0);
+                } else {
+                    replicaDocCount = shardStats.getDocs().getCount();
+                    assertFalse(nodes.get(shardRouting.currentNodeId()).isRemoteStoreNode());
+                    RemoteSegmentStats remoteSegmentStats = shardStats.getSegments().getRemoteSegmentStats();
+                    assertEquals(0, remoteSegmentStats.getDownloadBytesStarted());
+                    assertEquals(0, remoteSegmentStats.getTotalDownloadTime());
                 }
-                assertTrue(replicaDocCount > 0);
-                assertEquals(replicaDocCount, initialBatch + secondBatch);
-                assertEquals(primaryDocCount, replicaDocCount);
             }
-        );
+            assertTrue(replicaDocCount > 0);
+            assertEquals(replicaDocCount, initialBatch + secondBatch);
+            assertEquals(primaryDocCount, replicaDocCount);
+        });
     }
 
 }
