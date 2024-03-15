@@ -81,6 +81,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.ToLongBiFunction;
 
+import static org.opensearch.indices.IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING;
+
 /**
  * The indices request cache allows to cache a shard level request stage responses, helping with improving
  * similar requests that are potentially expensive (because of aggs for example). The cache is fully coherent
@@ -122,7 +124,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     );
     public static final Setting<TimeValue> INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING = Setting.positiveTimeSetting(
         "indices.requests.cache.cleanup.interval",
-        TimeValue.timeValueMinutes(1),
+        INDICES_CACHE_CLEAN_INTERVAL_SETTING,
         Property.NodeScope
     );
     public static final Setting<String> INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING = new Setting<>(
