@@ -69,6 +69,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
@@ -431,7 +432,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
      * */
     class IndicesRequestCacheCleanupManager implements Closeable {
         private final Set<CleanupKey> keysToClean;
-        private final ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap;
+        private final ConcurrentMap<ShardId, HashMap<String, Integer>> cleanupKeyToCountMap;
         private final AtomicInteger staleKeysCount;
         private final double stalenessThreshold;
         private final IndicesRequestCacheCleaner cacheCleaner;
@@ -480,8 +481,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
             // If the key doesn't exist, it's added with a value of 1.
             // If the key exists, its value is incremented by 1.
-            cleanupKeyToCountMap.computeIfAbsent(shardId, k -> ConcurrentCollections.newConcurrentMap())
-                .merge(cleanupKey.readerCacheKeyId, 1, Integer::sum);
+            cleanupKeyToCountMap.computeIfAbsent(shardId, k -> new HashMap<>()).merge(cleanupKey.readerCacheKeyId, 1, Integer::sum);
         }
 
         private synchronized void updateCleanupKeyToCountMapOnCacheEviction(CleanupKey cleanupKey) {
@@ -495,7 +495,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             }
             ShardId shardId = indexShard.shardId();
             // If the key doesn't exist, ignore
-            ConcurrentMap<String, Integer> keyCountMap = cleanupKeyToCountMap.get(shardId);
+            HashMap<String, Integer> keyCountMap = cleanupKeyToCountMap.get(shardId);
             if (keyCountMap != null) {
                 keyCountMap.computeIfPresent(cleanupKey.readerCacheKeyId, (key, currentValue) -> {
                     // decrement the stale key count
