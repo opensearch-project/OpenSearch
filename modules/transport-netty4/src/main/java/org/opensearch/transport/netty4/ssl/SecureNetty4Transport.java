@@ -213,7 +213,7 @@ public class SecureNetty4Transport extends Netty4Transport {
 
                     if (log.isDebugEnabled()) {
                         log.debug(
-                            "Hostname of peer is {} ({}/{}) with hostnameVerificationResovleHostName: {}",
+                            "Hostname of peer is {} ({}/{}) with hostnameVerificationResolveHostName: {}",
                             hostname,
                             inetSocketAddress.getHostName(),
                             inetSocketAddress.getHostString(),

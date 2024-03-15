@@ -40,8 +40,6 @@ import org.opensearch.transport.netty4.Netty4TcpChannel;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -52,7 +50,6 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.Optional;
 
@@ -69,16 +66,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTestCase {
     @Override
     protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
-        final TrustManager trustAllTrustManager = new X509TrustManager() {
-            public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {}
-
-            public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {}
-
-            public X509Certificate[] getAcceptedIssuers() {
-                return new X509Certificate[0];
-            }
-        };
-
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final SecureTransportSettingsProvider secureTransportSettingsProvider = new SecureTransportSettingsProvider() {
             @Override
@@ -104,7 +91,7 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
                     keyManagerFactory.init(keyStore, "password".toCharArray());
 
                     SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)
-                        .trustManager(trustAllTrustManager)
+                        .trustManager(TrustAllManager.INSTANCE)
                         .build()
                         .newEngine(NettyAllocator.getAllocator());
                     return Optional.of(engine);
@@ -128,7 +115,7 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
 
                     SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)
                         .clientAuth(ClientAuth.NONE)
-                        .trustManager(trustAllTrustManager)
+                        .trustManager(TrustAllManager.INSTANCE)
                         .build()
                         .newEngine(NettyAllocator.getAllocator());
                     return Optional.of(engine);
@@ -144,7 +131,7 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
                 return Optional.of(
                     SslContextBuilder.forClient()
                         .clientAuth(ClientAuth.NONE)
-                        .trustManager(trustAllTrustManager)
+                        .trustManager(TrustAllManager.INSTANCE)
                         .build()
                         .newEngine(NettyAllocator.getAllocator())
                 );
