@@ -577,13 +577,13 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         /**
          * Cleans the cache based on the provided staleness threshold.
          * <p>If the percentage of stale keys in the cache is less than this threshold,the cache cleanup process is skipped.
-         * @param threshold The staleness threshold as a double.
+         * @param stalenessThreshold The staleness threshold as a double.
          */
-        private void cleanCache(double threshold) {
+        private void cleanCache(double stalenessThreshold) {
             if (logger.isDebugEnabled()) {
-                logger.debug("Cleaning Indices Request Cache with threshold : " + threshold);
+                logger.debug("Cleaning Indices Request Cache with threshold : " + stalenessThreshold);
             }
-            if (canSkipCacheCleanup(threshold)) {
+            if (canSkipCacheCleanup(stalenessThreshold)) {
                 return;
             }
             // Contains CleanupKey objects with open shard but invalidated readerCacheKeyId.
