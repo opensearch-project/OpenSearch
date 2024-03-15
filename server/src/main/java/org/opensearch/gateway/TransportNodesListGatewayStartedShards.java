@@ -59,6 +59,7 @@ import org.opensearch.indices.store.ShardAttributes;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
+import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayShardStarted;
 
 import java.io.IOException;
 import java.util.List;
@@ -154,7 +155,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     @Override
     protected NodeGatewayStartedShards nodeOperation(NodeRequest request) {
         try {
-            TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard shardInfo = getShardInfoOnLocalNode(
+            GatewayShardStarted shardInfo = getShardInfoOnLocalNode(
                 logger,
                 request.getShardId(),
                 namedXContentRegistry,

@@ -15,7 +15,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.gateway.AsyncShardFetch.FetchResult;
-import org.opensearch.gateway.TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard;
+import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.NodeGatewayShardStarted;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch;
 
 import java.util.ArrayList;
@@ -54,7 +54,7 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
         ShardRouting shard,
         RoutingAllocation allocation
     ) {
-        logger.error("fetchData for single shard called via batch allocator");
+        logger.error("fetchData for single shard called via batch allocator, shard id {}", shard.shardId());
         throw new IllegalStateException("PrimaryShardBatchAllocator should only be used for a batch of shards");
     }
 
@@ -99,7 +99,7 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
 
         // process the received data
         for (ShardRouting unassignedShard : eligibleShards) {
-            List<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> nodeShardStates = adaptToNodeShardStates(
+            List<NodeGatewayShardStarted> nodeShardStates = adaptToNodeShardStates(
                 unassignedShard,
                 shardsState
             );
@@ -123,27 +123,27 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
      * @param shardsState fetch data result for the whole batch
      * @return shard state returned from each node
      */
-    private static List<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> adaptToNodeShardStates(
+    private static List<NodeGatewayShardStarted> adaptToNodeShardStates(
         ShardRouting unassignedShard,
         FetchResult<NodeGatewayStartedShardsBatch> shardsState
     ) {
         if (!shardsState.hasData()) {
             return null;
         }
-        List<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> nodeShardStates = new ArrayList<>();
+        List<NodeGatewayShardStarted> nodeShardStates = new ArrayList<>();
         Map<DiscoveryNode, NodeGatewayStartedShardsBatch> nodeResponses = shardsState.getData();
 
         // build data for a shard from all the nodes
         nodeResponses.forEach((node, nodeGatewayStartedShardsBatch) -> {
-            NodeGatewayStartedShard shardData = nodeGatewayStartedShardsBatch.getNodeGatewayStartedShardsBatch()
+            TransportNodesGatewayStartedShardHelper.GatewayShardStarted shardData = nodeGatewayStartedShardsBatch.getNodeGatewayStartedShardsBatch()
                 .get(unassignedShard.shardId());
             nodeShardStates.add(
-                new TransportNodesListGatewayStartedShards.NodeGatewayStartedShards(
-                    node,
+                new NodeGatewayShardStarted(
                     shardData.allocationId(),
                     shardData.primary(),
                     shardData.replicationCheckpoint(),
-                    shardData.storeException()
+                    shardData.storeException(),
+                    node
                 )
             );
         });
