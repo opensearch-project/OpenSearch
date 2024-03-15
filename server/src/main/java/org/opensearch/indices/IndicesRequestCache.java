@@ -44,6 +44,7 @@ import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -136,6 +137,14 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                 .setRemovalListener(this)
                 .setMaxSizeInBytes(sizeInBytes) // for backward compatibility
                 .setExpireAfterAccess(expire) // for backward compatibility
+                .setCachedResultParser((bytesReference) -> {
+                    try {
+                        return CachedQueryResult.getPolicyValues(bytesReference);
+                    } catch (IOException e) {
+                        // Set took time to -1, which will always be rejected by the policy.
+                        return new CachedQueryResult.PolicyValues(-1);
+                    }
+                })
                 .build(),
             CacheType.INDICES_REQUEST_CACHE
         );

@@ -64,6 +64,7 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
@@ -84,9 +85,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
@@ -1702,16 +1701,20 @@ public class IndicesService extends AbstractLifecycleComponent
 
         boolean[] loadedFromCache = new boolean[] { true };
         BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), out -> {
+            long beforeQueryPhase = System.nanoTime();
             queryPhase.execute(context);
-            context.queryResult().writeToNoId(out);
+            // Write relevant info for cache tier policies before the whole QuerySearchResult, so we don't have to read
+            // the whole QSR into memory when we decide whether to allow it into a particular cache tier based on took time/other info
+            CachedQueryResult cachedQueryResult = new CachedQueryResult(context.queryResult(), System.nanoTime() - beforeQueryPhase);
+            cachedQueryResult.writeToNoId(out);
             loadedFromCache[0] = false;
         });
 
         if (loadedFromCache[0]) {
             // restore the cached query result into the context
             final QuerySearchResult result = context.queryResult();
-            StreamInput in = new NamedWriteableAwareStreamInput(bytesReference.streamInput(), namedWriteableRegistry);
-            result.readFromWithId(context.id(), in);
+            // Load the cached QSR into result, discarding values used only in the cache
+            CachedQueryResult.loadQSR(bytesReference, result, context.id(), namedWriteableRegistry);
             result.setSearchShardTarget(context.shardTarget());
         } else if (context.queryResult().searchTimedOut()) {
             // we have to invalidate the cache entry if we cached a query result form a request that timed out.
