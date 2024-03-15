@@ -232,6 +232,14 @@ public class TransportNodesGatewayStartedShardHelper {
         }
     }
 
+    /**
+     * This class extends the {@link GatewayShardStarted} which contains all necessary shard metadata like
+     * allocationId and replication checkpoint. It also has DiscoveryNode which is needed by
+     * {@link PrimaryShardAllocator} and {@link PrimaryShardBatchAllocator} to make allocation decision.
+     * This class removes the dependency of
+     * {@link TransportNodesListGatewayStartedShards.NodeGatewayStartedShards} to make allocation decisions by
+     * {@link PrimaryShardAllocator} or {@link PrimaryShardBatchAllocator}.
+     */
     public static class NodeGatewayShardStarted extends GatewayShardStarted {
 
         private final DiscoveryNode node;
