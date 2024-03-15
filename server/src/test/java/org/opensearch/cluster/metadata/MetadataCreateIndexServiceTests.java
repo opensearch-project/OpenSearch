@@ -71,7 +71,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.remote.RemoteStorePathType;
+import org.opensearch.index.remote.RemoteStoreBlobPathType;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
@@ -1594,16 +1594,16 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         indexMetadata = testRemoteCustomData(true, false);
         validateRemoteCustomData(
             indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY),
-            RemoteStorePathType.NAME,
-            RemoteStorePathType.FIXED.toString()
+            RemoteStoreBlobPathType.NAME,
+            RemoteStoreBlobPathType.FIXED.toString()
         );
 
         // Case 3 - cluster.remote_store.index.path.prefix.optimised=true
         indexMetadata = testRemoteCustomData(true, true);
         validateRemoteCustomData(
             indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY),
-            RemoteStorePathType.NAME,
-            RemoteStorePathType.HASHED_PREFIX.toString()
+            RemoteStoreBlobPathType.NAME,
+            RemoteStoreBlobPathType.HASHED_PREFIX.toString()
         );
     }
 

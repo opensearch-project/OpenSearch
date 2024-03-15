@@ -14,16 +14,16 @@ package org.opensearch.index.remote;
  *
  * @opensearch.internal
  */
-public enum RemoteStorePathType {
+public enum RemoteStoreBlobPathType {
 
     FIXED,
     HASHED_PREFIX;
 
-    public static RemoteStorePathType parseString(String remoteStorePathType) {
+    public static RemoteStoreBlobPathType parseString(String remoteStoreBlobPathType) {
         try {
-            return RemoteStorePathType.valueOf(remoteStorePathType);
+            return RemoteStoreBlobPathType.valueOf(remoteStoreBlobPathType);
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Could not parse RemoteStorePathType for [" + remoteStorePathType + "]");
+            throw new IllegalArgumentException("Could not parse RemoteStorePathType for [" + remoteStoreBlobPathType + "]");
         } catch (NullPointerException npe) {
             // return a default value for null input
             return FIXED;
