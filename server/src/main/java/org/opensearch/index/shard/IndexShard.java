@@ -4000,10 +4000,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public boolean enableUploadToRemoteTranslog() {
-        return isStartedPrimary() || (shouldSeedRemoteStore() && hasOneSyncHappened());
+        return isStartedPrimary() || (shouldSeedRemoteStore() && hasOneRemoteSegmentSyncHappened());
     }
 
-    private boolean hasOneSyncHappened() {
+    private boolean hasOneRemoteSegmentSyncHappened() {
         assert indexSettings.isRemoteNode();
         // We upload remote translog only after one remote segment upload in case of migration
         RemoteSegmentStoreDirectory rd = getRemoteDirectory();
@@ -4814,7 +4814,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Rollback the current engine to the safe commit, then replay local translog up to the global checkpoint.
      */
     void resetEngineToGlobalCheckpoint() throws IOException {
-        logger.info("Reseting to global checkpoint");
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
         assert getActiveOperationsCount() == OPERATIONS_BLOCKED : "resetting engine without blocking operations; active operations are ["
             + getActiveOperations()

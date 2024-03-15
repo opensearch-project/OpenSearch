@@ -845,7 +845,6 @@ public abstract class RecoverySourceHandler {
                     || (request.sourceNode().isRemoteStoreNode() && request.targetNode().isRemoteStoreNode())
                         ? recoveryTarget::forceSegmentFileSync
                         : () -> {};
-                // ToDo : Do we need a new action to replay translog here ?
 
                 // TODO: make relocated async
                 // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done

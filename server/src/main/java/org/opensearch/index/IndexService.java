@@ -498,10 +498,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     Directory remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
                     remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY, path);
                 } else {
-                    logger.info("Hitting the migration case");
                     if (sourceNode != null && sourceNode.isRemoteStoreNode() == false) {
                         assert routing.primary();
-                        logger.info("Hitting the migration case where we need to seed remote store");
+                        logger.info("DocRep shard {} is migrating to remote", shardId);
                         seedRemote = true;
                     }
                     RemoteSegmentStoreDirectoryFactory directoryFactory = new RemoteSegmentStoreDirectoryFactory(

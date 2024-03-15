@@ -552,7 +552,6 @@ public class IndicesService extends AbstractLifecycleComponent
                     remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId())
                 );
             } else if (isRemoteStoreAttributePresent(settings) && shardRouting.primary()) {
-                logger.info("Hitting the migration case for translogs ");
                 return new RemoteBlobStoreInternalTranslogFactory(
                     repositoriesServiceSupplier,
                     threadPool,
