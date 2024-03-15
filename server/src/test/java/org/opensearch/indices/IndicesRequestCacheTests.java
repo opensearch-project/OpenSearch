@@ -335,12 +335,13 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             assertEquals("foo", value1.streamInput().readString());
             BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, secondReader, termBytes);
             assertEquals("bar", value2.streamInput().readString());
-            size = indexShard.requestCache().stats().getMemorySize();
+            size = new ByteSizeValue(cache.getSizeInBytes());
             IOUtils.close(reader, secondReader, writer, dir, cache);
         }
         IndexShard indexShard = createIndex("test1").getShard(0);
         IndicesRequestCache cache = new IndicesRequestCache(
-            Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.getBytes() + 1 + "b").build(),
+            // Add 5 instead of 1; the key size now depends on the length of dimension names and values so there's more variation
+            Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.getBytes() + 5 + "b").build(),
             (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
             new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService()
         );

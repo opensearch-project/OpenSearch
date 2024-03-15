@@ -17,10 +17,10 @@ import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
+import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.stats.CacheStats;
 import org.opensearch.common.cache.stats.MultiDimensionCacheStats;
 import org.opensearch.common.cache.stats.StatsHolder;
-import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
@@ -157,9 +157,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
             Map<String, Setting<?>> settingList = OpenSearchOnHeapCacheSettings.getSettingListForCacheType(cacheType);
             Settings settings = config.getSettings();
             ICacheBuilder<K, V> builder = new Builder<K, V>().setDimensionNames(config.getDimensionNames())
-                .setMaximumWeightInBytes(
-                ((ByteSizeValue) settingList.get(MAXIMUM_SIZE_IN_BYTES_KEY).get(settings)).getBytes()
-            )
+                .setMaximumWeightInBytes(((ByteSizeValue) settingList.get(MAXIMUM_SIZE_IN_BYTES_KEY).get(settings)).getBytes())
                 .setExpireAfterAccess(((TimeValue) settingList.get(EXPIRE_AFTER_ACCESS_KEY).get(settings)))
                 .setWeigher(config.getWeigher())
                 .setRemovalListener(config.getRemovalListener());

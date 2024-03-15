@@ -40,4 +40,12 @@ public class ICacheKey<K> {
     public int hashCode() {
         return 31 * key.hashCode() + dimensions.hashCode();
     }
+
+    public long dimensionBytesEstimate() {
+        long estimate = 0L;
+        for (CacheStatsDimension dim : dimensions) {
+            estimate += dim.dimensionName.length() + dim.dimensionValue.length();
+        }
+        return estimate;
+    }
 }
