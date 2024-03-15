@@ -65,7 +65,6 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     try (ReleasableLock ignore = writeLock.acquire()) {
                         diskCache.put(notification.getKey(), notification.getValue());
                     }
-                    removalListener.onRemoval(notification);
                 }
             })
                 .setKeyType(builder.cacheConfig.getKeyType())
