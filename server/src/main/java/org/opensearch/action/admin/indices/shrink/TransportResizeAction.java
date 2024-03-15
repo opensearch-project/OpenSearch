@@ -48,6 +48,7 @@ import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -59,6 +60,7 @@ import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -67,6 +69,7 @@ import java.util.Set;
 import java.util.function.IntFunction;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 
 /**
  * Main class to initiate resizing (shrink / split) an index into a new index
@@ -140,8 +143,10 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         // there is no need to fetch docs stats for split but we keep it simple and do it anyway for simplicity of the code
         final String sourceIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getSourceIndex());
         final String targetIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getTargetIndexRequest().index());
-
         IndexMetadata indexMetadata = state.metadata().index(sourceIndex);
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        validateClusterModeSettings(resizeRequest.getResizeType(),indexMetadata,clusterSettings);
+
         if (resizeRequest.getResizeType().equals(ResizeType.SHRINK)
             && state.metadata().isSegmentReplicationEnabled(sourceIndex)
             && indexMetadata != null
@@ -367,5 +372,20 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
     @Override
     protected String getClusterManagerActionName(DiscoveryNode node) {
         return super.getClusterManagerActionName(node);
+    }
+
+    private static void validateClusterModeSettings(final ResizeType type,IndexMetadata sourceIndexMetadata,ClusterSettings clusterSettings) {
+        boolean isMixed =  clusterSettings.get(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING)
+            .equals(RemoteStoreNodeService.CompatibilityMode.MIXED);
+        boolean isRemoteStoreMigrationDirection = clusterSettings.get(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING)
+            .equals(RemoteStoreNodeService.Direction.REMOTE_STORE);
+        boolean  isRemoteStoreEnabled = false;
+        if(sourceIndexMetadata!=null) {
+            isRemoteStoreEnabled = sourceIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false);
+        }
+        if (isMixed && isRemoteStoreMigrationDirection && !isRemoteStoreEnabled) {
+            throw new IllegalStateException("index Resizing for type [" + type + "] is not allowed as Cluster mode is [Mixed]"
+                + " and migration direction is [Remote Store]");
+        }
     }
 }
