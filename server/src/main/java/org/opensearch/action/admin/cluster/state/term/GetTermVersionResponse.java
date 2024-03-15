@@ -44,11 +44,7 @@ public class GetTermVersionResponse extends ActionResponse {
     }
 
     public boolean matches(ClusterState clusterState) {
-        return clusterStateTermVersion != null
-            && clusterStateTermVersion.getClusterName().equals(clusterState.getClusterName())
-            && clusterStateTermVersion.getClusterUUID().equals(clusterState.metadata().clusterUUID())
-            && clusterStateTermVersion.getTerm() == clusterState.term()
-            && clusterStateTermVersion.getVersion() == clusterState.version();
+        return clusterStateTermVersion != null && clusterStateTermVersion.equals(new ClusterStateTermVersion(clusterState));
     }
 
 }

@@ -80,8 +80,6 @@ public class TransportGetTermVersionAction extends TransportClusterManagerNodeRe
     }
 
     private GetTermVersionResponse buildResponse(GetTermVersionRequest request, ClusterState state) {
-        return new GetTermVersionResponse(
-            new ClusterStateTermVersion(state.getClusterName(), state.metadata().clusterUUID(), state.term(), state.getVersion())
-        );
+        return new GetTermVersionResponse(new ClusterStateTermVersion(state));
     }
 }

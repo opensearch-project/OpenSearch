@@ -9,6 +9,7 @@
 package org.opensearch.cluster.coordination;
 
 import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -37,6 +38,13 @@ public class ClusterStateTermVersion implements Writeable {
         this.clusterUUID = in.readString();
         this.term = in.readLong();
         this.version = in.readLong();
+    }
+
+    public ClusterStateTermVersion(ClusterState state) {
+        this.clusterName = state.getClusterName();
+        this.clusterUUID = state.metadata().clusterUUID();
+        this.term = state.term();
+        this.version = state.version();
     }
 
     @Override
