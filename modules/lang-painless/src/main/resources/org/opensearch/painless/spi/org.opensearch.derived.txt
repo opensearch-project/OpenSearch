@@ -23,9 +23,9 @@ class org.opensearch.script.DerivedFieldScript @no_import {
 }
 
 static_import {
-    void emit(org.opensearch.script.DerivedFieldScript, long) bound_to org.opensearch.script.ScriptEmitValues$Long
-    void emit(org.opensearch.script.DerivedFieldScript, double) bound_to org.opensearch.script.ScriptEmitValues$Double
-    void emit(org.opensearch.script.DerivedFieldScript, double, double) bound_to org.opensearch.script.ScriptEmitValues$GeoPoint
-    void emit(org.opensearch.script.DerivedFieldScript, boolean) bound_to org.opensearch.script.ScriptEmitValues$Boolean
-    void emit(org.opensearch.script.DerivedFieldScript, String) bound_to org.opensearch.script.ScriptEmitValues$String
+    void emitLong(org.opensearch.script.DerivedFieldScript, long) bound_to org.opensearch.script.ScriptEmitValues$Long
+    void emitDouble(org.opensearch.script.DerivedFieldScript, double) bound_to org.opensearch.script.ScriptEmitValues$Double
+    void emitGeoPoint(org.opensearch.script.DerivedFieldScript, double, double) bound_to org.opensearch.script.ScriptEmitValues$GeoPoint
+    void emitBoolean(org.opensearch.script.DerivedFieldScript, boolean) bound_to org.opensearch.script.ScriptEmitValues$Boolean
+    void emitString(org.opensearch.script.DerivedFieldScript, String) bound_to org.opensearch.script.ScriptEmitValues$String
 }

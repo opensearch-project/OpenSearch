@@ -27,7 +27,7 @@ public final class ScriptEmitValues {
             this.derivedFieldScript = derivedFieldScript;
         }
 
-        public void emit(long val) {
+        public void emitLong(long val) {
             derivedFieldScript.addEmittedValue(val);
         }
 
@@ -42,7 +42,7 @@ public final class ScriptEmitValues {
             this.derivedFieldScript = derivedFieldScript;
         }
 
-        public void emit(double val) {
+        public void emitDouble(double val) {
             derivedFieldScript.addEmittedValue(val);
         }
     }
@@ -56,7 +56,7 @@ public final class ScriptEmitValues {
             this.derivedFieldScript = derivedFieldScript;
         }
 
-        public void emit(double lat, double lon) {
+        public void emitGeoPoint(double lat, double lon) {
             derivedFieldScript.addEmittedValue(new Tuple<>(lat, lon));
         }
 
@@ -71,7 +71,7 @@ public final class ScriptEmitValues {
             this.derivedFieldScript = derivedFieldScript;
         }
 
-        public void emit(boolean val) {
+        public void emitBoolean(boolean val) {
             derivedFieldScript.addEmittedValue(val);
         }
     }
@@ -85,7 +85,7 @@ public final class ScriptEmitValues {
             this.derivedFieldScript = derivedFieldScript;
         }
 
-        public void emit(String val) {
+        public void emitString(String val) {
             derivedFieldScript.addEmittedValue(val);
         }
     }
