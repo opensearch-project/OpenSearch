@@ -10,9 +10,11 @@ package org.opensearch.common.cache.store.config;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.RemovalListener;
+import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
+import java.util.function.Function;
 import java.util.function.ToLongBiFunction;
 
 /**
@@ -42,6 +44,8 @@ public class CacheConfig<K, V> {
 
     private final RemovalListener<K, V> removalListener;
 
+    /** A function which extracts policy-relevant information, such as took time, from values, to allow inspection by policies if present. */
+    private Function<V, CachedQueryResult.PolicyValues> cachedResultParser;
     /**
      * Max size in bytes for the cache. This is needed for backward compatibility.
      */
@@ -58,6 +62,7 @@ public class CacheConfig<K, V> {
         this.settings = builder.settings;
         this.removalListener = builder.removalListener;
         this.weigher = builder.weigher;
+        this.cachedResultParser = builder.cachedResultParser;
         this.maxSizeInBytes = builder.maxSizeInBytes;
         this.expireAfterAccess = builder.expireAfterAccess;
     }
@@ -80,6 +85,10 @@ public class CacheConfig<K, V> {
 
     public ToLongBiFunction<K, V> getWeigher() {
         return weigher;
+    }
+
+    public Function<V, CachedQueryResult.PolicyValues> getCachedResultParser() {
+        return cachedResultParser;
     }
 
     public Long getMaxSizeInBytes() {
@@ -106,6 +115,7 @@ public class CacheConfig<K, V> {
         private RemovalListener<K, V> removalListener;
 
         private ToLongBiFunction<K, V> weigher;
+        private Function<V, CachedQueryResult.PolicyValues> cachedResultParser;
 
         private long maxSizeInBytes;
 
@@ -135,6 +145,11 @@ public class CacheConfig<K, V> {
 
         public Builder<K, V> setWeigher(ToLongBiFunction<K, V> weigher) {
             this.weigher = weigher;
+            return this;
+        }
+
+        public Builder<K, V> setCachedResultParser(Function<V, CachedQueryResult.PolicyValues> function) {
+            this.cachedResultParser = function;
             return this;
         }
 

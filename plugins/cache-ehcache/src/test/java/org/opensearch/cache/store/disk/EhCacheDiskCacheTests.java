@@ -22,6 +22,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -479,6 +480,49 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             assertEquals(0, ((EhcacheDiskCache) ehcacheTest).getCompletableFutureMap().size());
             ehcacheTest.close();
         }
+    }
+
+    public void testEhcacheKeyIteratorWithRemove() throws IOException {
+        Settings settings = Settings.builder().build();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
+                .setThreadPoolAlias("ehcacheTest")
+                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setIsEventListenerModeSync(true)
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setSettings(settings)
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setRemovalListener(new MockRemovalListener<>())
+                .build();
+
+            int randomKeys = randomIntBetween(2, 100);
+            for (int i = 0; i < randomKeys; i++) {
+                ehcacheTest.put(UUID.randomUUID().toString(), UUID.randomUUID().toString());
+            }
+            long originalSize = ehcacheTest.count();
+            assertEquals(randomKeys, originalSize);
+
+            // Now try removing subset of keys and verify
+            List<String> removedKeyList = new ArrayList<>();
+            for (Iterator<String> iterator = ehcacheTest.keys().iterator(); iterator.hasNext();) {
+                String key = iterator.next();
+                if (randomBoolean()) {
+                    removedKeyList.add(key);
+                    iterator.remove();
+                }
+            }
+            // Verify the removed key doesn't exist anymore.
+            for (String ehcacheKey : removedKeyList) {
+                assertNull(ehcacheTest.get(ehcacheKey));
+            }
+            // Verify ehcache entry size again.
+            assertEquals(originalSize - removedKeyList.size(), ehcacheTest.count());
+            ehcacheTest.close();
+        }
+
     }
 
     private static String generateRandomString(int length) {
