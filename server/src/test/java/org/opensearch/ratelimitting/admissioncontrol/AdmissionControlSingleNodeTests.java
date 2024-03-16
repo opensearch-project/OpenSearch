@@ -34,9 +34,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE;
+import static org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE;
 import static org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT;
 import static org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT;
 import static org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionControllerSettings.INDEXING_IO_USAGE_LIMIT;
+import static org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionControllerSettings.IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE;
 import static org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionControllerSettings.SEARCH_IO_USAGE_LIMIT;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
@@ -72,7 +74,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
             .put(ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
             .put(ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
             .put(ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(5000))
-            .put(ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED)
+            .put(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED.getMode())
             .put(SEARCH_CPU_USAGE_LIMIT.getKey(), 0)
             .put(INDEXING_CPU_USAGE_LIMIT.getKey(), 0)
             .build();
@@ -143,8 +145,8 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
                 .put(super.nodeSettings())
                 .put(SEARCH_IO_USAGE_LIMIT.getKey(), 0)
                 .put(INDEXING_IO_USAGE_LIMIT.getKey(), 0)
-                .put(SEARCH_CPU_USAGE_LIMIT.getKey(), 101)
-                .put(INDEXING_CPU_USAGE_LIMIT.getKey(), 101)
+                .put(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
+                .put(IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED.getMode())
         );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
@@ -211,7 +213,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         updateSettingsRequest.transientSettings(
             Settings.builder()
                 .put(super.nodeSettings())
-                .put(ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.MONITOR.getMode())
+                .put(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.MONITOR.getMode())
         );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
@@ -252,6 +254,8 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
                 .put(INDEXING_IO_USAGE_LIMIT.getKey(), 0)
                 .put(SEARCH_CPU_USAGE_LIMIT.getKey(), 101)
                 .put(INDEXING_CPU_USAGE_LIMIT.getKey(), 101)
+                .put(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
+                .put(IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.MONITOR.getMode())
         );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
         bulk = client().prepareBulk();
@@ -307,7 +311,9 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(
-            Settings.builder().put(super.nodeSettings()).put(ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED)
+            Settings.builder()
+                .put(super.nodeSettings())
+                .put(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
         );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
@@ -334,10 +340,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         updateSettingsRequest.transientSettings(
             Settings.builder()
                 .put(super.nodeSettings())
-                .put(SEARCH_IO_USAGE_LIMIT.getKey(), 0)
-                .put(INDEXING_IO_USAGE_LIMIT.getKey(), 0)
-                .put(SEARCH_CPU_USAGE_LIMIT.getKey(), 101)
-                .put(INDEXING_CPU_USAGE_LIMIT.getKey(), 101)
+                .put(IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
         );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
         bulk = client().prepareBulk();
@@ -376,7 +379,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         updateSettingsRequest.transientSettings(
             Settings.builder()
                 .put(super.nodeSettings())
-                .put(ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED)
+                .put(ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED.getMode())
                 .put(SEARCH_CPU_USAGE_LIMIT.getKey(), 101)
                 .put(INDEXING_CPU_USAGE_LIMIT.getKey(), 101)
                 .put(SEARCH_IO_USAGE_LIMIT.getKey(), 101)
