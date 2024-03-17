@@ -219,10 +219,10 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(memorySizeValue.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2, 1.0);
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "30%").build(), Settings.EMPTY));
-        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.3)), value.get());
+        assertEquals(new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.3)), value.get());
 
         assertTrue(settingUpdater.apply(Settings.builder().put("b.byte.size", "40%").build(), Settings.EMPTY));
-        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.4)), value.get());
+        assertEquals(new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.4)), value.get());
     }
 
     public void testSimpleUpdate() {
