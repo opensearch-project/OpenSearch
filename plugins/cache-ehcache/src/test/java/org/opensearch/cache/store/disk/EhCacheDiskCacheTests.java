@@ -23,6 +23,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.CompositeBytesReference;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
@@ -565,18 +566,26 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setValueType(BytesReference.class)
                 .setCacheType(CacheType.INDICES_REQUEST_CACHE)
                 .setSettings(settings)
-                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES * 2) // bigger so no evictions happen
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES * 20) // bigger so no evictions happen
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setRemovalListener(new MockRemovalListener<>())
                 .build();
             int randomKeys = randomIntBetween(10, 100);
-            int valueLength = 1000;
+            int valueLength = 100;
             Random rand = Randomness.get();
             Map<String, BytesReference> keyValueMap = new HashMap<>();
             for (int i = 0; i < randomKeys; i++) {
                 byte[] valueBytes = new byte[valueLength];
                 rand.nextBytes(valueBytes);
                 keyValueMap.put(UUID.randomUUID().toString(), new BytesArray(valueBytes));
+
+                // Test a non-BytesArray implementation of BytesReference.
+                byte[] compositeBytes1 = new byte[valueLength];
+                byte[] compositeBytes2 = new byte[valueLength];
+                rand.nextBytes(compositeBytes1);
+                rand.nextBytes(compositeBytes2);
+                BytesReference composite = CompositeBytesReference.of(new BytesArray(compositeBytes1), new BytesArray(compositeBytes2));
+                keyValueMap.put(UUID.randomUUID().toString(), composite);
             }
             for (Map.Entry<String, BytesReference> entry : keyValueMap.entrySet()) {
                 ehCacheDiskCachingTier.put(entry.getKey(), entry.getValue());
