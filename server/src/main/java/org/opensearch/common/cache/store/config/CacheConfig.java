@@ -11,6 +11,7 @@ package org.opensearch.common.cache.store.config;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.policy.CachedQueryResult;
+import org.opensearch.common.cache.serializer.Serializer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
@@ -44,6 +45,10 @@ public class CacheConfig<K, V> {
 
     private final RemovalListener<K, V> removalListener;
 
+    // Serializers for keys and values. Not required for all caches.
+    private final Serializer<K, ?> keySerializer;
+    private final Serializer<V, ?> valueSerializer;
+
     /** A function which extracts policy-relevant information, such as took time, from values, to allow inspection by policies if present. */
     private Function<V, CachedQueryResult.PolicyValues> cachedResultParser;
     /**
@@ -62,6 +67,8 @@ public class CacheConfig<K, V> {
         this.settings = builder.settings;
         this.removalListener = builder.removalListener;
         this.weigher = builder.weigher;
+        this.keySerializer = builder.keySerializer;
+        this.valueSerializer = builder.valueSerializer;
         this.cachedResultParser = builder.cachedResultParser;
         this.maxSizeInBytes = builder.maxSizeInBytes;
         this.expireAfterAccess = builder.expireAfterAccess;
@@ -81,6 +88,14 @@ public class CacheConfig<K, V> {
 
     public RemovalListener<K, V> getRemovalListener() {
         return removalListener;
+    }
+
+    public Serializer<K, ?> getKeySerializer() {
+        return keySerializer;
+    }
+
+    public Serializer<V, ?> getValueSerializer() {
+        return valueSerializer;
     }
 
     public ToLongBiFunction<K, V> getWeigher() {
@@ -114,6 +129,9 @@ public class CacheConfig<K, V> {
 
         private RemovalListener<K, V> removalListener;
 
+        private Serializer<K, ?> keySerializer;
+        private Serializer<V, ?> valueSerializer;
+
         private ToLongBiFunction<K, V> weigher;
         private Function<V, CachedQueryResult.PolicyValues> cachedResultParser;
 
@@ -140,6 +158,16 @@ public class CacheConfig<K, V> {
 
         public Builder<K, V> setRemovalListener(RemovalListener<K, V> removalListener) {
             this.removalListener = removalListener;
+            return this;
+        }
+
+        public Builder<K, V> setKeySerializer(Serializer<K, ?> keySerializer) {
+            this.keySerializer = keySerializer;
+            return this;
+        }
+
+        public Builder<K, V> setValueSerializer(Serializer<V, ?> valueSerializer) {
+            this.valueSerializer = valueSerializer;
             return this;
         }
 
