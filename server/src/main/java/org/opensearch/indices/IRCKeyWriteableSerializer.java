@@ -26,12 +26,15 @@ public class IRCKeyWriteableSerializer implements Serializer<IndicesRequestCache
 
     @Override
     public byte[] serialize(IndicesRequestCache.Key object) {
+        if (object == null) {
+            return null;
+        }
         try {
             BytesStreamOutput os = new BytesStreamOutput();
             object.writeTo(os);
             return BytesReference.toBytes(os.bytes());
         } catch (IOException e) {
-            throw new OpenSearchException(e);
+            throw new OpenSearchException("Unable to serialize IndicesRequestCache.Key", e);
         }
     }
 
@@ -44,7 +47,7 @@ public class IRCKeyWriteableSerializer implements Serializer<IndicesRequestCache
             BytesStreamInput is = new BytesStreamInput(bytes, 0, bytes.length);
             return new IndicesRequestCache.Key(is);
         } catch (IOException e) {
-            throw new OpenSearchException(e);
+            throw new OpenSearchException("Unable to deserialize byte[] to IndicesRequestCache.Key", e);
         }
     }
 

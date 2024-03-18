@@ -94,7 +94,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     // A Cache manager can create many caches.
     private final PersistentCacheManager cacheManager;
 
-    // Disk cache. Because of a bug in ehcache, we have to store ByteArrayWrapper rather than byte[].
+    // Disk cache. Using ByteArrayWrapper to compare two byte[] by values rather than the default reference checks
     private Cache<K, ByteArrayWrapper> cache;
     private final long maxWeightInBytes;
     private final String storagePath;
@@ -188,6 +188,10 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                     )
                     .withKeySerializer(new KeySerializerWrapper<K>(keySerializer))
                     .withValueSerializer(new ByteArrayWrapperSerializer())
+                // We pass ByteArrayWrapperSerializer as ehcache's value serializer. If V is an interface, and we pass its
+                // serializer directly to ehcache, ehcache requires the classes match exactly before/after serialization.
+                // This is not always feasible or necessary, like for BytesReference. So, we handle the value serialization
+                // before V hits ehcache.
             );
         } catch (IllegalArgumentException ex) {
             logger.error("Ehcache disk cache initialization failed due to illegal argument: {}", ex.getMessage());
