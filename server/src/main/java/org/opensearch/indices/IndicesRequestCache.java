@@ -45,6 +45,7 @@ import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.policy.CachedQueryResult;
+import org.opensearch.common.cache.serializer.BytesReferenceSerializer;
 import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -145,6 +146,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                         return new CachedQueryResult.PolicyValues(-1);
                     }
                 })
+                .setKeySerializer(new IRCKeyWriteableSerializer())
+                .setValueSerializer(new BytesReferenceSerializer())
                 .build(),
             CacheType.INDICES_REQUEST_CACHE
         );
