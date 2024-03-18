@@ -115,4 +115,21 @@ public interface CryptoHandler<T, U> extends Closeable {
      * @param endPosOfRawContent ending position in the raw/decrypted content
      */
     DecryptedRangedStreamProvider createDecryptingStreamOfRange(U cryptoContext, long startPosOfRawContent, long endPosOfRawContent);
+
+    /**
+     * This method creates a {@link DecryptedRangedStreamProvider} which provides a wrapped stream to decrypt the
+     * underlying stream.
+     * If provided encrypted positions are not aligned with encryption mechanics then this method can throw
+     * {@link IllegalArgumentException}
+     *
+     * @param cryptoContext crypto metadata instance.
+     * @param startPosOfEncContent starting position in encrypted content
+     * @param endPosOfEncContent ending position in encrypted content
+     */
+    DecryptedRangedStreamProvider createDecryptingStreamFromEncryptedOffsets(
+        U cryptoContext,
+        long fullEncryptedLength,
+        long startPosOfEncContent,
+        long endPosOfEncContent
+    );
 }

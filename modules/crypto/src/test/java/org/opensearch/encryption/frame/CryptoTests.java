@@ -434,7 +434,7 @@ public class CryptoTests extends OpenSearchTestCase {
             endPos
         );
 
-        long[] transformedRange = decryptedStreamProvider.getAdjustedRange();
+        long[] transformedRange = decryptedStreamProvider.getAdjustedEncryptedRange();
         int encryptedBlockSize = (int) (transformedRange[1] - transformedRange[0] + 1);
         byte[] encryptedBlockBytes = new byte[encryptedBlockSize];
         System.arraycopy(encryptedStoreTest.encryptedContent, (int) transformedRange[0], encryptedBlockBytes, 0, encryptedBlockSize);

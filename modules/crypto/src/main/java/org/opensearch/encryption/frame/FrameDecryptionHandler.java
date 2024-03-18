@@ -56,6 +56,7 @@ class FrameDecryptionHandler implements CryptoHandler {
 
     boolean complete_ = false;
     private byte[] unparsedBytes_ = new byte[0];
+    private static final long lastFrameHeaderOverhead = (Integer.SIZE / Byte.SIZE) * 2;
 
     /**
      * Construct a decryption handler for decrypting bytes stored in frames.
@@ -241,18 +242,16 @@ class FrameDecryptionHandler implements CryptoHandler {
         return outSize;
     }
 
-    public static long estimateDecryptedSize(long encryptedSize, int frameSize, int nonceLen, int tagLenBytes) {
-        // Calculate the size of sequence number for the last frame
-        long lastFrameSeqNumberSize = (Integer.SIZE / Byte.SIZE);
-
-        // Calculate the size of the final frame size
-        long finalFrameSizeSize = (Integer.SIZE / Byte.SIZE);
-
-        // Calculate the total size of header overhead for the last frame
-        long lastFrameHeaderOverhead = lastFrameSeqNumberSize + finalFrameSizeSize;
-
+    public static long estimateDecryptedSize(
+        long encryptedSize,
+        int frameSize,
+        int nonceLen,
+        int tagLenBytes,
+        boolean includeLastFrameHeaderOverhead
+    ) {
+        long curLastFrameHeaderOverhead = includeLastFrameHeaderOverhead ? lastFrameHeaderOverhead : 0;
         // Calculate the number of frames
-        long frames = (encryptedSize - lastFrameHeaderOverhead) / (frameSize + nonceLen + tagLenBytes + (Integer.SIZE / Byte.SIZE)) + 1;
+        long frames = (encryptedSize - curLastFrameHeaderOverhead) / (frameSize + nonceLen + tagLenBytes + (Integer.SIZE / Byte.SIZE)) + 1;
 
         // Calculate the size of the actual content in frames
         long contentSizeWithoutLastFrame = (frames - 1) * frameSize;
@@ -264,9 +263,36 @@ class FrameDecryptionHandler implements CryptoHandler {
         long headerOverhead = (nonceLen + tagLenBytes) * frames + seqNumberSize;
 
         // Calculate the size of the last frame content
-        long lastFrameSize = encryptedSize - contentSizeWithoutLastFrame - headerOverhead - lastFrameHeaderOverhead;
+        long lastFrameSize = encryptedSize - contentSizeWithoutLastFrame - headerOverhead - curLastFrameHeaderOverhead;
+
+        // Case where index in last frame data is somewhere in the frame metadata.
+        lastFrameSize = Math.max(0, lastFrameSize);
 
         return contentSizeWithoutLastFrame + lastFrameSize;
+    }
+
+    public static long estimatePartialDecryptedSize(
+        long fullEncryptedSize,
+        long partialEncryptedSize,
+        int frameSize,
+        int nonceLen,
+        int tagLenBytes
+    ) {
+        long encryptedFrameSize = frameSize + nonceLen + tagLenBytes + (Integer.SIZE / Byte.SIZE);
+
+        if (partialEncryptedSize % encryptedFrameSize == 0) {
+            return partialEncryptedSize / encryptedFrameSize * frameSize;
+        }
+
+        boolean includeLastFrameHeaderOverhead;
+        if (fullEncryptedSize - lastFrameHeaderOverhead < partialEncryptedSize) {
+            partialEncryptedSize = fullEncryptedSize;
+            includeLastFrameHeaderOverhead = true;
+        } else {
+            includeLastFrameHeaderOverhead = false;
+        }
+
+        return estimateDecryptedSize(partialEncryptedSize, frameSize, nonceLen, tagLenBytes, includeLastFrameHeaderOverhead);
     }
 
     @Override

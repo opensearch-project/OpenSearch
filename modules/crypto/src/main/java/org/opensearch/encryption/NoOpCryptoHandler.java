@@ -126,6 +126,17 @@ public class NoOpCryptoHandler implements CryptoHandler<Object, Object> {
     }
 
     @Override
+    public DecryptedRangedStreamProvider createDecryptingStreamFromEncryptedOffsets(
+        Object cryptoContext,
+        long fullEncryptedLength,
+        long startPosOfEncContent,
+        long endPosOfEncContent
+    ) {
+        long[] range = { startPosOfEncContent, endPosOfEncContent };
+        return new DecryptedRangedStreamProvider(range, (encryptedStream) -> encryptedStream);
+    }
+
+    @Override
     public void close() {
         // Nothing to close.
     }

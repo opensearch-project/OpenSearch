@@ -111,7 +111,28 @@ public class AwsCrypto {
 
     public long estimateDecryptedSize(int frameLen, int nonceLen, int tagLen, long contentLength, CryptoAlgorithm cryptoAlgorithm) {
         long contentLenWithoutTrailingSig = contentLength - getTrailingSignatureSize(cryptoAlgorithm);
-        return FrameDecryptionHandler.estimateDecryptedSize(contentLenWithoutTrailingSig, frameLen, nonceLen, tagLen);
+        return FrameDecryptionHandler.estimateDecryptedSize(contentLenWithoutTrailingSig, frameLen, nonceLen, tagLen, true);
+    }
+
+    public long estimatePartialDecryptedSize(
+        long fullEncryptedSize,
+        long partialEncryptedSize,
+        int frameLen,
+        int nonceLen,
+        int tagLen,
+        CryptoAlgorithm cryptoAlgorithm
+    ) {
+        long fullEncWithoutTrailingSig = fullEncryptedSize - getTrailingSignatureSize(cryptoAlgorithm);
+        if (fullEncWithoutTrailingSig <= partialEncryptedSize) {
+            partialEncryptedSize = fullEncWithoutTrailingSig;
+        }
+        return FrameDecryptionHandler.estimatePartialDecryptedSize(
+            fullEncWithoutTrailingSig,
+            partialEncryptedSize,
+            frameLen,
+            nonceLen,
+            tagLen
+        );
     }
 
     public int getTrailingSignatureSize(CryptoAlgorithm cryptoAlgorithm) {

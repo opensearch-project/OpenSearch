@@ -106,6 +106,28 @@ public class FrameCryptoHandler implements CryptoHandler<EncryptionMetadata, Par
     }
 
     /**
+     * Estimate length of the decrypted stream.
+     *
+     * @param parsedCiphertext crypto metadata instance
+     * @param fullEncryptedSize Size of the entire encrypted content
+     * @param partialEncryptedSize Size of partial encrypted content
+     * @return Calculated size of the encrypted stream for the provided raw stream.
+     */
+    public long estimatePartialDecryptedLength(ParsedCiphertext parsedCiphertext, long fullEncryptedSize, long partialEncryptedSize) {
+        if (partialEncryptedSize <= parsedCiphertext.getOffset()) {
+            return 0;
+        }
+        return awsCrypto.estimatePartialDecryptedSize(
+            fullEncryptedSize - parsedCiphertext.getOffset(),
+            partialEncryptedSize - parsedCiphertext.getOffset(),
+            parsedCiphertext.getFrameLength(),
+            parsedCiphertext.getNonceLength(),
+            parsedCiphertext.getCryptoAlgoId().getTagLen(),
+            parsedCiphertext.getCryptoAlgoId()
+        );
+    }
+
+    /**
      * Wraps a raw InputStream with encrypting stream
      * @param encryptionMetadata consists encryption metadata.
      * @param stream Raw InputStream to encrypt
@@ -209,17 +231,54 @@ public class FrameCryptoHandler implements CryptoHandler<EncryptionMetadata, Par
         long adjustedEndPos = endPosOverhead == 0
             ? endPosOfRawContent
             : (endPosOfRawContent - endPosOverhead + encryptionMetadata.getFrameLength());
-        long[] encryptedRange = transformToEncryptedRange(encryptionMetadata, adjustedStartPos, adjustedEndPos);
-        return new DecryptedRangedStreamProvider(encryptedRange, (encryptedStream) -> {
+        long[] adjustedEncryptedRange = transformToEncryptedRange(encryptionMetadata, adjustedStartPos, adjustedEndPos);
+        long[] adjustedRange = new long[4];
+        adjustedRange[0] = adjustedEncryptedRange[0];
+        adjustedRange[1] = adjustedEncryptedRange[1];
+        adjustedRange[2] = startPosOfRawContent;
+        adjustedRange[3] = endPosOfRawContent;
+
+        return new DecryptedRangedStreamProvider(adjustedRange, (encryptedStream) -> {
             InputStream decryptedStream = createBlockDecryptionStream(
                 encryptionMetadata,
                 encryptedStream,
                 adjustedStartPos,
                 adjustedEndPos,
-                encryptedRange
+                adjustedEncryptedRange
             );
             return new TrimmingStream(adjustedStartPos, adjustedEndPos, startPosOfRawContent, endPosOfRawContent, decryptedStream);
         });
+    }
+
+    /**
+     * This method creates a {@link DecryptedRangedStreamProvider} which provides a wrapped stream to decrypt the
+     * underlying stream.
+     * If provided startPosOfEncContent does not fall on frame start position or endPosOfEncContent does not
+     * fall on frame end position then this method will throw an {@link IllegalArgumentException}.
+     *
+     * @param encryptionMetadata crypto metadata instance.
+     * @param fullEncryptedLength length of entire encrypted content.
+     * @param startPosOfEncContent starting position in encrypted content
+     * @param endPosOfEncContent ending position in encrypted content
+     */
+    @Override
+    public DecryptedRangedStreamProvider createDecryptingStreamFromEncryptedOffsets(
+        ParsedCiphertext encryptionMetadata,
+        long fullEncryptedLength,
+        long startPosOfEncContent,
+        long endPosOfEncContent
+    ) {
+        long startPosOfRawContent = estimatePartialDecryptedLength(encryptionMetadata, fullEncryptedLength, startPosOfEncContent);
+        long endPosOfRawContent = estimatePartialDecryptedLength(encryptionMetadata, fullEncryptedLength, endPosOfEncContent);
+        if (startPosOfRawContent % encryptionMetadata.getFrameLength() != 0
+            || (endPosOfRawContent + 1) % encryptionMetadata.getFrameLength() != 0 && endPosOfEncContent < fullEncryptedLength) {
+            // We can't estimate decryption sizes for random encryption lengths because frame positions within a frame metadata
+            // map to the same index and therefore, for different metadata positions in a frame, previous end position and current
+            // start position map to the same index which can result into consistent decrypted bytes.
+            throw new IllegalArgumentException("Computed start and end positions of raw content do not align with frame boundaries.");
+        }
+
+        return createDecryptingStreamOfRange(encryptionMetadata, startPosOfRawContent, endPosOfRawContent);
     }
 
     private long[] transformToEncryptedRange(ParsedCiphertext parsedCiphertext, long startPosOfRawContent, long endPosOfRawContent) {

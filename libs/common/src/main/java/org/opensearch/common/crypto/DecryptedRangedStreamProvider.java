@@ -17,17 +17,17 @@ import java.util.function.UnaryOperator;
 public class DecryptedRangedStreamProvider {
 
     /** Adjusted range of partial encrypted content which needs to be used for decryption. */
-    private final long[] adjustedRange;
+    private final long[] adjustedEncryptedRange;
     /** Stream provider for decryption and range re-adjustment. */
     private final UnaryOperator<InputStream> decryptedStreamProvider;
 
     /**
      * To construct adjusted encrypted range.
-     * @param adjustedRange range of partial encrypted content which needs to be used for decryption.
+     * @param adjustedEncryptedRange range of partial encrypted content which needs to be used for decryption.
      * @param decryptedStreamProvider stream provider for decryption and range re-adjustment.
      */
-    public DecryptedRangedStreamProvider(long[] adjustedRange, UnaryOperator<InputStream> decryptedStreamProvider) {
-        this.adjustedRange = adjustedRange;
+    public DecryptedRangedStreamProvider(long[] adjustedEncryptedRange, UnaryOperator<InputStream> decryptedStreamProvider) {
+        this.adjustedEncryptedRange = adjustedEncryptedRange;
         this.decryptedStreamProvider = decryptedStreamProvider;
     }
 
@@ -35,8 +35,8 @@ public class DecryptedRangedStreamProvider {
      * Adjusted range of partial encrypted content which needs to be used for decryption.
      * @return adjusted range
      */
-    public long[] getAdjustedRange() {
-        return adjustedRange;
+    public long[] getAdjustedEncryptedRange() {
+        return adjustedEncryptedRange;
     }
 
     /**

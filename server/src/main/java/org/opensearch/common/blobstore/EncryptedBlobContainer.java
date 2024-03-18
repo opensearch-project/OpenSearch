@@ -70,8 +70,8 @@ public class EncryptedBlobContainer<T, U> implements BlobContainer {
             position,
             position + length - 1
         );
-        long adjustedPos = decryptedStreamProvider.getAdjustedRange()[0];
-        long adjustedLength = decryptedStreamProvider.getAdjustedRange()[1] - adjustedPos + 1;
+        long adjustedPos = decryptedStreamProvider.getAdjustedEncryptedRange()[0];
+        long adjustedLength = decryptedStreamProvider.getAdjustedEncryptedRange()[1] - adjustedPos + 1;
         InputStream encryptedStream = blobContainer.readBlob(blobName, adjustedPos, adjustedLength);
         return decryptedStreamProvider.getDecryptedStreamProvider().apply(encryptedStream);
     }
