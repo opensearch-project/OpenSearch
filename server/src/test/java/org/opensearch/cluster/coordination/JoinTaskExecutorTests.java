@@ -922,16 +922,16 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         );
     }
 
-    private static final String SEGMENT_REPO = "segment-repo";
-    private static final String TRANSLOG_REPO = "translog-repo";
+    public static final String SEGMENT_REPO = "segment-repo";
+    public static final String TRANSLOG_REPO = "translog-repo";
     private static final String CLUSTER_STATE_REPO = "cluster-state-repo";
     private static final String COMMON_REPO = "remote-repo";
 
-    private Map<String, String> remoteStoreNodeAttributes(String segmentRepoName, String translogRepoName) {
+    public static Map<String, String> remoteStoreNodeAttributes(String segmentRepoName, String translogRepoName) {
         return remoteStoreNodeAttributes(segmentRepoName, translogRepoName, CLUSTER_STATE_REPO);
     }
 
-    private Map<String, String> remoteStoreNodeAttributes(String segmentRepoName, String translogRepoName, String clusterStateRepo) {
+    private static Map<String, String> remoteStoreNodeAttributes(String segmentRepoName, String translogRepoName, String clusterStateRepo) {
         String segmentRepositoryTypeAttributeKey = String.format(
             Locale.getDefault(),
             REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
@@ -968,7 +968,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         };
     }
 
-    private Map<String, String> remoteStateNodeAttributes(String clusterStateRepo) {
+    private static Map<String, String> remoteStateNodeAttributes(String clusterStateRepo) {
         String clusterStateRepositoryTypeAttributeKey = String.format(
             Locale.getDefault(),
             REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
