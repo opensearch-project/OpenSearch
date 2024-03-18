@@ -70,6 +70,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -250,28 +251,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         ArgumentCaptor<ActionListener<Void>> actionListenerArgumentCaptor = ArgumentCaptor.forClass(ActionListener.class);
         ArgumentCaptor<WriteContext> writeContextArgumentCaptor = ArgumentCaptor.forClass(WriteContext.class);
-        AtomicReference<WriteContext> capturedWriteContext = new AtomicReference<>();
+        ConcurrentHashMap<String, WriteContext> capturedWriteContext = new ConcurrentHashMap<>();
         doAnswer((i) -> {
             actionListenerArgumentCaptor.getValue().onResponse(null);
-            return null;
-        }).doAnswer((i) -> {
-            actionListenerArgumentCaptor.getValue().onResponse(null);
-            return null;
-        }).doAnswer((i) -> {
-            actionListenerArgumentCaptor.getValue().onResponse(null);
-            return null;
-        }).doAnswer((i) -> {
-            actionListenerArgumentCaptor.getValue().onResponse(null);
-            return null;
-        }).doAnswer((i) -> {
-            actionListenerArgumentCaptor.getValue().onResponse(null);
-            return null;
-        }).doAnswer((i) -> {
-            actionListenerArgumentCaptor.getValue().onResponse(null);
-            capturedWriteContext.set(writeContextArgumentCaptor.getValue());
-            return null;
-        }).doAnswer((i) -> {
-            actionListenerArgumentCaptor.getValue().onResponse(null);
+            WriteContext writeContext = writeContextArgumentCaptor.getValue();
+            capturedWriteContext.put(writeContext.getFileName().split(DELIMITER)[0], writeContextArgumentCaptor.getValue());
             return null;
         }).when(container).asyncBlobUpload(writeContextArgumentCaptor.capture(), actionListenerArgumentCaptor.capture());
 
@@ -308,27 +292,27 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertEquals(7, actionListenerArgumentCaptor.getAllValues().size());
         assertEquals(7, writeContextArgumentCaptor.getAllValues().size());
 
-        byte[] writtenBytes = capturedWriteContext.get()
+        byte[] writtenBytes = capturedWriteContext.get("metadata")
             .getStreamProvider(Integer.MAX_VALUE)
             .provideStream(0)
             .getInputStream()
             .readAllBytes();
         IndexMetadata writtenIndexMetadata = RemoteClusterStateService.INDEX_METADATA_FORMAT.deserialize(
-            capturedWriteContext.get().getFileName(),
+            capturedWriteContext.get("metadata").getFileName(),
             blobStoreRepository.getNamedXContentRegistry(),
             new BytesArray(writtenBytes)
         );
 
-        assertEquals(capturedWriteContext.get().getWritePriority(), WritePriority.URGENT);
+        assertEquals(capturedWriteContext.get("metadata").getWritePriority(), WritePriority.URGENT);
         assertEquals(writtenIndexMetadata.getNumberOfShards(), 1);
         assertEquals(writtenIndexMetadata.getNumberOfReplicas(), 0);
         assertEquals(writtenIndexMetadata.getIndex().getName(), "test-index");
         assertEquals(writtenIndexMetadata.getIndex().getUUID(), "index-uuid");
         long expectedChecksum = RemoteTransferContainer.checksumOfChecksum(new ByteArrayIndexInput("metadata-filename", writtenBytes), 8);
-        if (capturedWriteContext.get().doRemoteDataIntegrityCheck()) {
-            assertEquals(capturedWriteContext.get().getExpectedChecksum().longValue(), expectedChecksum);
+        if (capturedWriteContext.get("metadata").doRemoteDataIntegrityCheck()) {
+            assertEquals(capturedWriteContext.get("metadata").getExpectedChecksum().longValue(), expectedChecksum);
         } else {
-            assertEquals(capturedWriteContext.get().getExpectedChecksum(), null);
+            assertEquals(capturedWriteContext.get("metadata").getExpectedChecksum(), null);
         }
 
     }
@@ -386,7 +370,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10));
         } catch (Exception e) {
             assertTrue(e instanceof RemoteClusterStateService.RemoteStateTransferException);
-            assertTrue(e.getMessage().contains("Timed out waiting for transfer of metadata to complete"));
+            assertTrue(e.getMessage().contains("Timed out waiting for transfer of following metadata to complete"));
         }
     }
 
@@ -967,7 +951,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .coordinationMetadata(new UploadedMetadataAttribute(COORDINATION_METADATA, "mock-coordination-file"))
             .settingMetadata(new UploadedMetadataAttribute(SETTING_METADATA, "mock-setting-file"))
             .templatesMetadata(new UploadedMetadataAttribute(TEMPLATES_METADATA, "mock-templates-file"))
-            .put(IndexGraveyard.TYPE, new UploadedMetadataAttribute(CUSTOM_METADATA + CUSTOM_DELIMITER + IndexGraveyard.TYPE, "mock-custom-" +IndexGraveyard.TYPE+ "-file"))
+            .put(IndexGraveyard.TYPE, new UploadedMetadataAttribute(IndexGraveyard.TYPE, "mock-custom-" +IndexGraveyard.TYPE+ "-file"))
             .nodeId("nodeA")
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
             .previousClusterUUID("prev-cluster-uuid")
@@ -976,7 +960,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         Metadata expactedMetadata = Metadata.builder().persistentSettings(Settings.builder().put("readonly", true).build()).build();
         mockBlobContainerForGlobalMetadata(mockBlobStoreObjects(), expectedManifest, expactedMetadata);
 
-        ClusterState newClusterState = remoteClusterStateService.getLatestClusterState(
+         ClusterState newClusterState = remoteClusterStateService.getLatestClusterState(
             clusterState.getClusterName().value(),
             clusterState.metadata().clusterUUID()
         );
