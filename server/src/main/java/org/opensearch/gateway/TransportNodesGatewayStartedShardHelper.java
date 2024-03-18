@@ -233,6 +233,13 @@ public class TransportNodesGatewayStartedShardHelper {
             buf.append("]");
             return buf.toString();
         }
+
+        public static Boolean isEmpty(GatewayStartedShard response) {
+            return response.allocationId() == null
+                && response.primary() == false
+                && response.storeException() == null
+                && response.replicationCheckpoint() == null;
+        }
     }
 
     /**

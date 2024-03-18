@@ -29,8 +29,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import reactor.util.annotation.NonNull;
-
 /**
  * Implementation of AsyncShardFetch with batching support. This class is responsible for executing the fetch
  * part using the base class {@link AsyncShardFetch}. Other functionalities needed for a batch are only written here.
@@ -43,7 +41,7 @@ import reactor.util.annotation.NonNull;
  *
  * @opensearch.internal
  */
-public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends BaseShardResponse> extends AsyncShardFetch<T> {
+public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extends AsyncShardFetch<T> {
 
     private final Consumer<ShardId> removeShardFromBatch;
     private final List<ShardId> failedShards;
@@ -59,10 +57,12 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
         BiFunction<DiscoveryNode, Map<ShardId, V>, T> responseGetter,
         Function<T, Map<ShardId, V>> shardsBatchDataGetter,
         Supplier<V> emptyResponseBuilder,
-        Consumer<ShardId> handleFailedShard
+        Consumer<ShardId> failedShardHandler,
+        Function<V, Exception> getResponseException,
+        Function<V, Boolean> isEmptyResponse
     ) {
         super(logger, type, shardAttributesMap, action, batchId);
-        this.removeShardFromBatch = handleFailedShard;
+        this.removeShardFromBatch = failedShardHandler;
         this.failedShards = new ArrayList<>();
         this.cache = new ShardBatchCache<>(
             logger,
@@ -73,7 +73,9 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
             responseGetter,
             shardsBatchDataGetter,
             emptyResponseBuilder,
-            this::cleanUpFailedShards
+            this::cleanUpFailedShards,
+            getResponseException,
+            isEmptyResponse
         );
     }
 
@@ -122,7 +124,7 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
      * @param <T> Response type of transport action.
      * @param <V> Data type of shard level response.
      */
-    public static class ShardBatchCache<T extends BaseNodeResponse, V extends BaseShardResponse> extends AsyncShardFetchCache<T> {
+    static class ShardBatchCache<T extends BaseNodeResponse, V> extends AsyncShardFetchCache<T> {
         private final Map<String, NodeEntry<V>> cache;
         private final Map<ShardId, Integer> shardIdToArray;
         private final int batchSize;
@@ -131,7 +133,9 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
         private final Map<Integer, ShardId> arrayToShardId;
         private final Function<T, Map<ShardId, V>> shardsBatchDataGetter;
         private final Supplier<V> emptyResponseBuilder;
-        private final Consumer<ShardId> handleFailedShard;
+        private final Consumer<ShardId> failedShardHandler;
+        private final Function<V, Exception> getException;
+        private final Function<V, Boolean> isEmpty;
         private final Logger logger;
 
         public ShardBatchCache(
@@ -143,10 +147,14 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
             BiFunction<DiscoveryNode, Map<ShardId, V>, T> responseGetter,
             Function<T, Map<ShardId, V>> shardsBatchDataGetter,
             Supplier<V> emptyResponseBuilder,
-            Consumer<ShardId> handleFailedShard
+            Consumer<ShardId> failedShardHandler,
+            Function<V, Exception> getResponseException,
+            Function<V, Boolean> isEmptyResponse
         ) {
             super(Loggers.getLogger(logger, "_" + logKey), type);
             this.batchSize = shardAttributesMap.size();
+            this.getException = getResponseException;
+            this.isEmpty = isEmptyResponse;
             cache = new HashMap<>();
             shardIdToArray = new HashMap<>();
             arrayToShardId = new HashMap<>();
@@ -155,11 +163,10 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
             this.responseConstructor = responseGetter;
             this.shardsBatchDataGetter = shardsBatchDataGetter;
             this.emptyResponseBuilder = emptyResponseBuilder;
-            this.handleFailedShard = handleFailedShard;
+            this.failedShardHandler = failedShardHandler;
             this.logger = logger;
         }
 
-        @NonNull
         @Override
         public Map<String, ? extends BaseNodeEntry> getCache() {
             return cache;
@@ -177,7 +184,7 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
 
         @Override
         public Map<DiscoveryNode, T> getCacheData(DiscoveryNodes nodes, Set<String> failedNodes) {
-            refreshReverseIdMap();
+            fillReverseIdMap();
             return super.getCacheData(nodes, failedNodes);
         }
 
@@ -185,7 +192,7 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
          * Build a reverse map to get shardId from the array index, this will be used to construct the response which
          * PrimaryShardBatchAllocator or ReplicaShardBatchAllocator are looking for.
          */
-        private void refreshReverseIdMap() {
+        private void fillReverseIdMap() {
             arrayToShardId.clear();
             for (ShardId shardId : shardIdToArray.keySet()) {
                 arrayToShardId.putIfAbsent(shardIdToArray.get(shardId), shardId);
@@ -194,7 +201,7 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
 
         @Override
         public void initData(DiscoveryNode node) {
-            cache.put(node.getId(), new NodeEntry<>(node.getId(), shardResponseClass, batchSize));
+            cache.put(node.getId(), new NodeEntry<>(node.getId(), shardResponseClass, batchSize, getException, isEmpty));
         }
 
         /**
@@ -223,10 +230,10 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
             for (Iterator<ShardId> it = batchResponse.keySet().iterator(); it.hasNext();) {
                 ShardId shardId = it.next();
                 if (batchResponse.get(shardId) != null) {
-                    if (batchResponse.get(shardId).getException() != null) {
+                    if (getException.apply(batchResponse.get(shardId)) != null) {
                         // handle per shard level exceptions, process other shards, only throw out this shard from
                         // the batch
-                        Exception shardException = batchResponse.get(shardId).getException();
+                        Exception shardException = getException.apply(batchResponse.get(shardId));
                         // if the request got rejected or timed out, we need to try it again next time...
                         if (retryableException(shardException)) {
                             logger.trace(
@@ -234,7 +241,7 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
                                 shardId.toString(),
                                 shardException.toString()
                             );
-                            handleFailedShard.accept(shardId);
+                            failedShardHandler.accept(shardId);
                             // remove this failed entry. So, while storing the data, we don't need to re-process it.
                             it.remove();
                         }
@@ -268,28 +275,34 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
             for (ShardId shardId : shardIds) {
                 this.shardIdToArray.putIfAbsent(shardId, shardIdIndex++);
             }
-            this.shardIdToArray.keySet().removeIf(shardId -> {
-                if (!shardIds.contains(shardId)) {
-                    deleteShard(shardId);
-                    return true;
-                } else {
-                    return false;
-                }
-            });
         }
 
         /**
          * A node entry, holding the state of the fetched data for a specific shard
          * for a giving node.
          */
-        static class NodeEntry<V extends BaseShardResponse> extends BaseNodeEntry {
+        static class NodeEntry<V> extends BaseNodeEntry {
             private final V[] shardData;
-            private final boolean[] emptyShardResponse;
+            private final boolean[] emptyShardResponse; // we can not rely on null entries of the shardData array,
+            // those null entries means that we need to ignore those entries. Empty responses on the other hand are
+            // actually needed in allocation/explain API response. So instead of storing full empty response object
+            // in cache, it's better to just store a boolean and create that object on the fly just before
+            // decision-making.
+            private final Function<V, Exception> getException;
+            private final Function<V, Boolean> isEmpty;
 
-            NodeEntry(String nodeId, Class<V> clazz, int batchSize) {
+            NodeEntry(
+                String nodeId,
+                Class<V> clazz,
+                int batchSize,
+                Function<V, Exception> getResponseException,
+                Function<V, Boolean> isEmptyResponse
+            ) {
                 super(nodeId);
                 this.shardData = (V[]) Array.newInstance(clazz, batchSize);
                 this.emptyShardResponse = new boolean[batchSize];
+                this.getException = getResponseException;
+                this.isEmpty = isEmptyResponse;
             }
 
             void doneFetching(Map<ShardId, V> shardDataFromNode, Map<ShardId, Integer> shardIdKey) {
@@ -299,6 +312,7 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
 
             void clearShard(Integer shardIdIndex) {
                 this.shardData[shardIdIndex] = null;
+                emptyShardResponse[shardIdIndex] = false;
             }
 
             V[] getData() {
@@ -312,10 +326,10 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V extends
             private void fillShardData(Map<ShardId, V> shardDataFromNode, Map<ShardId, Integer> shardIdKey) {
                 for (ShardId shardId : shardDataFromNode.keySet()) {
                     if (shardDataFromNode.get(shardId) != null) {
-                        if (shardDataFromNode.get(shardId).isEmpty()) {
+                        if (isEmpty.apply(shardDataFromNode.get(shardId))) {
                             this.emptyShardResponse[shardIdKey.get(shardId)] = true;
                             this.shardData[shardIdKey.get(shardId)] = null;
-                        } else if (shardDataFromNode.get(shardId).getException() == null) {
+                        } else if (getException.apply(shardDataFromNode.get(shardId)) == null) {
                             this.shardData[shardIdKey.get(shardId)] = shardDataFromNode.get(shardId);
                         }
                         // if exception is not null, we got unhandled failure for the shard which needs to be ignored

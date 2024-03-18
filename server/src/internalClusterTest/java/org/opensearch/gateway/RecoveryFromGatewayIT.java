@@ -948,7 +948,6 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         assertNotNull(storeFileMetadata.peerRecoveryRetentionLeases());
     }
 
-
     private void assertNodeGatewayStartedShardsHappyCase(GatewayStartedShard gatewayStartedShard) {
         assertNull(gatewayStartedShard.storeException());
         assertNotNull(gatewayStartedShard.allocationId());
