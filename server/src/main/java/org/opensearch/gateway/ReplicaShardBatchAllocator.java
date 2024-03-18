@@ -181,9 +181,8 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
         ShardRouting unassignedShard,
         FetchResult<NodeStoreFilesMetadataBatch> data
     ) {
-
         if (!data.hasData()) {
-            return new HashMap<>();
+            return null;
         }
 
         Map<DiscoveryNode, StoreFilesMetadata> map = new HashMap<>();
