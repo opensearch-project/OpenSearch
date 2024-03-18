@@ -115,6 +115,11 @@ public interface SearchOperationListener {
     default void onNewScrollContext(ReaderContext readerContext) {}
 
     /**
+     * Executed when a shard goes from idle to non-idle state
+     */
+    default void onNewSearchIdleWakenUp() {}
+
+    /**
      * Executed when a scroll search {@link SearchContext} is freed.
      * This happens either when the scroll search execution finishes, if the
      * execution failed or if the search context as idle for and needs to be
@@ -252,6 +257,17 @@ public interface SearchOperationListener {
                     listener.onNewScrollContext(readerContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onNewScrollContext listener [{}] failed", listener), e);
+                }
+            }
+        }
+
+        @Override
+        public void onNewSearchIdleWakenUp() {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onNewSearchIdleWakenUp();
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onNewSearchIdleWakenUp listener [{}] failed", listener), e);
                 }
             }
         }

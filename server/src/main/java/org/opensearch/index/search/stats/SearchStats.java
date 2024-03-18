@@ -163,6 +163,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
         private long pitTimeInMillis;
         private long pitCurrent;
 
+        private long searchIdleWakenUpCount;
+
         @Nullable
         private RequestStatsLongHolder requestStatsLongHolder;
 
@@ -193,7 +195,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             long pitCurrent,
             long suggestCount,
             long suggestTimeInMillis,
-            long suggestCurrent
+            long suggestCurrent,
+            long searchIdleWakenUpCount
         ) {
             this.requestStatsLongHolder = new RequestStatsLongHolder();
             this.queryCount = queryCount;
@@ -220,6 +223,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             this.pitCount = pitCount;
             this.pitTimeInMillis = pitTimeInMillis;
             this.pitCurrent = pitCurrent;
+
+            this.searchIdleWakenUpCount = searchIdleWakenUpCount;
         }
 
         private Stats(StreamInput in) throws IOException {
@@ -238,6 +243,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             suggestCount = in.readVLong();
             suggestTimeInMillis = in.readVLong();
             suggestCurrent = in.readVLong();
+
+            searchIdleWakenUpCount = in.readVLong();
 
             if (in.getVersion().onOrAfter(Version.V_2_4_0)) {
                 pitCount = in.readVLong();
@@ -282,6 +289,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             pitCount += stats.pitCount;
             pitTimeInMillis += stats.pitTimeInMillis;
             pitCurrent += stats.pitCurrent;
+
+            searchIdleWakenUpCount += stats.searchIdleWakenUpCount;
         }
 
         public void addForClosingShard(Stats stats) {
@@ -306,6 +315,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             pitTimeInMillis += stats.pitTimeInMillis;
             pitCurrent += stats.pitCurrent;
             queryConcurrency += stats.queryConcurrency;
+
+            searchIdleWakenUpCount += stats.searchIdleWakenUpCount;
         }
 
         public long getQueryCount() {
@@ -412,6 +423,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             return suggestCurrent;
         }
 
+        public long getSearchIdleWakenUpCount() {
+            return searchIdleWakenUpCount;
+        }
+
         public static Stats readStats(StreamInput in) throws IOException {
             return new Stats(in);
         }
@@ -433,6 +448,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             out.writeVLong(suggestCount);
             out.writeVLong(suggestTimeInMillis);
             out.writeVLong(suggestCurrent);
+
+            out.writeVLong(searchIdleWakenUpCount);
 
             if (out.getVersion().onOrAfter(Version.V_2_4_0)) {
                 out.writeVLong(pitCount);
@@ -457,6 +474,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 out.writeVLong(concurrentQueryCurrent);
                 out.writeVLong(queryConcurrency);
             }
+
         }
 
         @Override
@@ -485,6 +503,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             builder.field(Fields.SUGGEST_TOTAL, suggestCount);
             builder.humanReadableField(Fields.SUGGEST_TIME_IN_MILLIS, Fields.SUGGEST_TIME, getSuggestTime());
             builder.field(Fields.SUGGEST_CURRENT, suggestCurrent);
+
+            builder.field(Fields.SEARCH_IDLE_WAKEN_UP_TOTAL, searchIdleWakenUpCount);
 
             if (requestStatsLongHolder != null) {
                 builder.startObject(Fields.REQUEST);
@@ -647,6 +667,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String PIT_CURRENT = "point_in_time_current";
         static final String SUGGEST_TOTAL = "suggest_total";
         static final String SUGGEST_TIME = "suggest_time";
+        static final String SEARCH_IDLE_WAKEN_UP_TOTAL = "search_idle_waken_up_total";
         static final String SUGGEST_TIME_IN_MILLIS = "suggest_time_in_millis";
         static final String SUGGEST_CURRENT = "suggest_current";
         static final String REQUEST = "request";

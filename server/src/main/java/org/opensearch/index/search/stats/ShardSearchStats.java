@@ -195,6 +195,11 @@ public final class ShardSearchStats implements SearchOperationListener {
     }
 
     @Override
+    public void onNewSearchIdleWakenUp() {
+        totalStats.searchIdleMetric.inc();
+    }
+
+    @Override
     public void onFreeScrollContext(ReaderContext readerContext) {
         totalStats.scrollCurrent.dec();
         assert totalStats.scrollCurrent.count() >= 0;
@@ -220,6 +225,7 @@ public final class ShardSearchStats implements SearchOperationListener {
      */
     static final class StatsHolder {
         final MeanMetric queryMetric = new MeanMetric();
+        final CounterMetric searchIdleMetric = new CounterMetric();
         final MeanMetric concurrentQueryMetric = new MeanMetric();
         final CounterMetric queryConcurrencyMetric = new CounterMetric();
         final MeanMetric fetchMetric = new MeanMetric();
@@ -260,7 +266,8 @@ public final class ShardSearchStats implements SearchOperationListener {
                 pitCurrent.count(),
                 suggestMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()),
-                suggestCurrent.count()
+                suggestCurrent.count(),
+                searchIdleMetric.count()
             );
         }
     }
