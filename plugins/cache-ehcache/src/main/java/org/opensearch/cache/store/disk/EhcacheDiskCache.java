@@ -28,6 +28,7 @@ import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -62,7 +63,6 @@ import org.ehcache.expiry.ExpiryPolicy;
 import org.ehcache.impl.config.store.disk.OffHeapDiskStoreConfiguration;
 import org.ehcache.spi.loaderwriter.CacheLoadingException;
 import org.ehcache.spi.loaderwriter.CacheWritingException;
-import org.opensearch.common.util.io.IOUtils;
 
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_CACHE_ALIAS_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY;
@@ -355,6 +355,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     @Override
     public void invalidateAll() {
         cache.clear();
+        this.entries.dec(this.entries.count()); // reset to zero.
     }
 
     /**
@@ -394,8 +395,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         } catch (CachePersistenceException e) {
             throw new OpenSearchException("Exception occurred while destroying ehcache and associated data", e);
         } catch (IOException e) {
-            logger.error(() -> new ParameterizedMessage("Failed to delete ehcache disk cache data under path: {}",
-                this.storagePath));
+            logger.error(() -> new ParameterizedMessage("Failed to delete ehcache disk cache data under path: {}", this.storagePath));
         }
     }
 
