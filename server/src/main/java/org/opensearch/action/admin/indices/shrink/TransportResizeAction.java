@@ -145,8 +145,6 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         final String targetIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getTargetIndexRequest().index());
         IndexMetadata indexMetadata = state.metadata().index(sourceIndex);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        validateClusterModeSettings(resizeRequest.getResizeType(),indexMetadata,clusterSettings);
-
         if (resizeRequest.getResizeType().equals(ResizeType.SHRINK)
             && state.metadata().isSegmentReplicationEnabled(sourceIndex)
             && indexMetadata != null
@@ -166,7 +164,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
                             CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(resizeRequest, state, i -> {
                                 IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                                 return shard == null ? null : shard.getPrimary().getDocs();
-                            }, indicesStatsResponse.getPrimaries().store, sourceIndex, targetIndex);
+                            }, indicesStatsResponse.getPrimaries().store, clusterSettings,sourceIndex, targetIndex);
 
                             if (indicesStatsResponse.getIndex(sourceIndex)
                                 .getTotal()
@@ -205,7 +203,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
                     CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(resizeRequest, state, i -> {
                         IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                         return shard == null ? null : shard.getPrimary().getDocs();
-                    }, indicesStatsResponse.getPrimaries().store, sourceIndex, targetIndex);
+                    }, indicesStatsResponse.getPrimaries().store, clusterSettings, sourceIndex, targetIndex);
                     createIndexService.createIndex(
                         updateRequest,
                         ActionListener.map(
@@ -228,6 +226,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         final ClusterState state,
         final IntFunction<DocsStats> perShardDocStats,
         final StoreStats primaryShardsStoreStats,
+        final ClusterSettings clusterSettings,
         String sourceIndexName,
         String targetIndexName
     ) {
@@ -236,6 +235,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         if (metadata == null) {
             throw new IndexNotFoundException(sourceIndexName);
         }
+        validateClusterModeSettings(resizeRequest.getResizeType(),metadata,clusterSettings);
         final Settings.Builder targetIndexSettingsBuilder = Settings.builder()
             .put(targetIndex.settings())
             .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
@@ -379,10 +379,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
             .equals(RemoteStoreNodeService.CompatibilityMode.MIXED);
         boolean isRemoteStoreMigrationDirection = clusterSettings.get(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING)
             .equals(RemoteStoreNodeService.Direction.REMOTE_STORE);
-        boolean  isRemoteStoreEnabled = false;
-        if(sourceIndexMetadata!=null) {
-            isRemoteStoreEnabled = sourceIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false);
-        }
+        boolean  isRemoteStoreEnabled = sourceIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false);
         if (isMixed && isRemoteStoreMigrationDirection && !isRemoteStoreEnabled) {
             throw new IllegalStateException("index Resizing for type [" + type + "] is not allowed as Cluster mode is [Mixed]"
                 + " and migration direction is [Remote Store]");
