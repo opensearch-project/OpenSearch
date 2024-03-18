@@ -514,10 +514,8 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                     iterator.remove();
                 }
             }
-            int count = 0;
             // Verify the removed key doesn't exist anymore.
             for (String ehcacheKey : removedKeyList) {
-                System.out.println("SAGARX count = " + count++);
                 assertNull(ehcacheTest.get(ehcacheKey));
             }
             // Verify ehcache entry size again.
