@@ -77,11 +77,11 @@ public final class ScriptEmitValues {
     }
 
     // Emits a String value
-    public static final class String {
+    public static final class Strings {
 
         private final DerivedFieldScript derivedFieldScript;
 
-        public String(DerivedFieldScript derivedFieldScript) {
+        public Strings(DerivedFieldScript derivedFieldScript) {
             this.derivedFieldScript = derivedFieldScript;
         }
 

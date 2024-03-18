@@ -27,5 +27,5 @@ static_import {
     void emitDouble(org.opensearch.script.DerivedFieldScript, double) bound_to org.opensearch.script.ScriptEmitValues$Double
     void emitGeoPoint(org.opensearch.script.DerivedFieldScript, double, double) bound_to org.opensearch.script.ScriptEmitValues$GeoPoint
     void emitBoolean(org.opensearch.script.DerivedFieldScript, boolean) bound_to org.opensearch.script.ScriptEmitValues$Boolean
-    void emitString(org.opensearch.script.DerivedFieldScript, String) bound_to org.opensearch.script.ScriptEmitValues$String
+    void emitString(org.opensearch.script.DerivedFieldScript, String) bound_to org.opensearch.script.ScriptEmitValues$Strings
 }
