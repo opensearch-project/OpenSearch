@@ -88,8 +88,8 @@ import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.remote.RemoteStoreBlobPathResolver;
-import org.opensearch.index.remote.RemoteStoreBlobPathType;
+import org.opensearch.index.remote.RemoteStorePathResolver;
+import org.opensearch.index.remote.RemoteStorePathType;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexCreationException;
@@ -170,7 +170,7 @@ public class MetadataCreateIndexService {
     private AwarenessReplicaBalance awarenessReplicaBalance;
 
     @Nullable
-    private final RemoteStoreBlobPathResolver remoteStoreBlobPathResolver;
+    private final RemoteStorePathResolver remoteStorePathResolver;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -203,8 +203,8 @@ public class MetadataCreateIndexService {
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         createIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_KEY, true);
-        remoteStoreBlobPathResolver = isRemoteDataAttributePresent(settings)
-            ? new RemoteStoreBlobPathResolver(clusterService.getClusterSettings())
+        remoteStorePathResolver = isRemoteDataAttributePresent(settings)
+            ? new RemoteStorePathResolver(clusterService.getClusterSettings())
             : null;
     }
 
@@ -554,9 +554,9 @@ public class MetadataCreateIndexService {
         tmpImdBuilder.settings(indexSettings);
         tmpImdBuilder.system(isSystem);
 
-        if (remoteStoreBlobPathResolver != null) {
-            String pathType = remoteStoreBlobPathResolver.resolveType().toString();
-            tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, Map.of(RemoteStoreBlobPathType.NAME, pathType));
+        if (remoteStorePathResolver != null) {
+            String pathType = remoteStorePathResolver.resolveType().toString();
+            tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, Map.of(RemoteStorePathType.NAME, pathType));
         }
 
         // Set up everything, now locally create the index to see that things are ok, and apply

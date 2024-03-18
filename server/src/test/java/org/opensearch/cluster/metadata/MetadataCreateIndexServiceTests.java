@@ -71,7 +71,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.remote.RemoteStoreBlobPathType;
+import org.opensearch.index.remote.RemoteStorePathType;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
@@ -1587,34 +1587,32 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
      */
     public void testRemoteCustomData() {
         // Case 1 - Remote store is not enabled
-        IndexMetadata indexMetadata = testRemoteCustomData(false, randomBoolean());
+        IndexMetadata indexMetadata = testRemoteCustomData(false, randomFrom(RemoteStorePathType.values()));
         assertNull(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY));
 
-        // Case 2 - cluster.remote_store.index.path.prefix.optimised=false (default value)
-        indexMetadata = testRemoteCustomData(true, false);
+        // Case 2 - cluster.remote_store.index.path.prefix.optimised=fixed (default value)
+        indexMetadata = testRemoteCustomData(true, RemoteStorePathType.FIXED);
         validateRemoteCustomData(
             indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY),
-            RemoteStoreBlobPathType.NAME,
-            RemoteStoreBlobPathType.FIXED.toString()
+            RemoteStorePathType.NAME,
+            RemoteStorePathType.FIXED.toString()
         );
 
-        // Case 3 - cluster.remote_store.index.path.prefix.optimised=true
-        indexMetadata = testRemoteCustomData(true, true);
+        // Case 3 - cluster.remote_store.index.path.prefix.optimised=hashed_prefix
+        indexMetadata = testRemoteCustomData(true, RemoteStorePathType.HASHED_PREFIX);
         validateRemoteCustomData(
             indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY),
-            RemoteStoreBlobPathType.NAME,
-            RemoteStoreBlobPathType.HASHED_PREFIX.toString()
+            RemoteStorePathType.NAME,
+            RemoteStorePathType.HASHED_PREFIX.toString()
         );
     }
 
-    private IndexMetadata testRemoteCustomData(boolean remoteStoreEnabled, boolean optimisedPrefix) {
+    private IndexMetadata testRemoteCustomData(boolean remoteStoreEnabled, RemoteStorePathType remoteStorePathType) {
         Settings.Builder settingsBuilder = Settings.builder();
         if (remoteStoreEnabled) {
             settingsBuilder.put(NODE_ATTRIBUTES.getKey() + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "test");
         }
-        if (optimisedPrefix) {
-            settingsBuilder.put(IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_OPTIMISED_SETTING.getKey(), true);
-        }
+        settingsBuilder.put(IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING.getKey(), remoteStorePathType.toString());
         Settings settings = settingsBuilder.build();
 
         ClusterService clusterService = mock(ClusterService.class);

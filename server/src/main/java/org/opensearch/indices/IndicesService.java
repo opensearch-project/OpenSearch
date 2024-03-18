@@ -123,6 +123,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
+import org.opensearch.index.remote.RemoteStorePathType;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.seqno.RetentionLeaseStats;
@@ -314,12 +315,13 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
-     * This setting is used to enable the optimisation in prefix path which helps in achieving higher throughput and lesser
-     * rate limiting by remote store providers. This setting is effective only for remote store enabled cluster.
+     * This setting is used to set the remote store blob store path prefix strategy. This setting is effective only for
+     * remote store enabled cluster.
      */
-    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_PATH_PREFIX_OPTIMISED_SETTING = Setting.boolSetting(
-        "cluster.remote_store.index.path.prefix.optimised",
-        false,
+    public static final Setting<RemoteStorePathType> CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING = new Setting<>(
+        "cluster.remote_store.index.path.prefix.type",
+        RemoteStorePathType.FIXED.toString(),
+        RemoteStorePathType::parseString,
         Property.NodeScope,
         Property.Dynamic
     );

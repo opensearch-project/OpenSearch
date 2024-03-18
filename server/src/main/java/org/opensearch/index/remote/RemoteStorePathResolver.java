@@ -12,21 +12,19 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.indices.IndicesService;
 
 /**
- * Determines the {@link RemoteStoreBlobPathType} at the time of index metadata creation.
+ * Determines the {@link RemoteStorePathType} at the time of index metadata creation.
  *
  * @opensearch.internal
  */
-public class RemoteStoreBlobPathResolver {
+public class RemoteStorePathResolver {
 
     private final ClusterSettings clusterSettings;
 
-    public RemoteStoreBlobPathResolver(ClusterSettings clusterSettings) {
+    public RemoteStorePathResolver(ClusterSettings clusterSettings) {
         this.clusterSettings = clusterSettings;
     }
 
-    public RemoteStoreBlobPathType resolveType() {
-        return clusterSettings.get(IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_OPTIMISED_SETTING)
-            ? RemoteStoreBlobPathType.HASHED_PREFIX
-            : RemoteStoreBlobPathType.FIXED;
+    public RemoteStorePathType resolveType() {
+        return clusterSettings.get(IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING);
     }
 }

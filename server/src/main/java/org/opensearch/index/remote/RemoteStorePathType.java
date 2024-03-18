@@ -8,25 +8,24 @@
 
 package org.opensearch.index.remote;
 
+import java.util.Locale;
+
 /**
  * Enumerates the types of remote store paths resolution techniques supported by OpenSearch.
  * For more information, see <a href="https://github.com/opensearch-project/OpenSearch/issues/12567">Github issue #12567</a>.
  *
  * @opensearch.internal
  */
-public enum RemoteStoreBlobPathType {
+public enum RemoteStorePathType {
 
     FIXED,
     HASHED_PREFIX;
 
-    public static RemoteStoreBlobPathType parseString(String remoteStoreBlobPathType) {
+    public static RemoteStorePathType parseString(String remoteStoreBlobPathType) {
         try {
-            return RemoteStoreBlobPathType.valueOf(remoteStoreBlobPathType);
+            return RemoteStorePathType.valueOf(remoteStoreBlobPathType.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Could not parse RemoteStorePathType for [" + remoteStoreBlobPathType + "]");
-        } catch (NullPointerException npe) {
-            // return a default value for null input
-            return FIXED;
         }
     }
 
