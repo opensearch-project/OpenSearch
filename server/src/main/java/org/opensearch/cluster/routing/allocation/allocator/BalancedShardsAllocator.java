@@ -140,7 +140,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     public static final Setting<Boolean> PREFER_PRIMARY_SHARD_BALANCE = Setting.boolSetting(
         "cluster.routing.allocation.balance.prefer_primary",
-        false,
+        true,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -154,7 +154,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     );
 
     /**
-     * This setting governs whether shards should be randomly allocated during assignment.
+     * This setting governs whether shards should be randomly allocated among the eligible nodes during assignment.
      */
     public static final Setting<Boolean> PREFER_RANDOM_SHARD_ALLOCATION = Setting.boolSetting(
         "cluster.routing.allocation.balance.prefer_random_allocation",
