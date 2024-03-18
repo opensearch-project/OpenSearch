@@ -52,6 +52,7 @@ import org.opensearch.cluster.ack.CreateIndexClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
@@ -98,6 +99,7 @@ import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -905,6 +907,7 @@ public class MetadataCreateIndexService {
 
         updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, combinedTemplateSettings);
         updateRemoteStoreSettings(indexSettingsBuilder, settings);
+        updateRemoteStoreSettingsForMigration(indexSettingsBuilder, currentState, clusterSettings);
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
@@ -999,6 +1002,48 @@ public class MetadataCreateIndexService {
                         Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
                     )
                 );
+        }
+    }
+
+    /**
+     * Updates index settings to enable remote store by default for migration towards remote store backed clusters
+     * @param settingsBuilder index settings builder to be updated with relevant settings
+     * @param clusterState state of cluster
+     * @param clusterSettings cluster level settings
+     */
+    public static void updateRemoteStoreSettingsForMigration(Settings.Builder settingsBuilder, ClusterState clusterState, ClusterSettings clusterSettings) {
+        String value = settingsBuilder.get(SETTING_REMOTE_STORE_ENABLED);
+        if (value != null && value.toLowerCase(Locale.ROOT).equals("true")) {
+            return;
+        }
+
+        boolean isMixedMode = clusterSettings.get(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING)
+            .equals(RemoteStoreNodeService.CompatibilityMode.MIXED);
+        boolean isRemoteStoreMigrationDirection = clusterSettings.get(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING)
+            .equals(RemoteStoreNodeService.Direction.REMOTE_STORE);
+
+        if (isMixedMode && isRemoteStoreMigrationDirection) {
+            String segmentRepo, translogRepo;
+
+            Map<String, DiscoveryNode> nodes = clusterState.nodes().getNodes();;
+            for (Map.Entry<String, DiscoveryNode> entry : nodes.entrySet()) {
+                DiscoveryNode node = entry.getValue();
+                if (node.isRemoteStoreNode()) {
+                    translogRepo = node.getAttributes().get(RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY);
+                    segmentRepo = node.getAttributes().get(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY);
+                    if (segmentRepo != null && translogRepo != null) {
+                        value = settingsBuilder.get(SETTING_REPLICATION_TYPE);
+                        if (value == null || value.equals(ReplicationType.SEGMENT.toString()) == false) {
+                            settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+                        }
+                        settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
+                            .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepo)
+                            .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, translogRepo);
+
+                        break;
+                    }
+                }
+            }
         }
     }
 
