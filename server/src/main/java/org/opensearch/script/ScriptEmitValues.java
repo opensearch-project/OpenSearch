@@ -18,33 +18,27 @@ import org.opensearch.common.collect.Tuple;
  */
 public final class ScriptEmitValues {
 
-    // Emits a Long value  (ex. from a long or date field type)
-    public static final class Long {
+    // Takes in a single value and emits it
+    // Could be a long, double, String, etc.
+    public static final class EmitSingle {
 
         private final DerivedFieldScript derivedFieldScript;
 
-        public Long(DerivedFieldScript derivedFieldScript) {
+        public EmitSingle(DerivedFieldScript derivedFieldScript) {
             this.derivedFieldScript = derivedFieldScript;
         }
 
-        public void emitLong(long val) {
+        // TODO: Keeping this generic for the time being due to limitations with
+        //  binding methods with the same name and arity.
+        //  Ideally, we should have an emit signature per derived field type and try to scope
+        //  that to the respective script execution so the other emits aren't allowed.
+        //  One way to do this could be to create implementations of the DerivedFieldScript.LeafFactory
+        //  per field type where they each define their own emit() method and then the engine that executes
+        //  it can have custom compilation logic to perform class bindings on that emit implementation.
+        public void emit(Object val) {
             derivedFieldScript.addEmittedValue(val);
         }
 
-    }
-
-    // Emits a Double value
-    public static final class Double {
-
-        private final DerivedFieldScript derivedFieldScript;
-
-        public Double(DerivedFieldScript derivedFieldScript) {
-            this.derivedFieldScript = derivedFieldScript;
-        }
-
-        public void emitDouble(double val) {
-            derivedFieldScript.addEmittedValue(val);
-        }
     }
 
     // Emits a GeoPoint value
@@ -56,37 +50,10 @@ public final class ScriptEmitValues {
             this.derivedFieldScript = derivedFieldScript;
         }
 
-        public void emitGeoPoint(double lat, double lon) {
+        public void emit(double lat, double lon) {
             derivedFieldScript.addEmittedValue(new Tuple<>(lat, lon));
         }
 
     }
 
-    // Emits a Boolean value
-    public static final class Boolean {
-
-        private final DerivedFieldScript derivedFieldScript;
-
-        public Boolean(DerivedFieldScript derivedFieldScript) {
-            this.derivedFieldScript = derivedFieldScript;
-        }
-
-        public void emitBoolean(boolean val) {
-            derivedFieldScript.addEmittedValue(val);
-        }
-    }
-
-    // Emits a String value
-    public static final class Strings {
-
-        private final DerivedFieldScript derivedFieldScript;
-
-        public Strings(DerivedFieldScript derivedFieldScript) {
-            this.derivedFieldScript = derivedFieldScript;
-        }
-
-        public void emitString(String val) {
-            derivedFieldScript.addEmittedValue(val);
-        }
-    }
 }

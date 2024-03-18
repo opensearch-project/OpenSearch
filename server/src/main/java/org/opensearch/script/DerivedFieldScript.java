@@ -15,14 +15,13 @@ import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
 /**
-<<<<<<< HEAD
  * Definition of Script for DerivedField.
  * It will be used to execute scripts defined against derived fields of any type
  *
@@ -60,12 +59,13 @@ public abstract class DerivedFieldScript {
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         parameters.putAll(leafLookup.asMap());
         this.params = new DynamicMap(parameters, PARAMS_FUNCTIONS);
+        this.emittedValues = new ArrayList<>();
     }
 
     public DerivedFieldScript() {
         this.params = null;
         this.leafLookup = null;
-        this.emittedValues = Collections.emptyList();
+        this.emittedValues = new ArrayList<>();
     }
 
     /**
@@ -83,15 +83,22 @@ public abstract class DerivedFieldScript {
     }
 
     /**
+     * Return the emitted values from the script execution.
+     */
+    public List<Object> getEmittedValues() { return emittedValues; }
+
+    /**
      * Set the current document to run the script on next.
+     * Clears the emittedValues as well since they should be scoped per document.
      */
     public void setDocument(int docid) {
+        this.emittedValues = new ArrayList<>();
         leafLookup.setDocument(docid);
     }
 
     public void addEmittedValue(Object o) { emittedValues.add(o); }
 
-    public List<Object> execute() { return emittedValues; }
+    public void execute() {}
 
     /**
      * A factory to construct {@link DerivedFieldScript} instances.

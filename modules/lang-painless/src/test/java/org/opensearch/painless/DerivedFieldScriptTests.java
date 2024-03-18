@@ -8,6 +8,8 @@
 
 package org.opensearch.painless;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.memory.MemoryIndex;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.fielddata.LeafNumericFieldData;
@@ -19,6 +21,7 @@ import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.painless.spi.AllowlistLoader;
 import org.opensearch.script.DerivedFieldScript;
 import org.opensearch.script.ScriptContext;
+import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -29,7 +32,9 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class DerivedFieldScriptTests extends ScriptTestCase {
@@ -45,9 +50,6 @@ public class DerivedFieldScriptTests extends ScriptTestCase {
         List<Allowlist> allowlists = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
         allowlists.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.derived.txt"));
         contexts.put(DerivedFieldScript.CONTEXT, allowlists);
-
-        // Mocking field values to be returned
-
 
         SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);
     }
@@ -99,13 +101,30 @@ public class DerivedFieldScriptTests extends ScriptTestCase {
         when(fieldData.getFieldName()).thenReturn("test_double_field");
         when(fieldData.load(any())).thenReturn(atomicFieldData);
 
-        SearchLookup lookup = new SearchLookup(mapperService, (ignored, searchLookup) -> fieldData);
+        SearchLookup lookup = spy(new SearchLookup(mapperService, (ignored, searchLookup) -> fieldData));
+
+        // We don't need a real index, just need to construct a LeafReaderContext which cannot be mocked
+        MemoryIndex index = new MemoryIndex();
+        LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
+
+        LeafSearchLookup leafLookup = mock(LeafSearchLookup.class);
+        doReturn(leafLookup).when(lookup).getLeafSearchLookup(leafReaderContext);
+
+//        when(leafLookup.asMap()).thenReturn(Collections.emptyMap());
+
+//        SearchLookup lookup = mock(SearchLookup.class);
+//        LeafSearchLookup leafLookup = mock(LeafSearchLookup.class);
+//        when(lookup.getLeafSearchLookup(leafReaderContext)).thenReturn(leafLookup);
+//        SourceLookup sourceLookup = mock(SourceLookup.class);
+//        when(leafLookup.asMap()).thenReturn(Collections.singletonMap("_source", sourceLookup));
+//        when(sourceLookup.loadSourceIfNeeded()).thenReturn(Collections.singletonMap("test", 1));
 
         // Execute the script
-        DerivedFieldScript script = compile("emitDouble(doc['test_double_field'].value)", lookup).newInstance(null);
+        DerivedFieldScript script = compile("emit(doc['test_double_field'].value)", lookup).newInstance(leafReaderContext);
         script.setDocument(1);
+        script.execute();
 
-        List<Object> result = script.execute();
+        List<Object> result = script.getEmittedValues();
         assertEquals(List.of(2.718), result);
     }
 
