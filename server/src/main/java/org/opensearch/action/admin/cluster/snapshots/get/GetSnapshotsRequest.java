@@ -34,9 +34,10 @@ package org.opensearch.action.admin.cluster.snapshots.get;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 
@@ -45,8 +46,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * Get snapshot request
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetSnapshotsRequest extends ClusterManagerNodeRequest<GetSnapshotsRequest> {
 
     public static final String ALL_SNAPSHOTS = "_all";

@@ -43,7 +43,7 @@ import java.util.function.Function;
 
 /**
  * Mock scripts shared by DateRangeIT and DateHistogramIT.
- *
+ * <p>
  * Provides {@link DateScriptMocksPlugin#EXTRACT_FIELD}, {@link DateScriptMocksPlugin#DOUBLE_PLUS_ONE_MONTH},
  * and {@link DateScriptMocksPlugin#LONG_PLUS_ONE_MONTH} scripts.
  */

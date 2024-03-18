@@ -35,16 +35,15 @@ import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
 import org.opensearch.client.AbstractResponseTestCase;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContent;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.transport.ActionNotFoundTransportException;
 
 import java.io.IOException;
@@ -194,7 +193,7 @@ public class CloseIndexResponseTests extends AbstractResponseTestCase<
 
             final XContentType xContentType = randomFrom(XContentType.values());
             final BytesReference bytes = toShuffledXContent(expected, xContentType, getParams(), randomBoolean());
-            final XContent xContent = XContentFactory.xContent(xContentType);
+            final XContent xContent = xContentType.xContent();
             final XContentParser parser = xContent.createParser(
                 NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE,
@@ -215,7 +214,7 @@ public class CloseIndexResponseTests extends AbstractResponseTestCase<
 
             final XContentType xContentType = randomFrom(XContentType.values());
             final BytesReference bytes = toShuffledXContent(expected, xContentType, getParams(), randomBoolean());
-            final XContent xContent = XContentFactory.xContent(xContentType);
+            final XContent xContent = xContentType.xContent();
             final XContentParser parser = xContent.createParser(
                 NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE,

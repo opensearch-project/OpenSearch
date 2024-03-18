@@ -38,32 +38,34 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.path.PathTrie;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.io.Streams;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.util.io.Streams;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.RestTokenExtractor;
-import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -76,12 +78,12 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
-import static org.opensearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 import static org.opensearch.core.rest.RestStatus.BAD_REQUEST;
 import static org.opensearch.core.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.opensearch.core.rest.RestStatus.METHOD_NOT_ALLOWED;
 import static org.opensearch.core.rest.RestStatus.NOT_ACCEPTABLE;
 import static org.opensearch.core.rest.RestStatus.OK;
+import static org.opensearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 
 /**
  * OpenSearch REST controller
@@ -106,7 +108,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private final PathTrie<MethodHandlers> handlers = new PathTrie<>(RestUtils.REST_DECODER);
+    private final PathTrie<RestMethodHandlers> handlers = new PathTrie<>(RestUtils.REST_DECODER);
 
     private final UnaryOperator<RestHandler> handlerWrapper;
 
@@ -141,6 +143,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
             "/favicon.ico",
             (request, channel, clnt) -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE))
         );
+    }
+
+    /**
+     * Returns an iterator over registered REST method handlers.
+     * @return {@link Iterator} of {@link MethodHandlers}
+     */
+    public Iterator<MethodHandlers> getAllHandlers() {
+        List<MethodHandlers> methodHandlers = new ArrayList<>();
+        handlers.retrieveAll().forEachRemaining(methodHandlers::add);
+        return methodHandlers.iterator();
     }
 
     /**
@@ -220,7 +232,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
         handlers.insertOrUpdate(
             path,
-            new MethodHandlers(path, maybeWrappedHandler, method),
+            new RestMethodHandlers(path, maybeWrappedHandler, method),
             (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method)
         );
     }
@@ -288,7 +300,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
             }
-            if (handler.supportsContentStream() && mediaType != XContentType.JSON && mediaType != XContentType.SMILE) {
+            if (handler.supportsContentStream() && mediaType != MediaTypeRegistry.JSON && mediaType != XContentType.SMILE) {
                 channel.sendResponse(
                     BytesRestResponse.createSimpleErrorResponse(
                         channel,
@@ -391,10 +403,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();
             // Loop through all possible handlers, attempting to dispatch the request
-            Iterator<MethodHandlers> allHandlers = getAllHandlers(request.params(), rawPath);
+            Iterator<RestMethodHandlers> allHandlers = getAllRestMethodHandlers(request.params(), rawPath);
             while (allHandlers.hasNext()) {
                 final RestHandler handler;
-                final MethodHandlers handlers = allHandlers.next();
+                final RestMethodHandlers handlers = allHandlers.next();
                 if (handlers == null) {
                     handler = null;
                 } else {
@@ -422,7 +434,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         handleBadRequest(uri, requestMethod, channel);
     }
 
-    Iterator<MethodHandlers> getAllHandlers(@Nullable Map<String, String> requestParamsRef, String rawPath) {
+    Iterator<RestMethodHandlers> getAllRestMethodHandlers(@Nullable Map<String, String> requestParamsRef, String rawPath) {
         final Supplier<Map<String, String>> paramsSupplier;
         if (requestParamsRef == null) {
             paramsSupplier = () -> null;
@@ -523,7 +535,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /**
      * Attempts to extract auth token and login.
      *
-     * @returns false if there was an error and the request should not continue being dispatched
+     * @return false if there was an error and the request should not continue being dispatched
      * */
     private boolean handleAuthenticateUser(final RestRequest request, final RestChannel channel) {
         try {
@@ -560,7 +572,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      */
     private Set<RestRequest.Method> getValidHandlerMethodSet(String rawPath) {
         Set<RestRequest.Method> validMethods = new HashSet<>();
-        Iterator<MethodHandlers> allHandlers = getAllHandlers(null, rawPath);
+        Iterator<RestMethodHandlers> allHandlers = getAllRestMethodHandlers(null, rawPath);
         while (allHandlers.hasNext()) {
             final MethodHandlers methodHandlers = allHandlers.next();
             if (methodHandlers != null) {

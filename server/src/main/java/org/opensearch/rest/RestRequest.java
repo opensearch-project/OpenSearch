@@ -37,18 +37,18 @@ import org.opensearch.common.Booleans;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.Strings;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpRequest;
 
@@ -65,14 +65,15 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.opensearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
+import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
 
 /**
  * REST Request
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RestRequest implements ToXContent.Params {
 
     // tchar pattern as defined by RFC7230 section 3.2.6
@@ -118,14 +119,14 @@ public class RestRequest implements ToXContent.Params {
         HttpChannel httpChannel,
         long requestId
     ) {
-        final MediaType xContentType;
+        final MediaType mediaType;
         try {
-            xContentType = parseContentType(headers.get("Content-Type"));
+            mediaType = parseContentType(headers.get("Content-Type"));
         } catch (final IllegalArgumentException e) {
             throw new ContentTypeHeaderException(e);
         }
-        if (xContentType != null) {
-            this.mediaType.set(xContentType);
+        if (mediaType != null) {
+            this.mediaType.set(mediaType);
         }
         this.xContentRegistry = xContentRegistry;
         this.httpRequest = httpRequest;
@@ -232,8 +233,9 @@ public class RestRequest implements ToXContent.Params {
     /**
      * The method used.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Method {
         GET,
         POST,
@@ -337,7 +339,7 @@ public class RestRequest implements ToXContent.Params {
     }
 
     /**
-     * The {@link XContentType} that was parsed from the {@code Content-Type} header. This value will be {@code null} in the case of
+     * The {@link MediaType} that was parsed from the {@code Content-Type} header. This value will be {@code null} in the case of
      * a request without a valid {@code Content-Type} header, a request without content ({@link #hasContent()}, or a plain text request
      */
     @Nullable
@@ -462,7 +464,7 @@ public class RestRequest implements ToXContent.Params {
         if (value == null) {
             return defaultValue;
         }
-        return org.opensearch.core.common.Strings.splitStringByCommaToArray(value);
+        return Strings.splitStringByCommaToArray(value);
     }
 
     public String[] paramAsStringArrayOrEmptyIfAll(String key) {

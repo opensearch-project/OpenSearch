@@ -38,9 +38,11 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.time.DateUtils;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -53,8 +55,6 @@ import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.opensearch.index.mapper.DocValueFetcher;
-import org.opensearch.indices.breaker.CircuitBreakerService;
-import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
@@ -336,6 +336,11 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         public boolean advanceExact(int doc) throws IOException {
             return in.advanceExact(doc);
         }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return in.advance(target);
+        }
     }
 
     /**
@@ -363,6 +368,11 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         @Override
         public int docValueCount() {
             return in.docValueCount();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return in.advance(target);
         }
     }
 
@@ -434,6 +444,11 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         public boolean advanceExact(int doc) throws IOException {
             return in.advanceExact(doc);
         }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return in.advance(target);
+        }
     }
 
     /**
@@ -461,6 +476,11 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         @Override
         public int docValueCount() {
             return in.docValueCount();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return in.advance(target);
         }
     }
 

@@ -39,12 +39,19 @@ import org.opensearch.geometry.utils.WellKnownText;
  * and optional altitude in meters.
  */
 public class Circle implements Geometry {
+
+    /** Empty circle : x=0, y=0, z=NaN radius=-1 */
     public static final Circle EMPTY = new Circle();
+    /** Latitude of the center of the circle in degrees */
     private final double y;
+    /** Longitude of the center of the circle in degrees */
     private final double x;
+    /** Altitude of the center of the circle in meters (NaN if irrelevant) */
     private final double z;
+    /** Radius of the circle in meters */
     private final double radiusMeters;
 
+    /** Create an {@link #EMPTY} circle */
     private Circle() {
         y = 0;
         x = 0;
@@ -52,10 +59,23 @@ public class Circle implements Geometry {
         radiusMeters = -1;
     }
 
+    /**
+     * Create a circle with no altitude.
+     * @param x Longitude of the center of the circle in degrees
+     * @param y Latitude of the center of the circle in degrees
+     * @param radiusMeters Radius of the circle in meters
+     */
     public Circle(final double x, final double y, final double radiusMeters) {
         this(x, y, Double.NaN, radiusMeters);
     }
 
+    /**
+     * Create a circle with altitude.
+     * @param x Longitude of the center of the circle in degrees
+     * @param y Latitude of the center of the circle in degrees
+     * @param z Altitude of the center of the circle in meters
+     * @param radiusMeters Radius of the circle in meters
+     */
     public Circle(final double x, final double y, final double z, final double radiusMeters) {
         this.y = y;
         this.x = x;
@@ -66,39 +86,68 @@ public class Circle implements Geometry {
         }
     }
 
+    /**
+     * @return The type of this geometry (always {@link ShapeType#CIRCLE})
+     */
     @Override
     public ShapeType type() {
         return ShapeType.CIRCLE;
     }
 
+    /**
+     * @return The y (latitude) of the center of the circle in degrees
+     */
     public double getY() {
         return y;
     }
 
+    /**
+     * @return The x (longitude) of the center of the circle in degrees
+     */
     public double getX() {
         return x;
     }
 
+    /**
+     * @return The radius of the circle in meters
+     */
     public double getRadiusMeters() {
         return radiusMeters;
     }
 
+    /**
+     * @return The altitude of the center of the circle in meters (NaN if irrelevant)
+     */
     public double getZ() {
         return z;
     }
 
+    /**
+     * @return The latitude (y) of the center of the circle in degrees
+     */
     public double getLat() {
         return y;
     }
 
+    /**
+     * @return The longitude (x) of the center of the circle in degrees
+     */
     public double getLon() {
         return x;
     }
 
+    /**
+     * @return The altitude (z) of the center of the circle in meters (NaN if irrelevant)
+     */
     public double getAlt() {
         return z;
     }
 
+    /**
+     * Compare this circle to another circle.
+     * @param o The other circle
+     * @return True if the two circles are equal in all their properties. False if null or different.
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -111,6 +160,9 @@ public class Circle implements Geometry {
         return (Double.compare(circle.z, z) == 0);
     }
 
+    /**
+     * @return The hashcode of this circle.
+     */
     @Override
     public int hashCode() {
         int result;
@@ -126,11 +178,23 @@ public class Circle implements Geometry {
         return result;
     }
 
+    /**
+     * Visit this circle with a {@link GeometryVisitor}.
+     *
+     * @param visitor The visitor
+     * @param <T> The return type of the visitor
+     * @param <E> The exception type of the visitor
+     * @return The result of the visitor
+     * @throws E The exception thrown by the visitor
+     */
     @Override
     public <T, E extends Exception> T visit(GeometryVisitor<T, E> visitor) throws E {
         return visitor.visit(this);
     }
 
+    /**
+     * @return True if this circle is empty (radius less than 0)
+     */
     @Override
     public boolean isEmpty() {
         return radiusMeters < 0;
@@ -141,6 +205,9 @@ public class Circle implements Geometry {
         return WellKnownText.INSTANCE.toWKT(this);
     }
 
+    /**
+     * @return True if this circle has an altitude. False if NaN.
+     */
     @Override
     public boolean hasZ() {
         return Double.isNaN(z) == false;

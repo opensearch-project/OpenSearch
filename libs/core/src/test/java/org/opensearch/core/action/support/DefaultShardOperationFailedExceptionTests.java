@@ -39,18 +39,19 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.opensearch.common.Strings;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.core.xcontent.XContent;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.EOFException;
@@ -92,7 +93,7 @@ public class DefaultShardOperationFailedExceptionTests extends OpenSearchTestCas
             assertEquals(
                 "{\"shard\":-1,\"index\":null,\"status\":\"INTERNAL_SERVER_ERROR\","
                     + "\"reason\":{\"type\":\"exception\",\"reason\":\"foo\"}}",
-                Strings.toString(XContentType.JSON, exception)
+                Strings.toString(MediaTypeRegistry.JSON, exception)
             );
         }
         {
@@ -102,7 +103,7 @@ public class DefaultShardOperationFailedExceptionTests extends OpenSearchTestCas
             assertEquals(
                 "{\"shard\":-1,\"index\":null,\"status\":\"INTERNAL_SERVER_ERROR\",\"reason\":{\"type\":\"exception\","
                     + "\"reason\":\"foo\",\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"bar\"}}}",
-                Strings.toString(XContentType.JSON, exception)
+                Strings.toString(MediaTypeRegistry.JSON, exception)
             );
         }
         {
@@ -112,7 +113,7 @@ public class DefaultShardOperationFailedExceptionTests extends OpenSearchTestCas
             assertEquals(
                 "{\"shard\":2,\"index\":\"test\",\"status\":\"INTERNAL_SERVER_ERROR\","
                     + "\"reason\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"}}",
-                Strings.toString(XContentType.JSON, exception)
+                Strings.toString(MediaTypeRegistry.JSON, exception)
             );
         }
         {
@@ -124,7 +125,7 @@ public class DefaultShardOperationFailedExceptionTests extends OpenSearchTestCas
             assertEquals(
                 "{\"shard\":1,\"index\":\"test\",\"status\":\"BAD_REQUEST\","
                     + "\"reason\":{\"type\":\"illegal_argument_exception\",\"reason\":\"foo\"}}",
-                Strings.toString(XContentType.JSON, exception)
+                Strings.toString(MediaTypeRegistry.JSON, exception)
             );
         }
     }

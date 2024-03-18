@@ -44,7 +44,7 @@ import org.opensearch.core.common.Strings;
 /**
  * An allocation decider that prevents multiple instances of the same shard to
  * be allocated on the same {@code node}.
- *
+ * <p>
  * The {@link #CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING} setting allows to perform a check to prevent
  * allocation of multiple instances of the same shard on a single {@code host},
  * based on host name and host address. Defaults to `false`, meaning that no

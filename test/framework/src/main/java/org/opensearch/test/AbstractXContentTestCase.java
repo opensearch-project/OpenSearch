@@ -35,15 +35,15 @@ package org.opensearch.test;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -94,7 +94,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends Ope
 
     public static <T extends ToXContent> XContentTester<T> xContentTester(
         CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
-        Function<XContentType, T> instanceSupplier,
+        Function<MediaType, T> instanceSupplier,
         ToXContent.Params toXContentParams,
         CheckedFunction<XContentParser, T, IOException> fromXContent
     ) {
@@ -111,8 +111,8 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends Ope
      */
     public static class XContentTester<T> {
         private final CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser;
-        private final Function<XContentType, T> instanceSupplier;
-        private final CheckedBiFunction<T, XContentType, BytesReference, IOException> toXContent;
+        private final Function<MediaType, T> instanceSupplier;
+        private final CheckedBiFunction<T, MediaType, BytesReference, IOException> toXContent;
         private final CheckedFunction<XContentParser, T, IOException> fromXContent;
 
         private int numberOfTestRuns = NUMBER_OF_TEST_RUNS;
@@ -128,8 +128,8 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends Ope
 
         private XContentTester(
             CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
-            Function<XContentType, T> instanceSupplier,
-            CheckedBiFunction<T, XContentType, BytesReference, IOException> toXContent,
+            Function<MediaType, T> instanceSupplier,
+            CheckedBiFunction<T, MediaType, BytesReference, IOException> toXContent,
             CheckedFunction<XContentParser, T, IOException> fromXContent
         ) {
             this.createParser = createParser;
@@ -151,7 +151,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends Ope
                     randomFieldsExcludeFilter,
                     createParser
                 );
-                XContentParser parser = createParser.apply(XContentFactory.xContent(xContentType), shuffledContent);
+                XContentParser parser = createParser.apply(xContentType.xContent(), shuffledContent);
                 T parsed = fromXContent.apply(parser);
                 assertEqualsConsumer.accept(testInstance, parsed);
                 if (assertToXContentEquivalence) {
@@ -292,7 +292,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends Ope
 
     static BytesReference insertRandomFieldsAndShuffle(
         BytesReference xContent,
-        XContentType xContentType,
+        MediaType mediaType,
         boolean supportsUnknownFields,
         String[] shuffleFieldsExceptions,
         Predicate<String> randomFieldsExcludeFilter,
@@ -301,11 +301,11 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends Ope
         BytesReference withRandomFields;
         if (supportsUnknownFields) {
             // add a few random fields to check that the parser is lenient on new fields
-            withRandomFields = XContentTestUtils.insertRandomFields(xContentType, xContent, randomFieldsExcludeFilter, random());
+            withRandomFields = XContentTestUtils.insertRandomFields(mediaType, xContent, randomFieldsExcludeFilter, random());
         } else {
             withRandomFields = xContent;
         }
-        XContentParser parserWithRandonFields = createParserFunction.apply(XContentFactory.xContent(xContentType), withRandomFields);
+        XContentParser parserWithRandonFields = createParserFunction.apply(mediaType.xContent(), withRandomFields);
         return BytesReference.bytes(shuffleXContent(parserWithRandonFields, false, shuffleFieldsExceptions));
     }
 

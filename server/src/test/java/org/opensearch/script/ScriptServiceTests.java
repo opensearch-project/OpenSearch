@@ -36,15 +36,15 @@ import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.common.breaker.CircuitBreakingException;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -60,8 +60,8 @@ import java.util.function.Function;
 import static org.opensearch.script.ScriptService.SCRIPT_CACHE_EXPIRE_SETTING;
 import static org.opensearch.script.ScriptService.SCRIPT_CACHE_SIZE_SETTING;
 import static org.opensearch.script.ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING;
-import static org.opensearch.script.ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING;
 import static org.opensearch.script.ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING;
+import static org.opensearch.script.ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING;
 import static org.opensearch.script.ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -375,7 +375,11 @@ public class ScriptServiceTests extends OpenSearchTestCase {
                 .endObject()
                 .endObject()
         );
-        ScriptMetadata scriptMetadata = ScriptMetadata.putStoredScript(null, "_id", StoredScriptSource.parse(script, XContentType.JSON));
+        ScriptMetadata scriptMetadata = ScriptMetadata.putStoredScript(
+            null,
+            "_id",
+            StoredScriptSource.parse(script, MediaTypeRegistry.JSON)
+        );
         assertNotNull(scriptMetadata);
         assertEquals("abc", scriptMetadata.getStoredScript("_id").getSource());
     }
@@ -384,7 +388,7 @@ public class ScriptServiceTests extends OpenSearchTestCase {
         ScriptMetadata scriptMetadata = ScriptMetadata.putStoredScript(
             null,
             "_id",
-            StoredScriptSource.parse(new BytesArray("{\"script\": {\"lang\": \"_lang\", \"source\": \"abc\"} }"), XContentType.JSON)
+            StoredScriptSource.parse(new BytesArray("{\"script\": {\"lang\": \"_lang\", \"source\": \"abc\"} }"), MediaTypeRegistry.JSON)
         );
         scriptMetadata = ScriptMetadata.deleteStoredScript(scriptMetadata, "_id");
         assertNotNull(scriptMetadata);
@@ -408,7 +412,7 @@ public class ScriptServiceTests extends OpenSearchTestCase {
                             "_id",
                             StoredScriptSource.parse(
                                 new BytesArray("{\"script\": {\"lang\": \"_lang\", \"source\": \"abc\"} }"),
-                                XContentType.JSON
+                                MediaTypeRegistry.JSON
                             )
                         ).build()
                     )

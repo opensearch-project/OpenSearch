@@ -38,10 +38,11 @@ import org.apache.lucene.search.Query;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -57,6 +58,8 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.BucketCollectorProcessor;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.SearchContextAggregations;
+import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.collapse.CollapseContext;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.fetch.FetchPhase;
@@ -88,8 +91,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * shards point in time snapshot (IndexReader / ContextIndexSearcher) and allows passing on
  * state from one query / fetch phase to another.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class SearchContext implements Releasable {
 
     public static final int DEFAULT_TERMINATE_AFTER = 0;
@@ -183,6 +187,10 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchHighlightContext highlight();
 
     public abstract void highlight(SearchHighlightContext highlight);
+
+    public boolean hasInnerHits() {
+        return innerHitsContext != null;
+    }
 
     public InnerHitsContext innerHits() {
         if (innerHitsContext == null) {
@@ -283,7 +291,7 @@ public abstract class SearchContext implements Releasable {
 
     /**
      * Indicates if the current index should perform frequent low level search cancellation check.
-     *
+     * <p>
      * Enabling low-level checks will make long running searches to react to the cancellation request faster. However,
      * since it will produce more cancellation checks it might slow the search performance down.
      */
@@ -300,6 +308,29 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchContext trackScores(boolean trackScores);
 
     public abstract boolean trackScores();
+
+    /**
+     * Determines whether named queries' scores should be included in the search results.
+     * By default, this is set to return false, indicating that scores from named queries are not included.
+     *
+     * @param includeNamedQueriesScore true to include scores from named queries, false otherwise.
+     */
+    public SearchContext includeNamedQueriesScore(boolean includeNamedQueriesScore) {
+        // Default implementation does nothing and returns this for chaining.
+        // Implementations of SearchContext should override this method to actually store the value.
+        return this;
+    }
+
+    /**
+     * Checks if scores from named queries are included in the search results.
+     *
+     * @return true if scores from named queries are included, false otherwise.
+     */
+    public boolean includeNamedQueriesScore() {
+        // Default implementation returns false.
+        // Implementations of SearchContext should override this method to return the actual value.
+        return false;
+    }
 
     public abstract SearchContext trackTotalHitsUpTo(int trackTotalHits);
 
@@ -396,8 +427,18 @@ public abstract class SearchContext implements Releasable {
     /**
      * Returns concurrent segment search status for the search context
      */
-    public boolean isConcurrentSegmentSearchEnabled() {
+    public boolean shouldUseConcurrentSearch() {
         return false;
+    }
+
+    /**
+     * Returns local bucket count thresholds based on concurrent segment search status
+     */
+    public LocalBucketCountThresholds asLocalBucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
+        return new LocalBucketCountThresholds(
+            shouldUseConcurrentSearch() ? 0 : bucketCountThresholds.getShardMinDocCount(),
+            bucketCountThresholds.getShardSize()
+        );
     }
 
     /**
@@ -471,4 +512,8 @@ public abstract class SearchContext implements Releasable {
     public abstract void setBucketCollectorProcessor(BucketCollectorProcessor bucketCollectorProcessor);
 
     public abstract BucketCollectorProcessor bucketCollectorProcessor();
+
+    public abstract int getTargetMaxSliceCount();
+
+    public abstract boolean shouldUseTimeSeriesDescSortOptimization();
 }

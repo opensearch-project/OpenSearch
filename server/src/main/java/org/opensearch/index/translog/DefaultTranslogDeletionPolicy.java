@@ -14,7 +14,7 @@ import java.util.List;
 /**
  * Default implementation for the {@link TranslogDeletionPolicy}. Plugins can override the default behaviour
  * via the {@link org.opensearch.plugins.EnginePlugin#getCustomTranslogDeletionPolicyFactory()}.
- *
+ * <p>
  * The default policy uses total number, size in bytes and maximum age for files.
  *
  * @opensearch.internal

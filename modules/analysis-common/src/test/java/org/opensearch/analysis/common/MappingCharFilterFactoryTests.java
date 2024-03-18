@@ -37,6 +37,7 @@ public class MappingCharFilterFactoryTests extends OpenSearchTestCase {
 
     public void testRulesOk() throws IOException {
         MappingCharFilterFactory mappingCharFilterFactory = (MappingCharFilterFactory) create(
+            "# This is a comment",
             "# => _hashtag_",
             ":) => _happy_",
             ":( => _sad_"
@@ -64,7 +65,10 @@ public class MappingCharFilterFactoryTests extends OpenSearchTestCase {
     }
 
     public void testRulePartError() {
-        RuntimeException ex = expectThrows(RuntimeException.class, () -> create("# => _hashtag_", ":) => _happy_", "a:b"));
-        assertEquals("Line [3]: Invalid mapping rule : [a:b]", ex.getMessage());
+        RuntimeException ex = expectThrows(
+            RuntimeException.class,
+            () -> create("# This is a comment", "# => _hashtag_", ":) => _happy_", "a:b")
+        );
+        assertEquals("Line [4]: Invalid mapping rule : [a:b]", ex.getMessage());
     }
 }

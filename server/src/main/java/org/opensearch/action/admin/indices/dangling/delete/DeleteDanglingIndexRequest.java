@@ -34,6 +34,7 @@ package org.opensearch.action.admin.indices.dangling.delete;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -44,8 +45,9 @@ import java.util.Objects;
  * Represents a request to delete a particular dangling index, specified by its UUID. The {@link #acceptDataLoss}
  * flag must also be explicitly set to true, or later validation will fail.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DeleteDanglingIndexRequest extends AcknowledgedRequest<DeleteDanglingIndexRequest> {
     private final String indexUUID;
     private final boolean acceptDataLoss;

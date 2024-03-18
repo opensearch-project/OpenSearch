@@ -194,11 +194,11 @@ public class Packages {
 
         // we shell out here because java's posix file permission view doesn't support special modes
         assertThat(opensearch.config, file(Directory, "root", "opensearch", p750));
-        assertThat(sh.run("find \"" + opensearch.config + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
+        assertThat(sh.run("find \"" + opensearch.config + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("750"));
 
         final Path jvmOptionsDirectory = opensearch.config.resolve("jvm.options.d");
         assertThat(jvmOptionsDirectory, file(Directory, "root", "opensearch", p750));
-        assertThat(sh.run("find \"" + jvmOptionsDirectory + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
+        assertThat(sh.run("find \"" + jvmOptionsDirectory + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("750"));
 
         Stream.of("opensearch.keystore", "opensearch.yml", "jvm.options", "log4j2.properties")
             .forEach(configFile -> assertThat(opensearch.config(configFile), file(File, "root", "opensearch", p660)));

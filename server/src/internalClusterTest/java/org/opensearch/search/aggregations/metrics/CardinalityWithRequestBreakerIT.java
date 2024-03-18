@@ -32,23 +32,40 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.opensearch.OpenSearchException;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.BucketOrder;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Map;
 import java.util.stream.IntStream;
 
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 
-public class CardinalityWithRequestBreakerIT extends OpenSearchIntegTestCase {
+public class CardinalityWithRequestBreakerIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public CardinalityWithRequestBreakerIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
 
     /**
      * Test that searches using cardinality aggregations returns all request breaker memory.
@@ -76,6 +93,7 @@ public class CardinalityWithRequestBreakerIT extends OpenSearchIntegTestCase {
             )
             .get();
 
+        indexRandomForConcurrentSearch("test");
         try {
             client().prepareSearch("test")
                 .addAggregation(

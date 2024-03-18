@@ -58,17 +58,19 @@ import org.opensearch.client.core.MultiTermVectorsResponse;
 import org.opensearch.client.core.TermVectorsRequest;
 import org.opensearch.client.core.TermVectorsResponse;
 import org.opensearch.client.indices.GetIndexRequest;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.core.common.Strings;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.get.GetResult;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -202,7 +204,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             assertFalse(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
         IndexRequest index = new IndexRequest("index").id("id");
-        index.source("{\"field1\":\"value1\",\"field2\":\"value2\"}", XContentType.JSON);
+        index.source("{\"field1\":\"value1\",\"field2\":\"value2\"}", MediaTypeRegistry.JSON);
         index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         highLevelClient().index(index, RequestOptions.DEFAULT);
         {
@@ -227,7 +229,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
         IndexRequest index = new IndexRequest("index").id("id");
-        index.source("{\"field1\":\"value1\",\"field2\":\"value2\"}", XContentType.JSON);
+        index.source("{\"field1\":\"value1\",\"field2\":\"value2\"}", MediaTypeRegistry.JSON);
         index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         highLevelClient().index(index, RequestOptions.DEFAULT);
         {
@@ -250,7 +252,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
         }
         IndexRequest index = new IndexRequest("index").id("id");
-        index.source("{\"field1\":\"value1\",\"field2\":\"value2\"}", XContentType.JSON);
+        index.source("{\"field1\":\"value1\",\"field2\":\"value2\"}", MediaTypeRegistry.JSON);
         index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         highLevelClient().index(index, RequestOptions.DEFAULT);
         {
@@ -274,9 +276,9 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
                 RestStatus.OK,
                 highLevelClient().bulk(
                     new BulkRequest().add(
-                        new IndexRequest(noSourceIndex).id("1").source(Collections.singletonMap("foo", 1), XContentType.JSON)
+                        new IndexRequest(noSourceIndex).id("1").source(Collections.singletonMap("foo", 1), MediaTypeRegistry.JSON)
                     )
-                        .add(new IndexRequest(noSourceIndex).id("2").source(Collections.singletonMap("foo", 2), XContentType.JSON))
+                        .add(new IndexRequest(noSourceIndex).id("2").source(Collections.singletonMap("foo", 2), MediaTypeRegistry.JSON))
                         .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
                     RequestOptions.DEFAULT
                 ).status()
@@ -306,7 +308,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         }
         IndexRequest index = new IndexRequest("index").id("id");
         String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
-        index.source(document, XContentType.JSON);
+        index.source(document, MediaTypeRegistry.JSON);
         index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         highLevelClient().index(index, RequestOptions.DEFAULT);
         {
@@ -406,10 +408,10 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         IndexRequest index = new IndexRequest("index").id("id1");
-        index.source("{\"field\":\"value1\"}", XContentType.JSON);
+        index.source("{\"field\":\"value1\"}", MediaTypeRegistry.JSON);
         bulk.add(index);
         index = new IndexRequest("index").id("id2");
-        index.source("{\"field\":\"value2\"}", XContentType.JSON);
+        index.source("{\"field\":\"value2\"}", MediaTypeRegistry.JSON);
         bulk.add(index);
         highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
         {
@@ -436,8 +438,8 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
     public void testMultiGetWithIds() throws IOException {
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        bulk.add(new IndexRequest("index").id("id1").source("{\"field\":\"value1\"}", XContentType.JSON));
-        bulk.add(new IndexRequest("index").id("id2").source("{\"field\":\"value2\"}", XContentType.JSON));
+        bulk.add(new IndexRequest("index").id("id1").source("{\"field\":\"value1\"}", MediaTypeRegistry.JSON));
+        bulk.add(new IndexRequest("index").id("id2").source("{\"field\":\"value2\"}", MediaTypeRegistry.JSON));
 
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.add("index", "id1");
@@ -457,7 +459,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         }
         IndexRequest index = new IndexRequest("index").id("id");
         String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
-        index.source(document, XContentType.JSON);
+        index.source(document, MediaTypeRegistry.JSON);
         index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         highLevelClient().index(index, RequestOptions.DEFAULT);
         {
@@ -815,7 +817,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         {
             IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
                 UpdateRequest updateRequest = new UpdateRequest("index", "id");
-                updateRequest.doc(new IndexRequest().source(Collections.singletonMap("field", "doc"), XContentType.JSON));
+                updateRequest.doc(new IndexRequest().source(Collections.singletonMap("field", "doc"), MediaTypeRegistry.JSON));
                 updateRequest.upsert(new IndexRequest().source(Collections.singletonMap("field", "upsert"), XContentType.YAML));
                 execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
             });
@@ -827,7 +829,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         {
             OpenSearchException exception = expectThrows(OpenSearchException.class, () -> {
                 UpdateRequest updateRequest = new UpdateRequest("index", "require_alias").setRequireAlias(true);
-                updateRequest.doc(new IndexRequest().source(Collections.singletonMap("field", "doc"), XContentType.JSON));
+                updateRequest.doc(new IndexRequest().source(Collections.singletonMap("field", "doc"), MediaTypeRegistry.JSON));
                 execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
             });
             assertEquals(RestStatus.NOT_FOUND, exception.status());
@@ -842,7 +844,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         int nbItems = randomIntBetween(10, 100);
         boolean[] errors = new boolean[nbItems];
 
-        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+        MediaType mediaType = randomFrom(MediaTypeRegistry.JSON, XContentType.SMILE);
 
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < nbItems; i++) {
@@ -863,10 +865,10 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
 
             } else {
                 BytesReference source = BytesReference.bytes(
-                    XContentBuilder.builder(xContentType.xContent()).startObject().field("id", i).endObject()
+                    XContentBuilder.builder(mediaType.xContent()).startObject().field("id", i).endObject()
                 );
                 if (opType == DocWriteRequest.OpType.INDEX) {
-                    IndexRequest indexRequest = new IndexRequest("index").id(id).source(source, xContentType);
+                    IndexRequest indexRequest = new IndexRequest("index").id(id).source(source, mediaType);
                     if (erroneous) {
                         indexRequest.setIfSeqNo(12L);
                         indexRequest.setIfPrimaryTerm(12L);
@@ -874,14 +876,14 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
                     bulkRequest.add(indexRequest);
 
                 } else if (opType == DocWriteRequest.OpType.CREATE) {
-                    IndexRequest createRequest = new IndexRequest("index").id(id).source(source, xContentType).create(true);
+                    IndexRequest createRequest = new IndexRequest("index").id(id).source(source, mediaType).create(true);
                     if (erroneous) {
                         assertEquals(RestStatus.CREATED, highLevelClient().index(createRequest, RequestOptions.DEFAULT).status());
                     }
                     bulkRequest.add(createRequest);
 
                 } else if (opType == DocWriteRequest.OpType.UPDATE) {
-                    UpdateRequest updateRequest = new UpdateRequest("index", id).doc(new IndexRequest().source(source, xContentType));
+                    UpdateRequest updateRequest = new UpdateRequest("index", id).doc(new IndexRequest().source(source, mediaType));
                     if (erroneous == false) {
                         assertEquals(
                             RestStatus.CREATED,
@@ -905,7 +907,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
         int nbItems = randomIntBetween(10, 100);
         boolean[] errors = new boolean[nbItems];
 
-        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+        MediaType mediaType = randomFrom(MediaTypeRegistry.JSON, XContentType.SMILE);
 
         AtomicReference<BulkResponse> responseRef = new AtomicReference<>();
         AtomicReference<BulkRequest> requestRef = new AtomicReference<>();
@@ -953,7 +955,7 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
 
                 } else {
                     if (opType == DocWriteRequest.OpType.INDEX) {
-                        IndexRequest indexRequest = new IndexRequest("index").id(id).source(xContentType, "id", i);
+                        IndexRequest indexRequest = new IndexRequest("index").id(id).source(mediaType, "id", i);
                         if (erroneous) {
                             indexRequest.setIfSeqNo(12L);
                             indexRequest.setIfPrimaryTerm(12L);
@@ -961,14 +963,14 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
                         processor.add(indexRequest);
 
                     } else if (opType == DocWriteRequest.OpType.CREATE) {
-                        IndexRequest createRequest = new IndexRequest("index").id(id).source(xContentType, "id", i).create(true);
+                        IndexRequest createRequest = new IndexRequest("index").id(id).source(mediaType, "id", i).create(true);
                         if (erroneous) {
                             assertEquals(RestStatus.CREATED, highLevelClient().index(createRequest, RequestOptions.DEFAULT).status());
                         }
                         processor.add(createRequest);
 
                     } else if (opType == DocWriteRequest.OpType.UPDATE) {
-                        UpdateRequest updateRequest = new UpdateRequest("index", id).doc(new IndexRequest().source(xContentType, "id", i));
+                        UpdateRequest updateRequest = new UpdateRequest("index", id).doc(new IndexRequest().source(mediaType, "id", i));
                         if (erroneous == false) {
                             assertEquals(
                                 RestStatus.CREATED,
@@ -1106,9 +1108,12 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
                 RestStatus.OK,
                 highLevelClient().bulk(
                     new BulkRequest().add(
-                        new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("field", "value1"), XContentType.JSON)
+                        new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("field", "value1"), MediaTypeRegistry.JSON)
                     )
-                        .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("field", "value2"), XContentType.JSON))
+                        .add(
+                            new IndexRequest(sourceIndex).id("2")
+                                .source(Collections.singletonMap("field", "value2"), MediaTypeRegistry.JSON)
+                        )
                         .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
                     RequestOptions.DEFAULT
                 ).status()
@@ -1201,8 +1206,8 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             assertEquals(
                 RestStatus.OK,
                 highLevelClient().bulk(
-                    new BulkRequest().add(new IndexRequest(sourceIndex).id("1").source(doc1, XContentType.JSON))
-                        .add(new IndexRequest(sourceIndex).id("2").source(doc2, XContentType.JSON))
+                    new BulkRequest().add(new IndexRequest(sourceIndex).id("1").source(doc1, MediaTypeRegistry.JSON))
+                        .add(new IndexRequest(sourceIndex).id("2").source(doc2, MediaTypeRegistry.JSON))
                         .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
                     RequestOptions.DEFAULT
                 ).status()

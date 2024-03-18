@@ -37,10 +37,10 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.DoubleArray;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.DoubleArray;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -76,7 +76,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     /**
      * This aggregator goes through multiple phases of collection. Each phase has a different CollectionPhase::collectValue
      * implementation
-     *
+     * <p>
      * Running a clustering algorithm like K-Means is unfeasible because large indices don't fit into memory.
      * But having multiple collection phases lets us accurately bucket the docs in one pass.
      */
@@ -231,7 +231,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
              * Produces a merge map where `mergeMap[i]` represents the index that <code>values[i]</code>
              * would be moved to <b>if</b> <code>values</code> were sorted
              * In other words, this method produces a merge map that will sort <code>values</code>
-             *
+             * <p>
              * See BucketsAggregator::mergeBuckets to learn more about the merge map
              */
             public long[] generateMergeMap() {
@@ -242,10 +242,10 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
         /**
          * Sorting the documents by key lets us bucket the documents into groups with a single linear scan
-         *
+         * <p>
          * But we can't do this by just sorting <code>buffer</code>, because we also need to generate a merge map
          * for every change we make to the list, so that we can apply the changes to the underlying buckets as well.
-         *
+         * <p>
          * By just creating a merge map, we eliminate the need to actually sort <code>buffer</code>. We can just
          * use the merge map to find any doc's sorted index.
          */
@@ -347,7 +347,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         /**
          * Move the last cluster to position <code>idx</code>
          * This is expensive because a merge map of size <code>numClusters</code> is created, so don't call this method too often
-         *
+         * <p>
          * TODO: Make this more efficient
          */
         private void moveLastCluster(int index) {

@@ -103,4 +103,9 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
             .getAggregator(PercentilesAggregationBuilder.REGISTRY_KEY, config)
             .build(name, config.getValuesSource(), searchContext, parent, percents, percentilesConfig, keyed, config.format(), metadata);
     }
+
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }

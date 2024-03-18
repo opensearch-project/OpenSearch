@@ -41,7 +41,7 @@ import java.io.InputStream;
  * The listener is triggered whenever a full percent is increased
  * The listener is never triggered twice on the same percentage
  * The listener will always return 99 percent, if the expectedTotalSize is exceeded, until it is finished
- *
+ * <p>
  * Only used by the InstallPluginCommand, thus package private here
  */
 abstract class ProgressInputStream extends FilterInputStream {

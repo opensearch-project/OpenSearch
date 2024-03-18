@@ -36,6 +36,7 @@ import org.opensearch.common.Nullable;
 
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;

@@ -35,6 +35,8 @@ package org.opensearch.painless.api;
 import org.opensearch.common.hash.MessageDigests;
 
 import java.nio.charset.StandardCharsets;
+import java.time.DayOfWeek;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
@@ -720,5 +722,9 @@ public class Augmentation {
             return receiver.matcher(input);
         }
         return receiver.matcher(new LimitedCharSequence(input, receiver, limitFactor));
+    }
+
+    public static DayOfWeek getDayOfWeekEnum(ZonedDateTime receiver) {
+        return receiver.getDayOfWeek();
     }
 }

@@ -39,8 +39,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.mockstore.MockRepository;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -107,5 +107,17 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
 
         final Repository updatedRepository = repositoriesService.repository(repositoryName);
         assertThat(updatedRepository, updated ? not(sameInstance(originalRepository)) : sameInstance(originalRepository));
+    }
+
+    public void testSystemRepositoryCantBeCreated() {
+        internalCluster();
+        final String repositoryName = "test-repo";
+        final Client client = client();
+        final Settings.Builder repoSettings = Settings.builder().put("system_repository", true).put("location", randomRepoPath());
+
+        assertThrows(
+            RepositoryException.class,
+            () -> client.admin().cluster().preparePutRepository(repositoryName).setType(FsRepository.TYPE).setSettings(repoSettings).get()
+        );
     }
 }

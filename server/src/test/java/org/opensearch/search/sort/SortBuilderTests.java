@@ -32,15 +32,14 @@ x * Licensed to Elasticsearch under one or more contributor
 
 package org.opensearch.search.sort;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.SearchModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
@@ -195,7 +194,7 @@ public class SortBuilderTests extends OpenSearchTestCase {
                 xContentBuilder.endArray();
             }
             xContentBuilder.endObject();
-            List<SortBuilder<?>> parsedSort = parseSort(Strings.toString(xContentBuilder));
+            List<SortBuilder<?>> parsedSort = parseSort(xContentBuilder.toString());
             assertEquals(testBuilders.size(), parsedSort.size());
             Iterator<SortBuilder<?>> iterator = testBuilders.iterator();
             for (SortBuilder<?> parsedBuilder : parsedSort) {

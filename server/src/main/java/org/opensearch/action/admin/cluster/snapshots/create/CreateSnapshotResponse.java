@@ -32,16 +32,17 @@
 
 package org.opensearch.action.admin.cluster.snapshots.create;
 
-import org.opensearch.action.ActionResponse;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotInfo.SnapshotInfoBuilder;
 
@@ -51,8 +52,9 @@ import java.util.Objects;
 /**
  * Create snapshot response
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class CreateSnapshotResponse extends ActionResponse implements ToXContentObject {
 
     private static final ObjectParser<CreateSnapshotResponse, Void> PARSER = new ObjectParser<>(

@@ -32,10 +32,10 @@
 
 package org.opensearch.client;
 
-import org.opensearch.action.ActionFuture;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.PitSegmentsRequest;
+import org.opensearch.action.admin.indices.view.ListViewNamesAction;
+import org.opensearch.action.admin.indices.view.SearchViewAction;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.bulk.BulkResponse;
@@ -84,10 +84,13 @@ import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateRequestBuilder;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.action.ActionFuture;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.action.ActionListener;
 
 import java.util.Map;
 
@@ -95,15 +98,16 @@ import java.util.Map;
  * A client provides a one stop interface for performing actions/operations against the cluster.
  * <p>
  * All operations performed are asynchronous by nature. Each action/operation has two flavors, the first
- * simply returns an {@link org.opensearch.action.ActionFuture}, while the second accepts an
+ * simply returns an {@link ActionFuture}, while the second accepts an
  * {@link ActionListener}.
  * <p>
  * A client can be retrieved from a started {@link org.opensearch.node.Node}.
  *
  * @see org.opensearch.node.Node#client()
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface Client extends OpenSearchClient, Releasable {
 
     Setting<String> CLIENT_TYPE_SETTING_S = new Setting<>("client.type", "node", (s) -> {
@@ -463,6 +467,18 @@ public interface Client extends OpenSearchClient, Releasable {
      * An action that returns the field capabilities from the provided request
      */
     void fieldCaps(FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener);
+
+    /** Search a view */
+    void searchView(final SearchViewAction.Request request, final ActionListener<SearchResponse> listener);
+
+    /** Search a view */
+    ActionFuture<SearchResponse> searchView(final SearchViewAction.Request request);
+
+    /** List all view names */
+    void listViewNames(final ListViewNamesAction.Request request, ActionListener<ListViewNamesAction.Response> listener);
+
+    /** List all view names */
+    ActionFuture<ListViewNamesAction.Response> listViewNames(final ListViewNamesAction.Request request);
 
     /**
      * Returns this clients settings

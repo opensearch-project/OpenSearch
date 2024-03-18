@@ -34,13 +34,13 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.packed.PackedInts;
-import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.BitArray;
-import org.opensearch.core.common.util.ByteArray;
-import org.opensearch.common.util.ByteUtils;
-import org.opensearch.common.util.IntArray;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.BitArray;
+import org.opensearch.common.util.ByteUtils;
+import org.opensearch.common.util.IntArray;
+import org.opensearch.core.common.util.ByteArray;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -49,16 +49,16 @@ import java.nio.ByteOrder;
  * Hyperloglog++ counter, implemented based on pseudo code from
  * http://static.googleusercontent.com/media/research.google.com/fr//pubs/archive/40671.pdf and its appendix
  * https://docs.google.com/document/d/1gyjfMHy43U9OWBXxfaeG-3MjGzejW1dlpyMwEYAAWEI/view?fullscreen
- *
+ * <p>
  * This implementation is different from the original implementation in that it uses a hash table instead of a sorted list for linear
  * counting. Although this requires more space and makes hyperloglog (which is less accurate) used sooner, this is also considerably faster.
- *
+ * <p>
  * Trying to understand what this class does without having read the paper is considered adventurous.
- *
+ * <p>
  * The HyperLogLogPlusPlus contains two algorithms, one for linear counting and the HyperLogLog algorithm. Initially hashes added to the
  * data structure are processed using the linear counting until a threshold defined by the precision is reached where the data is replayed
  * to the HyperLogLog algorithm and then this is used.
- *
+ * <p>
  * It supports storing several HyperLogLogPlusPlus structures which are identified by a bucket number.
  *
  * @opensearch.internal

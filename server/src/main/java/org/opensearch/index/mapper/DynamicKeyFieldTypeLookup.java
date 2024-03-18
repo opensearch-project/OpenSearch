@@ -37,11 +37,11 @@ import java.util.Map;
 
 /**
  * A container that supports looking up field types for 'dynamic key' fields ({@link DynamicKeyFieldMapper}).
- *
+ * <p>
  * Compared to standard fields, 'dynamic key' fields require special handling. Given a field name of the form
  * 'path_to_field.path_to_key', the container will dynamically return a new {@link MappedFieldType} that is
  * suitable for performing searches on the sub-key.
- *
+ * <p>
  * Note: we anticipate that 'flattened' fields will be the only implementation {@link DynamicKeyFieldMapper}.
  * Flattened object fields live in the 'mapper-flattened' module.
  *

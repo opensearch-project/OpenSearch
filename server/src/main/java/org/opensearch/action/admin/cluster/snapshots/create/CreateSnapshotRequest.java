@@ -38,16 +38,17 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.common.Strings;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -73,11 +74,12 @@ import static org.opensearch.core.common.Strings.EMPTY_ARRAY;
  * <li>must not contain hash sign ('#')</li>
  * <li>must not start with underscore ('_')</li>
  * <li>must be lowercase</li>
- * <li>must not contain invalid file name characters {@link org.opensearch.common.Strings#INVALID_FILENAME_CHARS} </li>
+ * <li>must not contain invalid file name characters {@link Strings#INVALID_FILENAME_CHARS} </li>
  * </ul>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnapshotRequest>
     implements
         IndicesRequest.Replaceable,
@@ -261,7 +263,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
     /**
      * Returns a list of indices that should be included into the snapshot
      *
-     * @return list of indices
+     * @return array of index names
      */
     @Override
     public String[] indices() {
@@ -316,7 +318,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
 
     /**
      * If set to true the operation should wait for the snapshot completion before returning.
-     *
+     * <p>
      * By default, the operation will return as soon as snapshot is initialized. It can be changed by setting this
      * flag to true.
      *
@@ -387,9 +389,9 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
      */
     public CreateSnapshotRequest settings(Map<String, Object> source) {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
             builder.map(source);
-            settings(Strings.toString(builder), builder.contentType());
+            settings(builder.toString(), builder.contentType());
         } catch (IOException e) {
             throw new OpenSearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -446,7 +448,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
             String name = entry.getKey();
             if (name.equals("indices")) {
                 if (entry.getValue() instanceof String) {
-                    indices(org.opensearch.core.common.Strings.splitStringByCommaToArray((String) entry.getValue()));
+                    indices(Strings.splitStringByCommaToArray((String) entry.getValue()));
                 } else if (entry.getValue() instanceof List) {
                     indices((List<String>) entry.getValue());
                 } else {

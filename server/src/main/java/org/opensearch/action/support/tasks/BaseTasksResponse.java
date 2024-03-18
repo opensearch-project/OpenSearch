@@ -33,14 +33,14 @@
 package org.opensearch.action.support.tasks;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.TaskOperationFailure;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.ArrayList;

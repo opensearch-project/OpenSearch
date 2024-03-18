@@ -43,7 +43,7 @@ import java.util.Set;
 /**
  * An implementation of {@link ValueFetcher} that knows how to extract values
  * from the document source.
- *
+ * <p>
  * This class differs from {@link SourceValueFetcher} in that it directly handles
  * array values in parsing. Field types should use this class if their corresponding
  * mapper returns true for {@link FieldMapper#parsesArrayValue()}.

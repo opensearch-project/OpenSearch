@@ -10,9 +10,9 @@ package org.opensearch.extensions.rest;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.rest.RestResponse;
 import org.opensearch.core.rest.RestStatus;
-import org.opensearch.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.rest.RestResponse;
 
 import java.io.IOException;
 import java.util.List;

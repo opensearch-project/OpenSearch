@@ -9,9 +9,9 @@
 package org.opensearch.tasks.consumer;
 
 import org.opensearch.action.search.SearchShardTask;
-import org.opensearch.tasks.ResourceStats;
-import org.opensearch.tasks.ResourceStatsType;
-import org.opensearch.tasks.ResourceUsageMetric;
+import org.opensearch.core.tasks.resourcetracker.ResourceStats;
+import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
+import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 

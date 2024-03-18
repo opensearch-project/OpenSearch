@@ -37,8 +37,8 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.OpenSearchParseException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.termvectors.MultiTermVectorsItemResponse;
@@ -48,22 +48,23 @@ import org.opensearch.action.termvectors.TermVectorsRequest;
 import org.opensearch.action.termvectors.TermVectorsResponse;
 import org.opensearch.client.Client;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.lucene.search.MoreLikeThisQuery;
+import org.opensearch.common.lucene.search.XMoreLikeThis;
+import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.lucene.search.MoreLikeThisQuery;
-import org.opensearch.common.lucene.search.XMoreLikeThis;
-import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
@@ -86,7 +87,7 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * A more like this query that finds documents that are "like" the provided set of document(s).
- *
+ * <p>
  * The documents are provided as a set of strings and/or a list of {@link Item}.
  *
  * @opensearch.internal
@@ -235,7 +236,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
-                if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+                if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
                     mediaType = in.readMediaType();
                 } else {
                     mediaType = in.readEnum(XContentType.class);
@@ -260,7 +261,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             out.writeBoolean(doc != null);
             if (doc != null) {
                 out.writeGenericValue(doc);
-                if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+                if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
                     mediaType.writeTo(out);
                 } else {
                     out.writeEnum((XContentType) mediaType);
@@ -382,7 +383,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                         item.id = parser.text();
                     } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.doc = BytesReference.bytes(jsonBuilder().copyCurrentStructure(parser));
-                        item.mediaType = XContentType.JSON;
+                        item.mediaType = MediaTypeRegistry.JSON;
                     } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                         if (token == XContentParser.Token.START_ARRAY) {
                             List<String> fields = new ArrayList<>();
@@ -455,7 +456,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.prettyPrint();
                 toXContent(builder, EMPTY_PARAMS);
-                return Strings.toString(builder);
+                return builder.toString();
             } catch (Exception e) {
                 return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
             }

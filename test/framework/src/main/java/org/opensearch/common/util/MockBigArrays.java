@@ -34,15 +34,16 @@ package org.opensearch.common.util;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.SeedUtils;
+
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.tests.util.LuceneTestCase;
-import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.util.BigArray;
 import org.opensearch.core.common.util.ByteArray;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 
 import java.util.Collection;
 import java.util.Collections;

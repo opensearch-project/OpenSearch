@@ -32,6 +32,14 @@
 
 package org.opensearch.transport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.common.Booleans;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.monitor.jvm.JvmInfo;
+
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
@@ -39,13 +47,6 @@ import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ServerChannel;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.opensearch.common.Booleans;
-import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.monitor.jvm.JvmInfo;
-
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class NettyAllocator {
 

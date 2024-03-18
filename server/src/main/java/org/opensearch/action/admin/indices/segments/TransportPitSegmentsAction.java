@@ -7,13 +7,11 @@
  */
 package org.opensearch.action.admin.indices.segments;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.search.ListPitInfo;
 import org.opensearch.action.search.PitService;
 import org.opensearch.action.search.SearchContextId;
 import org.opensearch.action.search.SearchContextIdForNode;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -28,12 +26,14 @@ import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.Strings;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.internal.PitReaderContext;

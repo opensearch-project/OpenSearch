@@ -33,19 +33,21 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.index.mapper.MapperService.MergeReason;
+import org.opensearch.index.mapper.ParseContext.Document;
 
 import java.util.List;
 
 /**
  * The result of parsing a document.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ParsedDocument {
 
     private final Field version;

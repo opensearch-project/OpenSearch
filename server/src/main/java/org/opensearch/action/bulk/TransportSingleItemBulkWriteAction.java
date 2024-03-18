@@ -32,7 +32,6 @@
 
 package org.opensearch.action.bulk;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.support.ActionFilters;
@@ -41,6 +40,7 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.WriteResponse;
 import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;

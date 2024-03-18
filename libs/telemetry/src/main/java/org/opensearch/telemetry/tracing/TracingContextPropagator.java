@@ -8,14 +8,19 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
+import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 /**
  * Interface defining the tracing related context propagation
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public interface TracingContextPropagator {
 
     /**
@@ -23,7 +28,15 @@ public interface TracingContextPropagator {
      * @param props properties
      * @return current span
      */
-    Span extract(Map<String, String> props);
+    Optional<Span> extract(Map<String, String> props);
+
+    /**
+     * Extracts current span from HTTP headers.
+     *
+     * @param headers request headers to extract the context from
+     * @return current span
+     */
+    Optional<Span> extractFromHeaders(Map<String, Collection<String>> headers);
 
     /**
      * Injects tracing context

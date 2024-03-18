@@ -8,7 +8,7 @@
 
 package org.opensearch.indices.replication;
 
-import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
+import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -17,26 +17,27 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.settings.Settings;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -61,11 +62,6 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return asList(MockTransportService.TestPlugin.class);
-    }
-
-    @Override
-    protected boolean addMockInternalEngine() {
-        return false;
     }
 
     @Override
@@ -134,24 +130,6 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
         waitForSearchableDocs(docCount, Arrays.stream(nodes).collect(Collectors.toList()));
     }
 
-    protected void waitForSegmentReplication(String node) throws Exception {
-        assertBusy(() -> {
-            SegmentReplicationStatsResponse segmentReplicationStatsResponse = client(node).admin()
-                .indices()
-                .prepareSegmentReplicationStats(INDEX_NAME)
-                .setDetailed(true)
-                .execute()
-                .actionGet();
-            final SegmentReplicationPerGroupStats perGroupStats = segmentReplicationStatsResponse.getReplicationStats()
-                .get(INDEX_NAME)
-                .get(0);
-            assertEquals(
-                perGroupStats.getReplicaStats().stream().findFirst().get().getCurrentReplicationState().getStage(),
-                SegmentReplicationState.Stage.DONE
-            );
-        }, 1, TimeUnit.MINUTES);
-    }
-
     protected void verifyStoreContent() throws Exception {
         assertBusy(() -> {
             final ClusterState clusterState = getClusterState();
@@ -202,30 +180,19 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Fetch IndexShard by shardId, multiple shards per node allowed.
-     */
-    protected IndexShard getIndexShard(String node, ShardId shardId, String indexName) {
-        final Index index = resolveIndex(indexName);
-        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-        IndexService indexService = indicesService.indexServiceSafe(index);
-        final Optional<Integer> id = indexService.shardIds().stream().filter(sid -> sid == shardId.id()).findFirst();
-        return indexService.getShard(id.get());
-    }
-
-    /**
      * Fetch IndexShard, assumes only a single shard per node.
      */
     protected IndexShard getIndexShard(String node, String indexName) {
         final Index index = resolveIndex(indexName);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-        IndexService indexService = indicesService.indexServiceSafe(index);
+        IndexService indexService = indicesService.indexService(index);
+        assertNotNull(indexService);
         final Optional<Integer> shardId = indexService.shardIds().stream().findFirst();
-        return indexService.getShard(shardId.get());
+        return shardId.map(indexService::getShard).orElse(null);
     }
 
     protected boolean segmentReplicationWithRemoteEnabled() {
-        return IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings()).booleanValue()
-            && "true".equalsIgnoreCase(featureFlagSettings().get(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL));
+        return IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings()).booleanValue();
     }
 
     protected Releasable blockReplication(List<String> nodes, CountDownLatch latch) {
@@ -261,11 +228,21 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
 
     protected void assertReplicaCheckpointUpdated(IndexShard primaryShard) throws Exception {
         assertBusy(() -> {
-            Set<SegmentReplicationShardStats> groupStats = primaryShard.getReplicationStats();
+            Set<SegmentReplicationShardStats> groupStats = primaryShard.getReplicationStatsForTrackedReplicas();
             assertEquals(primaryShard.indexSettings().getNumberOfReplicas(), groupStats.size());
             for (SegmentReplicationShardStats shardStat : groupStats) {
                 assertEquals(0, shardStat.getCheckpointsBehindCount());
             }
         }, 30, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Returns the latest SIS for a shard but does not incref the segments.
+     */
+    protected SegmentInfos getLatestSegmentInfos(IndexShard shard) throws IOException {
+        final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> tuple = shard.getLatestSegmentInfosAndCheckpoint();
+        try (final GatedCloseable<SegmentInfos> closeable = tuple.v1()) {
+            return closeable.get();
+        }
     }
 }

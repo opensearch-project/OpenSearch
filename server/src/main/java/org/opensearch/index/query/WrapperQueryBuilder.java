@@ -34,15 +34,15 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -175,7 +175,8 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext context) throws IOException {
         try (
-            XContentParser qSourceParser = XContentFactory.xContent(source)
+            XContentParser qSourceParser = MediaTypeRegistry.xContent(source)
+                .xContent()
                 .createParser(context.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, source)
         ) {
 

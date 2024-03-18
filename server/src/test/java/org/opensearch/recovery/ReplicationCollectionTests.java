@@ -34,18 +34,18 @@ package org.opensearch.recovery;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.Store;
+import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.SegmentReplicationSource;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
-import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.util.concurrent.CountDownLatch;
@@ -120,11 +120,13 @@ public class ReplicationCollectionTests extends OpenSearchIndexLevelReplicationT
             shards.recoverReplica(shard);
             final SegmentReplicationTarget target1 = new SegmentReplicationTarget(
                 shard,
+                shards.getPrimary().getLatestReplicationCheckpoint(),
                 mock(SegmentReplicationSource.class),
                 mock(ReplicationListener.class)
             );
             final SegmentReplicationTarget target2 = new SegmentReplicationTarget(
                 shard,
+                shards.getPrimary().getLatestReplicationCheckpoint(),
                 mock(SegmentReplicationSource.class),
                 mock(ReplicationListener.class)
             );

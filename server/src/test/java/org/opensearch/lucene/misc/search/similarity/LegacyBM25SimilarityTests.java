@@ -25,12 +25,12 @@
 
 package org.opensearch.lucene.misc.search.similarity;
 
-import java.util.Random;
-
 import org.apache.lucene.misc.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.tests.search.similarities.BaseSimilarityTestCase;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.tests.search.similarities.BaseSimilarityTestCase;
+
+import java.util.Random;
 
 @Deprecated
 public class LegacyBM25SimilarityTests extends BaseSimilarityTestCase {

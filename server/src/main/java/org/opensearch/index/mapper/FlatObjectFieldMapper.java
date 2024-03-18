@@ -29,10 +29,10 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Iterators;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
+import org.opensearch.common.xcontent.JsonToStringXContentParser;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.JsonToStringXContentParser;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -572,12 +572,12 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             JsonToStringXContentParser JsonToStringParser = new JsonToStringXContentParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.IGNORE_DEPRECATIONS,
-                context,
+                context.parser(),
                 fieldType().name()
             );
-            /**
-             * JsonToStringParser is the main parser class to transform JSON into stringFields in a XContentParser
-             * It reads the JSON object and parsed to a list of string
+            /*
+              JsonToStringParser is the main parser class to transform JSON into stringFields in a XContentParser
+              It reads the JSON object and parsed to a list of string
              */
             XContentParser parser = JsonToStringParser.parseObject();
 

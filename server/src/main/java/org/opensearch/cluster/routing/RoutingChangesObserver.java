@@ -32,11 +32,14 @@
 
 package org.opensearch.cluster.routing;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Records changes made to {@link RoutingNodes} during an allocation round.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface RoutingChangesObserver {
     /**
      * Called when unassigned shard is initialized. Does not include initializing relocation target shards.

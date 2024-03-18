@@ -92,7 +92,7 @@ public interface EnginePlugin {
      * When an index is created this method is invoked for each engine plugin. Engine plugins that need to provide a
      * custom {@link TranslogDeletionPolicy} can override this method to return a function that takes the {@link IndexSettings}
      * and a {@link Supplier} for {@link RetentionLeases} and returns a custom {@link TranslogDeletionPolicy}.
-     *
+     * <p>
      * Only one of the installed Engine plugins can override this otherwise {@link IllegalStateException} will be thrown.
      *
      * @return a function that returns an instance of {@link TranslogDeletionPolicy}

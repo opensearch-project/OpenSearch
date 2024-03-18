@@ -34,6 +34,7 @@ package org.opensearch.snapshots;
 
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.Collections;
 import java.util.Map;
@@ -41,8 +42,9 @@ import java.util.Map;
 /**
  * Information about a snapshot shard size
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SnapshotShardSizeInfo {
 
     public static final SnapshotShardSizeInfo EMPTY = new SnapshotShardSizeInfo(Map.of());

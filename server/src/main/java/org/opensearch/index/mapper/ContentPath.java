@@ -32,11 +32,14 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * JSON Path for a document / field
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class ContentPath {
 
     private static final char DELIMITER = '.';

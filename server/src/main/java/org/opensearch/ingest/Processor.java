@@ -36,6 +36,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
 import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.Scheduler;
 
@@ -48,7 +49,7 @@ import java.util.function.LongSupplier;
 /**
  * A processor implementation may modify the data belonging to a document.
  * Whether changes are made and what exactly is modified is up to the implementation.
- *
+ * <p>
  * Processors may get called concurrently and thus need to be thread-safe.
  *
  * @opensearch.internal
@@ -57,7 +58,7 @@ public interface Processor {
 
     /**
      * Introspect and potentially modify the incoming data.
-     *
+     * <p>
      * Expert method: only override this method if a processor implementation needs to make an asynchronous call,
      * otherwise just overwrite {@link #execute(IngestDocument)}.
      */
@@ -156,6 +157,8 @@ public interface Processor {
          */
         public final Client client;
 
+        public final IndicesService indicesService;
+
         public Parameters(
             Environment env,
             ScriptService scriptService,
@@ -165,7 +168,8 @@ public interface Processor {
             BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
             IngestService ingestService,
             Client client,
-            Consumer<Runnable> genericExecutor
+            Consumer<Runnable> genericExecutor,
+            IndicesService indicesService
         ) {
             this.env = env;
             this.scriptService = scriptService;
@@ -176,6 +180,7 @@ public interface Processor {
             this.ingestService = ingestService;
             this.client = client;
             this.genericExecutor = genericExecutor;
+            this.indicesService = indicesService;
         }
 
     }

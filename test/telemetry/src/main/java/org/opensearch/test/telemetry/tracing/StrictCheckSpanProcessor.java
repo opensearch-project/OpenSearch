@@ -8,77 +8,80 @@
 
 package org.opensearch.test.telemetry.tracing;
 
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.test.telemetry.tracing.validators.AllSpansAreEndedProperly;
+import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
+
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Locale;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.opensearch.telemetry.tracing.Span;
 
 /**
  * Strict check span processor to validate the spans.
  */
 public class StrictCheckSpanProcessor implements SpanProcessor {
-    private final Map<String, StackTraceElement[]> spanMap = new ConcurrentHashMap<>();
-
     /**
      * Base constructor.
      */
-    public StrictCheckSpanProcessor() {
+    public StrictCheckSpanProcessor() {}
 
-    }
+    private static Map<String, MockSpanData> spanMap = new ConcurrentHashMap<>();
 
     @Override
     public void onStart(Span span) {
-        spanMap.put(span.getSpanId(), Thread.currentThread().getStackTrace());
+        spanMap.put(span.getSpanId(), toMockSpanData(span));
     }
 
     @Override
     public void onEnd(Span span) {
-        spanMap.remove(span.getSpanId());
+        MockSpanData spanData = spanMap.get(span.getSpanId());
+        // Setting EndEpochTime and HasEnded value to true on completion of span.
+        if (spanData != null) {
+            spanData.setEndEpochNanos(System.nanoTime());
+            spanData.setHasEnded(true);
+        }
     }
 
     /**
-     * Ensures that all the spans are closed. Throws exception message with stack trace of the method form
-     * where the span was created. We can enhance it to print all the failed spans in a single go based on
-     * the usability.
+     * Return list of mock span data at any point of time.
      */
-    public void ensureAllSpansAreClosed() {
-        if (!spanMap.isEmpty()) {
-            for (Map.Entry<String, StackTraceElement[]> entry : spanMap.entrySet()) {
-                StackTraceElement[] filteredStackTrace = getFilteredStackTrace(entry.getValue());
-                AssertionError error = new AssertionError(
-                    String.format(
-                        Locale.ROOT,
-                        " Total [%d] spans are not ended properly. " + "Find below the stack trace for one of the un-ended span",
-                        spanMap.size()
-                    )
-                );
-                error.setStackTrace(filteredStackTrace);
+    public List<MockSpanData> getFinishedSpanItems() {
+        return new ArrayList<>(spanMap.values());
+    }
+
+    private MockSpanData toMockSpanData(Span span) {
+        String parentSpanId = (span.getParentSpan() != null) ? span.getParentSpan().getSpanId() : "";
+        MockSpanData spanData = new MockSpanData(
+            span.getSpanId(),
+            parentSpanId,
+            span.getTraceId(),
+            System.nanoTime(),
+            false,
+            span.getSpanName(),
+            Thread.currentThread().getStackTrace(),
+            (span instanceof MockSpan) ? ((MockSpan) span).getAttributes() : Map.of()
+        );
+        return spanData;
+    }
+
+    /**
+     * Ensures the strict check succeeds for all the spans.
+     */
+    public static void validateTracingStateOnShutdown() {
+        List<MockSpanData> spanData = new ArrayList<>(spanMap.values());
+        if (spanData.size() != 0) {
+            TelemetryValidators validators = new TelemetryValidators(
+                Arrays.asList(new AllSpansAreEndedProperly(), new AllSpansHaveUniqueId())
+            );
+            try {
+                validators.validate(spanData, 1);
+            } catch (Error e) {
                 spanMap.clear();
-                throw error;
+                throw e;
             }
         }
-    }
 
-    /**
-     * Clears the state.
-     */
-    public void clear() {
-        spanMap.clear();
-    }
-
-    private StackTraceElement[] getFilteredStackTrace(StackTraceElement[] stackTraceElements) {
-        int filteredElementsCount = 0;
-        while (filteredElementsCount < stackTraceElements.length) {
-            String className = stackTraceElements[filteredElementsCount].getClassName();
-            if (className.startsWith("java.lang.Thread")
-                || className.startsWith("org.opensearch.telemetry")
-                || className.startsWith("org.opensearch.tracing")) {
-                filteredElementsCount++;
-            } else {
-                break;
-            }
-        }
-        return Arrays.copyOfRange(stackTraceElements, filteredElementsCount, stackTraceElements.length);
     }
 }

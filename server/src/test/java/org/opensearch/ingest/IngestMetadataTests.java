@@ -34,13 +34,13 @@ package org.opensearch.ingest;
 
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -57,18 +57,18 @@ public class IngestMetadataTests extends OpenSearchTestCase {
         PipelineConfiguration pipeline = new PipelineConfiguration(
             "1",
             new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         PipelineConfiguration pipeline2 = new PipelineConfiguration(
             "2",
             new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field1\", \"value\": \"_value1\"}}]}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         Map<String, PipelineConfiguration> map = new HashMap<>();
         map.put(pipeline.getId(), pipeline);
         map.put(pipeline2.getId(), pipeline2);
         IngestMetadata ingestMetadata = new IngestMetadata(map);
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         builder.prettyPrint();
         builder.startObject();
         ingestMetadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -90,14 +90,14 @@ public class IngestMetadataTests extends OpenSearchTestCase {
         BytesReference pipelineConfig = new BytesArray("{}");
 
         Map<String, PipelineConfiguration> pipelines = new HashMap<>();
-        pipelines.put("1", new PipelineConfiguration("1", pipelineConfig, XContentType.JSON));
-        pipelines.put("2", new PipelineConfiguration("2", pipelineConfig, XContentType.JSON));
+        pipelines.put("1", new PipelineConfiguration("1", pipelineConfig, MediaTypeRegistry.JSON));
+        pipelines.put("2", new PipelineConfiguration("2", pipelineConfig, MediaTypeRegistry.JSON));
         IngestMetadata ingestMetadata1 = new IngestMetadata(pipelines);
 
         pipelines = new HashMap<>();
-        pipelines.put("1", new PipelineConfiguration("1", pipelineConfig, XContentType.JSON));
-        pipelines.put("3", new PipelineConfiguration("3", pipelineConfig, XContentType.JSON));
-        pipelines.put("4", new PipelineConfiguration("4", pipelineConfig, XContentType.JSON));
+        pipelines.put("1", new PipelineConfiguration("1", pipelineConfig, MediaTypeRegistry.JSON));
+        pipelines.put("3", new PipelineConfiguration("3", pipelineConfig, MediaTypeRegistry.JSON));
+        pipelines.put("4", new PipelineConfiguration("4", pipelineConfig, MediaTypeRegistry.JSON));
         IngestMetadata ingestMetadata2 = new IngestMetadata(pipelines);
 
         IngestMetadata.IngestMetadataDiff diff = (IngestMetadata.IngestMetadataDiff) ingestMetadata2.diff(ingestMetadata1);
@@ -110,13 +110,13 @@ public class IngestMetadataTests extends OpenSearchTestCase {
         IngestMetadata endResult = (IngestMetadata) diff.apply(ingestMetadata2);
         assertThat(endResult, not(equalTo(ingestMetadata1)));
         assertThat(endResult.getPipelines().size(), equalTo(3));
-        assertThat(endResult.getPipelines().get("1"), equalTo(new PipelineConfiguration("1", pipelineConfig, XContentType.JSON)));
-        assertThat(endResult.getPipelines().get("3"), equalTo(new PipelineConfiguration("3", pipelineConfig, XContentType.JSON)));
-        assertThat(endResult.getPipelines().get("4"), equalTo(new PipelineConfiguration("4", pipelineConfig, XContentType.JSON)));
+        assertThat(endResult.getPipelines().get("1"), equalTo(new PipelineConfiguration("1", pipelineConfig, MediaTypeRegistry.JSON)));
+        assertThat(endResult.getPipelines().get("3"), equalTo(new PipelineConfiguration("3", pipelineConfig, MediaTypeRegistry.JSON)));
+        assertThat(endResult.getPipelines().get("4"), equalTo(new PipelineConfiguration("4", pipelineConfig, MediaTypeRegistry.JSON)));
 
         pipelines = new HashMap<>();
-        pipelines.put("1", new PipelineConfiguration("1", new BytesArray("{}"), XContentType.JSON));
-        pipelines.put("2", new PipelineConfiguration("2", new BytesArray("{}"), XContentType.JSON));
+        pipelines.put("1", new PipelineConfiguration("1", new BytesArray("{}"), MediaTypeRegistry.JSON));
+        pipelines.put("2", new PipelineConfiguration("2", new BytesArray("{}"), MediaTypeRegistry.JSON));
         IngestMetadata ingestMetadata3 = new IngestMetadata(pipelines);
 
         diff = (IngestMetadata.IngestMetadataDiff) ingestMetadata3.diff(ingestMetadata1);
@@ -126,12 +126,12 @@ public class IngestMetadataTests extends OpenSearchTestCase {
         endResult = (IngestMetadata) diff.apply(ingestMetadata3);
         assertThat(endResult, equalTo(ingestMetadata1));
         assertThat(endResult.getPipelines().size(), equalTo(2));
-        assertThat(endResult.getPipelines().get("1"), equalTo(new PipelineConfiguration("1", pipelineConfig, XContentType.JSON)));
-        assertThat(endResult.getPipelines().get("2"), equalTo(new PipelineConfiguration("2", pipelineConfig, XContentType.JSON)));
+        assertThat(endResult.getPipelines().get("1"), equalTo(new PipelineConfiguration("1", pipelineConfig, MediaTypeRegistry.JSON)));
+        assertThat(endResult.getPipelines().get("2"), equalTo(new PipelineConfiguration("2", pipelineConfig, MediaTypeRegistry.JSON)));
 
         pipelines = new HashMap<>();
-        pipelines.put("1", new PipelineConfiguration("1", new BytesArray("{}"), XContentType.JSON));
-        pipelines.put("2", new PipelineConfiguration("2", new BytesArray("{\"key\" : \"value\"}"), XContentType.JSON));
+        pipelines.put("1", new PipelineConfiguration("1", new BytesArray("{}"), MediaTypeRegistry.JSON));
+        pipelines.put("2", new PipelineConfiguration("2", new BytesArray("{\"key\" : \"value\"}"), MediaTypeRegistry.JSON));
         IngestMetadata ingestMetadata4 = new IngestMetadata(pipelines);
 
         diff = (IngestMetadata.IngestMetadataDiff) ingestMetadata4.diff(ingestMetadata1);
@@ -141,10 +141,10 @@ public class IngestMetadataTests extends OpenSearchTestCase {
         endResult = (IngestMetadata) diff.apply(ingestMetadata4);
         assertThat(endResult, not(equalTo(ingestMetadata1)));
         assertThat(endResult.getPipelines().size(), equalTo(2));
-        assertThat(endResult.getPipelines().get("1"), equalTo(new PipelineConfiguration("1", pipelineConfig, XContentType.JSON)));
+        assertThat(endResult.getPipelines().get("1"), equalTo(new PipelineConfiguration("1", pipelineConfig, MediaTypeRegistry.JSON)));
         assertThat(
             endResult.getPipelines().get("2"),
-            equalTo(new PipelineConfiguration("2", new BytesArray("{\"key\" : \"value\"}"), XContentType.JSON))
+            equalTo(new PipelineConfiguration("2", new BytesArray("{\"key\" : \"value\"}"), MediaTypeRegistry.JSON))
         );
     }
 }

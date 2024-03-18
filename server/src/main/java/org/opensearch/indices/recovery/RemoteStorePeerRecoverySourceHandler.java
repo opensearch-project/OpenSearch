@@ -9,11 +9,11 @@
 package org.opensearch.indices.recovery;
 
 import org.apache.lucene.index.IndexCommit;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.common.concurrent.GatedCloseable;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.RecoveryEngineException;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
@@ -80,12 +80,14 @@ public class RemoteStorePeerRecoverySourceHandler extends RecoverySourceHandler 
         assert startingSeqNo >= 0 : "startingSeqNo must be non negative. got: " + startingSeqNo;
 
         sendFileStep.whenComplete(r -> {
+            logger.debug("sendFileStep completed");
             assert Transports.assertNotTransportThread(this + "[prepareTargetForTranslog]");
             // For a sequence based recovery, the target can keep its local translog
             prepareTargetForTranslog(0, prepareEngineStep);
         }, onFailure);
 
         prepareEngineStep.whenComplete(prepareEngineTime -> {
+            logger.debug("prepareEngineStep completed");
             assert Transports.assertNotTransportThread(this + "[phase2]");
             RunUnderPrimaryPermit.run(
                 () -> shard.initiateTracking(request.targetAllocationId()),

@@ -51,11 +51,11 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.fielddata.AbstractFieldDataTestCase;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.MultiValueMode;
 
 import java.io.IOException;

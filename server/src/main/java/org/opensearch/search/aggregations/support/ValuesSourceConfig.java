@@ -32,6 +32,7 @@
 package org.opensearch.search.aggregations.support;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexGeoPointFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
@@ -50,8 +51,9 @@ import java.util.function.LongSupplier;
  * A configuration that tells aggregations how to retrieve data from the index
  * in order to run a specific aggregation.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ValuesSourceConfig {
 
     /**

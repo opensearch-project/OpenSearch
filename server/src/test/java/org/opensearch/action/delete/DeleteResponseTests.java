@@ -33,14 +33,15 @@
 package org.opensearch.action.delete;
 
 import org.opensearch.action.support.replication.ReplicationResponse;
-import org.opensearch.common.Strings;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
 
@@ -56,7 +57,7 @@ public class DeleteResponseTests extends OpenSearchTestCase {
     public void testToXContent() {
         {
             DeleteResponse response = new DeleteResponse(new ShardId("index", "index_uuid", 0), "id", 3, 17, 5, true);
-            String output = Strings.toString(XContentType.JSON, response);
+            String output = Strings.toString(MediaTypeRegistry.JSON, response);
             assertEquals(
                 "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":5,\"result\":\"deleted\","
                     + "\"_shards\":null,\"_seq_no\":3,\"_primary_term\":17}",
@@ -67,7 +68,7 @@ public class DeleteResponseTests extends OpenSearchTestCase {
             DeleteResponse response = new DeleteResponse(new ShardId("index", "index_uuid", 0), "id", -1, 0, 7, true);
             response.setForcedRefresh(true);
             response.setShardInfo(new ReplicationResponse.ShardInfo(10, 5));
-            String output = Strings.toString(XContentType.JSON, response);
+            String output = Strings.toString(MediaTypeRegistry.JSON, response);
             assertEquals(
                 "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":7,\"result\":\"deleted\","
                     + "\"forced_refresh\":true,\"_shards\":{\"total\":10,\"successful\":5,\"failed\":0}}",

@@ -32,28 +32,26 @@
 
 package org.opensearch.index.mapper.size;
 
-import java.util.Collection;
-
-import org.opensearch.common.Strings;
-import org.opensearch.core.common.bytes.BytesReference;
+import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.plugin.mapper.MapperSizePlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
+
+import java.util.Collection;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-
-import org.apache.lucene.index.IndexableField;
 
 public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
     @Override
@@ -66,7 +64,7 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
         DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, MediaTypeRegistry.JSON));
 
         boolean stored = false;
         boolean points = false;
@@ -83,7 +81,7 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
         DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, MediaTypeRegistry.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
@@ -93,7 +91,7 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
         DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject());
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", source, MediaTypeRegistry.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
@@ -103,16 +101,15 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
         DocumentMapper docMapper = service.mapperService().documentMapper();
         assertThat(docMapper.metadataMapper(SizeFieldMapper.class).enabled(), is(true));
 
-        String disabledMapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("_size")
-                .field("enabled", false)
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String disabledMapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("_size")
+            .field("enabled", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         docMapper = service.mapperService()
             .merge("type", new CompressedXContent(disabledMapping), MapperService.MergeReason.MAPPING_UPDATE);
 

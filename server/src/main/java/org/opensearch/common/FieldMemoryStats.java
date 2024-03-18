@@ -32,10 +32,11 @@
 
 package org.opensearch.common;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -47,8 +48,9 @@ import java.util.Objects;
 /**
  * A reusable class to encode {@code field -&gt; memory size} mappings
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class FieldMemoryStats implements Writeable, Iterable<Map.Entry<String, Long>> {
 
     private final Map<String, Long> stats;

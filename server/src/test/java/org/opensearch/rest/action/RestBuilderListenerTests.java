@@ -33,15 +33,15 @@
 package org.opensearch.rest.action;
 
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
-import org.opensearch.transport.TransportResponse;
-import org.opensearch.transport.TransportResponse.Empty;
 
 import java.util.concurrent.atomic.AtomicReference;
 

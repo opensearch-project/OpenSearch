@@ -38,9 +38,10 @@ import org.opensearch.action.admin.cluster.node.stats.NodeStatsTests;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -51,7 +52,7 @@ import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterStatsNodesTests extends OpenSearchTestCase {
@@ -62,11 +63,17 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
      */
     public void testNetworkTypesToXContent() throws Exception {
         ClusterStatsNodes.NetworkTypes stats = new ClusterStatsNodes.NetworkTypes(emptyList());
-        assertEquals("{\"transport_types\":{},\"http_types\":{}}", toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString());
+        assertEquals(
+            "{\"transport_types\":{},\"http_types\":{}}",
+            toXContent(stats, MediaTypeRegistry.JSON, randomBoolean()).utf8ToString()
+        );
 
         List<NodeInfo> nodeInfos = singletonList(createNodeInfo("node_0", null, null));
         stats = new ClusterStatsNodes.NetworkTypes(nodeInfos);
-        assertEquals("{\"transport_types\":{},\"http_types\":{}}", toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString());
+        assertEquals(
+            "{\"transport_types\":{},\"http_types\":{}}",
+            toXContent(stats, MediaTypeRegistry.JSON, randomBoolean()).utf8ToString()
+        );
 
         nodeInfos = Arrays.asList(
             createNodeInfo("node_1", "", ""),
@@ -76,12 +83,18 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
         stats = new ClusterStatsNodes.NetworkTypes(nodeInfos);
         assertEquals(
             "{" + "\"transport_types\":{\"custom\":1}," + "\"http_types\":{\"custom\":2}" + "}",
-            toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString()
+            toXContent(stats, MediaTypeRegistry.JSON, randomBoolean()).utf8ToString()
         );
     }
 
     public void testIngestStats() throws Exception {
-        NodeStats nodeStats = randomValueOtherThanMany(n -> n.getIngestStats() == null, NodeStatsTests::createNodeStats);
+        NodeStats nodeStats = randomValueOtherThanMany(n -> n.getIngestStats() == null, () -> {
+            try {
+                return NodeStatsTests.createNodeStats();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
 
         SortedMap<String, long[]> processorStats = new TreeMap<>();
         nodeStats.getIngestStats().getProcessorStats().values().forEach(stats -> {
@@ -132,7 +145,7 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
         }
         processorStatsString += "}";
         assertThat(
-            toXContent(stats, XContentType.JSON, false).utf8ToString(),
+            toXContent(stats, MediaTypeRegistry.JSON, false).utf8ToString(),
             equalTo(
                 "{\"ingest\":{"
                     + "\"number_of_pipelines\":"

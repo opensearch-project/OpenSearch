@@ -36,12 +36,11 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.opensearch.Version;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
@@ -150,7 +149,7 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
 
     /**
      * Add type-specific modifiers for consistency checking.
-     *
+     * <p>
      * This should be called in a {@code @Before} method
      */
     protected void addModifier(String property, boolean updateable, BiConsumer<T, T> method) {
@@ -159,7 +158,7 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
 
     /**
      * Add type-specific modifiers for consistency checking.
-     *
+     * <p>
      * This should be called in a {@code @Before} method
      */
     protected void addBooleanModifier(String property, boolean updateable, BiConsumer<T, Boolean> method) {
@@ -260,6 +259,6 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         x.startObject().startObject("properties");
         builder.toXContent(x, params);
         x.endObject().endObject();
-        return Strings.toString(x);
+        return x.toString();
     }
 }

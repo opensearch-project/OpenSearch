@@ -37,13 +37,11 @@ import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRespon
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
-
 import org.junit.Before;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
@@ -55,7 +53,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 /**
  * This class tests that snapshot operations (Create, Delete, Restore) are blocked when the cluster is read-only.
- *
+ * <p>
  * The @NodeScope TEST is needed because this class updates the cluster setting "cluster.blocks.read_only".
  */
 @ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)

@@ -34,7 +34,6 @@ package org.opensearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.metadata.IndexGraveyard;
@@ -44,8 +43,9 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.env.NodeEnvironment;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
+import org.opensearch.env.NodeEnvironment;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -244,7 +244,7 @@ public class DanglingIndicesState implements ClusterStateListener {
 
     /**
      * Removes all aliases from the supplied index metadata.
-     *
+     * <p>
      * Dangling importing indices with aliases is dangerous, it could for instance result in inability to write to an existing alias if it
      * previously had only one index with any is_write_index indication.
      */

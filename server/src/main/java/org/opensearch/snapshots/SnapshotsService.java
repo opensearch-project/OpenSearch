@@ -37,7 +37,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
@@ -79,15 +78,16 @@ import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -477,7 +477,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         "No indices in the source snapshot ["
                             + sourceSnapshotId
                             + "] matched requested pattern ["
-                            + org.opensearch.core.common.Strings.arrayToCommaDelimitedString(request.indices())
+                            + Strings.arrayToCommaDelimitedString(request.indices())
                             + "]"
                     );
                 }
@@ -823,7 +823,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private static void validate(final String repositoryName, final String snapshotName) {
-        if (org.opensearch.core.common.Strings.hasLength(snapshotName) == false) {
+        if (Strings.hasLength(snapshotName) == false) {
             throw new InvalidSnapshotNameException(repositoryName, snapshotName, "cannot be empty");
         }
         if (snapshotName.contains(" ")) {
@@ -1565,7 +1565,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     /**
      * Runs a cluster state update that checks whether we have outstanding snapshot deletions that can be executed and executes them.
-     *
+     * <p>
      * TODO: optimize this to execute in a single CS update together with finalizing the latest snapshot
      */
     private void runReadyDeletions(RepositoryData repositoryData, String repository) {
@@ -1806,7 +1806,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         logger.info(
             () -> new ParameterizedMessage(
                 "deleting snapshots [{}] from repository [{}]",
-                org.opensearch.core.common.Strings.arrayToCommaDelimitedString(snapshotNames),
+                Strings.arrayToCommaDelimitedString(snapshotNames),
                 repoName
             )
         );
@@ -2758,7 +2758,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * Every shard snapshot or clone state update can result in multiple snapshots being updated. In order to determine whether or not a
      * shard update has an effect we use an outer loop over all current executing snapshot operations that iterates over them in the order
      * they were started in and an inner loop over the list of shard update tasks.
-     *
+     * <p>
      * If the inner loop finds that a shard update task applies to a given snapshot and either a shard-snapshot or shard-clone operation in
      * it then it will update the state of the snapshot entry accordingly. If that update was a noop, then the task is removed from the
      * iteration as it was already applied before and likely just arrived on the cluster-manager node again due to retries upstream.
@@ -2768,7 +2768,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * a task in the executed tasks collection applied to a shard it was waiting for to become available, then the shard snapshot operation
      * will be started for that snapshot entry and the task removed from the collection of tasks that need to be applied to snapshot
      * entries since it can not have any further effects.
-     *
+     * <p>
      * Package private to allow for tests.
      */
     static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR = new ClusterStateTaskExecutor<ShardSnapshotUpdate>() {
@@ -3058,7 +3058,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     /**
      * An update to the snapshot state of a shard.
-     *
+     * <p>
      * Package private for testing
      */
     static final class ShardSnapshotUpdate {

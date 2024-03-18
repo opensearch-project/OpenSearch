@@ -32,8 +32,6 @@
 
 package org.opensearch.client;
 
-import org.opensearch.action.ActionFuture;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -87,13 +85,13 @@ import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshRequest;
 import org.opensearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRequest;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRequestBuilder;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 import org.opensearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.opensearch.action.admin.indices.rollover.RolloverResponse;
-import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRequest;
-import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRequestBuilder;
-import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
@@ -127,17 +125,24 @@ import org.opensearch.action.admin.indices.upgrade.post.UpgradeResponse;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.opensearch.action.admin.indices.view.CreateViewAction;
+import org.opensearch.action.admin.indices.view.DeleteViewAction;
+import org.opensearch.action.admin.indices.view.GetViewAction;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.action.ActionFuture;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.action.ActionListener;
 
 /**
  * Administrative actions/operations against indices.
  *
  * @see AdminClient#indices()
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface IndicesAdminClient extends OpenSearchClient {
 
     /**
@@ -836,4 +841,28 @@ public interface IndicesAdminClient extends OpenSearchClient {
      * Resolves names and wildcard expressions to indices, aliases, and data streams
      */
     ActionFuture<ResolveIndexAction.Response> resolveIndex(ResolveIndexAction.Request request);
+
+    /** Create a view */
+    void createView(CreateViewAction.Request request, ActionListener<GetViewAction.Response> listener);
+
+    /** Create a view */
+    ActionFuture<GetViewAction.Response> createView(CreateViewAction.Request request);
+
+    /** Get the details of a view */
+    void getView(GetViewAction.Request request, ActionListener<GetViewAction.Response> listener);
+
+    /** Get the details of a view */
+    ActionFuture<GetViewAction.Response> getView(GetViewAction.Request request);
+
+    /** Delete a view */
+    void deleteView(DeleteViewAction.Request request, ActionListener<AcknowledgedResponse> listener);
+
+    /** Delete a view */
+    ActionFuture<AcknowledgedResponse> deleteView(DeleteViewAction.Request request);
+
+    /** Update a view */
+    void updateView(CreateViewAction.Request request, ActionListener<GetViewAction.Response> listener);
+
+    /** Update a view */
+    ActionFuture<GetViewAction.Response> updateView(CreateViewAction.Request request);
 }

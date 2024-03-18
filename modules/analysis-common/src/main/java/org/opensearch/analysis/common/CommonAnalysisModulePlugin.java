@@ -89,6 +89,7 @@ import org.apache.lucene.analysis.it.ItalianAnalyzer;
 import org.apache.lucene.analysis.lt.LithuanianAnalyzer;
 import org.apache.lucene.analysis.lv.LatvianAnalyzer;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
+import org.apache.lucene.analysis.miscellaneous.DelimitedTermFrequencyTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
 import org.apache.lucene.analysis.miscellaneous.LengthFilter;
@@ -128,10 +129,10 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -154,8 +155,6 @@ import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
-import org.tartarus.snowball.ext.DutchStemmer;
-import org.tartarus.snowball.ext.FrenchStemmer;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -164,6 +163,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Supplier;
+
+import org.tartarus.snowball.ext.DutchStemmer;
+import org.tartarus.snowball.ext.FrenchStemmer;
 
 import static org.opensearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
@@ -264,6 +266,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         );
         filters.put("decimal_digit", DecimalDigitFilterFactory::new);
         filters.put("delimited_payload", DelimitedPayloadTokenFilterFactory::new);
+        filters.put("delimited_term_freq", DelimitedTermFrequencyTokenFilterFactory::new);
         filters.put("dictionary_decompounder", requiresAnalysisSettings(DictionaryCompoundWordTokenFilterFactory::new));
         filters.put("dutch_stem", DutchStemTokenFilterFactory::new);
         filters.put("edge_ngram", EdgeNGramTokenFilterFactory::new);
@@ -391,7 +394,17 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         // TODO deprecate and remove in API
         tokenizers.put("lowercase", XLowerCaseTokenizerFactory::new);
         tokenizers.put("path_hierarchy", PathHierarchyTokenizerFactory::new);
-        tokenizers.put("PathHierarchy", PathHierarchyTokenizerFactory::new);
+        tokenizers.put("PathHierarchy", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
+            // TODO Remove "PathHierarchy" tokenizer name in 4.0 and throw exception
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+                deprecationLogger.deprecate(
+                    "PathHierarchy_tokenizer_deprecation",
+                    "The [PathHierarchy] tokenizer name is deprecated and will be removed in a future version. "
+                        + "Please change the tokenizer name to [path_hierarchy] instead."
+                );
+            }
+            return new PathHierarchyTokenizerFactory(indexSettings, environment, name, settings);
+        });
         tokenizers.put("pattern", PatternTokenizerFactory::new);
         tokenizers.put("uax_url_email", UAX29URLEmailTokenizerFactory::new);
         tokenizers.put("whitespace", WhitespaceTokenizerFactory::new);
@@ -499,6 +512,13 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
                 )
             )
         );
+        filters.add(
+            PreConfiguredTokenFilter.singleton(
+                "delimited_term_freq",
+                false,
+                input -> new DelimitedTermFrequencyTokenFilter(input, DelimitedTermFrequencyTokenFilterFactory.DEFAULT_DELIMITER)
+            )
+        );
         filters.add(PreConfiguredTokenFilter.singleton("dutch_stem", false, input -> new SnowballFilter(input, new DutchStemmer())));
         filters.add(PreConfiguredTokenFilter.singleton("edge_ngram", false, false, input -> new EdgeNGramTokenFilter(input, 1)));
         filters.add(PreConfiguredTokenFilter.openSearchVersion("edgeNGram", false, false, (reader, version) -> {
@@ -545,7 +565,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         filters.add(PreConfiguredTokenFilter.singleton("scandinavian_normalization", true, ScandinavianNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("shingle", false, false, input -> {
             TokenStream ts = new ShingleFilter(input);
-            /**
+            /*
              * We disable the graph analysis on this token stream
              * because it produces shingles of different size.
              * Graph analysis on such token stream is useless and dangerous as it may create too many paths
@@ -652,8 +672,17 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
             }
             return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         }));
-        tokenizers.add(PreConfiguredTokenizer.singleton("PathHierarchy", PathHierarchyTokenizer::new));
-
+        tokenizers.add(PreConfiguredTokenizer.openSearchVersion("PathHierarchy", (version) -> {
+            // TODO Remove "PathHierarchy" tokenizer name in 4.0 and throw exception
+            if (version.onOrAfter(Version.V_3_0_0)) {
+                deprecationLogger.deprecate(
+                    "PathHierarchy_tokenizer_deprecation",
+                    "The [PathHierarchy] tokenizer name is deprecated and will be removed in a future version. "
+                        + "Please change the tokenizer name to [path_hierarchy] instead."
+                );
+            }
+            return new PathHierarchyTokenizer();
+        }));
         return tokenizers;
     }
 }

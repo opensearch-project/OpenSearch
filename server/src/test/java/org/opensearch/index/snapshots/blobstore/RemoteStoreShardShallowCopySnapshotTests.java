@@ -8,11 +8,9 @@
 
 package org.opensearch.index.snapshots.blobstore;
 
-import org.opensearch.common.Strings;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -57,11 +55,11 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             fileNames
         );
         String actual;
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+        try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
             builder.startObject();
             shardShallowCopySnapshot.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            actual = Strings.toString(builder);
+            actual = builder.toString();
         }
         String expectedXContent = "{\"version\":\"1\",\"name\":\"test-snapshot\",\"index_version\":1,\"start_time\":123,\"time\":123,"
             + "\"number_of_files\":5,\"total_size\":5,\"index_uuid\":\"syzhajds-ashdlfj\",\"remote_store_repository\":"
@@ -177,7 +175,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
                     fail("shouldn't be here");
             }
 
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
             builder.startObject();
             builder.field(RemoteStoreShardShallowCopySnapshot.VERSION, version);
             builder.field(RemoteStoreShardShallowCopySnapshot.NAME, snapshot);

@@ -32,17 +32,17 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
-import org.opensearch.action.ActionResponse;
-import org.opensearch.core.ParseField;
-import org.opensearch.common.Strings;
-import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -176,7 +176,7 @@ public class ClusterGetSettingsResponse extends ActionResponse implements ToXCon
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 
     @Override

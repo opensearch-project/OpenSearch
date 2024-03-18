@@ -34,12 +34,12 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.core.common.Strings;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
@@ -88,7 +88,7 @@ public class AliasValidator {
         validateAliasStandalone(alias.name(), alias.indexRouting());
         if (Strings.hasLength(alias.filter())) {
             try {
-                XContentHelper.convertToMap(XContentFactory.xContent(alias.filter()), alias.filter(), false);
+                XContentHelper.convertToMap(MediaTypeRegistry.xContent(alias.filter()).xContent(), alias.filter(), false);
             } catch (Exception e) {
                 throw new IllegalArgumentException("failed to parse filter for alias [" + alias.name() + "]", e);
             }
@@ -134,7 +134,8 @@ public class AliasValidator {
     ) {
         assert queryShardContext != null;
         try (
-            XContentParser parser = XContentFactory.xContent(filter)
+            XContentParser parser = MediaTypeRegistry.xContent(filter)
+                .xContent()
                 .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, filter)
         ) {
             validateAliasFilter(parser, queryShardContext);
@@ -158,7 +159,7 @@ public class AliasValidator {
 
         try (
             InputStream inputStream = filter.streamInput();
-            XContentParser parser = XContentFactory.xContentType(inputStream)
+            XContentParser parser = MediaTypeRegistry.xContentType(inputStream)
                 .xContent()
                 .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, filter.streamInput())
         ) {

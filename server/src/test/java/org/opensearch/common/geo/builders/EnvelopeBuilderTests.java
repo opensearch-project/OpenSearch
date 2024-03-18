@@ -32,12 +32,12 @@
 
 package org.opensearch.common.geo.builders;
 
-import org.locationtech.jts.geom.Coordinate;
-
 import org.opensearch.test.geo.RandomShapeGenerator;
-import org.locationtech.spatial4j.shape.Rectangle;
 
 import java.io.IOException;
+
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.spatial4j.shape.Rectangle;
 
 public class EnvelopeBuilderTests extends AbstractShapeBuilderTestCase<EnvelopeBuilder> {
 

@@ -35,13 +35,14 @@ package org.opensearch.discovery.ec2;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
-import org.opensearch.common.settings.MockSecureSettings;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import software.amazon.awssdk.core.Protocol;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
+
+import org.opensearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -200,5 +201,33 @@ public class AwsEc2ServiceImplTests extends AbstractEc2DiscoveryTestCase {
         );
         assertTrue(clientOverrideConfiguration.retryPolicy().isPresent());
         assertThat(clientOverrideConfiguration.retryPolicy().get().numRetries(), is(10));
+    }
+
+    public void testGetFullEndpointWithScheme() {
+        final Settings settings = Settings.builder().put("discovery.ec2.endpoint", "http://ec2.us-west-2.amazonaws.com").build();
+        Ec2ClientSettings clientSettings = Ec2ClientSettings.getClientSettings(settings);
+
+        AwsEc2ServiceImpl awsEc2ServiceImpl = new AwsEc2ServiceImpl();
+
+        String endpoint = awsEc2ServiceImpl.getFullEndpoint(clientSettings.endpoint);
+        assertEquals("http://ec2.us-west-2.amazonaws.com", endpoint);
+
+        assertEquals("http://httpserver.example.com", awsEc2ServiceImpl.getFullEndpoint("http://httpserver.example.com"));
+
+        assertEquals("https://httpserver.example.com", awsEc2ServiceImpl.getFullEndpoint("https://httpserver.example.com"));
+    }
+
+    public void testGetFullEndpointWithoutScheme() {
+        final Settings settings = Settings.builder().put("discovery.ec2.endpoint", "ec2.us-west-2.amazonaws.com").build();
+        Ec2ClientSettings clientSettings = Ec2ClientSettings.getClientSettings(settings);
+
+        AwsEc2ServiceImpl awsEc2ServiceImpl = new AwsEc2ServiceImpl();
+
+        String endpoint = awsEc2ServiceImpl.getFullEndpoint(clientSettings.endpoint);
+        assertEquals("https://ec2.us-west-2.amazonaws.com", endpoint);
+
+        assertEquals("https://httpserver.example.com", awsEc2ServiceImpl.getFullEndpoint("httpserver.example.com"));
+
+        assertNull(awsEc2ServiceImpl.getFullEndpoint(""));
     }
 }

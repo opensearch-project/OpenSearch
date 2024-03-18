@@ -41,6 +41,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 /** Tests plugin manager security check */
+@SuppressWarnings("removal")
 public class PluginSecurityTests extends OpenSearchTestCase {
 
     /** Test that we can parse the set of permissions correctly for a simple policy */

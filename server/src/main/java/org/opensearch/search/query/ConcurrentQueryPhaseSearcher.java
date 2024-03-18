@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.Query;
+import org.opensearch.OpenSearchException;
 import org.opensearch.search.aggregations.AggregationProcessor;
 import org.opensearch.search.aggregations.ConcurrentAggregationProcessor;
 import org.opensearch.search.internal.ContextIndexSearcher;
@@ -103,8 +104,8 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
     }
 
     private static <T extends Exception> void rethrowCauseIfPossible(RuntimeException re, SearchContext searchContext) throws T {
-        // Rethrow exception if cause is null
-        if (re.getCause() == null) {
+        // Rethrow exception if cause is null or if it's an instance of OpenSearchException
+        if (re.getCause() == null || re instanceof OpenSearchException) {
             throw re;
         }
 

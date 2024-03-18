@@ -61,8 +61,8 @@ public class JavaJodaTimeDuellingTests extends OpenSearchTestCase {
     }
 
     public void testTimezoneParsing() {
-        /** this testcase won't work in joda. See comment in {@link #testPartialTimeParsing()}
-         *  assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
+        /* this testcase won't work in joda. See comment in {@link #testPartialTimeParsing()}
+           assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
          */
         assertSameDateAs("2016-11-30T00+01", "strict_date_optional_time", "strict_date_optional_time");
         assertSameDateAs("2016-11-30T00+0100", "strict_date_optional_time", "strict_date_optional_time");
@@ -779,7 +779,9 @@ public class JavaJodaTimeDuellingTests extends OpenSearchTestCase {
         DateTime jodaDate = new DateTime(year, month, day, hour, minute, second, DateTimeZone.UTC);
 
         for (FormatNames format : FormatNames.values()) {
-            if (format == FormatNames.ISO8601 || format == FormatNames.STRICT_DATE_OPTIONAL_TIME_NANOS) {
+            if (format == FormatNames.ISO8601
+                || format == FormatNames.STRICT_DATE_OPTIONAL_TIME_NANOS
+                || format == FormatNames.RFC3339_LENIENT) {
                 // Nanos aren't supported by joda
                 continue;
             }

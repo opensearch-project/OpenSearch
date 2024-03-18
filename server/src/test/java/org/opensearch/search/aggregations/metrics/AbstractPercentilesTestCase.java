@@ -32,10 +32,9 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.opensearch.common.Strings;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregation.CommonFields;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -162,6 +161,6 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
                 + "}";
         }
 
-        assertThat(Strings.toString(builder), equalTo(expected));
+        assertThat(builder.toString(), equalTo(expected));
     }
 }

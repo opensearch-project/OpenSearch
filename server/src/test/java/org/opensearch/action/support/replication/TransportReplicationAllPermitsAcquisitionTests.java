@@ -32,7 +32,6 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterState;
@@ -54,17 +53,19 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
-import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.core.rest.RestStatus;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
@@ -113,7 +114,7 @@ import static org.mockito.Mockito.when;
  * This test tests the concurrent execution of several transport replication actions. All of these actions (except one) acquire a single
  * permit during their execution on shards and are expected to fail if a global level or index level block is present in the cluster state.
  * These actions are all started at the same time, but some are delayed until one last action.
- *
+ * <p>
  * This last action is special because it acquires all the permits on shards, adds the block to the cluster state and then "releases" the
  * previously delayed single permit actions. This way, there is a clear transition between the single permit actions executed before the
  * all permit action that sets the block and those executed afterwards that are doomed to fail because of the block.
@@ -232,7 +233,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             bta -> node1,
             null,
-            emptySet()
+            emptySet(),
+            NoopTracer.INSTANCE
         );
         transportService.start();
         transportService.acceptIncomingRequests();

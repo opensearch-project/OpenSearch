@@ -32,11 +32,11 @@
 
 package org.opensearch.painless;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.script.ScriptContext;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.HashMap;

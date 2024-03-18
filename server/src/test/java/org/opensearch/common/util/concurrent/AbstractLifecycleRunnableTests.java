@@ -33,11 +33,12 @@ package org.opensearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SuppressLoggerChecks;
-import org.opensearch.common.component.Lifecycle;
+import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.test.OpenSearchTestCase;
-import org.mockito.InOrder;
 
 import java.util.concurrent.Callable;
+
+import org.mockito.InOrder;
 
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.inOrder;

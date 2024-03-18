@@ -32,6 +32,7 @@
 
 package org.opensearch.common;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -40,8 +41,9 @@ import java.io.IOException;
 /**
  * Priority levels.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public enum Priority {
 
     IMMEDIATE((byte) 0),

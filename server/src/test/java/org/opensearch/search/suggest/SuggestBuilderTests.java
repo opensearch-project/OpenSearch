@@ -32,20 +32,20 @@
 
 package org.opensearch.search.suggest;
 
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.suggest.completion.CompletionSuggesterBuilderTests;
 import org.opensearch.search.suggest.phrase.PhraseSuggestionBuilderTests;
 import org.opensearch.search.suggest.term.TermSuggestionBuilderTests;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -82,7 +82,7 @@ public class SuggestBuilderTests extends OpenSearchTestCase {
     public void testFromXContent() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
             SuggestBuilder suggestBuilder = randomSuggestBuilder();
-            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
                 xContentBuilder.prettyPrint();
             }

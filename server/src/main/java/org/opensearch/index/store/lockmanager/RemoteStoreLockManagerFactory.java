@@ -8,6 +8,7 @@
 
 package org.opensearch.index.store.lockmanager;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
@@ -22,8 +23,9 @@ import java.util.function.Supplier;
 /**
  * Factory for remote store lock manager
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.8.0")
 public class RemoteStoreLockManagerFactory {
     private static final String SEGMENTS = "segments";
     private static final String LOCK_FILES = "lock_files";
@@ -33,7 +35,7 @@ public class RemoteStoreLockManagerFactory {
         this.repositoriesService = repositoriesService;
     }
 
-    public RemoteStoreMetadataLockManager newLockManager(String repositoryName, String indexUUID, String shardId) throws IOException {
+    public RemoteStoreLockManager newLockManager(String repositoryName, String indexUUID, String shardId) throws IOException {
         return newLockManager(repositoriesService.get(), repositoryName, indexUUID, shardId);
     }
 
@@ -56,6 +58,12 @@ public class RemoteStoreLockManagerFactory {
         } catch (RepositoryMissingException e) {
             throw new IllegalArgumentException("Repository should be present to acquire/release lock", e);
         }
+    }
+
+    // TODO: remove this once we add poller in place to trigger remote store cleanup
+    // see: https://github.com/opensearch-project/OpenSearch/issues/8469
+    public Supplier<RepositoriesService> getRepositoriesService() {
+        return repositoriesService;
     }
 
     private static RemoteBufferedOutputDirectory createRemoteBufferedOutputDirectory(

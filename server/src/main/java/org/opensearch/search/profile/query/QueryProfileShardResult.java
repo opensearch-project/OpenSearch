@@ -32,6 +32,7 @@
 
 package org.opensearch.search.profile.query;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -51,8 +52,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  * A container class to hold the profile results for a single shard in the request.
  * Contains a list of query profiles, a collector tree and a total rewrite tree.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class QueryProfileShardResult implements Writeable, ToXContentObject {
 
     public static final String COLLECTOR = "collector";

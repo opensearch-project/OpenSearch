@@ -10,6 +10,7 @@ package org.opensearch.geo.search.aggregations.bucket;
 
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.geo.GeoModulePluginIntegTestCase;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoGrid;
 import org.opensearch.geo.tests.common.AggregationBuilders;
@@ -19,11 +20,11 @@ import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests making sure that the reduce is propagated to all aggregations in the hierarchy when executing on a single shard
@@ -33,6 +34,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResp
  */
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 public class ShardReduceIT extends GeoModulePluginIntegTestCase {
+
+    public ShardReduceIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
 
     private IndexRequestBuilder indexDoc(String date, int value) throws Exception {
         return client().prepareIndex("idx")

@@ -33,14 +33,14 @@
 package org.opensearch.common.util;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.opensearch.core.common.bytes.PagedBytesReference;
 import org.opensearch.common.recycler.AbstractRecyclerC;
 import org.opensearch.common.recycler.Recycler;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.core.common.bytes.PagedBytesReference;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.util.Arrays;
 import java.util.Locale;

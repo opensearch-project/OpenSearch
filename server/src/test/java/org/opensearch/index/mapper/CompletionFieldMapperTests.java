@@ -46,11 +46,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.opensearch.common.Strings;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
@@ -187,7 +187,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertEquals(
             "{\"field\":{\"type\":\"completion\",\"analyzer\":\"simple\",\"search_analyzer\":\"standard\","
                 + "\"preserve_separators\":false,\"preserve_position_increments\":true,\"max_input_length\":50}}",
-            Strings.toString(XContentType.JSON, fieldMapper)
+            Strings.toString(MediaTypeRegistry.JSON, fieldMapper)
         );
     }
 

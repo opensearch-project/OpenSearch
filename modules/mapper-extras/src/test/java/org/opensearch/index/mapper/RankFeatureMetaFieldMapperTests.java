@@ -32,11 +32,9 @@
 
 package org.opensearch.index.mapper;
 
-import org.opensearch.common.Strings;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -61,18 +59,17 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
     }
 
     public void testBasics() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "rank_feature")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = MediaTypeRegistry.JSON.contentBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "rank_feature")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
@@ -85,13 +82,15 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
      * and parsing of a document fails if the document contains these meta-fields.
      */
     public void testDocumentParsingFailsOnMetaField() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject());
+        String mapping = MediaTypeRegistry.JSON.contentBuilder().startObject().startObject("_doc").endObject().endObject().toString();
         DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
         String rfMetaField = RankFeatureMetaFieldMapper.CONTENT_TYPE;
-        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(rfMetaField, 0).endObject());
+        BytesReference bytes = BytesReference.bytes(
+            MediaTypeRegistry.JSON.contentBuilder().startObject().field(rfMetaField, 0).endObject()
+        );
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON))
+            () -> mapper.parse(new SourceToParse("test", "1", bytes, MediaTypeRegistry.JSON))
         );
         assertTrue(
             e.getCause().getMessage().contains("Field [" + rfMetaField + "] is a metadata field and cannot be added inside a document.")

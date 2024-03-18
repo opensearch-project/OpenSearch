@@ -45,7 +45,7 @@ import jdk.javadoc.doclet.StandardDoclet;
  *   It isn't recursive, just ignores exactly the elements you tell it.
  * Has option --missing-method to apply "method" level to selected packages (fix one at a time).
  *   Matches package names exactly: so you'll need to list subpackages separately.
- *
+ * <p>
  * Note: This by default ignores javadoc validation on overridden methods.
  */
 // Original version of this class is ported from MissingDoclet code in Lucene,

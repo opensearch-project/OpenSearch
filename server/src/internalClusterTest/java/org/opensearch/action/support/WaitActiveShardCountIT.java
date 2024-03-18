@@ -35,12 +35,11 @@ package org.opensearch.action.support;
 import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
-
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
@@ -63,11 +62,11 @@ public class WaitActiveShardCountIT extends OpenSearchIntegTestCase {
         assertAcked(createIndexResponse);
 
         // indexing, by default, will work (waiting for one shard copy only)
-        client().prepareIndex("test").setId("1").setSource(source("1", "test"), XContentType.JSON).execute().actionGet();
+        client().prepareIndex("test").setId("1").setSource(source("1", "test"), MediaTypeRegistry.JSON).execute().actionGet();
         try {
             client().prepareIndex("test")
                 .setId("1")
-                .setSource(source("1", "test"), XContentType.JSON)
+                .setSource(source("1", "test"), MediaTypeRegistry.JSON)
                 .setWaitForActiveShards(2) // wait for 2 active shard copies
                 .setTimeout(timeValueMillis(100))
                 .execute()
@@ -99,7 +98,7 @@ public class WaitActiveShardCountIT extends OpenSearchIntegTestCase {
         // this should work, since we now have two
         client().prepareIndex("test")
             .setId("1")
-            .setSource(source("1", "test"), XContentType.JSON)
+            .setSource(source("1", "test"), MediaTypeRegistry.JSON)
             .setWaitForActiveShards(2)
             .setTimeout(timeValueSeconds(1))
             .execute()
@@ -108,7 +107,7 @@ public class WaitActiveShardCountIT extends OpenSearchIntegTestCase {
         try {
             client().prepareIndex("test")
                 .setId("1")
-                .setSource(source("1", "test"), XContentType.JSON)
+                .setSource(source("1", "test"), MediaTypeRegistry.JSON)
                 .setWaitForActiveShards(ActiveShardCount.ALL)
                 .setTimeout(timeValueMillis(100))
                 .execute()
@@ -143,7 +142,7 @@ public class WaitActiveShardCountIT extends OpenSearchIntegTestCase {
         // this should work, since we now have all shards started
         client().prepareIndex("test")
             .setId("1")
-            .setSource(source("1", "test"), XContentType.JSON)
+            .setSource(source("1", "test"), MediaTypeRegistry.JSON)
             .setWaitForActiveShards(ActiveShardCount.ALL)
             .setTimeout(timeValueSeconds(1))
             .execute()

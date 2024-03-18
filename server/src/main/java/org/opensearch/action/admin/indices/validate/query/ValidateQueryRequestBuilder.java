@@ -34,13 +34,15 @@ package org.opensearch.action.admin.indices.validate.query;
 
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.query.QueryBuilder;
 
 /**
  * Transport Request Builder to Validate a Query
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilder<
     ValidateQueryRequest,
     ValidateQueryResponse,

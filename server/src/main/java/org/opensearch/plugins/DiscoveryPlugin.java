@@ -37,6 +37,7 @@ import org.opensearch.cluster.coordination.ElectionStrategy;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.transport.TransportService;
 
@@ -67,13 +68,10 @@ public interface DiscoveryPlugin {
      * This can be handy if you want to provide your own Network interface name like _mycard_
      * and implement by yourself the logic to get an actual IP address/hostname based on this
      * name.
-     *
+     * <p>
      * For example: you could call a third party service (an API) to resolve _mycard_.
      * Then you could define in opensearch.yml settings like:
-     *
-     * <pre>{@code
-     * network.host: _mycard_
-     * }</pre>
+     * {@code network.host: _mycard_ }
      */
     default NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
         return null;
@@ -81,12 +79,12 @@ public interface DiscoveryPlugin {
 
     /**
      * Returns providers of seed hosts for discovery.
-     *
+     * <p>
      * The key of the returned map is the name of the host provider
      * (see {@link org.opensearch.discovery.DiscoveryModule#DISCOVERY_SEED_PROVIDERS_SETTING}), and
      * the value is a supplier to construct the host provider when it is selected for use.
      *
-     * @param transportService Use to form the {@link org.opensearch.common.transport.TransportAddress} portion
+     * @param transportService Use to form the {@link TransportAddress} portion
      *                         of a {@link org.opensearch.cluster.node.DiscoveryNode}
      * @param networkService Use to find the publish host address of the current node
      */

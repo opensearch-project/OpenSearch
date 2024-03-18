@@ -38,15 +38,15 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.coordination.LinearizabilityChecker;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.AbstractDisruptionTestCase;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -93,7 +93,7 @@ import static org.hamcrest.Matchers.greaterThan;
  *     provided the primaryTerm and seqNo still matches. The reason we cannot assume it will not take place after receiving the failure
  *     is that a request can fork into two because of retries on disconnect, and now race against itself. The retry might complete (and do a
  *     dirty or stale read) before the forked off request gets to execute, and that one might still subsequently succeed.
- *
+ * <p>
  *     Such writes are not necessarily fully replicated and can be lost. There is no
  *     guarantee that the previous value did not have the specified primaryTerm and seqNo</li>
  *     <li>CAS writes with other exceptions might or might not have taken place. If they have taken place, then after invocation but not

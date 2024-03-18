@@ -34,11 +34,10 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.opensearch.common.Strings;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
@@ -95,7 +94,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0));
         DocumentMapper mapper = createDocumentMapper(mapping);
-        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
+        assertEquals(mapping.toString(), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
         IndexableField[] fields = doc.rootDoc().getFields("field");
@@ -136,7 +135,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 
@@ -157,7 +156,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 
@@ -178,7 +177,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 
@@ -201,7 +200,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "123").endObject()),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
         IndexableField[] fields = doc.rootDoc().getFields("field");
@@ -220,7 +219,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "123").endObject()),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
@@ -244,7 +243,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
@@ -258,7 +257,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 
@@ -273,7 +272,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
@@ -286,7 +285,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
         IndexableField[] fields = doc.rootDoc().getFields("field");

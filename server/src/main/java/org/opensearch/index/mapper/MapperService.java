@@ -35,11 +35,10 @@ package org.opensearch.index.mapper;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
-import org.opensearch.core.Assertions;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.Strings;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
@@ -47,11 +46,14 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentContraints;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.Assertions;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -89,8 +91,9 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * The core field mapping service
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
     /**
@@ -98,6 +101,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      *
      * @opensearch.internal
      */
+    @PublicApi(since = "1.0.0")
     public enum MergeReason {
         /**
          * Pre-flight check before sending a mapping update to the cluster-manager
@@ -146,13 +150,45 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         "index.mapping.depth.limit",
         20L,
         1,
+        Long.MAX_VALUE,
+        limit -> {
+            // Make sure XContent constraints are not exceeded (otherwise content processing will fail)
+            if (limit > XContentContraints.DEFAULT_MAX_DEPTH) {
+                throw new IllegalArgumentException(
+                    "The provided value "
+                        + limit
+                        + " of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of "
+                        + XContentContraints.DEFAULT_MAX_DEPTH
+                        + ". Please change the setting value or increase per-JVM limit "
+                        + "using '"
+                        + XContentContraints.DEFAULT_MAX_DEPTH_PROPERTY
+                        + "' system property."
+                );
+            }
+        },
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<Long> INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.field_name_length.limit",
-        Long.MAX_VALUE,
+        50000,
         1L,
+        Long.MAX_VALUE,
+        limit -> {
+            // Make sure XContent constraints are not exceeded (otherwise content processing will fail)
+            if (limit > XContentContraints.DEFAULT_MAX_NAME_LEN) {
+                throw new IllegalArgumentException(
+                    "The provided value "
+                        + limit
+                        + " of the index setting 'index.mapping.field_name_length.limit' exceeds per-JVM configured limit of "
+                        + XContentContraints.DEFAULT_MAX_NAME_LEN
+                        + ". Please change the setting value or increase per-JVM limit "
+                        + "using '"
+                        + XContentContraints.DEFAULT_MAX_NAME_LEN_PROPERTY
+                        + "' system property."
+                );
+            }
+        },
         Property.Dynamic,
         Property.IndexScope
     );
@@ -172,9 +208,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     );
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MapperService.class);
-    static final String DEFAULT_MAPPING_ERROR_MESSAGE = "[_default_] mappings are not allowed on new indices and should no "
-        + "longer be used. See [https://www.elastic.co/guide/en/elasticsearch/reference/current/breaking-changes-7.0.html"
-        + "#default-mapping-not-allowed] for more information.";
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -204,6 +237,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         ScriptService scriptService
     ) {
         super(indexSettings);
+
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.documentParser = new DocumentMapperParser(
@@ -228,7 +262,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.idFieldDataEnabled = idFieldDataEnabled;
 
         if (INDEX_MAPPER_DYNAMIC_SETTING.exists(indexSettings.getSettings())) {
-            throw new IllegalArgumentException("Setting " + INDEX_MAPPER_DYNAMIC_SETTING.getKey() + " was removed after version 6.0.0");
+            deprecationLogger.deprecate(
+                index().getName() + INDEX_MAPPER_DYNAMIC_SETTING.getKey(),
+                "Index [{}] has setting [{}] that is not supported in OpenSearch, its value will be ignored.",
+                index().getName(),
+                INDEX_MAPPER_DYNAMIC_SETTING.getKey()
+            );
         }
     }
 
@@ -253,7 +292,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, String mappingSource) throws IOException {
         try (
-            XContentParser parser = XContentType.JSON.xContent()
+            XContentParser parser = MediaTypeRegistry.JSON.xContent()
                 .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, mappingSource)
         ) {
             return parser.map();
@@ -348,7 +387,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                         + "to be the same as new mapping ["
                         + newSource
                         + "]";
-                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(XContentType.JSON, mapper));
+                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(MediaTypeRegistry.JSON, mapper));
                     assert currentSource.equals(mapperSource) : "expected current mapping ["
                         + currentSource
                         + "] for type ["
@@ -394,7 +433,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             try {
                 mappingSourcesCompressed.put(
                     entry.getKey(),
-                    new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(entry.getValue())))
+                    new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).toString())
                 );
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
@@ -405,7 +444,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public void merge(String type, Map<String, Object> mappings, MergeReason reason) throws IOException {
-        CompressedXContent content = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(mappings)));
+        CompressedXContent content = new CompressedXContent(XContentFactory.jsonBuilder().map(mappings).toString());
         internalMerge(Collections.singletonMap(type, content), reason);
     }
 
@@ -543,7 +582,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static boolean isMappingSourceTyped(String type, CompressedXContent mappingSource) {
-        Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, XContentType.JSON).v2();
+        Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, MediaTypeRegistry.JSON).v2();
         return isMappingSourceTyped(type, root);
     }
 
