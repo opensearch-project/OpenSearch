@@ -348,6 +348,7 @@ public class RemoteClusterStateService implements Closeable {
         final Map<String, Metadata.Custom> customsToUpload = getUpdatedCustoms(clusterState, previousClusterState);
         final Map<String, UploadedMetadataAttribute> allUploadedCustomMap = new HashMap<>(previousManifest.getCustomMetadataMap());
         for (final String custom : clusterState.metadata().customs().keySet()) {
+            // remove all the customs which are present currently
             previousStateCustomMap.remove(custom);
         }
 
@@ -398,14 +399,14 @@ public class RemoteClusterStateService implements Closeable {
             );
         }
 
+        // update the map if the metadata was uploaded
         uploadedMetadataResults.uploadedIndexMetadata.forEach(
             uploadedIndexMetadata -> allUploadedIndexMetadata.put(uploadedIndexMetadata.getIndexName(), uploadedIndexMetadata)
         );
         allUploadedCustomMap.putAll(uploadedMetadataResults.uploadedCustomMetadataMap);
+        // remove the data for removed custom/indices
         previousStateCustomMap.keySet().forEach(allUploadedCustomMap::remove);
-        for (String removedIndexName : previousStateIndexMetadataVersionByName.keySet()) {
-            allUploadedIndexMetadata.remove(removedIndexName);
-        }
+        previousStateIndexMetadataVersionByName.keySet().forEach(allUploadedIndexMetadata::remove);
         final ClusterMetadataManifest manifest = uploadManifest(
             clusterState,
             new ArrayList<>(allUploadedIndexMetadata.values()),
@@ -726,20 +727,20 @@ public class RemoteClusterStateService implements Closeable {
                 committed,
                 ClusterMetadataManifest.CODEC_V1
             );
-            final ClusterMetadataManifest manifest = new ClusterMetadataManifest(
-                clusterState.term(),
-                clusterState.getVersion(),
-                clusterState.metadata().clusterUUID(),
-                clusterState.stateUUID(),
-                Version.CURRENT,
-                nodeId,
-                committed,
-                ClusterMetadataManifest.CODEC_V1,
-                globalMetadataFileName,
-                uploadedIndexMetadata,
-                previousClusterUUID,
-                clusterState.metadata().clusterUUIDCommitted()
-            );
+            ClusterMetadataManifest manifest = ClusterMetadataManifest.builder()
+                .clusterTerm(clusterState.term())
+                .stateVersion(clusterState.getVersion())
+                .clusterUUID(clusterState.metadata().clusterUUID())
+                .stateUUID(clusterState.stateUUID())
+                .opensearchVersion(Version.CURRENT)
+                .nodeId(nodeId)
+                .committed(committed)
+                .codecVersion(ClusterMetadataManifest.CODEC_V1)
+                .globalMetadataFileName(globalMetadataFileName)
+                .indices(uploadedIndexMetadata)
+                .previousClusterUUID(previousClusterUUID)
+                .clusterUUIDCommitted(clusterState.metadata().clusterUUIDCommitted())
+                .build();
             writeMetadataManifest(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), manifest, manifestFileName);
             return manifest;
         }
@@ -897,7 +898,9 @@ public class RemoteClusterStateService implements Closeable {
         Set<String> currentCustoms = new HashSet<>(currentState.metadata().customs().keySet());
         for (Map.Entry<String, Metadata.Custom> cursor : previousState.metadata().customs().entrySet()) {
             if (cursor.getValue().context().contains(Metadata.XContentContext.GATEWAY)) {
-                if (!cursor.getValue().equals(currentState.metadata().custom(cursor.getKey()))) {
+                if (currentCustoms.contains(cursor.getKey()) &&
+                    !cursor.getValue().equals(currentState.metadata().custom(cursor.getKey()))) {
+                    // If the custom metadata is updated, we need to upload the new version.
                     updatedCustom.put(cursor.getKey(), currentState.metadata().custom(cursor.getKey()));
                 }
                 currentCustoms.remove(cursor.getKey());

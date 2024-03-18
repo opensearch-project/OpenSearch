@@ -31,24 +31,26 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V0;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
+
 public class ClusterMetadataManifestTests extends OpenSearchTestCase {
 
     public void testClusterMetadataManifestXContentV0() throws IOException {
         UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
-        ClusterMetadataManifest originalManifest = new ClusterMetadataManifest(
-            1L,
-            1L,
-            "test-cluster-uuid",
-            "test-state-uuid",
-            Version.CURRENT,
-            "test-node-id",
-            false,
-            ClusterMetadataManifest.CODEC_V0,
-            null,
-            Collections.singletonList(uploadedIndexMetadata),
-            "prev-cluster-uuid",
-            true
-        );
+        ClusterMetadataManifest originalManifest = ClusterMetadataManifest.builder()
+            .clusterTerm(1L)
+            .stateVersion(1L)
+            .clusterUUID("test-cluster-uuid")
+            .stateUUID("test-state-uuid")
+            .opensearchVersion(Version.CURRENT)
+            .nodeId("test-node-id")
+            .committed(false)
+            .codecVersion(CODEC_V0)
+            .indices(Collections.singletonList(uploadedIndexMetadata))
+            .previousClusterUUID("prev-cluster-uuid")
+            .clusterUUIDCommitted(true)
+            .build();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         originalManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -62,20 +64,20 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
 
     public void testClusterMetadataManifestXContentV1() throws IOException {
         UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
-        ClusterMetadataManifest originalManifest = new ClusterMetadataManifest(
-            1L,
-            1L,
-            "test-cluster-uuid",
-            "test-state-uuid",
-            Version.CURRENT,
-            "test-node-id",
-            false,
-            ClusterMetadataManifest.CODEC_V1,
-            "test-global-metadata-file",
-            Collections.singletonList(uploadedIndexMetadata),
-            "prev-cluster-uuid",
-            true
-        );
+        ClusterMetadataManifest originalManifest = ClusterMetadataManifest.builder()
+            .clusterTerm(1L)
+            .stateVersion(1L)
+            .clusterUUID("test-cluster-uuid")
+            .stateUUID("test-state-uuid")
+            .opensearchVersion(Version.CURRENT)
+            .nodeId("test-node-id")
+            .committed(false)
+            .codecVersion(CODEC_V1)
+            .globalMetadataFileName("test-global-metadata-file")
+            .indices(Collections.singletonList(uploadedIndexMetadata))
+            .previousClusterUUID("prev-cluster-uuid")
+            .clusterUUIDCommitted(true)
+            .build();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         originalManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);

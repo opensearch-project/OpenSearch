@@ -164,7 +164,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         fields -> ClusterMetadataManifest.builder()
             .clusterTerm(term(fields))
             .stateVersion(version(fields))
-            .previousClusterUUID(clusterUUID(fields))
+            .clusterUUID(clusterUUID(fields))
             .stateUUID(stateUUID(fields))
             .opensearchVersion(opensearchVersion(fields))
             .nodeId(nodeId(fields))

@@ -727,6 +727,52 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         });
     }
 
+    public void testCustomMetadataDeletedUpdatedAndAdded() throws IOException {
+        // setup
+        mockBlobStoreObjects();
+
+        // Initial cluster state with index.
+        final ClusterState initialClusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+        remoteClusterStateService.start();
+        final ClusterMetadataManifest initialManifest = remoteClusterStateService.writeFullMetadata(initialClusterState, "_na_");
+
+        ClusterState clusterState1 = ClusterState.builder(initialClusterState)
+            .metadata(
+                Metadata.builder(initialClusterState.metadata())
+                    .putCustom("custom1", new CustomMetadata1("mock_custom_metadata1"))
+                    .putCustom("custom2", new CustomMetadata1("mock_custom_metadata2"))
+                    .putCustom("custom3", new CustomMetadata1("mock_custom_metadata3"))
+            ).build();
+
+        ClusterMetadataManifest manifest1 = remoteClusterStateService.writeIncrementalMetadata(
+            initialClusterState,
+            clusterState1,
+            initialManifest
+        );
+        // remove custom1 from the cluster state, update custom2, custom3 is at it is, added custom4
+        ClusterState clusterState2 = ClusterState.builder(initialClusterState)
+            .metadata(
+                Metadata.builder(initialClusterState.metadata())
+                    .putCustom("custom2", new CustomMetadata1("mock_updated_custom_metadata"))
+                    .putCustom("custom3", new CustomMetadata1("mock_custom_metadata3"))
+                    .putCustom("custom4", new CustomMetadata1("mock_custom_metadata4"))
+            ).build();
+        ClusterMetadataManifest manifest2 = remoteClusterStateService.writeIncrementalMetadata(
+            clusterState1,
+            clusterState2,
+            manifest1
+        );
+        // custom1 is removed
+        assertFalse(manifest2.getCustomMetadataMap().containsKey("custom1"));
+        // custom2 is updated
+        assertNotEquals(manifest1.getCustomMetadataMap().get("custom2"), manifest2.getCustomMetadataMap().get("custom2"));
+        // custom3 is unchanged
+        assertEquals(manifest1.getCustomMetadataMap().get("custom3"), manifest2.getCustomMetadataMap().get("custom3"));
+        // custom4 is added
+        assertTrue(manifest2.getCustomMetadataMap().containsKey("custom4"));
+        assertFalse(manifest1.getCustomMetadataMap().containsKey("custom4"));
+    }
+
     /*
      * Here we will verify global metadata is not uploaded again if change is only in index metadata
      */
@@ -758,9 +804,6 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         });
     }
 
-    /*
-     * Here we will verify index metadata is not uploaded again if change is only in global metadata
-     */
     private void verifyMetadataAttributeOnlyUpdated(
         Function<ClusterState, ClusterState> clusterStateUpdater,
         BiConsumer<ClusterMetadataManifest, ClusterMetadataManifest> assertions
