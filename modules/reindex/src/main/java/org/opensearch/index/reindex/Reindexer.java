@@ -54,6 +54,7 @@ import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
@@ -141,7 +142,8 @@ public class Reindexer {
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
                 AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(
                     task,
-                    logger,
+                    // Added prefix based logger(destination index) to distinguish multiple reindex jobs for easier debugging.
+                    Loggers.getLogger(Reindexer.class, String.valueOf(request.getDestination().index())),
                     assigningClient,
                     threadPool,
                     scriptService,

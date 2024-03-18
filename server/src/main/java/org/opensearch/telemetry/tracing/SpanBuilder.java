@@ -15,6 +15,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.common.Strings;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.Transport;
@@ -196,4 +197,43 @@ public final class SpanBuilder {
         return attributes;
     }
 
+    /**
+     * Creates {@link SpanCreationContext} with parent set to specified SpanContext.
+     * @param spanName name of span.
+     * @param parentSpan target parent span.
+     * @return context
+     */
+    public static SpanCreationContext from(String spanName, SpanContext parentSpan) {
+        return SpanCreationContext.server().name(spanName).parent(parentSpan);
+    }
+
+    /**
+     * Creates {@link SpanCreationContext} with parent set to specified SpanContext.
+     * @param task search task.
+     * @param actionName action.
+     * @return context
+     */
+    public static SpanCreationContext from(Task task, String actionName) {
+        return SpanCreationContext.server().name(createSpanName(task, actionName)).attributes(buildSpanAttributes(task, actionName));
+    }
+
+    private static Attributes buildSpanAttributes(Task task, String actionName) {
+        Attributes attributes = Attributes.create().addAttribute(AttributeNames.TRANSPORT_ACTION, actionName);
+        if (task != null) {
+            attributes.addAttribute(AttributeNames.TASK_ID, task.getId());
+            if (task.getParentTaskId() != null && task.getParentTaskId().isSet()) {
+                attributes.addAttribute(AttributeNames.PARENT_TASK_ID, task.getParentTaskId().getId());
+            }
+        }
+        return attributes;
+
+    }
+
+    private static String createSpanName(Task task, String actionName) {
+        if (task != null) {
+            return task.getType() + SEPARATOR + task.getAction();
+        } else {
+            return actionName;
+        }
+    }
 }

@@ -407,6 +407,11 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
             }
             return iterator.next().getKey();
         }
+
+        @Override
+        public void remove() {
+            iterator.remove(); // Calls underlying ehcache iterator.remove()
+        }
     }
 
     /**
