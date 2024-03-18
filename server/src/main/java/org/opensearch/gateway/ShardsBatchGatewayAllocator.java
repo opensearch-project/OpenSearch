@@ -226,22 +226,29 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
         ConcurrentMap<String, ShardsBatch> currentBatches = primary ? batchIdToStartedShardBatch : batchIdToStoreShardBatch;
         // get all batched shards
-        Set<ShardId> currentBatchedShards = currentBatches.values()
-            .stream()
-            .map(ShardsBatch::getBatchedShards)
-            .flatMap(Set::stream)
-            .collect(Collectors.toSet());
+        Map<ShardId, String> currentBatchShards = new HashMap<>();
+        for (Map.Entry<String, ShardsBatch> batchEntry : currentBatches.entrySet()) {
+            batchEntry.getValue().getBatchedShards()
+                .forEach(shardId -> currentBatchShards.put(shardId,
+                    batchEntry.getKey()));
+        }
 
         Set<ShardRouting> shardsToBatch = Sets.newHashSet();
         // add all unassigned shards to the batch if they are not already in a batch
         unassigned.forEach(shardRouting -> {
-            if ((currentBatchedShards.contains(shardRouting.shardId()) == false) && (shardRouting.primary() == primary)) {
+            if ((currentBatchShards.containsKey(shardRouting.shardId()) == false) && (shardRouting.primary() == primary)) {
                 assert shardRouting.unassigned();
                 shardsToBatch.add(shardRouting);
             }
             // if shard is already batched update to latest shardRouting information in the batches
+            // Replica shard assignment can be cancelled if we get a better match. These ShardRouting objects also
+            // store other information like relocating node, targetRelocatingShard etc. And it can be updated after
+            // batches are created. If we don't update the ShardRouting object, stale data would be passed from the
+            // batch. This stale data can end up creating a same decision which has already been taken, and we'll see
+            // failure in executeDecision of BaseGatewayShardAllocator. Previous non-batch mode flow also used to
+            // pass ShardRouting object directly from unassignedIterator, so we're following the same behaviour.
             else if (shardRouting.primary() == primary) {
-                String batchId = getBatchId(shardRouting, shardRouting.primary());
+                String batchId = currentBatchShards.get(shardRouting.shardId());
                 batchesToBeAssigned.add(batchId);
                 currentBatches.get(batchId).batchInfo.get(shardRouting.shardId()).setShardRouting(shardRouting);
             }
@@ -253,17 +260,15 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         Map<ShardId, ShardEntry> shardsToAddToCurrentBatch = new HashMap<>();
         while (iterator.hasNext()) {
             ShardRouting currentShard = iterator.next();
-            if (batchSize > 0) {
-                ShardEntry shardEntry = new ShardEntry(
-                    new ShardAttributes(
-                        IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(currentShard.index()).getSettings())
-                    ),
-                    currentShard
-                );
-                shardsToAddToCurrentBatch.put(currentShard.shardId(), shardEntry);
-                batchSize--;
-                iterator.remove();
-            }
+            ShardEntry shardEntry = new ShardEntry(
+                new ShardAttributes(
+                    IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(currentShard.index()).getSettings())
+                ),
+                currentShard
+            );
+            shardsToAddToCurrentBatch.put(currentShard.shardId(), shardEntry);
+            batchSize--;
+            iterator.remove();
             // add to batch if batch size full or last shard in unassigned list
             if (batchSize == 0 || iterator.hasNext() == false) {
                 String batchUUId = UUIDs.base64UUID();
@@ -294,14 +299,15 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
      * so that we can clean up the batch if it is empty and release the fetching resources
      *
      * @param shardRouting shard to be removed
+     * @param primary from which batch shard needs to be removed
      */
-    protected void safelyRemoveShardFromBatch(ShardRouting shardRouting) {
-        String batchId = shardRouting.primary() ? getBatchId(shardRouting, true) : getBatchId(shardRouting, false);
+    protected void safelyRemoveShardFromBatch(ShardRouting shardRouting, boolean primary) {
+        String batchId = primary ? getBatchId(shardRouting, true) : getBatchId(shardRouting, false);
         if (batchId == null) {
             logger.debug("Shard[{}] is not batched", shardRouting);
             return;
         }
-        ConcurrentMap<String, ShardsBatch> batches = shardRouting.primary() ? batchIdToStartedShardBatch : batchIdToStoreShardBatch;
+        ConcurrentMap<String, ShardsBatch> batches = primary ? batchIdToStartedShardBatch : batchIdToStoreShardBatch;
         ShardsBatch batch = batches.get(batchId);
         batch.removeFromBatch(shardRouting);
         deleteBatchIfEmpty(batches, batchId);
@@ -314,21 +320,8 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
      * @param shardRouting shard to remove
      */
     protected void safelyRemoveShardFromBothBatch(ShardRouting shardRouting) {
-        String primaryBatchId = getBatchId(shardRouting, true);
-        String replicaBatchId = getBatchId(shardRouting, false);
-        if (primaryBatchId == null && replicaBatchId == null) {
-            return;
-        }
-        if (primaryBatchId != null) {
-            ShardsBatch batch = batchIdToStartedShardBatch.get(primaryBatchId);
-            batch.removeFromBatch(shardRouting);
-            deleteBatchIfEmpty(batchIdToStartedShardBatch, primaryBatchId);
-        }
-        if (replicaBatchId != null) {
-            ShardsBatch batch = batchIdToStoreShardBatch.get(replicaBatchId);
-            batch.removeFromBatch(shardRouting);
-            deleteBatchIfEmpty(batchIdToStoreShardBatch, replicaBatchId);
-        }
+        safelyRemoveShardFromBatch(shardRouting, true);
+        safelyRemoveShardFromBatch(shardRouting, false);
     }
 
     private void deleteBatchIfEmpty(ConcurrentMap<String, ShardsBatch> batches, String batchId) {
@@ -425,7 +418,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         return false;
     }
 
-    class InternalBatchAsyncFetch<T extends BaseNodeResponse, V extends BaseShardResponse> extends AsyncShardBatchFetch<T, V> {
+    class InternalBatchAsyncFetch<T extends BaseNodeResponse, V> extends AsyncShardBatchFetch<T, V> {
         InternalBatchAsyncFetch(
             Logger logger,
             String type,
@@ -496,7 +489,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
             ShardsBatch shardsBatch = batchIdToStartedShardBatch.get(batchId);
             // remove in eligible shards which allocator is not responsible for
-            inEligibleShards.forEach(ShardsBatchGatewayAllocator.this::safelyRemoveShardFromBatch);
+            inEligibleShards.forEach(sr -> safelyRemoveShardFromBatch(sr, sr.primary()));
 
             if (shardsBatch.getBatchedShards().isEmpty() && eligibleShards.isEmpty()) {
                 logger.debug("Batch {} is empty", batchId);
@@ -508,7 +501,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
             for (ShardId shardId : shardsBatch.asyncBatch.shardAttributesMap.keySet()) {
                 shardToIgnoreNodes.put(shardId, allocation.getIgnoreNodes(shardId));
             }
-            AsyncShardBatchFetch<? extends BaseNodeResponse, ? extends BaseShardResponse> asyncFetcher = shardsBatch.getAsyncFetcher();
+            AsyncShardBatchFetch<? extends BaseNodeResponse, ?> asyncFetcher = shardsBatch.getAsyncFetcher();
             AsyncShardFetch.FetchResult<? extends BaseNodeResponse> shardBatchState = asyncFetcher.fetchData(
                 allocation.nodes(),
                 shardToIgnoreNodes
@@ -551,7 +544,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
             ShardsBatch shardsBatch = batchIdToStoreShardBatch.get(batchId);
             // remove in eligible shards which allocator is not responsible for
-            inEligibleShards.forEach(ShardsBatchGatewayAllocator.this::safelyRemoveShardFromBatch);
+            inEligibleShards.forEach(sr -> safelyRemoveShardFromBatch(sr, sr.primary()));
 
             if (shardsBatch.getBatchedShards().isEmpty() && eligibleShards.isEmpty()) {
                 logger.debug("Batch {} is empty", batchId);
@@ -561,7 +554,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
             for (ShardId shardId : shardsBatch.asyncBatch.shardAttributesMap.keySet()) {
                 shardToIgnoreNodes.put(shardId, allocation.getIgnoreNodes(shardId));
             }
-            AsyncShardBatchFetch<? extends BaseNodeResponse, ? extends BaseShardResponse> asyncFetcher = shardsBatch.getAsyncFetcher();
+            AsyncShardBatchFetch<? extends BaseNodeResponse, ?> asyncFetcher = shardsBatch.getAsyncFetcher();
             AsyncShardFetch.FetchResult<? extends BaseNodeResponse> shardBatchStores = asyncFetcher.fetchData(
                 allocation.nodes(),
                 shardToIgnoreNodes
@@ -589,7 +582,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         private final String batchId;
         private final boolean primary;
 
-        private final InternalBatchAsyncFetch<? extends BaseNodeResponse, ? extends BaseShardResponse> asyncBatch;
+        private final InternalBatchAsyncFetch<? extends BaseNodeResponse, ?> asyncBatch;
 
         private final Map<ShardId, ShardEntry> batchInfo;
 
@@ -664,7 +657,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
             return batchId;
         }
 
-        public AsyncShardBatchFetch<? extends BaseNodeResponse, ? extends BaseShardResponse> getAsyncFetcher() {
+        public AsyncShardBatchFetch<? extends BaseNodeResponse, ?> getAsyncFetcher() {
             return asyncBatch;
         }
 
@@ -725,7 +718,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     }
 
     public int getNumberOfStartedShardBatches() {
-        return batchIdToStoreShardBatch.size();
+        return batchIdToStartedShardBatch.size();
     }
 
     public int getNumberOfStoreShardBatches() {

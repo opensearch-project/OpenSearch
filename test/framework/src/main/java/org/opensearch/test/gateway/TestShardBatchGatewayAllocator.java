@@ -109,7 +109,7 @@ public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator 
     }
 
     public void safelyRemoveShardFromBatch(ShardRouting shard) {
-        super.safelyRemoveShardFromBatch(shard);
+        super.safelyRemoveShardFromBatch(shard, shard.primary());
     }
 
     public void safelyRemoveShardFromBothBatch(ShardRouting shardRouting) {
