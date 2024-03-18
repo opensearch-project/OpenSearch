@@ -109,8 +109,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
         @Override
         @SuppressWarnings({ "unchecked" })
         public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
-            return new Builder<K, V>()
-                .setKeySerializer((Serializer<K, byte[]>) config.getKeySerializer())
+            return new Builder<K, V>().setKeySerializer((Serializer<K, byte[]>) config.getKeySerializer())
                 .setValueSerializer((Serializer<V, byte[]>) config.getValueSerializer())
                 .setMaxSize(maxSize)
                 .setDeliberateDelay(delay)

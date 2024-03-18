@@ -10,8 +10,6 @@ package org.opensearch.cache.store.disk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.ehcache.core.spi.service.FileBasedPersistenceContext;
-import org.ehcache.spi.serialization.SerializerException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cache.EhcacheDiskCacheSettings;
 import org.opensearch.common.SuppressForbidden;
@@ -55,6 +53,7 @@ import org.ehcache.config.builders.CacheManagerBuilder;
 import org.ehcache.config.builders.PooledExecutionServiceConfigurationBuilder;
 import org.ehcache.config.builders.ResourcePoolsBuilder;
 import org.ehcache.config.units.MemoryUnit;
+import org.ehcache.core.spi.service.FileBasedPersistenceContext;
 import org.ehcache.event.CacheEvent;
 import org.ehcache.event.CacheEventListener;
 import org.ehcache.event.EventType;
@@ -62,6 +61,7 @@ import org.ehcache.expiry.ExpiryPolicy;
 import org.ehcache.impl.config.store.disk.OffHeapDiskStoreConfiguration;
 import org.ehcache.spi.loaderwriter.CacheLoadingException;
 import org.ehcache.spi.loaderwriter.CacheWritingException;
+import org.ehcache.spi.serialization.SerializerException;
 
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_CACHE_ALIAS_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY;
@@ -445,13 +445,17 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                     assert event.getOldValue() == null;
                     break;
                 case EVICTED:
-                    this.removalListener.onRemoval(new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.EVICTED));
+                    this.removalListener.onRemoval(
+                        new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.EVICTED)
+                    );
                     entries.dec();
                     assert event.getNewValue() == null;
                     break;
                 case REMOVED:
                     entries.dec();
-                    this.removalListener.onRemoval(new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.EXPLICIT));
+                    this.removalListener.onRemoval(
+                        new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.EXPLICIT)
+                    );
                     assert event.getNewValue() == null;
                     break;
                 case EXPIRED:
@@ -474,6 +478,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
      */
     private class KeySerializerWrapper<T> implements org.ehcache.spi.serialization.Serializer<T> {
         private Serializer<T, byte[]> serializer;
+
         public KeySerializerWrapper(Serializer<T, byte[]> keySerializer) {
             this.serializer = keySerializer;
         }
@@ -507,8 +512,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
      * Wrapper allowing Ehcache to serialize ByteArrayWrapper.
      */
     private static class ByteArrayWrapperSerializer implements org.ehcache.spi.serialization.Serializer<ByteArrayWrapper> {
-        public ByteArrayWrapperSerializer() {
-        }
+        public ByteArrayWrapperSerializer() {}
 
         // This constructor must be present, but does not have to work as we are not actually persisting the disk
         // cache after a restart.
@@ -573,6 +577,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         public EhcacheDiskCacheFactory() {}
 
         @Override
+        @SuppressWarnings({ "unchecked" }) // Required to ensure the serializers output byte[]
         public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
             Map<String, Setting<?>> settingList = EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType);
             Settings settings = config.getSettings();
@@ -742,9 +747,11 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
      */
     static class ByteArrayWrapper {
         private final byte[] value;
+
         public ByteArrayWrapper(byte[] value) {
             this.value = value;
         }
+
         @Override
         public boolean equals(Object o) {
             if (o == null || o.getClass() != ByteArrayWrapper.class) {
