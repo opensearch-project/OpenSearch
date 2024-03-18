@@ -26,8 +26,8 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayStartedShard;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.store.ShardAttributes;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
@@ -135,7 +135,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
      */
     @Override
     protected NodeGatewayStartedShardsBatch nodeOperation(NodeRequest request) {
-        Map<ShardId, NodeGatewayStartedShard> shardsOnNode = new HashMap<>();
+        Map<ShardId, GatewayStartedShard> shardsOnNode = new HashMap<>();
         for (Map.Entry<ShardId, ShardAttributes> shardAttr : request.shardAttributes.entrySet()) {
             final ShardId shardId = shardAttr.getKey();
             try {
@@ -158,7 +158,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
                     shardsOnNode.put(shardId, null);
                 } else {
                     // return actual exception as it is for unknown exceptions
-                    shardsOnNode.put(shardId, new NodeGatewayStartedShard(null, false, null, e));
+                    shardsOnNode.put(shardId, new GatewayStartedShard(null, false, null, e));
                 }
             }
         }
@@ -252,117 +252,6 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
     }
 
     /**
-     * This class encapsulates the metadata about a started shard that needs to be persisted or sent between nodes.
-     * This is used in {@link NodeGatewayStartedShardsBatch} to construct the response for each node, instead of
-     * {@link TransportNodesListGatewayStartedShards.NodeGatewayStartedShards} because we don't need to save an extra
-     * {@link DiscoveryNode} object like in {@link TransportNodesListGatewayStartedShards.NodeGatewayStartedShards}
-     * which reduces memory footprint of its objects.
-     *
-     * @opensearch.internal
-     */
-    public static class NodeGatewayStartedShard extends BaseShardResponse {
-        private final String allocationId;
-        private final boolean primary;
-        private final ReplicationCheckpoint replicationCheckpoint;
-
-        @Override
-        public boolean isEmpty() {
-            return allocationId == null && primary == false && getException() == null && replicationCheckpoint == null;
-        }
-
-        public NodeGatewayStartedShard(StreamInput in) throws IOException {
-            super(in);
-            allocationId = in.readOptionalString();
-            primary = in.readBoolean();
-            if (in.readBoolean()) {
-                replicationCheckpoint = new ReplicationCheckpoint(in);
-            } else {
-                replicationCheckpoint = null;
-            }
-        }
-
-        public NodeGatewayStartedShard(String allocationId, boolean primary, ReplicationCheckpoint replicationCheckpoint) {
-            this(allocationId, primary, replicationCheckpoint, null);
-        }
-
-        public NodeGatewayStartedShard(
-            String allocationId,
-            boolean primary,
-            ReplicationCheckpoint replicationCheckpoint,
-            Exception storeException
-        ) {
-            super(storeException);
-            this.allocationId = allocationId;
-            this.primary = primary;
-            this.replicationCheckpoint = replicationCheckpoint;
-        }
-
-        public String allocationId() {
-            return this.allocationId;
-        }
-
-        public boolean primary() {
-            return this.primary;
-        }
-
-        public ReplicationCheckpoint replicationCheckpoint() {
-            return this.replicationCheckpoint;
-        }
-
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalString(allocationId);
-            out.writeBoolean(primary);
-            if (replicationCheckpoint != null) {
-                out.writeBoolean(true);
-                replicationCheckpoint.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-            }
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            NodeGatewayStartedShard that = (NodeGatewayStartedShard) o;
-
-            return primary == that.primary
-                && Objects.equals(allocationId, that.allocationId)
-                && Objects.equals(getException(), that.getException())
-                && Objects.equals(replicationCheckpoint, that.replicationCheckpoint);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = (allocationId != null ? allocationId.hashCode() : 0);
-            result = 31 * result + (primary ? 1 : 0);
-            result = 31 * result + (getException() != null ? getException().hashCode() : 0);
-            result = 31 * result + (replicationCheckpoint != null ? replicationCheckpoint.hashCode() : 0);
-            return result;
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder buf = new StringBuilder();
-            buf.append("NodeGatewayStartedShards[").append("allocationId=").append(allocationId).append(",primary=").append(primary);
-            if (getException() != null) {
-                buf.append(",storeException=").append(getException());
-            }
-            if (replicationCheckpoint != null) {
-                buf.append(",ReplicationCheckpoint=").append(replicationCheckpoint.toString());
-            }
-            buf.append("]");
-            return buf.toString();
-        }
-    }
-
-    /**
      * This is the response from a single node, this is used in {@link NodesGatewayStartedShardsBatch} for creating
      * node to its response mapping for this transport request.
      * Refer {@link TransportNodesAction} start method
@@ -370,9 +259,9 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
      * @opensearch.internal
      */
     public static class NodeGatewayStartedShardsBatch extends BaseNodeResponse {
-        private final Map<ShardId, NodeGatewayStartedShard> nodeGatewayStartedShardsBatch;
+        private final Map<ShardId, GatewayStartedShard> nodeGatewayStartedShardsBatch;
 
-        public Map<ShardId, NodeGatewayStartedShard> getNodeGatewayStartedShardsBatch() {
+        public Map<ShardId, GatewayStartedShard> getNodeGatewayStartedShardsBatch() {
             return nodeGatewayStartedShardsBatch;
         }
 
@@ -380,7 +269,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
             super(in);
             this.nodeGatewayStartedShardsBatch = in.readMap(ShardId::new, i -> {
                 if (i.readBoolean()) {
-                    return new NodeGatewayStartedShard(i);
+                    return new GatewayStartedShard(i);
                 } else {
                     return null;
                 }
@@ -400,7 +289,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
             });
         }
 
-        public NodeGatewayStartedShardsBatch(DiscoveryNode node, Map<ShardId, NodeGatewayStartedShard> nodeGatewayStartedShardsBatch) {
+        public NodeGatewayStartedShardsBatch(DiscoveryNode node, Map<ShardId, GatewayStartedShard> nodeGatewayStartedShardsBatch) {
             super(node);
             this.nodeGatewayStartedShardsBatch = nodeGatewayStartedShardsBatch;
         }
