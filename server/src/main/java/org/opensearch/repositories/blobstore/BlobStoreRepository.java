@@ -3388,7 +3388,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())
                         ) == false)
                     || (remoteStoreLockManagerFactory != null
-                        && extractShallowSnapshotUUID(blob).map(survivingSnapshotUUIDs::contains).orElse(false))
+                        && extractShallowSnapshotUUID(blob).map(snapshotUUID -> !survivingSnapshotUUIDs.contains(snapshotUUID))
+                            .orElse(false))
                     || (blob.startsWith(UPLOADED_DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
                     || FsBlobContainer.isTempBlobName(blob)
             )
