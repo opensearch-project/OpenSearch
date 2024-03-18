@@ -12,17 +12,26 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.node.IoUsageStats;
 import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControllerStats;
+import org.opensearch.rest.AbstractRestChannel;
+import org.opensearch.rest.RestResponse;
+import org.opensearch.rest.action.admin.indices.RestGetAliasesAction;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
 import org.junit.Before;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE;
 import static org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings.CLUSTER_ADMIN_CPU_USAGE_LIMIT;
@@ -37,6 +46,7 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
     public static final String INDEX_NAME = "test_index";
 
     private String clusterManagerNodeId;
+    private String datanode;
     private ResourceUsageCollectorService cMResourceCollector;
 
     private static final Settings DISABLE_ADMISSION_CONTROL = Settings.builder()
@@ -54,7 +64,7 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
         String clusterManagerNode = internalCluster().startClusterManagerOnlyNode(
             Settings.builder().put(DISABLE_ADMISSION_CONTROL).build()
         );
-        internalCluster().startDataOnlyNode(Settings.builder().put(DISABLE_ADMISSION_CONTROL).build());
+        datanode = internalCluster().startDataOnlyNode(Settings.builder().put(DISABLE_ADMISSION_CONTROL).build());
 
         ensureClusterSizeConsistency();
         ensureGreen();
@@ -68,7 +78,7 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(ENFORCE_ADMISSION_CONTROL).execute().actionGet();
     }
 
-    public void testAdmissionControlEnforced() throws InterruptedException {
+    public void testAdmissionControlEnforced() throws Exception {
         cMResourceCollector.collectNodeResourceUsageStats(clusterManagerNodeId, System.currentTimeMillis(), 97, 99, new IoUsageStats(98));
 
         // Write API on ClusterManager
@@ -85,7 +95,6 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
         }
 
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(DISABLE_ADMISSION_CONTROL).execute().actionGet();
-
         GetAliasesResponse getAliasesResponse = dataNodeClient().admin().indices().getAliases(aliasesRequest).actionGet();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
 
@@ -126,6 +135,33 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
         GetAliasesResponse getAliasesResponse = dataNodeClient().admin().indices().getAliases(aliasesRequest).actionGet();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
 
+    }
+
+    public void testAdmissionControlResponseStatus() throws Exception {
+        cMResourceCollector.collectNodeResourceUsageStats(clusterManagerNodeId, System.currentTimeMillis(), 97, 99, new IoUsageStats(98));
+
+        // Write API on ClusterManager
+        assertAcked(prepareCreate("test").setMapping("field", "type=text").setAliases("{\"alias1\" : {}}"));
+
+        // Read API on ClusterManager
+        FakeRestRequest aliasesRequest = new FakeRestRequest();
+        aliasesRequest.params().put("name", "alias1");
+        CountDownLatch waitForResponse = new CountDownLatch(1);
+        AtomicReference<RestResponse> aliasResponse = new AtomicReference<>();
+        AbstractRestChannel channel = new AbstractRestChannel(aliasesRequest, true) {
+
+            @Override
+            public void sendResponse(RestResponse response) {
+                waitForResponse.countDown();
+                aliasResponse.set(response);
+            }
+        };
+
+        RestGetAliasesAction restHandler = internalCluster().getInstance(RestGetAliasesAction.class, datanode);
+        restHandler.handleRequest(aliasesRequest, channel, internalCluster().getInstance(NodeClient.class, datanode));
+
+        waitForResponse.await();
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, aliasResponse.get().status());
     }
 
     @Override
