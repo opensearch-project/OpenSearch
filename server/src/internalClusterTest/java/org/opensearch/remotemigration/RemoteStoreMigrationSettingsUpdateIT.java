@@ -9,8 +9,10 @@
 package org.opensearch.remotemigration;
 
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Optional;
@@ -20,6 +22,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.STRICT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.Direction.REMOTE_STORE;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.MIXED;
 
@@ -28,6 +31,10 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeService.Compatibili
 public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationAllocationIT {
 
     protected static final String NAME = "remote_store_migration";
+
+
+    // remote store backed index setting tests
+
     public void testNewIndexIsRemoteStoreBackedForRemoteStoreDirectionAndMixedMode() {
         logger.info(" --> initialize cluster: gives non remote cluster manager");
         initializeCluster(false);
@@ -60,6 +67,38 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationAl
 
         logger.info(" --> verify that remote backed index is created");
         assertRemoteStoreBackedIndex(indexName2);
+    }
+
+
+    // compatibility mode setting test
+    public void testSwitchToStrictMode()  throws Exception {
+        logger.info(" --> initialize cluster");
+        initializeCluster(false);
+
+        logger.info(" --> create a mixed mode cluster");
+        setClusterMode(MIXED.mode);
+        addRemote = true;
+        String remoteNodeName = internalCluster().startNode();
+        addRemote = false;
+        String nonRemoteNodeName = internalCluster().startNode();
+        internalCluster().validateClusterFormed();
+
+        logger.info(" --> attempt switching to strict mode");
+        SettingsException exception = assertThrows(
+            SettingsException.class,
+            () -> setClusterMode(STRICT.mode)
+        );
+        assertEquals(
+            "can not switch to STRICT compatibility mode when the cluster contains both remote and non-remote nodes",
+            exception.getMessage()
+        );
+
+        logger.info(" --> stop remote node");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(remoteNodeName));
+        ensureStableCluster(2);
+
+        logger.info(" --> attempt switching to strict mode");
+        setClusterMode(STRICT.mode);
     }
 
     // verify that the created index is not remote store backed

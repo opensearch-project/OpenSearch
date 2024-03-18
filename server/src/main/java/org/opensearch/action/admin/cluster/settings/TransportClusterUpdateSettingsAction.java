@@ -53,12 +53,15 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Transport action for updating cluster settings
@@ -137,6 +140,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
         final ClusterState state,
         final ActionListener<ClusterUpdateSettingsResponse> listener
     ) {
+        validateCompatibilityModeSettingRequest(request, state);
         final SettingsUpdater updater = new SettingsUpdater(clusterSettings);
         clusterService.submitStateUpdateTask(
             "cluster_update_settings",
@@ -264,4 +268,24 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
         );
     }
 
+    private void validateCompatibilityModeSettingRequest(ClusterUpdateSettingsRequest request, ClusterState state) {
+        if (RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.exists(request.persistentSettings())) {
+            String value = request.persistentSettings().get(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey());
+            if (value.equals(RemoteStoreNodeService.CompatibilityMode.STRICT.mode)) {
+                boolean hasRemoteNode = false, hasNonRemoteNode = false;
+                Map<String, DiscoveryNode> nodes = state.nodes().getNodes();
+                for (Map.Entry<String, DiscoveryNode> entry : nodes.entrySet()) {
+                    DiscoveryNode node = entry.getValue();
+                    if (node.isRemoteStoreNode()) {
+                        hasRemoteNode = true;
+                        continue;
+                    }
+                    hasNonRemoteNode = true;
+                }
+                if (hasRemoteNode && hasNonRemoteNode) {
+                    throw new SettingsException("can not switch to STRICT compatibility mode when the cluster contains both remote and non-remote nodes");
+                }
+            }
+        }
+    }
 }
