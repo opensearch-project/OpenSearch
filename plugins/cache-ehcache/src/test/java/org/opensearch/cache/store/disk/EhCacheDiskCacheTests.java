@@ -8,6 +8,10 @@
 
 package org.opensearch.cache.store.disk;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakAction;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakZombies;
 import org.opensearch.cache.EhcacheDiskCacheSettings;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
@@ -38,6 +42,7 @@ import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_MAX_SIZE_IN_BYT
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_STORAGE_PATH_KEY;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
+@ThreadLeakScope(ThreadLeakScope.Scope.TEST)
 public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
     private static final int CACHE_SIZE_IN_BYTES = 1024 * 101;
@@ -514,8 +519,10 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                     iterator.remove();
                 }
             }
+            int count = 0;
             // Verify the removed key doesn't exist anymore.
             for (String ehcacheKey : removedKeyList) {
+                System.out.println("SAGARX count = " + count++);
                 assertNull(ehcacheTest.get(ehcacheKey));
             }
             // Verify ehcache entry size again.
@@ -523,6 +530,74 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             ehcacheTest.close();
         }
 
+    }
+
+    public void testInvalidateAll() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setIsEventListenerModeSync(true)
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setSettings(settings)
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setRemovalListener(removalListener)
+                .build();
+            int randomKeys = randomIntBetween(10, 100);
+            Map<String, String> keyValueMap = new HashMap<>();
+            for (int i = 0; i < randomKeys; i++) {
+                keyValueMap.put(UUID.randomUUID().toString(), UUID.randomUUID().toString());
+            }
+            for (Map.Entry<String, String> entry : keyValueMap.entrySet()) {
+                ehcacheTest.put(entry.getKey(), entry.getValue());
+            }
+            ehcacheTest.invalidateAll(); // clear all the entries.
+            for (Map.Entry<String, String> entry : keyValueMap.entrySet()) {
+                assertNull(ehcacheTest.get(entry.getKey()));
+            }
+            ehcacheTest.close();
+        }
+    }
+
+    public void testInvalidate() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setIsEventListenerModeSync(true)
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setSettings(settings)
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setRemovalListener(removalListener)
+                .build();
+            int randomKeys = randomIntBetween(10, 100);
+            Map<String, String> keyValueMap = new HashMap<>();
+            for (int i = 0; i < randomKeys; i++) {
+                keyValueMap.put(UUID.randomUUID().toString(), UUID.randomUUID().toString());
+            }
+            for (Map.Entry<String, String> entry : keyValueMap.entrySet()) {
+                ehcacheTest.put(entry.getKey(), entry.getValue());
+            }
+            List<String> removedKeyList = new ArrayList<>();
+            for (Map.Entry<String, String> entry : keyValueMap.entrySet()) {
+                if (randomBoolean()) {
+                    removedKeyList.add(entry.getKey());
+                    ehcacheTest.invalidate(entry.getKey());
+                }
+            }
+            for (String removedKey: removedKeyList) {
+                assertNull(ehcacheTest.get(removedKey));
+            }
+            ehcacheTest.close();
+        }
     }
 
     private static String generateRandomString(int length) {

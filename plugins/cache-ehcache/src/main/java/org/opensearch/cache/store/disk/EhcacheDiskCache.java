@@ -10,6 +10,7 @@ package org.opensearch.cache.store.disk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cache.EhcacheDiskCacheSettings;
 import org.opensearch.common.SuppressForbidden;
@@ -29,6 +30,10 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.Map;
@@ -57,6 +62,7 @@ import org.ehcache.expiry.ExpiryPolicy;
 import org.ehcache.impl.config.store.disk.OffHeapDiskStoreConfiguration;
 import org.ehcache.spi.loaderwriter.CacheLoadingException;
 import org.ehcache.spi.loaderwriter.CacheWritingException;
+import org.opensearch.common.util.io.IOUtils;
 
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_CACHE_ALIAS_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY;
@@ -347,7 +353,9 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     }
 
     @Override
-    public void invalidateAll() {}
+    public void invalidateAll() {
+        cache.clear();
+    }
 
     /**
      * Provides a way to iterate over disk cache keys.
@@ -378,8 +386,16 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         cacheManager.close();
         try {
             cacheManager.destroyCache(this.diskCacheAlias);
+            // Delete all the disk cache related files/data
+            Path ehcacheDirectory = Paths.get(this.storagePath);
+            if (Files.exists(ehcacheDirectory)) {
+                IOUtils.rm(ehcacheDirectory);
+            }
         } catch (CachePersistenceException e) {
             throw new OpenSearchException("Exception occurred while destroying ehcache and associated data", e);
+        } catch (IOException e) {
+            logger.error(() -> new ParameterizedMessage("Failed to delete ehcache disk cache data under path: {}",
+                this.storagePath));
         }
     }
 

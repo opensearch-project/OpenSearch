@@ -151,8 +151,9 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         cache.invalidateAll();
+        cache.close();
     }
 
     void clear(CacheEntity entity) {
