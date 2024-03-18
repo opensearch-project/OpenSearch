@@ -377,7 +377,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
     }
 
     public void testJoinClusterWithRemoteStoreNodeJoining() {
-        DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        Map<String, String> map = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO);
+        DiscoveryNode joiningNode = newDiscoveryNode(map);
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(joiningNode).build())
             .build();
@@ -582,10 +583,92 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             );
             assertTrue(
                 e.getMessage().equals("joining node [" + joiningNode + "] doesn't have the node attribute [" + nodeAttribute.getKey() + "]")
+                    || e.getMessage()
+                        .equals(
+                            "a remote store node ["
+                                + joiningNode
+                                + "] is trying to join a remote store cluster with incompatible node attributes in comparison with existing node ["
+                                + currentState.getNodes().getNodes().values().stream().findFirst().get()
+                                + "]"
+                        )
             );
 
             remoteStoreNodeAttributes.put(nodeAttribute.getKey(), nodeAttribute.getValue());
         }
+    }
+
+    public void testJoinClusterWithRemoteStateNodeJoiningRemoteStateCluster() {
+        Map<String, String> existingNodeAttributes = remoteStateNodeAttributes(CLUSTER_STATE_REPO);
+        final DiscoveryNode existingNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            existingNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
+            .build();
+        DiscoveryNode joiningNode = newDiscoveryNode(remoteStateNodeAttributes(CLUSTER_STATE_REPO));
+        JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata());
+    }
+
+    public void testPreventJoinClusterWithRemoteStateNodeJoiningRemoteStoreCluster() {
+        Map<String, String> existingNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO);
+        final DiscoveryNode existingNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            existingNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
+            .build();
+        DiscoveryNode joiningNode = newDiscoveryNode(remoteStateNodeAttributes(CLUSTER_STATE_REPO));
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
+        );
+        assertTrue(
+            e.getMessage()
+                .equals(
+                    "a remote store node ["
+                        + joiningNode
+                        + "] is trying to join a remote store cluster with incompatible node attributes in comparison with existing node ["
+                        + currentState.getNodes().getNodes().values().stream().findFirst().get()
+                        + "]"
+                )
+        );
+    }
+
+    public void testPreventJoinClusterWithRemoteStoreNodeJoiningRemoteStateCluster() {
+        Map<String, String> existingNodeAttributes = remoteStateNodeAttributes(CLUSTER_STATE_REPO);
+        final DiscoveryNode existingNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            existingNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
+            .build();
+        DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
+        );
+        assertTrue(
+            e.getMessage()
+                .equals(
+                    "a remote store node ["
+                        + joiningNode
+                        + "] is trying to join a remote store cluster with incompatible node attributes in comparison with existing node ["
+                        + currentState.getNodes().getNodes().values().stream().findFirst().get()
+                        + "]"
+                )
+        );
     }
 
     public void testUpdatesClusterStateWithSingleNodeCluster() throws Exception {
@@ -869,6 +952,23 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
             translogRepoName
         );
+
+        return new HashMap<>() {
+            {
+                put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName);
+                put(segmentRepositoryTypeAttributeKey, "s3");
+                put(segmentRepositorySettingsAttributeKeyPrefix + "bucket", "segment_bucket");
+                put(segmentRepositorySettingsAttributeKeyPrefix + "base_path", "/segment/path");
+                put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, translogRepoName);
+                putIfAbsent(translogRepositoryTypeAttributeKey, "s3");
+                putIfAbsent(translogRepositorySettingsAttributeKeyPrefix + "bucket", "translog_bucket");
+                putIfAbsent(translogRepositorySettingsAttributeKeyPrefix + "base_path", "/translog/path");
+                putAll(remoteStateNodeAttributes(clusterStateRepo));
+            }
+        };
+    }
+
+    private Map<String, String> remoteStateNodeAttributes(String clusterStateRepo) {
         String clusterStateRepositoryTypeAttributeKey = String.format(
             Locale.getDefault(),
             REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
@@ -882,14 +982,6 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
         return new HashMap<>() {
             {
-                put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName);
-                put(segmentRepositoryTypeAttributeKey, "s3");
-                put(segmentRepositorySettingsAttributeKeyPrefix + "bucket", "segment_bucket");
-                put(segmentRepositorySettingsAttributeKeyPrefix + "base_path", "/segment/path");
-                put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, translogRepoName);
-                putIfAbsent(translogRepositoryTypeAttributeKey, "s3");
-                putIfAbsent(translogRepositorySettingsAttributeKeyPrefix + "bucket", "translog_bucket");
-                putIfAbsent(translogRepositorySettingsAttributeKeyPrefix + "base_path", "/translog/path");
                 put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, clusterStateRepo);
                 putIfAbsent(clusterStateRepositoryTypeAttributeKey, "s3");
                 putIfAbsent(clusterStateRepositorySettingsAttributeKeyPrefix + "bucket", "state_bucket");
