@@ -9,7 +9,6 @@
 package org.opensearch.gateway;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
@@ -75,11 +74,7 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
                     }
                 }
             }
-            AsyncShardFetch.FetchResult<NodeStoreFilesMetadataBatch> shardState = fetchData(
-                eligibleShards,
-                ineligibleShards,
-                allocation
-            );
+            AsyncShardFetch.FetchResult<NodeStoreFilesMetadataBatch> shardState = fetchData(eligibleShards, ineligibleShards, allocation);
             if (!shardState.hasData()) {
                 logger.trace("{}: fetching new stores for initializing shard batch", eligibleShards);
                 continue; // still fetching
@@ -164,11 +159,7 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
             return shardAllocationDecisions;
         }
         // only fetch data for eligible shards
-        final FetchResult<NodeStoreFilesMetadataBatch> shardsState = fetchData(
-            eligibleShards,
-            ineligibleShards,
-            allocation
-        );
+        final FetchResult<NodeStoreFilesMetadataBatch> shardsState = fetchData(eligibleShards, ineligibleShards, allocation);
 
         for (ShardRouting unassignedShard : eligibleShards) {
             Tuple<Decision, Map<String, NodeAllocationResult>> result = nodeAllocationDecisions.get(unassignedShard);
@@ -185,11 +176,13 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
         }
         return shardAllocationDecisions;
     }
-    private Map<DiscoveryNode, StoreFilesMetadata> convertToNodeStoreFilesMetadataMap(
-            ShardRouting unassignedShard,
-            FetchResult<NodeStoreFilesMetadataBatch> data) {
 
-        if(!data.hasData()) {
+    private Map<DiscoveryNode, StoreFilesMetadata> convertToNodeStoreFilesMetadataMap(
+        ShardRouting unassignedShard,
+        FetchResult<NodeStoreFilesMetadataBatch> data
+    ) {
+
+        if (!data.hasData()) {
             return new HashMap<>();
         }
 

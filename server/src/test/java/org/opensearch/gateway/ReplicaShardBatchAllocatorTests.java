@@ -68,7 +68,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class ReplicaShardBatchAllocatorTest extends OpenSearchAllocationTestCase {
+public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCase {
     private static final org.apache.lucene.util.Version MIN_SUPPORTED_LUCENE_VERSION = org.opensearch.Version.CURRENT
         .minimumIndexCompatibilityVersion().luceneVersion;
     private final ShardId shardId = new ShardId("test", "_na_", 0);
