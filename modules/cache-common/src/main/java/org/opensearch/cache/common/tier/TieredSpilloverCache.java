@@ -8,19 +8,23 @@
 
 package org.opensearch.cache.common.tier;
 
+import org.opensearch.cache.common.policy.TookTimePolicy;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.iterable.Iterables;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +32,7 @@ import java.util.Objects;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * This cache spillover the evicted items from heap tier to disk tier. All the new items are first cached on heap
@@ -52,6 +57,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
      * Maintains caching tiers in ascending order of cache latency.
      */
     private final List<ICache<K, V>> cacheList;
+    private final List<Predicate<V>> policies;
 
     TieredSpilloverCache(Builder<K, V> builder) {
         Objects.requireNonNull(builder.onHeapCacheFactory, "onHeap cache builder can't be null");
@@ -63,7 +69,9 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 @Override
                 public void onRemoval(RemovalNotification<K, V> notification) {
                     try (ReleasableLock ignore = writeLock.acquire()) {
-                        diskCache.put(notification.getKey(), notification.getValue());
+                        if (evaluatePolicies(notification.getValue())) {
+                            diskCache.put(notification.getKey(), notification.getValue());
+                        }
                     }
                 }
             })
@@ -71,6 +79,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 .setValueType(builder.cacheConfig.getValueType())
                 .setSettings(builder.cacheConfig.getSettings())
                 .setWeigher(builder.cacheConfig.getWeigher())
+                .setMaxSizeInBytes(builder.cacheConfig.getMaxSizeInBytes()) // TODO: Part of a workaround for an issue in TSC. Overall fix
+                                                                            // coming soon
                 .build(),
             builder.cacheType,
             builder.cacheFactories
@@ -78,6 +88,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         );
         this.diskCache = builder.diskCacheFactory.create(builder.cacheConfig, builder.cacheType, builder.cacheFactories);
         this.cacheList = Arrays.asList(onHeapCache, diskCache);
+
+        this.policies = builder.policies; // Will never be null; builder initializes it to an empty list
     }
 
     // Package private for testing
@@ -192,6 +204,15 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         };
     }
 
+    boolean evaluatePolicies(V value) {
+        for (Predicate<V> policy : policies) {
+            if (!policy.test(value)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Factory to create TieredSpilloverCache objects.
      */
@@ -231,11 +252,21 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 );
             }
             ICache.Factory diskCacheFactory = cacheFactories.get(diskCacheStoreName);
+
+            TimeValue diskPolicyThreshold = TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD
+                .getConcreteSettingForNamespace(cacheType.getSettingPrefix())
+                .get(settings);
+            Function<V, CachedQueryResult.PolicyValues> cachedResultParser = Objects.requireNonNull(
+                config.getCachedResultParser(),
+                "Cached result parser fn can't be null"
+            );
+
             return new Builder<K, V>().setDiskCacheFactory(diskCacheFactory)
                 .setOnHeapCacheFactory(onHeapCacheFactory)
                 .setRemovalListener(config.getRemovalListener())
                 .setCacheConfig(config)
                 .setCacheType(cacheType)
+                .addPolicy(new TookTimePolicy<V>(diskPolicyThreshold, cachedResultParser))
                 .build();
         }
 
@@ -257,6 +288,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         private CacheConfig<K, V> cacheConfig;
         private CacheType cacheType;
         private Map<String, ICache.Factory> cacheFactories;
+        private final ArrayList<Predicate<V>> policies = new ArrayList<>();
 
         /**
          * Default constructor
@@ -320,6 +352,26 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
          */
         public Builder<K, V> setCacheFactories(Map<String, ICache.Factory> cacheFactories) {
             this.cacheFactories = cacheFactories;
+            return this;
+        }
+
+        /**
+         * Set a cache policy to be used to limit access to this cache's disk tier.
+         * @param policy the policy
+         * @return builder
+         */
+        public Builder<K, V> addPolicy(Predicate<V> policy) {
+            this.policies.add(policy);
+            return this;
+        }
+
+        /**
+         * Set multiple policies to be used to limit access to this cache's disk tier.
+         * @param policies the policies
+         * @return builder
+         */
+        public Builder<K, V> addPolicies(List<Predicate<V>> policies) {
+            this.policies.addAll(policies);
             return this;
         }
 
