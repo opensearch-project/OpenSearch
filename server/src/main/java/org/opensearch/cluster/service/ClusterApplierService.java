@@ -92,10 +92,6 @@ import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonTh
 public class ClusterApplierService extends AbstractLifecycleComponent implements ClusterApplier {
     private static final Logger logger = LogManager.getLogger(ClusterApplierService.class);
 
-    private static final String LATENCY_METRIC_UNIT = "ms";
-
-    private static final String LATENCY_METRIC_OPERATION_TAG_KEY = "Operation";
-
     public static final Setting<TimeValue> CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING = Setting.positiveTimeSetting(
         "cluster.service.slow_task_logging_threshold",
         TimeValue.timeValueSeconds(30),
@@ -128,9 +124,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private NodeConnectionsService nodeConnectionsService;
 
-    private final Histogram clusterStateAppliersHistogram;
+    private Histogram clusterStateAppliersHistogram;
 
-    private final Histogram clusterStateListenersHistogram;
+    private Histogram clusterStateListenersHistogram;
 
     public ClusterApplierService(
         String nodeName,
@@ -149,16 +145,19 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
             this::setSlowTaskLoggingThreshold
         );
+        initializeMetrics(metricsRegistry);
+    }
 
+    private void initializeMetrics(MetricsRegistry metricsRegistry) {
         this.clusterStateAppliersHistogram = metricsRegistry.createHistogram(
             "cluster.state.appliers.latency",
             "Histogram for tracking the latency of cluster state appliers",
-            LATENCY_METRIC_UNIT
+            "ms"
         );
         this.clusterStateListenersHistogram = metricsRegistry.createHistogram(
             "cluster.state.listeners.latency",
             "Histogram for tracking the latency of cluster state listeners",
-            LATENCY_METRIC_UNIT
+            "ms"
         );
     }
 
@@ -633,12 +632,11 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         for (ClusterStateApplier applier : clusterStateAppliers) {
             logger.trace("calling [{}] with change to version [{}]", applier, clusterChangedEvent.state().version());
             try (TimingHandle ignored = stopWatch.timing("running applier [" + applier + "]")) {
-                long applierStartTimeMS = System.currentTimeMillis();
+                long applierStartTimeNS = System.nanoTime();
                 applier.applyClusterState(clusterChangedEvent);
-                double applierExecutionTimeMS = (double) Math.max(0, System.currentTimeMillis() - applierStartTimeMS);
                 clusterStateAppliersHistogram.record(
-                    applierExecutionTimeMS,
-                    Tags.create().addTag(LATENCY_METRIC_OPERATION_TAG_KEY, applier.getClass().getSimpleName())
+                    (double) Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - applierStartTimeNS)),
+                    Tags.create().addTag("Operation", applier.getClass().getSimpleName())
                 );
             }
         }
@@ -658,12 +656,11 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             try {
                 logger.trace("calling [{}] with change to version [{}]", listener, clusterChangedEvent.state().version());
                 try (TimingHandle ignored = stopWatch.timing("notifying listener [" + listener + "]")) {
-                    long listenerStartTimeMS = System.currentTimeMillis();
+                    long listenerStartTimeNS = System.nanoTime();
                     listener.clusterChanged(clusterChangedEvent);
-                    double listenerExecutionTimeMS = (double) Math.max(0, System.currentTimeMillis() - listenerStartTimeMS);
                     clusterStateListenersHistogram.record(
-                        listenerExecutionTimeMS,
-                        Tags.create().addTag(LATENCY_METRIC_OPERATION_TAG_KEY, listener.getClass().getSimpleName())
+                        (double) Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - listenerStartTimeNS)),
+                        Tags.create().addTag("Operation", listener.getClass().getSimpleName())
                     );
                 }
             } catch (Exception ex) {

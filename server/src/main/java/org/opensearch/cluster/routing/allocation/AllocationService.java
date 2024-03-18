@@ -54,6 +54,7 @@ import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PriorityComparator;
 import org.opensearch.snapshots.SnapshotsInfoService;
@@ -547,12 +548,12 @@ public class AllocationService {
         assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), allocation).isEmpty()
             : "auto-expand replicas out of sync with number of nodes in the cluster";
         assert assertInitialized();
-        long rerouteStartTimeMS = System.currentTimeMillis();
+        long rerouteStartTimeNS = System.nanoTime();
         removeDelayMarkers(allocation);
 
         allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
         shardsAllocator.allocate(allocation);
-        this.rerouteHistogram.record((double) Math.max(0, System.currentTimeMillis() - rerouteStartTimeMS));
+        this.rerouteHistogram.record((double) Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - rerouteStartTimeNS)));
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
     }
 
