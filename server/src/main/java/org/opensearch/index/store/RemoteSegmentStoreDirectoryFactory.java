@@ -76,4 +76,5 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", e);
         }
     }
+
 }

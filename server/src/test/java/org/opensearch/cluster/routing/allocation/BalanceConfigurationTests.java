@@ -157,6 +157,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         settings.put(BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE.getKey(), preferPrimaryBalance);
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), shardBalance);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), balanceThreshold);
+        settings.put(BalancedShardsAllocator.PREFER_RANDOM_SHARD_ALLOCATION.getKey(), randomBoolean());
         return settings;
     }
 
