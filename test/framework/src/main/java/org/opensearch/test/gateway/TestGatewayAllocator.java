@@ -92,7 +92,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
                         routing -> currentNodes.get(routing.currentNodeId()),
                         routing -> new NodeGatewayStartedShards(
                             currentNodes.get(routing.currentNodeId()),
-                            new TransportNodesGatewayStartedShardHelper.GatewayShardStarted(
+                            new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(
                                 routing.allocationId().getId(),
                                 routing.primary(),
                                 getReplicationCheckpoint(shardId, routing.currentNodeId()),

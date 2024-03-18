@@ -15,7 +15,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.gateway.AsyncShardFetch.FetchResult;
-import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.NodeGatewayShardStarted;
+import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.NodeGatewayStartedShard;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch;
 
 import java.util.ArrayList;
@@ -99,7 +99,7 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
 
         // process the received data
         for (ShardRouting unassignedShard : eligibleShards) {
-            List<NodeGatewayShardStarted> nodeShardStates = adaptToNodeShardStates(unassignedShard, shardsState);
+            List<NodeGatewayStartedShard> nodeShardStates = adaptToNodeShardStates(unassignedShard, shardsState);
             // get allocation decision for this shard
             shardAllocationDecisions.put(unassignedShard, getAllocationDecision(unassignedShard, allocation, nodeShardStates, logger));
         }
@@ -120,23 +120,23 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
      * @param shardsState fetch data result for the whole batch
      * @return shard state returned from each node
      */
-    private static List<NodeGatewayShardStarted> adaptToNodeShardStates(
+    private static List<NodeGatewayStartedShard> adaptToNodeShardStates(
         ShardRouting unassignedShard,
         FetchResult<NodeGatewayStartedShardsBatch> shardsState
     ) {
         if (!shardsState.hasData()) {
             return null;
         }
-        List<NodeGatewayShardStarted> nodeShardStates = new ArrayList<>();
+        List<NodeGatewayStartedShard> nodeShardStates = new ArrayList<>();
         Map<DiscoveryNode, NodeGatewayStartedShardsBatch> nodeResponses = shardsState.getData();
 
         // build data for a shard from all the nodes
         nodeResponses.forEach((node, nodeGatewayStartedShardsBatch) -> {
-            TransportNodesGatewayStartedShardHelper.GatewayShardStarted shardData = nodeGatewayStartedShardsBatch
+            TransportNodesGatewayStartedShardHelper.GatewayStartedShard shardData = nodeGatewayStartedShardsBatch
                 .getNodeGatewayStartedShardsBatch()
                 .get(unassignedShard.shardId());
             nodeShardStates.add(
-                new NodeGatewayShardStarted(
+                new NodeGatewayStartedShard(
                     shardData.allocationId(),
                     shardData.primary(),
                     shardData.replicationCheckpoint(),

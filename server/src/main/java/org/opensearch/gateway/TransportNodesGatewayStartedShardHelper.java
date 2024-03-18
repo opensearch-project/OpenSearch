@@ -42,7 +42,7 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class TransportNodesGatewayStartedShardHelper {
-    public static GatewayShardStarted getShardInfoOnLocalNode(
+    public static GatewayStartedShard getShardInfoOnLocalNode(
         Logger logger,
         final ShardId shardId,
         NamedXContentRegistry namedXContentRegistry,
@@ -95,21 +95,21 @@ public class TransportNodesGatewayStartedShardHelper {
                         exception
                     );
                     String allocationId = shardStateMetadata.allocationId != null ? shardStateMetadata.allocationId.getId() : null;
-                    return new GatewayShardStarted(allocationId, shardStateMetadata.primary, null, exception);
+                    return new GatewayStartedShard(allocationId, shardStateMetadata.primary, null, exception);
                 }
             }
 
             logger.debug("{} shard state info found: [{}]", shardId, shardStateMetadata);
             String allocationId = shardStateMetadata.allocationId != null ? shardStateMetadata.allocationId.getId() : null;
             final IndexShard shard = indicesService.getShardOrNull(shardId);
-            return new GatewayShardStarted(
+            return new GatewayStartedShard(
                 allocationId,
                 shardStateMetadata.primary,
                 shard != null ? shard.getLatestReplicationCheckpoint() : null
             );
         }
         logger.trace("{} no local shard info found", shardId);
-        return new GatewayShardStarted(null, false, null);
+        return new GatewayStartedShard(null, false, null);
     }
 
     /**
@@ -121,13 +121,13 @@ public class TransportNodesGatewayStartedShardHelper {
      *
      * @opensearch.internal
      */
-    public static class GatewayShardStarted {
+    public static class GatewayStartedShard {
         private final String allocationId;
         private final boolean primary;
         private final Exception storeException;
         private final ReplicationCheckpoint replicationCheckpoint;
 
-        public GatewayShardStarted(StreamInput in) throws IOException {
+        public GatewayStartedShard(StreamInput in) throws IOException {
             allocationId = in.readOptionalString();
             primary = in.readBoolean();
             if (in.readBoolean()) {
@@ -142,11 +142,11 @@ public class TransportNodesGatewayStartedShardHelper {
             }
         }
 
-        public GatewayShardStarted(String allocationId, boolean primary, ReplicationCheckpoint replicationCheckpoint) {
+        public GatewayStartedShard(String allocationId, boolean primary, ReplicationCheckpoint replicationCheckpoint) {
             this(allocationId, primary, replicationCheckpoint, null);
         }
 
-        public GatewayShardStarted(
+        public GatewayStartedShard(
             String allocationId,
             boolean primary,
             ReplicationCheckpoint replicationCheckpoint,
@@ -200,7 +200,7 @@ public class TransportNodesGatewayStartedShardHelper {
                 return false;
             }
 
-            GatewayShardStarted that = (GatewayShardStarted) o;
+            GatewayStartedShard that = (GatewayStartedShard) o;
 
             return primary == that.primary
                 && Objects.equals(allocationId, that.allocationId)
@@ -233,18 +233,18 @@ public class TransportNodesGatewayStartedShardHelper {
     }
 
     /**
-     * This class extends the {@link GatewayShardStarted} which contains all necessary shard metadata like
+     * This class extends the {@link GatewayStartedShard} which contains all necessary shard metadata like
      * allocationId and replication checkpoint. It also has DiscoveryNode which is needed by
      * {@link PrimaryShardAllocator} and {@link PrimaryShardBatchAllocator} to make allocation decision.
      * This class removes the dependency of
      * {@link TransportNodesListGatewayStartedShards.NodeGatewayStartedShards} to make allocation decisions by
      * {@link PrimaryShardAllocator} or {@link PrimaryShardBatchAllocator}.
      */
-    public static class NodeGatewayShardStarted extends GatewayShardStarted {
+    public static class NodeGatewayStartedShard extends GatewayStartedShard {
 
         private final DiscoveryNode node;
 
-        public NodeGatewayShardStarted(
+        public NodeGatewayStartedShard(
             String allocationId,
             boolean primary,
             ReplicationCheckpoint replicationCheckpoint,

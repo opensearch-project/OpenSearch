@@ -27,7 +27,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayShardStarted;
+import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayStartedShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.store.ShardAttributes;
 import org.opensearch.threadpool.ThreadPool;
@@ -135,7 +135,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
      */
     @Override
     protected NodeGatewayStartedShardsBatch nodeOperation(NodeRequest request) {
-        Map<ShardId, GatewayShardStarted> shardsOnNode = new HashMap<>();
+        Map<ShardId, GatewayStartedShard> shardsOnNode = new HashMap<>();
         for (ShardAttributes shardAttr : request.shardAttributes.values()) {
             final ShardId shardId = shardAttr.getShardId();
             try {
@@ -155,7 +155,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
             } catch (Exception e) {
                 shardsOnNode.put(
                     shardId,
-                    new GatewayShardStarted(null, false, null, new OpenSearchException("failed to load started shards", e))
+                    new GatewayStartedShard(null, false, null, new OpenSearchException("failed to load started shards", e))
                 );
             }
         }
@@ -256,15 +256,15 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
      * @opensearch.internal
      */
     public static class NodeGatewayStartedShardsBatch extends BaseNodeResponse {
-        private final Map<ShardId, GatewayShardStarted> nodeGatewayStartedShardsBatch;
+        private final Map<ShardId, GatewayStartedShard> nodeGatewayStartedShardsBatch;
 
-        public Map<ShardId, GatewayShardStarted> getNodeGatewayStartedShardsBatch() {
+        public Map<ShardId, GatewayStartedShard> getNodeGatewayStartedShardsBatch() {
             return nodeGatewayStartedShardsBatch;
         }
 
         public NodeGatewayStartedShardsBatch(StreamInput in) throws IOException {
             super(in);
-            this.nodeGatewayStartedShardsBatch = in.readMap(ShardId::new, GatewayShardStarted::new);
+            this.nodeGatewayStartedShardsBatch = in.readMap(ShardId::new, GatewayStartedShard::new);
         }
 
         @Override
@@ -273,7 +273,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
             out.writeMap(nodeGatewayStartedShardsBatch, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
         }
 
-        public NodeGatewayStartedShardsBatch(DiscoveryNode node, Map<ShardId, GatewayShardStarted> nodeGatewayStartedShardsBatch) {
+        public NodeGatewayStartedShardsBatch(DiscoveryNode node, Map<ShardId, GatewayStartedShard> nodeGatewayStartedShardsBatch) {
             super(node);
             this.nodeGatewayStartedShardsBatch = nodeGatewayStartedShardsBatch;
         }

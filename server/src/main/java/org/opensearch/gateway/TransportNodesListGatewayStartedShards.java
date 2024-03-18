@@ -53,7 +53,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayShardStarted;
+import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayStartedShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.store.ShardAttributes;
@@ -155,7 +155,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     @Override
     protected NodeGatewayStartedShards nodeOperation(NodeRequest request) {
         try {
-            GatewayShardStarted shardInfo = getShardInfoOnLocalNode(
+            GatewayStartedShard shardInfo = getShardInfoOnLocalNode(
                 logger,
                 request.getShardId(),
                 namedXContentRegistry,
@@ -167,7 +167,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             );
             return new NodeGatewayStartedShards(
                 clusterService.localNode(),
-                new GatewayShardStarted(
+                new GatewayStartedShard(
                     shardInfo.allocationId(),
                     shardInfo.primary(),
                     shardInfo.replicationCheckpoint(),
@@ -305,7 +305,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
      * @opensearch.internal
      */
     public static class NodeGatewayStartedShards extends BaseNodeResponse {
-        private final GatewayShardStarted gatewayShardStarted;
+        private final GatewayStartedShard gatewayStartedShard;
 
         public NodeGatewayStartedShards(StreamInput in) throws IOException {
             super(in);
@@ -323,33 +323,33 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             } else {
                 replicationCheckpoint = null;
             }
-            this.gatewayShardStarted = new GatewayShardStarted(allocationId, primary, replicationCheckpoint, storeException);
+            this.gatewayStartedShard = new GatewayStartedShard(allocationId, primary, replicationCheckpoint, storeException);
         }
 
-        public GatewayShardStarted getGatewayShardStarted() {
-            return gatewayShardStarted;
+        public GatewayStartedShard getGatewayShardStarted() {
+            return gatewayStartedShard;
         }
 
-        public NodeGatewayStartedShards(DiscoveryNode node, GatewayShardStarted gatewayShardStarted) {
+        public NodeGatewayStartedShards(DiscoveryNode node, GatewayStartedShard gatewayStartedShard) {
             super(node);
-            this.gatewayShardStarted = gatewayShardStarted;
+            this.gatewayStartedShard = gatewayStartedShard;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalString(gatewayShardStarted.allocationId());
-            out.writeBoolean(gatewayShardStarted.primary());
-            if (gatewayShardStarted.storeException() != null) {
+            out.writeOptionalString(gatewayStartedShard.allocationId());
+            out.writeBoolean(gatewayStartedShard.primary());
+            if (gatewayStartedShard.storeException() != null) {
                 out.writeBoolean(true);
-                out.writeException(gatewayShardStarted.storeException());
+                out.writeException(gatewayStartedShard.storeException());
             } else {
                 out.writeBoolean(false);
             }
             if (out.getVersion().onOrAfter(Version.V_2_3_0)) {
-                if (gatewayShardStarted.replicationCheckpoint() != null) {
+                if (gatewayStartedShard.replicationCheckpoint() != null) {
                     out.writeBoolean(true);
-                    gatewayShardStarted.replicationCheckpoint().writeTo(out);
+                    gatewayStartedShard.replicationCheckpoint().writeTo(out);
                 } else {
                     out.writeBoolean(false);
                 }
@@ -367,17 +367,17 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
             NodeGatewayStartedShards that = (NodeGatewayStartedShards) o;
 
-            return gatewayShardStarted.equals(that.gatewayShardStarted);
+            return gatewayStartedShard.equals(that.gatewayStartedShard);
         }
 
         @Override
         public int hashCode() {
-            return gatewayShardStarted.hashCode();
+            return gatewayStartedShard.hashCode();
         }
 
         @Override
         public String toString() {
-            return gatewayShardStarted.toString();
+            return gatewayStartedShard.toString();
         }
     }
 }
