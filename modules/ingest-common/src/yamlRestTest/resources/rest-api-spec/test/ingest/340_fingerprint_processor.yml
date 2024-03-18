@@ -1,0 +1,274 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "1"
+        ignore: 404
+
+---
+"Test creat fingerprint processor":
+  - skip:
+      version: " - 2.14.99"
+      reason: "introduced in 2.15"
+  - do:
+      catch: /\[fields\] either fields or include_all_fields must be set/
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "fingerprint" : {
+                }
+              }
+            ]
+          }
+
+  - do:
+      catch: /\[fields\] either fields or include_all_fields can be set/
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "fingerprint" : {
+                  "fields" : ["foo"],
+                  "include_all_fields" : true
+                }
+              }
+            ]
+          }
+
+  - do:
+      catch: /field path cannot be null nor empty/
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "fingerprint" : {
+                  "fields": [null]
+                }
+              }
+            ]
+          }
+
+  - do:
+      catch: /fields cannot be empty/
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "fingerprint" : {
+                  "fields": []
+                }
+              }
+            ]
+          }
+
+  - do:
+      catch: /hash method must be MD5\, SHA\-1 or SHA\-256/
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "fingerprint" : {
+                  "fields": ["foo"],
+                  "hash_method": "non-existing"
+                }
+              }
+            ]
+          }
+
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "fingerprint" : {
+                  "fields" : ["foo"],
+                  "target_field" : "fingerprint_field",
+                  "hash_method": "SHA-256"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+---
+"Test fingerprint processor with ignore_missing":
+  - skip:
+      version: " - 2.14.99"
+      reason: "introduced in 2.15"
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "fingerprint" : {
+                  "fields" : ["foo"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /field \[foo\] doesn't exist/
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          bar: "bar"
+        }
+
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "fingerprint" : {
+                  "fields" : ["foo", "bar"],
+                  "ignore_missing" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          foo: "foo"
+        }
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.fingerprint: "w1axmYeYkdIEZMKxybhjOEuBFxA=" }
+
+---
+"Test fingerprint processor with custom target field":
+  - skip:
+      version: " - 2.14.99"
+      reason: "introduced in 2.15"
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "fingerprint" : {
+                  "fields" : ["foo"],
+                  "target_field" : "target"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          foo: "foo"
+        }
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.target: "w1axmYeYkdIEZMKxybhjOEuBFxA=" }
+
+---
+"Test fingerprint processor with non-primitive fields":
+  - skip:
+      version: " - 2.14.99"
+      reason: "introduced in 2.15"
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "fingerprint" : {
+                  "fields" : ["foo", "bar", "zoo"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          foo: [1, 2, 3],
+          bar: {
+            field: {
+              innerField: "inner"
+            }
+          },
+          zoo: null
+        }
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.fingerprint: "R/ZOjN9U+AVLTxjAB8b8A5pbSyM=" }
+
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "fingerprint" : {
+                  "include_all_fields" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        pipeline: "1"
+        body: {
+          foo: [1, 2, 3],
+          bar: {
+            field: {
+              innerField: "inner"
+            }
+          },
+          zoo: null
+        }
+  - do:
+      get:
+        index: test
+        id: 2
+  - match: { _source.fingerprint: "R/ZOjN9U+AVLTxjAB8b8A5pbSyM=" }
