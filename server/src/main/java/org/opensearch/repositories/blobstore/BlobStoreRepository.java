@@ -1153,11 +1153,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         logger.debug("Successfully released lock for shard {} of index with uuid {}", shardId, indexUUID);
         if (!isIndexPresent(clusterService, indexUUID)) {
             // Note: this is a temporary solution where snapshot deletion triggers remote store side cleanup if
-            // index is already deleted. shard cleanup will still happen asynchronously using REMOTE_PURGE
-            // threadpool. if it fails, it could leave some stale files in remote directory. this issue could
-            // even happen in cases of shard level remote store data cleanup which also happens asynchronously.
-            // in long term, we have plans to implement remote store GC poller mechanism which will take care of
-            // such stale data. related issue: https://github.com/opensearch-project/OpenSearch/issues/8469
+            // index is already deleted. this is the best effort at the moment since shard cleanup will still happen
+            // asynchronously using REMOTE_PURGE thread pool. if it fails, it could leave some stale files in remote
+            // directory. this issue could even happen in cases of shard level remote store data cleanup which also
+            // happens asynchronously. in long term, we have plans to implement remote store GC poller mechanism which
+            // will take care of such stale data.
+            // related issue: https://github.com/opensearch-project/OpenSearch/issues/8469
             RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
                 remoteStoreLockManagerFactory.getRepositoriesService(),
                 threadPool
@@ -3387,7 +3388,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())
                         ) == false)
                     || (remoteStoreLockManagerFactory != null
-                        && extractShallowSnapshotUUID(blob).map(survivingSnapshotUUIDs::contains).orElse(false))
+                        && extractShallowSnapshotUUID(blob).map(snapshotUUID -> !survivingSnapshotUUIDs.contains(snapshotUUID))
+                            .orElse(false))
                     || (blob.startsWith(UPLOADED_DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
                     || FsBlobContainer.isTempBlobName(blob)
             )
