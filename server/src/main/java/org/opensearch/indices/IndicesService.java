@@ -202,7 +202,7 @@ import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
 import static org.opensearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.opensearch.index.IndexService.IndexCreationContext.METADATA_VERIFICATION;
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
@@ -551,7 +551,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     indexSettings.getRemoteStoreTranslogRepository(),
                     remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId())
                 );
-            } else if (isRemoteStoreAttributePresent(settings) && shardRouting.primary()) {
+            } else if (isRemoteDataAttributePresent(settings) && shardRouting.primary()) {
                 return new RemoteBlobStoreInternalTranslogFactory(
                     repositoriesServiceSupplier,
                     threadPool,

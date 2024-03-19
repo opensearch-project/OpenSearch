@@ -1246,7 +1246,7 @@ public final class IndexSettings {
     }
 
     public boolean isRemoteNode() {
-        return RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(this.getNodeSettings());
+        return RemoteStoreNodeAttribute.isRemoteDataAttributePresent(this.getNodeSettings());
     }
 
     /**
