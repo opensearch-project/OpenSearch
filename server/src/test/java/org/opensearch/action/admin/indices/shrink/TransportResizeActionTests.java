@@ -55,8 +55,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.index.query.Rewriteable;
-import org.opensearch.index.query.RewriteableTests;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
@@ -64,21 +62,18 @@ import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 
-import static org.hamcrest.CoreMatchers.startsWith;
-import static org.hamcrest.Matchers.*;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
-import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
-
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
-import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class TransportResizeActionTests extends OpenSearchTestCase {
 
@@ -108,10 +103,14 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
         return clusterState;
     }
 
-    private ClusterSettings createClusterSettings(CompatibilityMode compatibilityMode, RemoteStoreNodeService.Direction migrationDirection) {
+    private ClusterSettings createClusterSettings(
+        CompatibilityMode compatibilityMode,
+        RemoteStoreNodeService.Direction migrationDirection
+    ) {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         clusterSettings.applySettings(
-            (Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), compatibilityMode)
+            (Settings.builder()
+                .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), compatibilityMode)
                 .put(MIGRATION_DIRECTION_SETTING.getKey(), migrationDirection)).build()
         );
         return clusterSettings;
@@ -124,7 +123,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             randomIntBetween(0, 10),
             Settings.builder().put("index.blocks.write", true).build()
         );
-        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT,RemoteStoreNodeService.Direction.NONE);
+        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT, RemoteStoreNodeService.Direction.NONE);
         assertTrue(
             expectThrows(
                 IllegalStateException.class,
@@ -216,7 +215,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE
         );
-        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT,RemoteStoreNodeService.Direction.NONE);
+        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT, RemoteStoreNodeService.Direction.NONE);
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
@@ -264,7 +263,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             EmptySnapshotsInfoService.INSTANCE
         );
 
-        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT,RemoteStoreNodeService.Direction.NONE);
+        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT, RemoteStoreNodeService.Direction.NONE);
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
@@ -318,7 +317,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             EmptySnapshotsInfoService.INSTANCE
         );
 
-        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT,RemoteStoreNodeService.Direction.NONE);
+        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT, RemoteStoreNodeService.Direction.NONE);
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
@@ -360,7 +359,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             EmptySnapshotsInfoService.INSTANCE
         );
 
-        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT,RemoteStoreNodeService.Direction.NONE);
+        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT, RemoteStoreNodeService.Direction.NONE);
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
@@ -516,7 +515,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             createClusterState(indexName, 10, 0, 40, Settings.builder().put("index.blocks.read_only", true).build())
         ).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
 
-        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT,RemoteStoreNodeService.Direction.NONE);
+        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT, RemoteStoreNodeService.Direction.NONE);
         // Target index will be blocked by [index.blocks.read_only=true] copied from the source index
         ResizeRequest resizeRequest = new ResizeRequest("target", indexName);
         ResizeType resizeType;
@@ -604,24 +603,27 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
     }
 
     public void testResizeFailuresDuringMigration() {
-        //We will keep all other settings correct for resize request,
-        //So we only need to test for the failures due to cluster setting validation while migration
+        // We will keep all other settings correct for resize request,
+        // So we only need to test for the failures due to cluster setting validation while migration
         final Settings directionEnabledNodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
         FeatureFlags.initializeFeatureFlags(directionEnabledNodeSettings);
         boolean isRemoteStoreEnabled = randomBoolean();
         CompatibilityMode compatibilityMode = randomFrom(CompatibilityMode.values());
         RemoteStoreNodeService.Direction migrationDirection = randomFrom(RemoteStoreNodeService.Direction.values());
-        //If not mixed mode, then migration direction is NONE.
-        if(!compatibilityMode.equals(CompatibilityMode.MIXED)){
+        // If not mixed mode, then migration direction is NONE.
+        if (!compatibilityMode.equals(CompatibilityMode.MIXED)) {
             migrationDirection = RemoteStoreNodeService.Direction.NONE;
         }
-        ClusterSettings clusterSettings = createClusterSettings(compatibilityMode,migrationDirection);
+        ClusterSettings clusterSettings = createClusterSettings(compatibilityMode, migrationDirection);
 
         ClusterState clusterState = ClusterState.builder(
-            createClusterState("source", 10, 0,40,
-                Settings.builder().put("index.blocks.write", true)
-                    .put(SETTING_REMOTE_STORE_ENABLED, isRemoteStoreEnabled)
-                    .build())
+            createClusterState(
+                "source",
+                10,
+                0,
+                40,
+                Settings.builder().put("index.blocks.write", true).put(SETTING_REMOTE_STORE_ENABLED, isRemoteStoreEnabled).build()
+            )
         ).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
         AllocationService service = new AllocationService(
             new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
@@ -662,14 +664,14 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             .settings(Settings.builder().put("index.number_of_shards", expectedShardsNum).put("index.blocks.read_only", false).build());
         final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
         resizeRequest.setWaitForActiveShards(activeShardCount);
-        //startsWith("index Resizing for type [")
+        // startsWith("index Resizing for type [")
         if (compatibilityMode == CompatibilityMode.MIXED
             && migrationDirection == RemoteStoreNodeService.Direction.REMOTE_STORE
             && !isRemoteStoreEnabled) {
             ClusterState finalState = clusterState;
             IllegalStateException ise = expectThrows(
                 IllegalStateException.class,
-                () ->TransportResizeAction.prepareCreateIndexRequest(
+                () -> TransportResizeAction.prepareCreateIndexRequest(
                     new ResizeRequest("target", "source"),
                     finalState,
                     (i) -> stats,
@@ -679,12 +681,12 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
                     "target"
                 )
             );
-            assertThat(
+            assertEquals(
                 ise.getMessage(),
-                allOf(
-                    startsWith("index Resizing for type"),
-                    endsWith("Cluster mode is [Mixed] and migration direction is [Remote Store]")
-                )
+                "index Resizing for type ["
+                    + resizeType
+                    + "] is not allowed as Cluster mode is [Mixed]"
+                    + " and migration direction is [Remote Store]"
             );
         } else {
             CreateIndexClusterStateUpdateRequest request = TransportResizeAction.prepareCreateIndexRequest(

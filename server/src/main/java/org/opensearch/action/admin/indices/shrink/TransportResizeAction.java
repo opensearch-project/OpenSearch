@@ -58,9 +58,9 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.store.StoreStats;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
-import org.opensearch.node.remotestore.RemoteStoreNodeService;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -164,7 +164,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
                             CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(resizeRequest, state, i -> {
                                 IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                                 return shard == null ? null : shard.getPrimary().getDocs();
-                            }, indicesStatsResponse.getPrimaries().store, clusterSettings,sourceIndex, targetIndex);
+                            }, indicesStatsResponse.getPrimaries().store, clusterSettings, sourceIndex, targetIndex);
 
                             if (indicesStatsResponse.getIndex(sourceIndex)
                                 .getTotal()
@@ -235,7 +235,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         if (metadata == null) {
             throw new IndexNotFoundException(sourceIndexName);
         }
-        validateClusterModeSettings(resizeRequest.getResizeType(),metadata,clusterSettings);
+        validateClusterModeSettings(resizeRequest.getResizeType(), metadata, clusterSettings);
         final Settings.Builder targetIndexSettingsBuilder = Settings.builder()
             .put(targetIndex.settings())
             .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
@@ -374,15 +374,23 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         return super.getClusterManagerActionName(node);
     }
 
-    private static void validateClusterModeSettings(final ResizeType type,IndexMetadata sourceIndexMetadata,ClusterSettings clusterSettings) {
-        boolean isMixed =  clusterSettings.get(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING)
+    private static void validateClusterModeSettings(
+        final ResizeType type,
+        IndexMetadata sourceIndexMetadata,
+        ClusterSettings clusterSettings
+    ) {
+        boolean isMixed = clusterSettings.get(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING)
             .equals(RemoteStoreNodeService.CompatibilityMode.MIXED);
         boolean isRemoteStoreMigrationDirection = clusterSettings.get(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING)
             .equals(RemoteStoreNodeService.Direction.REMOTE_STORE);
-        boolean  isRemoteStoreEnabled = sourceIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false);
+        boolean isRemoteStoreEnabled = sourceIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false);
         if (isMixed && isRemoteStoreMigrationDirection && !isRemoteStoreEnabled) {
-            throw new IllegalStateException("index Resizing for type [" + type + "] is not allowed as Cluster mode is [Mixed]"
-                + " and migration direction is [Remote Store]");
+            throw new IllegalStateException(
+                "index Resizing for type ["
+                    + type
+                    + "] is not allowed as Cluster mode is [Mixed]"
+                    + " and migration direction is [Remote Store]"
+            );
         }
     }
 }
