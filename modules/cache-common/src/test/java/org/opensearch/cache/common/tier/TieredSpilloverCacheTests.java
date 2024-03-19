@@ -154,6 +154,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         }
         // Verify on heap cache size.
         assertEquals(onHeapCacheSize, tieredSpilloverCache.getOnHeapCache().count());
+        // Verify disk cache size.
         assertEquals(numOfItems1 - onHeapCacheSize, tieredSpilloverCache.getDiskCache().count());
     }
 
