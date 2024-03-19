@@ -9,7 +9,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.opensearch.index.query.DerivedFieldScript;
+import org.opensearch.script.DerivedFieldScript;
 import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;

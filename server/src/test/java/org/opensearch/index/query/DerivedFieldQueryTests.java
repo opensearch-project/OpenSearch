@@ -23,6 +23,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.mapper.DerivedFieldValueFetcher;
+import org.opensearch.script.DerivedFieldScript;
 import org.opensearch.script.Script;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;

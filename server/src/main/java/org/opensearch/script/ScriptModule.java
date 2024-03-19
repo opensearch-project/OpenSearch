@@ -34,7 +34,6 @@ package org.opensearch.script;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.query.DerivedFieldScript;
 import org.opensearch.index.query.IntervalFilterScript;
 import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.search.aggregations.pipeline.MovingFunctionScript;

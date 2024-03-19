@@ -29,14 +29,11 @@
  * GitHub history for details.
  */
 
-package org.opensearch.index.query;
+package org.opensearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.fielddata.ScriptDocValues;
-import org.opensearch.script.DynamicMap;
-import org.opensearch.script.ScriptContext;
-import org.opensearch.script.ScriptFactory;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;

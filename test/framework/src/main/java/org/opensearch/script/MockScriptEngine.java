@@ -35,7 +35,6 @@ package org.opensearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorable;
-import org.opensearch.index.query.DerivedFieldScript;
 import org.opensearch.index.query.IntervalFilterScript;
 import org.opensearch.index.similarity.ScriptedSimilarity.Doc;
 import org.opensearch.index.similarity.ScriptedSimilarity.Field;
@@ -283,7 +282,11 @@ public class MockScriptEngine implements ScriptEngine {
             IntervalFilterScript.Factory factory = mockCompiled::createIntervalFilterScript;
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(DerivedFieldScript.class)) {
-            DerivedFieldScript.Factory factory = (derivedFieldsParams, lookup) -> ctx -> new DerivedFieldScript(derivedFieldsParams, lookup, ctx) {
+            DerivedFieldScript.Factory factory = (derivedFieldsParams, lookup) -> ctx -> new DerivedFieldScript(
+                derivedFieldsParams,
+                lookup,
+                ctx
+            ) {
                 @Override
                 public Object execute() {
                     Map<String, Object> vars = new HashMap<>(derivedFieldsParams);
