@@ -1859,6 +1859,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void markSearcherAccessed() {
+        if (isSearchIdle()) {
+            SearchOperationListener searchOperationListener = getSearchOperationListener();
+            searchOperationListener.onNewSearchIdleWakenUp();
+        }
         lastSearcherAccess.lazySet(threadPool.relativeTimeInMillis());
     }
 
