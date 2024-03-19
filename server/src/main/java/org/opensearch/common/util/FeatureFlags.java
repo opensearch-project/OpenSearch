@@ -60,11 +60,6 @@ public class FeatureFlags {
     public static final String WRITEABLE_REMOTE_INDEX = "opensearch.experimental.feature.writeable_remote_index.enabled";
 
     /**
-     * Gates the optimization to enable bloom filters for doc id lookup.
-     */
-    public static final String DOC_ID_FUZZY_SET = "opensearch.experimental.optimize_doc_id_lookup.fuzzy_set.enabled";
-
-    /**
      * Gates the functionality of pluggable cache.
      * Enables OpenSearch to use pluggable caches with respective store names via setting.
      */
@@ -132,8 +127,6 @@ public class FeatureFlags {
         false,
         Property.NodeScope
     );
-
-    public static final Setting<Boolean> DOC_ID_FUZZY_SET_SETTING = Setting.boolSetting(DOC_ID_FUZZY_SET, false, Property.NodeScope);
 
     public static final Setting<Boolean> PLUGGABLE_CACHE_SETTING = Setting.boolSetting(PLUGGABLE_CACHE, false, Property.NodeScope);
 }

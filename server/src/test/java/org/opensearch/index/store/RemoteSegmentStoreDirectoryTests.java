@@ -34,6 +34,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.shard.IndexShard;
@@ -164,6 +166,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         when(threadPool.executor(ThreadPool.Names.REMOTE_PURGE)).thenReturn(executorService);
         when(threadPool.executor(ThreadPool.Names.REMOTE_RECOVERY)).thenReturn(executorService);
+        when(threadPool.executor(ThreadPool.Names.SAME)).thenReturn(executorService);
     }
 
     @After
@@ -499,6 +502,75 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         assertThrows(NoSuchFileException.class, () -> remoteSegmentStoreDirectory.isLockAcquired(testPrimaryTerm, testGeneration));
     }
 
+    private List<String> getDummyMetadataFiles(int count) {
+        List<String> sortedMetadataFiles = new ArrayList<>();
+        for (int counter = 0; counter < count; counter++) {
+            sortedMetadataFiles.add(RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(counter, 23, 34, 1, 1, "node-1"));
+        }
+        return sortedMetadataFiles;
+    }
+
+    public void testGetMetadataFilesForActiveSegments() throws IOException {
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        // scenario 1: if activeSegments([[0, 1, 2], 3(l), 4(l), 5(l), 6(l), 7(l), 8(l), 9]) => [9]
+        List<String> sortedMdFiles = getDummyMetadataFiles(10);
+        Set<String> lockedMdFiles = new HashSet<>();
+        for (int idx = 3; idx <= 8; idx++) {
+            lockedMdFiles.add(sortedMdFiles.get(idx));
+        }
+        Set<String> expectedMdFilesForActiveSegments = Set.of(sortedMdFiles.get(8));
+        assertEquals(
+            "scenario 1 failed",
+            expectedMdFilesForActiveSegments,
+            remoteSegmentStoreDirectory.getMetadataFilesToFilterActiveSegments(3, sortedMdFiles, lockedMdFiles)
+        );
+
+        // scenario 2: if activeSegments([[0, 1, 2], 3, 4, 5, 6(l), 7(l), 8(l), 9]) => [2, 6, 8]
+        lockedMdFiles.clear();
+        lockedMdFiles.add(sortedMdFiles.get(6));
+        lockedMdFiles.add(sortedMdFiles.get(7));
+        lockedMdFiles.add(sortedMdFiles.get(8));
+        expectedMdFilesForActiveSegments = Set.of(sortedMdFiles.get(2), sortedMdFiles.get(6), sortedMdFiles.get(8));
+        assertEquals(
+            "scenario 2 failed",
+            expectedMdFilesForActiveSegments,
+            remoteSegmentStoreDirectory.getMetadataFilesToFilterActiveSegments(3, sortedMdFiles, lockedMdFiles)
+        );
+
+        // scenario 3: if activeSegments([[0, 1, 2], 3, 4, 5(l), 6, 7(l), 8(l), 9]) => [3, 5, 7, 8]
+        lockedMdFiles.clear();
+        lockedMdFiles.add(sortedMdFiles.get(5));
+        lockedMdFiles.add(sortedMdFiles.get(7));
+        lockedMdFiles.add(sortedMdFiles.get(8));
+        expectedMdFilesForActiveSegments = Set.of(sortedMdFiles.get(2), sortedMdFiles.get(5), sortedMdFiles.get(7), sortedMdFiles.get(8));
+        assertEquals(
+            "scenario 3 failed",
+            expectedMdFilesForActiveSegments,
+            remoteSegmentStoreDirectory.getMetadataFilesToFilterActiveSegments(3, sortedMdFiles, lockedMdFiles)
+        );
+
+        // scenario 3: if activeSegments([[0(l), 1(l), 2(l), 3(l), 4(l), 5(l), 6(l), 7(l), 8(l), 9(l)])
+        lockedMdFiles.addAll(sortedMdFiles);
+        expectedMdFilesForActiveSegments = Set.of();
+        assertEquals(
+            "scenario 4 failed",
+            expectedMdFilesForActiveSegments,
+            remoteSegmentStoreDirectory.getMetadataFilesToFilterActiveSegments(0, sortedMdFiles, lockedMdFiles)
+        );
+
+        // scenario 5: if (activeSegments([[0, 1, 2, 3]]) => []
+        sortedMdFiles = sortedMdFiles.subList(0, 4);
+        lockedMdFiles.clear();
+        expectedMdFilesForActiveSegments = Set.of();
+        assertEquals(
+            "scenario 5 failed",
+            expectedMdFilesForActiveSegments,
+            remoteSegmentStoreDirectory.getMetadataFilesToFilterActiveSegments(4, sortedMdFiles, lockedMdFiles)
+        );
+    }
+
     public void testGetMetadataFileForCommit() throws IOException {
         long testPrimaryTerm = 2;
         long testGeneration = 3;
@@ -511,7 +583,6 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         String output = remoteSegmentStoreDirectory.getMetadataFileForCommit(testPrimaryTerm, testGeneration);
         assertEquals("metadata__" + testPrimaryTerm + "__" + testGeneration + "__pqr", output);
-
     }
 
     public void testCopyFrom() throws IOException {
@@ -614,6 +685,29 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
 
         storeDirectory.close();
+    }
+
+    public void testCleanupAsync() throws Exception {
+        populateMetadata();
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory = mock(RemoteSegmentStoreDirectoryFactory.class);
+        RemoteSegmentStoreDirectory remoteSegmentDirectory = new RemoteSegmentStoreDirectory(
+            remoteDataDirectory,
+            remoteMetadataDirectory,
+            mdLockManager,
+            threadPool,
+            indexShard.shardId()
+        );
+        when(remoteSegmentStoreDirectoryFactory.newDirectory(any(), any(), any())).thenReturn(remoteSegmentDirectory);
+        String repositoryName = "test-repository";
+        String indexUUID = "test-idx-uuid";
+        ShardId shardId = new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt("0"));
+
+        RemoteSegmentStoreDirectory.remoteDirectoryCleanup(remoteSegmentStoreDirectoryFactory, repositoryName, indexUUID, shardId);
+        verify(remoteSegmentStoreDirectoryFactory).newDirectory(repositoryName, indexUUID, shardId);
+        verify(threadPool, times(0)).executor(ThreadPool.Names.REMOTE_PURGE);
+        verify(remoteMetadataDirectory).delete();
+        verify(remoteDataDirectory).delete();
+        verify(mdLockManager).delete();
     }
 
     public void testCopyFromException() throws IOException {

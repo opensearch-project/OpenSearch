@@ -11,6 +11,10 @@ package org.opensearch.cache.common.tier;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
+import org.opensearch.common.cache.RemovalListener;
+import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.RemovalReason;
+import org.opensearch.common.cache.serializer.Serializer;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 
@@ -23,9 +27,12 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
     int maxSize;
     long delay;
 
-    public MockDiskCache(int maxSize, long delay) {
+    private final RemovalListener<K, V> removalListener;
+
+    public MockDiskCache(int maxSize, long delay, RemovalListener<K, V> removalListener) {
         this.maxSize = maxSize;
         this.delay = delay;
+        this.removalListener = removalListener;
         this.cache = new ConcurrentHashMap<K, V>();
     }
 
@@ -38,7 +45,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
     @Override
     public void put(K key, V value) {
         if (this.cache.size() >= maxSize) { // For simplification
-            return;
+            this.removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EVICTED));
         }
         try {
             Thread.sleep(delay);
@@ -100,8 +107,14 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
         }
 
         @Override
+        @SuppressWarnings({ "unchecked" })
         public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
-            return new Builder<K, V>().setMaxSize(maxSize).setDeliberateDelay(delay).build();
+            return new Builder<K, V>().setKeySerializer((Serializer<K, byte[]>) config.getKeySerializer())
+                .setValueSerializer((Serializer<V, byte[]>) config.getValueSerializer())
+                .setMaxSize(maxSize)
+                .setDeliberateDelay(delay)
+                .setRemovalListener(config.getRemovalListener())
+                .build();
         }
 
         @Override
@@ -114,10 +127,12 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
 
         int maxSize;
         long delay;
+        Serializer<K, byte[]> keySerializer;
+        Serializer<V, byte[]> valueSerializer;
 
         @Override
         public ICache<K, V> build() {
-            return new MockDiskCache<K, V>(this.maxSize, this.delay);
+            return new MockDiskCache<K, V>(this.maxSize, this.delay, this.getRemovalListener());
         }
 
         public Builder<K, V> setMaxSize(int maxSize) {
@@ -129,5 +144,16 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
             this.delay = millis;
             return this;
         }
+
+        public Builder<K, V> setKeySerializer(Serializer<K, byte[]> keySerializer) {
+            this.keySerializer = keySerializer;
+            return this;
+        }
+
+        public Builder<K, V> setValueSerializer(Serializer<V, byte[]> valueSerializer) {
+            this.valueSerializer = valueSerializer;
+            return this;
+        }
+
     }
 }
