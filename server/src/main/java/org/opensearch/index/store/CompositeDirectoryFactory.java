@@ -36,17 +36,8 @@ public class CompositeDirectoryFactory implements IndexStorePlugin.DirectoryFact
 
     @Override
     public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
-        String repositoryName = indexSettings.getRemoteStoreRepository();
-        Repository repository = repositoriesService.get().repository(repositoryName);
-        BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-        String shardId = String.valueOf(shardPath.getShardId().getId());
-        String indexUUID = indexSettings.getIndex().getUUID();
-        BlobPath blobPath = blobStoreRepository.basePath().add(indexUUID).add(shardId).add("segments").add("data");
-        final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(blobPath);
-
         final Path location = shardPath.resolveIndex();
         final FSDirectory primaryDirectory = FSDirectory.open(location);
-
-        return new CompositeDirectory(primaryDirectory, blobContainer, remoteStoreFileCache);
+        return new CompositeDirectory(primaryDirectory, remoteStoreFileCache);
     }
 }

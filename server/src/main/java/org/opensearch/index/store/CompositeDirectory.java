@@ -8,13 +8,13 @@
 
 package org.opensearch.index.store;
 
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
-import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.utils.filetracker.FileState;
@@ -27,14 +27,18 @@ import java.util.Set;
 public class CompositeDirectory extends FilterDirectory {
 
     private final FSDirectory localDirectory;
-    private final TransferManager transferManager;
+    private final RemoteStoreFileTrackerAdapter remoteStoreFileTrackerAdapter;
     private final FileCache fileCache;
 
-    public CompositeDirectory(FSDirectory localDirectory, BlobContainer blobContainer, FileCache fileCache) {
+    public CompositeDirectory(FSDirectory localDirectory, FileCache fileCache) {
         super(localDirectory);
         this.localDirectory = localDirectory;
         this.fileCache = fileCache;
-        this.transferManager = new CompositeDirectoryTransferManager(fileCache, blobContainer);
+        this.remoteStoreFileTrackerAdapter = new CompositeDirectoryRemoteStoreFileTrackerAdapter(fileCache);
+    }
+
+    public void setRemoteDirectory(Directory remoteDirectory) {
+        ((CompositeDirectoryRemoteStoreFileTrackerAdapter)remoteStoreFileTrackerAdapter).setRemoteDirectory(remoteDirectory);
     }
 
     @Override
@@ -45,7 +49,7 @@ public class CompositeDirectory extends FilterDirectory {
     @Override
     public void deleteFile(String name) throws IOException {
         super.deleteFile(name);
-        transferManager.removeFileFromTracker(name);
+        remoteStoreFileTrackerAdapter.removeFileFromTracker(name);
         fileCache.remove(localDirectory.getDirectory().resolve(name));
     }
 
@@ -56,7 +60,7 @@ public class CompositeDirectory extends FilterDirectory {
 
     @Override
     public IndexOutput createOutput(String name, IOContext context) throws IOException {
-        transferManager.trackFile(name, FileState.DISK, FileType.NON_BLOCK);
+        remoteStoreFileTrackerAdapter.trackFile(name, FileState.DISK, FileType.NON_BLOCK);
         return localDirectory.createOutput(name, context);
     }
 
@@ -78,17 +82,17 @@ public class CompositeDirectory extends FilterDirectory {
     @Override
     public void rename(String source, String dest) throws IOException {
         localDirectory.rename(source, dest);
-        transferManager.trackFile(dest, transferManager.getFileState(source), transferManager.getFileType(source));
-        transferManager.removeFileFromTracker(source);
+        remoteStoreFileTrackerAdapter.trackFile(dest, remoteStoreFileTrackerAdapter.getFileState(source), remoteStoreFileTrackerAdapter.getFileType(source));
+        remoteStoreFileTrackerAdapter.removeFileFromTracker(source);
     }
 
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
-        if (!transferManager.isFilePresent(name)) {
+        if (!remoteStoreFileTrackerAdapter.isFilePresent(name)) {
             return localDirectory.openInput(name, context);
         }
         IndexInput indexInput = null;
-        switch (transferManager.getFileState(name)) {
+        switch (remoteStoreFileTrackerAdapter.getFileState(name)) {
             case DISK:
                 indexInput = localDirectory.openInput(name, context);
                 break;
@@ -121,8 +125,8 @@ public class CompositeDirectory extends FilterDirectory {
 
     public void afterSyncToRemote(Collection<String> files) throws IOException {
         for (String fileName : files) {
-            if (transferManager.isFilePresent(fileName) && !transferManager.getFileState(fileName).equals(FileState.CACHE)) {
-                transferManager.updateFileState(fileName, FileState.CACHE);
+            if (remoteStoreFileTrackerAdapter.isFilePresent(fileName) && !remoteStoreFileTrackerAdapter.getFileState(fileName).equals(FileState.CACHE)) {
+                remoteStoreFileTrackerAdapter.updateFileState(fileName, FileState.CACHE);
             }
             fileCache.put(localDirectory.getDirectory().resolve(fileName), new CachedIndexInput() {
                 @Override

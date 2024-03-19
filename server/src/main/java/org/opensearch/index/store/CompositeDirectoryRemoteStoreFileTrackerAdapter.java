@@ -8,6 +8,7 @@
 
 package org.opensearch.index.store;
 
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -19,16 +20,20 @@ import org.opensearch.index.store.remote.utils.filetracker.FileType;
 import java.util.HashMap;
 import java.util.Map;
 
-public class CompositeDirectoryTransferManager implements TransferManager {
+public class CompositeDirectoryRemoteStoreFileTrackerAdapter implements RemoteStoreFileTrackerAdapter {
 
     private FileCache fileCache;
     private Map<String, FileTrackingInfo> fileTracker;
-    private BlobContainer blobContainer;
+    private RemoteSegmentStoreDirectory remoteDirectory;
 
-    public CompositeDirectoryTransferManager(FileCache fileCache, BlobContainer blobContainer) {
+    public CompositeDirectoryRemoteStoreFileTrackerAdapter(FileCache fileCache) {
         this.fileCache = fileCache;
-        this.blobContainer = blobContainer;
+        remoteDirectory = null;
         this.fileTracker = new HashMap<>();
+    }
+
+    public void setRemoteDirectory(Directory remoteDirectory) {
+        this.remoteDirectory = (RemoteSegmentStoreDirectory) remoteDirectory;
     }
 
     @Override
