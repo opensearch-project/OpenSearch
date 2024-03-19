@@ -10,7 +10,6 @@ package org.opensearch.gateway;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
@@ -54,24 +53,15 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
         for (List<ShardRouting> shardBatch : shardBatches) {
             List<ShardRouting> eligibleShards = new ArrayList<>();
             List<ShardRouting> ineligibleShards = new ArrayList<>();
-            boolean shardMatched;
             // iterate over shards to check for match for each of those
             for (ShardRouting shard : shardBatch) {
-                shardMatched = false;
-                // need to iterate over all the nodes to find matching shard
-                for (RoutingNode routingNode : routingNodes) {
-                    ShardRouting shardFromRoutingNode = routingNode.getByShardId(shard.shardId());
-                    if (shardFromRoutingNode != null && !shardFromRoutingNode.primary()) {
-                        shardMatched = true;
-                        if (shouldSkipFetchForRecovery(shardFromRoutingNode)) {
-                            ineligibleShards.add(shardFromRoutingNode);
-                            continue;
-                        }
-                        eligibleShards.add(shardFromRoutingNode);
+                if (shard != null && !shard.primary()) {
+                    // need to iterate over all the nodes to find matching shard
+                    if (shouldSkipFetchForRecovery(shard)) {
+                        ineligibleShards.add(shard);
+                        continue;
                     }
-                    if (shardMatched) {
-                        break;
-                    }
+                    eligibleShards.add(shard);
                 }
             }
             AsyncShardFetch.FetchResult<NodeStoreFilesMetadataBatch> shardState = fetchData(eligibleShards, ineligibleShards, allocation);
