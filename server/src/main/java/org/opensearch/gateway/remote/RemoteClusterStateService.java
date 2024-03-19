@@ -1583,7 +1583,16 @@ public class RemoteClusterStateService implements Closeable {
                 );
                 clusterMetadataManifest.getIndices()
                     .forEach(uploadedIndexMetadata -> filesToKeep.add(uploadedIndexMetadata.getUploadedFilename()));
-                filesToKeep.add(clusterMetadataManifest.getGlobalMetadataFileName());
+                if (clusterMetadataManifest.getGlobalMetadataFileName() != null) {
+                    filesToKeep.add(clusterMetadataManifest.getGlobalMetadataFileName());
+                } else {
+                    filesToKeep.add(clusterMetadataManifest.getCoordinationMetadata().getUploadedFilename());
+                    filesToKeep.add(clusterMetadataManifest.getTemplatesMetadata().getUploadedFilename());
+                    filesToKeep.add(clusterMetadataManifest.getSettingsMetadata().getUploadedFilename());
+                    clusterMetadataManifest.getCustomMetadataMap().forEach((key, value) -> {
+                        filesToKeep.add(value.getUploadedFilename());
+                    });
+                }
             });
             staleManifestBlobMetadata.forEach(blobMetadata -> {
                 ClusterMetadataManifest clusterMetadataManifest = fetchRemoteClusterMetadataManifest(
@@ -1592,14 +1601,55 @@ public class RemoteClusterStateService implements Closeable {
                     blobMetadata.name()
                 );
                 staleManifestPaths.add(new BlobPath().add(MANIFEST_PATH_TOKEN).buildAsString() + blobMetadata.name());
-                if (filesToKeep.contains(clusterMetadataManifest.getGlobalMetadataFileName()) == false) {
-                    String[] globalMetadataSplitPath = clusterMetadataManifest.getGlobalMetadataFileName().split("/");
-                    staleGlobalMetadataPaths.add(
-                        new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + GLOBAL_METADATA_FORMAT.blobName(
-                            globalMetadataSplitPath[globalMetadataSplitPath.length - 1]
-                        )
-                    );
+                if (clusterMetadataManifest.getGlobalMetadataFileName() != null) {
+                    if (filesToKeep.contains(clusterMetadataManifest.getGlobalMetadataFileName()) == false) {
+                        String[] globalMetadataSplitPath = clusterMetadataManifest.getGlobalMetadataFileName().split("/");
+                        staleGlobalMetadataPaths.add(
+                            new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + GLOBAL_METADATA_FORMAT.blobName(
+                                globalMetadataSplitPath[globalMetadataSplitPath.length - 1]
+                            )
+                        );
+                    }
+                } else {
+                    if (filesToKeep.contains(clusterMetadataManifest.getCoordinationMetadata().getUploadedFilename()) == false) {
+                        String[] coordinationMetadataSplitPath = clusterMetadataManifest.getCoordinationMetadata()
+                            .getUploadedFilename().split("/");
+                        staleGlobalMetadataPaths.add(
+                            new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + GLOBAL_METADATA_FORMAT.blobName(
+                                coordinationMetadataSplitPath[coordinationMetadataSplitPath.length - 1]
+                            )
+                        );
+                    }
+                    if (filesToKeep.contains(clusterMetadataManifest.getTemplatesMetadata().getUploadedFilename()) == false) {
+                        String[] templatesMetadataSplitPath = clusterMetadataManifest.getTemplatesMetadata().getUploadedFilename()
+                            .split("/");
+                        staleGlobalMetadataPaths.add(
+                            new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + GLOBAL_METADATA_FORMAT.blobName(
+                                templatesMetadataSplitPath[templatesMetadataSplitPath.length - 1]
+                            )
+                        );
+                    }
+                    if (filesToKeep.contains(clusterMetadataManifest.getSettingsMetadata().getUploadedFilename()) == false) {
+                        String[] settingsMetadataSplitPath = clusterMetadataManifest.getSettingsMetadata().getUploadedFilename()
+                            .split("/");
+                        staleGlobalMetadataPaths.add(
+                            new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + GLOBAL_METADATA_FORMAT.blobName(
+                                settingsMetadataSplitPath[settingsMetadataSplitPath.length - 1]
+                            )
+                        );
+                    }
+                    clusterMetadataManifest.getCustomMetadataMap().forEach((key, value) -> {
+                        if (filesToKeep.contains(value.getUploadedFilename()) == false) {
+                            String[] customMetadataSplitPath = value.getUploadedFilename().split("/");
+                            staleGlobalMetadataPaths.add(
+                                new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + GLOBAL_METADATA_FORMAT.blobName(
+                                    customMetadataSplitPath[customMetadataSplitPath.length - 1]
+                                )
+                            );
+                        }
+                    });
                 }
+
                 clusterMetadataManifest.getIndices().forEach(uploadedIndexMetadata -> {
                     if (filesToKeep.contains(uploadedIndexMetadata.getUploadedFilename()) == false) {
                         staleIndexMetadataPaths.add(
