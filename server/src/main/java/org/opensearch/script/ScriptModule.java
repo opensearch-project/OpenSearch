@@ -34,6 +34,7 @@ package org.opensearch.script;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.query.DerivedFieldScript;
 import org.opensearch.index.query.IntervalFilterScript;
 import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.search.aggregations.pipeline.MovingFunctionScript;
@@ -78,7 +79,8 @@ public class ScriptModule {
             ScriptedMetricAggContexts.MapScript.CONTEXT,
             ScriptedMetricAggContexts.CombineScript.CONTEXT,
             ScriptedMetricAggContexts.ReduceScript.CONTEXT,
-            IntervalFilterScript.CONTEXT
+            IntervalFilterScript.CONTEXT,
+            DerivedFieldScript.CONTEXT
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 
