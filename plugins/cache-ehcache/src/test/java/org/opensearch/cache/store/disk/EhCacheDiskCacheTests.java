@@ -554,6 +554,41 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
     }
 
+    public void testInvalidateAll() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setIsEventListenerModeSync(true)
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setKeySerializer(new StringSerializer())
+                .setValueSerializer(new StringSerializer())
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setSettings(settings)
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setRemovalListener(removalListener)
+                .build();
+            int randomKeys = randomIntBetween(10, 100);
+            Map<String, String> keyValueMap = new HashMap<>();
+            for (int i = 0; i < randomKeys; i++) {
+                keyValueMap.put(UUID.randomUUID().toString(), UUID.randomUUID().toString());
+            }
+            for (Map.Entry<String, String> entry : keyValueMap.entrySet()) {
+                ehcacheTest.put(entry.getKey(), entry.getValue());
+            }
+            ehcacheTest.invalidateAll(); // clear all the entries.
+            for (Map.Entry<String, String> entry : keyValueMap.entrySet()) {
+                // Verify that value is null for a removed entry.
+                assertNull(ehcacheTest.get(entry.getKey()));
+            }
+            assertEquals(0, ehcacheTest.count());
+            ehcacheTest.close();
+        }
+    }
+
     public void testBasicGetAndPutBytesReference() throws Exception {
         Settings settings = Settings.builder().build();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
