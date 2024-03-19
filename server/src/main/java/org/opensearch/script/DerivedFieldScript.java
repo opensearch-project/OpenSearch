@@ -57,7 +57,7 @@ public abstract class DerivedFieldScript {
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> value, "_doc", value -> {
         deprecationLogger.deprecate(
             "derived-field__doc",
-            "Accessing variable [doc] via [params._doc] from within an terms-set-query-script "
+            "Accessing variable [doc] via [params._doc] from within an derived-field-script-context "
                 + "is deprecated in favor of directly accessing [doc]."
         );
         return value;
