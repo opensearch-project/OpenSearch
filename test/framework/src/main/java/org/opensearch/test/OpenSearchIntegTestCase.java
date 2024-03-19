@@ -1912,7 +1912,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 if (remoteStoreRepositoryPath == null) {
                     remoteStoreRepositoryPath = randomRepoPath().toAbsolutePath();
                 }
-                 builder.put(remoteStoreClusterSettings(REMOTE_BACKED_STORAGE_REPOSITORY_NAME, remoteStoreRepositoryPath));
+                builder.put(remoteStoreClusterSettings(REMOTE_BACKED_STORAGE_REPOSITORY_NAME, remoteStoreRepositoryPath));
             }
         }
         return builder.build();
