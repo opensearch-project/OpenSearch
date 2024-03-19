@@ -42,7 +42,6 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class TransportNodesGatewayStartedShardHelper {
-
     public static final String INDEX_NOT_FOUND = "node doesn't have meta data for index";
 
     public static GatewayStartedShard getShardInfoOnLocalNode(
@@ -232,13 +231,6 @@ public class TransportNodesGatewayStartedShardHelper {
             }
             buf.append("]");
             return buf.toString();
-        }
-
-        public static Boolean isEmpty(GatewayStartedShard response) {
-            return response.allocationId() == null
-                && response.primary() == false
-                && response.storeException() == null
-                && response.replicationCheckpoint() == null;
         }
 
         public Boolean isEmpty() {
