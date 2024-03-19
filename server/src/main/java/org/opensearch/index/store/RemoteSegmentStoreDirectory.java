@@ -45,6 +45,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -164,7 +165,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      */
     public RemoteSegmentMetadata initializeToSpecificCommit(long primaryTerm, long commitGeneration, String acquirerId) throws IOException {
         String metadataFilePrefix = MetadataFilenameUtils.getMetadataFilePrefixForCommit(primaryTerm, commitGeneration);
-        String metadataFile = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLock(metadataFilePrefix, acquirerId);
+        String metadataFile = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLockedMetadataFile(metadataFilePrefix, acquirerId);
         RemoteSegmentMetadata remoteSegmentMetadata = readMetadataFile(metadataFile);
         if (remoteSegmentMetadata != null) {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(remoteSegmentMetadata.getMetadata());
@@ -717,10 +718,49 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return Collections.unmodifiableMap(this.segmentsUploadedToRemoteStore);
     }
 
+    // Visible for testing
+    Set<String> getMetadataFilesToFilterActiveSegments(
+        final int lastNMetadataFilesToKeep,
+        final List<String> sortedMetadataFiles,
+        final Set<String> lockedMetadataFiles
+    ) {
+        // the idea here is for each deletable md file, we can consider the segments present in non-deletable md file
+        // before this and non-deletable md file after this to compute the active segment files.
+        // For ex:
+        // lastNMetadataFilesToKeep = 3
+        // sortedMetadataFiles = [m1, m2, m3, m4, m5, m6(locked), m7(locked), m8(locked), m9(locked), m10]
+        // lockedMetadataFiles = m6, m7, m8, m9
+        // then the returned set will be (m3, m6, m9)
+        final Set<String> metadataFilesToFilterActiveSegments = new HashSet<>();
+        for (int idx = lastNMetadataFilesToKeep; idx < sortedMetadataFiles.size(); idx++) {
+            if (lockedMetadataFiles.contains(sortedMetadataFiles.get(idx)) == false) {
+                String prevMetadata = (idx - 1) >= 0 ? sortedMetadataFiles.get(idx - 1) : null;
+                String nextMetadata = (idx + 1) < sortedMetadataFiles.size() ? sortedMetadataFiles.get(idx + 1) : null;
+
+                if (prevMetadata != null && (lockedMetadataFiles.contains(prevMetadata) || idx == lastNMetadataFilesToKeep)) {
+                    // if previous metadata of deletable md is locked, add it to md files for active segments.
+                    metadataFilesToFilterActiveSegments.add(prevMetadata);
+                }
+                if (nextMetadata != null && lockedMetadataFiles.contains(nextMetadata)) {
+                    // if next metadata of deletable md is locked, add it to md files for active segments.
+                    metadataFilesToFilterActiveSegments.add(nextMetadata);
+                }
+            }
+        }
+        return metadataFilesToFilterActiveSegments;
+    }
+
     /**
      * Delete stale segment and metadata files
      * One metadata file is kept per commit (refresh updates the same file). To read segments uploaded to remote store,
-     * we just need to read the latest metadata file. All the stale metadata files can be safely deleted.
+     * we just need to read the latest metadata file.
+     * Assumptions:
+     * (1) if a segment file is not present in a md file, it will never be present in any md file created after that, and
+     * (2) if (md1, md2, md3) are in sorted order, it is not possible that a segment file will be in md1 and md3 but not in md2.
+     * <p>
+     * for each deletable md file, segments present in non-deletable md file before this and non-deletable md file
+     * after this are sufficient to compute the list of active or non-deletable segment files referenced by a deletable
+     * md file
      *
      * @param lastNMetadataFilesToKeep number of metadata files to keep
      * @throws IOException in case of I/O error while reading from / writing to remote segment store
@@ -745,35 +785,36 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             return;
         }
 
-        List<String> metadataFilesEligibleToDelete = sortedMetadataFileList.subList(
-            lastNMetadataFilesToKeep,
-            sortedMetadataFileList.size()
+        List<String> metadataFilesEligibleToDelete = new ArrayList<>(
+            sortedMetadataFileList.subList(lastNMetadataFilesToKeep, sortedMetadataFileList.size())
         );
-        List<String> metadataFilesToBeDeleted = metadataFilesEligibleToDelete.stream().filter(metadataFile -> {
-            try {
-                return !isLockAcquired(metadataFile);
-            } catch (IOException e) {
-                logger.error(
-                    "skipping metadata file ("
-                        + metadataFile
-                        + ") deletion for this run,"
-                        + " as checking lock for metadata is failing with error: "
-                        + e
-                );
-                return false;
-            }
-        }).collect(Collectors.toList());
+        Set<String> allLockFiles;
+        try {
+            allLockFiles = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLockedMetadataFiles(MetadataFilenameUtils.METADATA_PREFIX);
+        } catch (Exception e) {
+            logger.error("Exception while fetching segment metadata lock files, skipping deleteStaleSegments", e);
+            return;
+        }
+        List<String> metadataFilesToBeDeleted = metadataFilesEligibleToDelete.stream()
+            .filter(metadataFile -> allLockFiles.contains(metadataFile) == false)
+            .collect(Collectors.toList());
 
-        sortedMetadataFileList.removeAll(metadataFilesToBeDeleted);
         logger.debug(
             "metadataFilesEligibleToDelete={} metadataFilesToBeDeleted={}",
             metadataFilesEligibleToDelete,
-            metadataFilesEligibleToDelete
+            metadataFilesToBeDeleted
         );
 
         Map<String, UploadedSegmentMetadata> activeSegmentFilesMetadataMap = new HashMap<>();
         Set<String> activeSegmentRemoteFilenames = new HashSet<>();
-        for (String metadataFile : sortedMetadataFileList) {
+
+        final Set<String> metadataFilesToFilterActiveSegments = getMetadataFilesToFilterActiveSegments(
+            lastNMetadataFilesToKeep,
+            sortedMetadataFileList,
+            allLockFiles
+        );
+
+        for (String metadataFile : metadataFilesToFilterActiveSegments) {
             Map<String, UploadedSegmentMetadata> segmentMetadataMap = readMetadataFile(metadataFile).getMetadata();
             activeSegmentFilesMetadataMap.putAll(segmentMetadataMap);
             activeSegmentRemoteFilenames.addAll(
@@ -852,6 +893,25 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
     }
 
+    public static void remoteDirectoryCleanup(
+        RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
+        String remoteStoreRepoForIndex,
+        String indexUUID,
+        ShardId shardId
+    ) {
+        try {
+            RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
+                remoteStoreRepoForIndex,
+                indexUUID,
+                shardId
+            );
+            remoteSegmentStoreDirectory.deleteStaleSegments(0);
+            remoteSegmentStoreDirectory.deleteIfEmpty();
+        } catch (Exception e) {
+            staticLogger.error("Exception occurred while deleting directory", e);
+        }
+    }
+
     /*
     Tries to delete shard level directory if it is empty
     Return true if it deleted it successfully
@@ -874,7 +934,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             logger.error("Exception occurred while deleting directory", e);
             return false;
         }
-
         return true;
     }
 

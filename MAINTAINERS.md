@@ -16,7 +16,6 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Daniel "dB." Doubrovkine | [dblock](https://github.com/dblock)                     | Amazon      |
 | Gaurav Bafna             | [gbbafna](https://github.com/gbbafna)                   | Amazon      |
 | Himanshu Setia           | [setiah](https://github.com/setiah)                     | Amazon      |
-| Kartik Ganesh            | [kartg](https://github.com/kartg)                       | Amazon      |
 | Kunal Kotwani            | [kotwanikunal](https://github.com/kotwanikunal)         | Amazon      |
 | Marc Handalian           | [mch2](https://github.com/mch2)                         | Amazon      |
 | Michael Froh             | [msfroh](https://github.com/msfroh)                     | Amazon      |
@@ -40,3 +39,4 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 |-------------------------|---------------------------------------------|-------------|
 | Megha Sai Kavikondala   | [meghasaik](https://github.com/meghasaik)   | Amazon      |
 | Xue Zhou                | [xuezhou25](https://github.com/xuezhou25)   | Amazon      |
+| Kartik Ganesh           | [kartg](https://github.com/kartg)           | Amazon      |

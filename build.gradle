@@ -54,8 +54,8 @@ plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "6.23.2" apply false
-  id "org.gradle.test-retry" version "1.5.4" apply false
+  id "com.diffplug.spotless" version "6.25.0" apply false
+  id "org.gradle.test-retry" version "1.5.8" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
 }
@@ -516,7 +516,6 @@ subprojects {
         includeClasses.add("org.opensearch.remotestore.CreateRemoteIndexClusterDefaultDocRep")
         includeClasses.add("org.opensearch.remotestore.CreateRemoteIndexIT")
         includeClasses.add("org.opensearch.remotestore.CreateRemoteIndexTranslogDisabledIT")
-        includeClasses.add("org.opensearch.remotestore.RemoteIndexPrimaryRelocationIT")
         includeClasses.add("org.opensearch.remotestore.RemoteStoreBackpressureIT")
         includeClasses.add("org.opensearch.remotestore.RemoteStoreIT")
         includeClasses.add("org.opensearch.remotestore.RemoteStoreRefreshListenerIT")
@@ -545,6 +544,7 @@ subprojects {
         includeClasses.add("org.opensearch.snapshots.SnapshotStatusApisIT")
         includeClasses.add("org.opensearch.test.rest.ClientYamlTestSuiteIT")
         includeClasses.add("org.opensearch.upgrade.DetectEsInstallationTaskTests")
+        includeClasses.add("org.opensearch.cluster.MinimumClusterManagerNodesIT")
       }
     }
   }

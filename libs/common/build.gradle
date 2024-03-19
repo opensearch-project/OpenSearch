@@ -43,3 +43,64 @@ tasks.named('forbiddenApisMain').configure {
   // TODO: Need to decide how we want to handle for forbidden signatures with the changes to server
   replaceSignatureFiles 'jdk-signatures'
 }
+
+// Add support for incubator modules on supported Java versions.
+if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_20) {
+  sourceSets {
+    java20 {
+      java {
+        srcDirs = ['src/main/java20']
+      }
+    }
+  }
+
+  configurations {
+    java20Implementation.extendsFrom(implementation)
+  }
+
+  dependencies {
+    java20Implementation sourceSets.main.output
+  }
+
+  compileJava20Java {
+    targetCompatibility = JavaVersion.VERSION_20
+    options.compilerArgs += ['--add-modules', 'jdk.incubator.vector']
+    options.compilerArgs -= '-Werror' // use of incubator modules is reported as a warning
+  }
+
+  jar {
+    metaInf {
+      into 'versions/20'
+      from sourceSets.java20.output
+    }
+    manifest.attributes('Multi-Release': 'true')
+  }
+
+  tasks.withType(Test).configureEach {
+    // Relying on the convention for Test.classpath in custom Test tasks has been deprecated
+    // and scheduled to be removed in Gradle 9.0. Below lines are added from the migration guide:
+    // https://docs.gradle.org/8.5/userguide/upgrading_version_8.html#test_task_default_classpath
+    testClassesDirs = testing.suites.test.sources.output.classesDirs
+    classpath = testing.suites.test.sources.runtimeClasspath
+
+    // Adds the multi-release JAR to the classpath when executing tests.
+    // This allows newer sources to be picked up at test runtime (if supported).
+    classpath += files(jar.archiveFile)
+    // Removes the "main" sources from the classpath to avoid JarHell problems as
+    // the multi-release JAR already contains those classes.
+    classpath -= sourceSets.main.output
+  }
+
+  tasks.register('roundableSimdTest', Test) {
+    group 'verification'
+    include '**/RoundableTests.class'
+    systemProperty 'opensearch.experimental.feature.simd.rounding.enabled', 'forced'
+  }
+
+  check.dependsOn(roundableSimdTest)
+
+  forbiddenApisJava20 {
+    failOnMissingClasses = false
+    ignoreSignaturesOfMissingClasses = true
+  }
+}

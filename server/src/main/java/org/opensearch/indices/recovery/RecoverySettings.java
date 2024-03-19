@@ -46,6 +46,8 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * Settings for the recovery mechanism
  *
@@ -176,6 +178,13 @@ public class RecoverySettings {
         Property.Dynamic
     );
 
+    public static final Setting<TimeValue> INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT = Setting.timeSetting(
+        "indices.recovery.internal_remote_upload_timeout",
+        new TimeValue(1, TimeUnit.HOURS),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     // choose 512KB-16B to ensure that the resulting byte[] is not a humongous allocation in G1.
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512 * 1024 - 16, ByteSizeUnit.BYTES);
 
@@ -193,6 +202,7 @@ public class RecoverySettings {
     private volatile int minRemoteSegmentMetadataFiles;
 
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
+    private volatile TimeValue internalRemoteUploadTimeout;
 
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
@@ -216,6 +226,7 @@ public class RecoverySettings {
         }
 
         logger.debug("using max_bytes_per_sec[{}]", maxBytesPerSec);
+        this.internalRemoteUploadTimeout = INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.get(settings);
 
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING, this::setMaxConcurrentFileChunks);
@@ -237,6 +248,8 @@ public class RecoverySettings {
             CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING,
             this::setMinRemoteSegmentMetadataFiles
         );
+        clusterSettings.addSettingsUpdateConsumer(INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT, this::setInternalRemoteUploadTimeout);
+
     }
 
     public RateLimiter rateLimiter() {
@@ -265,6 +278,10 @@ public class RecoverySettings {
 
     public TimeValue internalActionLongTimeout() {
         return internalActionLongTimeout;
+    }
+
+    public TimeValue internalRemoteUploadTimeout() {
+        return internalRemoteUploadTimeout;
     }
 
     public ByteSizeValue getChunkSize() {
@@ -296,6 +313,10 @@ public class RecoverySettings {
 
     public void setInternalActionLongTimeout(TimeValue internalActionLongTimeout) {
         this.internalActionLongTimeout = internalActionLongTimeout;
+    }
+
+    public void setInternalRemoteUploadTimeout(TimeValue internalRemoteUploadTimeout) {
+        this.internalRemoteUploadTimeout = internalRemoteUploadTimeout;
     }
 
     private void setMaxBytesPerSec(ByteSizeValue maxBytesPerSec) {

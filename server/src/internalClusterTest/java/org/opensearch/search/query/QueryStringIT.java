@@ -38,7 +38,6 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperService;
@@ -47,7 +46,7 @@ import org.opensearch.index.query.QueryStringQueryBuilder;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchModule;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -70,12 +69,12 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class QueryStringIT extends ParameterizedOpenSearchIntegTestCase {
+public class QueryStringIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static int CLUSTER_MAX_CLAUSE_COUNT;
 
-    public QueryStringIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public QueryStringIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -84,11 +83,6 @@ public class QueryStringIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @BeforeClass

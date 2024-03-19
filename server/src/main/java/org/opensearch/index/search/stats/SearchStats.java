@@ -38,7 +38,6 @@ import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -466,12 +465,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             builder.humanReadableField(Fields.QUERY_TIME_IN_MILLIS, Fields.QUERY_TIME, getQueryTime());
             builder.field(Fields.QUERY_CURRENT, queryCurrent);
 
-            if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
-                builder.field(Fields.CONCURRENT_QUERY_TOTAL, concurrentQueryCount);
-                builder.humanReadableField(Fields.CONCURRENT_QUERY_TIME_IN_MILLIS, Fields.CONCURRENT_QUERY_TIME, getConcurrentQueryTime());
-                builder.field(Fields.CONCURRENT_QUERY_CURRENT, concurrentQueryCurrent);
-                builder.field(Fields.CONCURRENT_AVG_SLICE_COUNT, getConcurrentAvgSliceCount());
-            }
+            builder.field(Fields.CONCURRENT_QUERY_TOTAL, concurrentQueryCount);
+            builder.humanReadableField(Fields.CONCURRENT_QUERY_TIME_IN_MILLIS, Fields.CONCURRENT_QUERY_TIME, getConcurrentQueryTime());
+            builder.field(Fields.CONCURRENT_QUERY_CURRENT, concurrentQueryCurrent);
+            builder.field(Fields.CONCURRENT_AVG_SLICE_COUNT, getConcurrentAvgSliceCount());
 
             builder.field(Fields.FETCH_TOTAL, fetchCount);
             builder.humanReadableField(Fields.FETCH_TIME_IN_MILLIS, Fields.FETCH_TIME, getFetchTime());

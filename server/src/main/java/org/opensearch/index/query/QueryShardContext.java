@@ -256,7 +256,7 @@ public class QueryShardContext extends QueryRewriteContext {
         this.bitsetFilterCache = bitsetFilterCache;
         this.indexFieldDataService = indexFieldDataLookup;
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
-        this.nestedScope = new NestedScope();
+        this.nestedScope = new NestedScope(indexSettings);
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;
         this.searcher = searcher;
@@ -270,7 +270,7 @@ public class QueryShardContext extends QueryRewriteContext {
         allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.lookup = null;
         this.namedQueries.clear();
-        this.nestedScope = new NestedScope();
+        this.nestedScope = new NestedScope(indexSettings);
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -423,7 +423,8 @@ public class QueryShardContext extends QueryRewriteContext {
         if (this.lookup == null) {
             this.lookup = new SearchLookup(
                 getMapperService(),
-                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
+                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup),
+                shardId
             );
         }
         return this.lookup;
@@ -439,7 +440,8 @@ public class QueryShardContext extends QueryRewriteContext {
          */
         return new SearchLookup(
             getMapperService(),
-            (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
+            (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup),
+            shardId
         );
     }
 

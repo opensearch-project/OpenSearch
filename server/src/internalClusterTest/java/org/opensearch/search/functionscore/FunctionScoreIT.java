@@ -39,7 +39,6 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
@@ -50,7 +49,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,13 +77,13 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
+public class FunctionScoreIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     static final String TYPE = "type";
     static final String INDEX = "index";
 
-    public FunctionScoreIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public FunctionScoreIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -93,11 +92,6 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override

@@ -51,6 +51,7 @@ dependencies {
     exclude module: "logback-core"
     exclude module: "logback-classic"
     exclude module: "avro"
+    exclude group: 'org.apache.kerby'
   }
   api "org.codehaus.jettison:jettison:${versions.jettison}"
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
@@ -67,15 +68,16 @@ dependencies {
   api "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
   api "org.eclipse.jetty:jetty-server:${versions.jetty}"
   api "org.eclipse.jetty.websocket:javax-websocket-server-impl:${versions.jetty}"
-  api 'org.apache.zookeeper:zookeeper:3.9.1'
+  api 'org.apache.zookeeper:zookeeper:3.9.2'
   api "org.apache.commons:commons-text:1.11.0"
   api "commons-net:commons-net:3.10.0"
-  api "ch.qos.logback:logback-core:1.2.13"
+  api "ch.qos.logback:logback-core:1.5.3"
   api "ch.qos.logback:logback-classic:1.2.13"
+  api 'org.apache.kerby:kerb-admin:2.0.3'
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   runtimeOnly("com.squareup.okhttp3:okhttp:4.12.0") {
     exclude group: "com.squareup.okio"
   }
-  runtimeOnly "com.squareup.okio:okio:3.7.0"
+  runtimeOnly "com.squareup.okio:okio:3.8.0"
   runtimeOnly "org.xerial.snappy:snappy-java:1.1.10.5"
 }

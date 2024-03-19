@@ -44,8 +44,8 @@ public class MissingValueIT extends GeoModulePluginIntegTestCase {
     private GeoPoint bottomRight;
     private GeoPoint topLeft;
 
-    public MissingValueIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MissingValueIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @Override

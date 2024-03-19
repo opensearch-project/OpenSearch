@@ -52,6 +52,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.service.ReportingService;
 import org.opensearch.index.IndexModule;
+import org.opensearch.semver.SemverRange;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.transport.TransportSettings;
 
@@ -387,18 +388,28 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * Verify the given plugin is compatible with the current OpenSearch installation.
      */
     static void verifyCompatibility(PluginInfo info) {
-        if (info.getOpenSearchVersion().equals(Version.CURRENT) == false) {
+        if (!isPluginVersionCompatible(info, Version.CURRENT)) {
             throw new IllegalArgumentException(
                 "Plugin ["
                     + info.getName()
                     + "] was built for OpenSearch version "
-                    + info.getOpenSearchVersion()
+                    + info.getOpenSearchVersionRangesString()
                     + " but version "
                     + Version.CURRENT
                     + " is running"
             );
         }
         JarHell.checkJavaVersion(info.getName(), info.getJavaVersion());
+    }
+
+    public static boolean isPluginVersionCompatible(final PluginInfo pluginInfo, final Version coreVersion) {
+        // Core version must satisfy the semver range in plugin info
+        for (SemverRange range : pluginInfo.getOpenSearchVersionRanges()) {
+            if (!range.isSatisfiedBy(coreVersion)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {
@@ -682,6 +693,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
+    @SuppressWarnings("removal")
     private Plugin loadBundle(Bundle bundle, Map<String, Plugin> loaded) {
         String name = bundle.plugin.getName();
 

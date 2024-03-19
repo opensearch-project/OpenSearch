@@ -42,6 +42,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.IntArray;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.core.common.util.ByteArray;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -156,45 +157,53 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         this.roundingPreparer = roundingPreparer;
         this.preparedRounding = prepareRounding(0);
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext();
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
         fastFilterContext.setAggregationType(
-            new FastFilterRewriteHelper.DateHistogramAggregationType(
+            new AutoHistogramAggregationType(
                 valuesSourceConfig.fieldType(),
                 valuesSourceConfig.missing() != null,
                 valuesSourceConfig.script() != null
             )
         );
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            fastFilterContext.buildFastFilter(
-                context,
-                fc -> FastFilterRewriteHelper.getAggregationBounds(context, fc.getFieldType().name()),
-                b -> getMinimumRounding(b[0], b[1]),
-                // Passing prepared rounding as supplier to ensure the correct prepared
-                // rounding is set as it is done during getMinimumRounding
-                () -> preparedRounding
-            );
+            fastFilterContext.buildFastFilter();
         }
     }
 
-    private Rounding getMinimumRounding(final long low, final long high) {
-        // max - min / targetBuckets = bestDuration
-        // find the right innerInterval this bestDuration belongs to
-        // since we cannot exceed targetBuckets, bestDuration should go up,
-        // so the right innerInterval should be an upper bound
-        long bestDuration = (high - low) / targetBuckets;
-        while (roundingIdx < roundingInfos.length - 1) {
-            final RoundingInfo curRoundingInfo = roundingInfos[roundingIdx];
-            final int temp = curRoundingInfo.innerIntervals[curRoundingInfo.innerIntervals.length - 1];
-            // If the interval duration is covered by the maximum inner interval,
-            // we can start with this outer interval for creating the buckets
-            if (bestDuration <= temp * curRoundingInfo.roughEstimateDurationMillis) {
-                break;
-            }
-            roundingIdx++;
+    private class AutoHistogramAggregationType extends FastFilterRewriteHelper.AbstractDateHistogramAggregationType {
+
+        public AutoHistogramAggregationType(MappedFieldType fieldType, boolean missing, boolean hasScript) {
+            super(fieldType, missing, hasScript);
         }
 
-        preparedRounding = prepareRounding(roundingIdx);
-        return roundingInfos[roundingIdx].rounding;
+        @Override
+        protected Rounding getRounding(final long low, final long high) {
+            // max - min / targetBuckets = bestDuration
+            // find the right innerInterval this bestDuration belongs to
+            // since we cannot exceed targetBuckets, bestDuration should go up,
+            // so the right innerInterval should be an upper bound
+            long bestDuration = (high - low) / targetBuckets;
+            // reset so this function is idempotent
+            roundingIdx = 0;
+            while (roundingIdx < roundingInfos.length - 1) {
+                final RoundingInfo curRoundingInfo = roundingInfos[roundingIdx];
+                final int temp = curRoundingInfo.innerIntervals[curRoundingInfo.innerIntervals.length - 1];
+                // If the interval duration is covered by the maximum inner interval,
+                // we can start with this outer interval for creating the buckets
+                if (bestDuration <= temp * curRoundingInfo.roughEstimateDurationMillis) {
+                    break;
+                }
+                roundingIdx++;
+            }
+
+            preparedRounding = prepareRounding(roundingIdx);
+            return roundingInfos[roundingIdx].rounding;
+        }
+
+        @Override
+        protected Prepared getRoundingPrepared() {
+            return preparedRounding;
+        }
     }
 
     protected abstract LongKeyedBucketOrds getBucketOrds();

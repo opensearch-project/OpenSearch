@@ -85,7 +85,8 @@ public class XContentParserTests extends OpenSearchTestCase {
         () -> randomAlphaOfLengthBetween(1, SmileXContent.DEFAULT_MAX_STRING_LEN),
         /* YAML parser limitation */
         XContentType.YAML,
-        () -> randomAlphaOfLengthBetween(1, 3140000)
+        /* use 75% of the limit, difficult to get the exact size of the content right */
+        () -> randomRealisticUnicodeOfCodepointLengthBetween(1, (int) (YamlXContent.DEFAULT_CODEPOINT_LIMIT * 0.75))
     );
 
     private static final Map<XContentType, Supplier<String>> OFF_LIMIT_GENERATORS = Map.of(
@@ -97,7 +98,7 @@ public class XContentParserTests extends OpenSearchTestCase {
         () -> randomAlphaOfLength(SmileXContent.DEFAULT_MAX_STRING_LEN + 1),
         /* YAML parser limitation */
         XContentType.YAML,
-        () -> randomRealisticUnicodeOfCodepointLength(3145730)
+        () -> randomRealisticUnicodeOfCodepointLength(YamlXContent.DEFAULT_CODEPOINT_LIMIT + 1)
     );
 
     private static final Map<XContentType, Supplier<String>> FIELD_NAME_GENERATORS = Map.of(

@@ -38,13 +38,12 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -59,7 +58,7 @@ import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEA
 import static org.opensearch.search.SearchTimeoutIT.ScriptedTimeoutPlugin.SCRIPT_NAME;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
-public class SearchTimeoutIT extends ParameterizedOpenSearchIntegTestCase {
+public class SearchTimeoutIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public SearchTimeoutIT(Settings settings) {
         super(settings);
     }
@@ -70,11 +69,6 @@ public class SearchTimeoutIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override

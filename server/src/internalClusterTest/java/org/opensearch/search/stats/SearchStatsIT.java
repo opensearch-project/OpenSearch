@@ -45,7 +45,6 @@ import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.search.stats.SearchStats.Stats;
 import org.opensearch.plugins.Plugin;
@@ -54,7 +53,7 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -81,10 +80,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, minNumDataNodes = 2)
-public class SearchStatsIT extends ParameterizedOpenSearchIntegTestCase {
+public class SearchStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public SearchStatsIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SearchStatsIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -93,11 +92,6 @@ public class SearchStatsIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override

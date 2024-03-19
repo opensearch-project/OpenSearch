@@ -12,7 +12,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.repositories.RepositoryException;
-import org.opensearch.repositories.fs.FsRepository;
+import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
@@ -53,7 +53,7 @@ public class SystemRepositoryIT extends AbstractSnapshotIntegTestCase {
         assertEquals(
             e.getMessage(),
             "[system-repo-name] trying to modify an unmodifiable attribute type of system "
-                + "repository from current value [fs] to new value [mock]"
+                + "repository from current value [reloadable-fs] to new value [mock]"
         );
     }
 
@@ -65,7 +65,12 @@ public class SystemRepositoryIT extends AbstractSnapshotIntegTestCase {
         final Settings.Builder repoSettings = Settings.builder().put("location", absolutePath).put("chunk_size", new ByteSizeValue(20));
 
         assertAcked(
-            client.admin().cluster().preparePutRepository(systemRepoName).setType(FsRepository.TYPE).setSettings(repoSettings).get()
+            client.admin()
+                .cluster()
+                .preparePutRepository(systemRepoName)
+                .setType(ReloadableFsRepository.TYPE)
+                .setSettings(repoSettings)
+                .get()
         );
     }
 }

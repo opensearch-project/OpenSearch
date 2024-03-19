@@ -82,7 +82,7 @@ public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAc
         "index.number_of_replicas"
     );
 
-    private final static String[] ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS_PREFIXES = { "index.search.slowlog" };
+    private final static String[] ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS_PREFIXES = { "index.search.slowlog", "index.routing.allocation" };
 
     private final MetadataUpdateSettingsService updateSettingsService;
 

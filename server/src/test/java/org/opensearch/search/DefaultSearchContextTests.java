@@ -54,7 +54,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
@@ -80,7 +79,6 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -554,8 +552,6 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
     }
 
     public void testSearchPathEvaluationUsingSortField() throws Exception {
-        // enable the concurrent set FeatureFlag
-        FeatureFlagSetter.set(FeatureFlags.CONCURRENT_SEGMENT_SEARCH);
         ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
         when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
         ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 1);

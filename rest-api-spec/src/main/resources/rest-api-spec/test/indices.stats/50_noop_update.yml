@@ -23,8 +23,8 @@ setup:
 ---
 "Test noop_update_total metric can be updated by both update API and bulk API":
   - skip:
-      version: " - 2.99.99" #TODO: change to 2.11.99 after the PR is backported to 2.x branch
-      reason: "fixed in 3.0"
+      version: " - 2.11.99"
+      reason: "fixed in 2.12.0"
 
   - do:
       update:

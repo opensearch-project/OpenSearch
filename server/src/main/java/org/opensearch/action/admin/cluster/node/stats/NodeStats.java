@@ -229,8 +229,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             repositoriesStats = null;
         }
-        // TODO: change to V_2_12_0 on main after backport to 2.x
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             admissionControlStats = in.readOptionalWriteable(AdmissionControlStats::new);
         } else {
             admissionControlStats = null;
@@ -504,8 +503,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalWriteable(repositoriesStats);
         }
-        // TODO: change to V_2_12_0 on main after backport to 2.x
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalWriteable(admissionControlStats);
         }
     }

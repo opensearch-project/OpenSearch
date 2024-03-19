@@ -41,6 +41,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import junit.framework.TestCase;
 
 /** Simple tests for SecureSM */
+@SuppressWarnings("removal")
 public class SecureSMTests extends TestCase {
     static {
         // install a mock security policy:

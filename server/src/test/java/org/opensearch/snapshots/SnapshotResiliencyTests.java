@@ -157,6 +157,7 @@ import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.cache.module.CacheModule;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -188,7 +189,6 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
-import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
@@ -240,6 +240,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -2037,7 +2038,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
                 final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
                 repositoriesServiceReference.set(repositoriesService);
-                FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnv, null);
                 indicesService = new IndicesService(
                     settings,
                     mock(PluginsService.class),
@@ -2072,10 +2072,10 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     emptyMap(),
                     new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool),
                     repositoriesServiceReference::get,
-                    fileCacheCleaner,
                     null,
                     new RemoteStoreStatsTrackerFactory(clusterService, settings),
-                    DefaultRecoverySettings.INSTANCE
+                    DefaultRecoverySettings.INSTANCE,
+                    new CacheModule(new ArrayList<>(), settings).getCacheService()
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
@@ -2313,7 +2313,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             client
                         ),
                         NoopMetricsRegistry.INSTANCE,
-                        searchRequestOperationsCompositeListenerFactory
+                        searchRequestOperationsCompositeListenerFactory,
+                        NoopTracer.INSTANCE
                     )
                 );
                 actions.put(

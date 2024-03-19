@@ -62,6 +62,8 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.cache.policy.CachedQueryResult;
+import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
@@ -81,9 +83,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
@@ -135,7 +135,6 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats;
-import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
@@ -362,7 +361,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private volatile TimeValue clusterDefaultRefreshInterval;
     private volatile TimeValue clusterRemoteTranslogBufferInterval;
-    private final FileCacheCleaner fileCacheCleaner;
 
     private final SearchRequestStats searchRequestStats;
 
@@ -395,10 +393,10 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        FileCacheCleaner fileCacheCleaner,
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        CacheService cacheService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -415,7 +413,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 return Optional.empty();
             }
             return Optional.of(new IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }));
+        }), cacheService, threadPool);
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -444,13 +442,12 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         });
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
-        this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, indicesRequestCache, logger, threadPool, this.cleanInterval);
+        this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, logger, threadPool, this.cleanInterval);
         this.metaStateService = metaStateService;
         this.engineFactoryProviders = engineFactoryProviders;
 
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
-        this.fileCacheCleaner = fileCacheCleaner;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -766,7 +763,6 @@ public class IndicesService extends AbstractLifecycleComponent
         };
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
-        finalListeners.add(fileCacheCleaner);
         final IndexService indexService = createIndexService(
             CREATE_INDEX,
             indexMetadata,
@@ -1590,17 +1586,9 @@ public class IndicesService extends AbstractLifecycleComponent
         private final ThreadPool threadPool;
         private final TimeValue interval;
         private final AtomicBoolean closed = new AtomicBoolean(false);
-        private final IndicesRequestCache requestCache;
 
-        CacheCleaner(
-            IndicesFieldDataCache cache,
-            IndicesRequestCache requestCache,
-            Logger logger,
-            ThreadPool threadPool,
-            TimeValue interval
-        ) {
+        CacheCleaner(IndicesFieldDataCache cache, Logger logger, ThreadPool threadPool, TimeValue interval) {
             this.cache = cache;
-            this.requestCache = requestCache;
             this.logger = logger;
             this.threadPool = threadPool;
             this.interval = interval;
@@ -1622,12 +1610,6 @@ public class IndicesService extends AbstractLifecycleComponent
                     "periodic field data cache cleanup finished in {} milliseconds",
                     TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)
                 );
-            }
-
-            try {
-                this.requestCache.cleanCache();
-            } catch (Exception e) {
-                logger.warn("Exception during periodic request cache cleanup:", e);
             }
             // Reschedule itself to run again if not closed
             if (closed.get() == false) {
@@ -1702,16 +1684,20 @@ public class IndicesService extends AbstractLifecycleComponent
 
         boolean[] loadedFromCache = new boolean[] { true };
         BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), out -> {
+            long beforeQueryPhase = System.nanoTime();
             queryPhase.execute(context);
-            context.queryResult().writeToNoId(out);
+            // Write relevant info for cache tier policies before the whole QuerySearchResult, so we don't have to read
+            // the whole QSR into memory when we decide whether to allow it into a particular cache tier based on took time/other info
+            CachedQueryResult cachedQueryResult = new CachedQueryResult(context.queryResult(), System.nanoTime() - beforeQueryPhase);
+            cachedQueryResult.writeToNoId(out);
             loadedFromCache[0] = false;
         });
 
         if (loadedFromCache[0]) {
             // restore the cached query result into the context
             final QuerySearchResult result = context.queryResult();
-            StreamInput in = new NamedWriteableAwareStreamInput(bytesReference.streamInput(), namedWriteableRegistry);
-            result.readFromWithId(context.id(), in);
+            // Load the cached QSR into result, discarding values used only in the cache
+            CachedQueryResult.loadQSR(bytesReference, result, context.id(), namedWriteableRegistry);
             result.setSearchShardTarget(context.shardTarget());
         } else if (context.queryResult().searchTimedOut()) {
             // we have to invalidate the cache entry if we cached a query result form a request that timed out.
