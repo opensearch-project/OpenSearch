@@ -74,6 +74,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -126,7 +127,14 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     }
 
     @Override
-    public void list(ShardId shardId, String customDataPath, DiscoveryNode[] nodes, ActionListener<NodesStoreFilesMetadata> listener) {
+    public void list(
+        Map<ShardId, ShardAttributes> shardAttributes,
+        DiscoveryNode[] nodes,
+        ActionListener<NodesStoreFilesMetadata> listener
+    ) {
+        assert shardAttributes.size() == 1 : "only one shard should be specified";
+        final ShardId shardId = shardAttributes.keySet().iterator().next();
+        final String customDataPath = shardAttributes.get(shardId).getCustomDataPath();
         execute(new Request(shardId, customDataPath, nodes), listener);
     }
 
