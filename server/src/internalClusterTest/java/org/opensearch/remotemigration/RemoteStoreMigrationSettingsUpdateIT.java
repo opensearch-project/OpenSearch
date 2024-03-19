@@ -8,30 +8,42 @@
 
 package org.opensearch.remotemigration;
 
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.nio.file.Path;
 import java.util.Optional;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
-import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.STRICT;
-import static org.opensearch.node.remotestore.RemoteStoreNodeService.Direction.REMOTE_STORE;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.MIXED;
-
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.STRICT;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.Direction.NONE;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.Direction.REMOTE_STORE;
+import static org.opensearch.remotemigration.RemoteStoreMigrationAllocationIT.TEST_INDEX;
+import static org.opensearch.remotemigration.RemoteStoreMigrationAllocationIT.assertNodeInCluster;
+import static org.opensearch.remotemigration.RemoteStoreMigrationAllocationIT.prepareIndexWithoutReplica;
+import static org.opensearch.remotemigration.RemoteStoreMigrationAllocationIT.setClusterMode;
+import static org.opensearch.remotemigration.RemoteStoreMigrationAllocationIT.setDirection;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationAllocationIT {
+public class RemoteStoreMigrationSettingsUpdateIT extends MigrationBaseTestCase {
 
-    protected static final String NAME = "remote_store_migration";
-
+    private Client client;
 
     // remote store backed index setting tests
 
@@ -44,8 +56,9 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationAl
 
         logger.info(" --> add non-remote node");
         addRemote = false;
-        internalCluster().startNode();
+        String remoteNodeName = internalCluster().startNode();
         internalCluster().validateClusterFormed();
+        assertNodeInCluster(remoteNodeName);
 
         logger.info(" --> create an index");
         prepareIndexWithoutReplica(Optional.of(indexName1));
@@ -59,8 +72,9 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationAl
 
         logger.info(" --> add remote node");
         addRemote = true;
-        internalCluster().startNode();
+        String nonRemoteNodeName = internalCluster().startNode();
         internalCluster().validateClusterFormed();
+        assertNodeInCluster(nonRemoteNodeName);
 
         logger.info(" --> create another index");
         prepareIndexWithoutReplica(Optional.of(indexName2));
@@ -69,9 +83,75 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationAl
         assertRemoteStoreBackedIndex(indexName2);
     }
 
+    public void testNewRestoredIndexIsRemoteStoreBackedForRemoteStoreDirectionAndMixedMode() throws Exception {
+        logger.info(" --> initialize cluster: gives non remote cluster manager");
+        initializeCluster(false);
+
+        logger.info(" --> add remote and non-remote nodes");
+        setClusterMode(MIXED.mode);
+        addRemote = false;
+        String nonRemoteNodeName = internalCluster().startNode();
+        addRemote = true;
+        String remoteNodeName = internalCluster().startNode();
+        internalCluster().validateClusterFormed();
+        assertNodeInCluster(nonRemoteNodeName);
+        assertNodeInCluster(remoteNodeName);
+
+        logger.info(" --> create a non remote-backed index");
+        client.admin()
+            .indices()
+            .prepareCreate(TEST_INDEX)
+            .setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            )
+            .get();
+
+        logger.info(" --> verify that non remote stored backed index is created");
+        assertNonRemoteStoreBackedIndex(TEST_INDEX);
+
+        logger.info(" --> create repository");
+        String snapshotName = "test-snapshot";
+        String snapshotRepoName = "test-restore-snapshot-repo";
+        Path snapshotRepoNameAbsolutePath = randomRepoPath().toAbsolutePath();
+        assertAcked(
+            clusterAdmin().preparePutRepository(snapshotRepoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", snapshotRepoNameAbsolutePath))
+        );
+
+        logger.info(" --> create snapshot of non remote stored backed index");
+
+        SnapshotInfo snapshotInfo = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName)
+            .setIndices(TEST_INDEX)
+            .setWaitForCompletion(true)
+            .get()
+            .getSnapshotInfo();
+
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertTrue(snapshotInfo.successfulShards() > 0);
+        assertEquals(0, snapshotInfo.failedShards());
+
+        logger.info(" --> restore index from snapshot under NONE direction");
+        String restoredIndexName1 = TEST_INDEX + "-restored1";
+        restoreSnapshot(snapshotRepoName, snapshotName, restoredIndexName1);
+
+        logger.info(" --> verify that restored index is non remote-backed");
+        assertNonRemoteStoreBackedIndex(restoredIndexName1);
+
+        logger.info(" --> restore index from snapshot under REMOTE_STORE direction");
+        setDirection(REMOTE_STORE.direction);
+        String restoredIndexName2 = TEST_INDEX + "-restored2";
+        restoreSnapshot(snapshotRepoName, snapshotName, restoredIndexName2);
+
+        logger.info(" --> verify that restored index is non remote-backed");
+        assertRemoteStoreBackedIndex(restoredIndexName2);
+    }
 
     // compatibility mode setting test
-    public void testSwitchToStrictMode()  throws Exception {
+
+    public void testSwitchToStrictMode() throws Exception {
         logger.info(" --> initialize cluster");
         initializeCluster(false);
 
@@ -82,12 +162,11 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationAl
         addRemote = false;
         String nonRemoteNodeName = internalCluster().startNode();
         internalCluster().validateClusterFormed();
+        assertNodeInCluster(remoteNodeName);
+        assertNodeInCluster(nonRemoteNodeName);
 
         logger.info(" --> attempt switching to strict mode");
-        SettingsException exception = assertThrows(
-            SettingsException.class,
-            () -> setClusterMode(STRICT.mode)
-        );
+        SettingsException exception = assertThrows(SettingsException.class, () -> setClusterMode(STRICT.mode));
         assertEquals(
             "can not switch to STRICT compatibility mode when the cluster contains both remote and non-remote nodes",
             exception.getMessage()
@@ -103,7 +182,7 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationAl
 
     // verify that the created index is not remote store backed
     private void assertNonRemoteStoreBackedIndex(String indexName) {
-        Settings indexSettings = internalCluster().client().admin().indices().prepareGetIndex().execute().actionGet().getSettings().get(indexName);
+        Settings indexSettings = client.admin().indices().prepareGetIndex().execute().actionGet().getSettings().get(indexName);
         assertEquals(ReplicationType.DOCUMENT.toString(), indexSettings.get(SETTING_REPLICATION_TYPE));
         assertNull(indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
         assertNull(indexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
@@ -112,12 +191,39 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationAl
 
     // verify that the created index is remote store backed
     private void assertRemoteStoreBackedIndex(String indexName) {
-        Settings indexSettings = internalCluster().client().admin().indices().prepareGetIndex().execute().actionGet().getSettings().get(indexName);
+        Settings indexSettings = client.admin().indices().prepareGetIndex().execute().actionGet().getSettings().get(indexName);
         assertEquals(ReplicationType.SEGMENT.toString(), indexSettings.get(SETTING_REPLICATION_TYPE));
         assertEquals("true", indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
         assertEquals(REPOSITORY_NAME, indexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
         assertEquals(REPOSITORY_2_NAME, indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
-        assertEquals(IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL, INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings));
+        assertEquals(
+            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
+            INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings)
+        );
+    }
+
+    // restore indices from a snapshot
+    private void restoreSnapshot(String snapshotRepoName, String snapshotName, String restoredIndexName) {
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName)
+            .setWaitForCompletion(false)
+            .setIndices(TEST_INDEX)
+            .setRenamePattern(TEST_INDEX)
+            .setRenameReplacement(restoredIndexName)
+            .get();
+
+        assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
+        ensureGreen(restoredIndexName);
+    }
+
+    private void initializeCluster(boolean remoteClusterManager) {
+        addRemote = remoteClusterManager;
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
+        internalCluster().startNodes(1);
+        client = internalCluster().client();
+        setClusterMode(STRICT.mode);
+        setDirection(NONE.direction);
     }
 
 }

@@ -283,7 +283,9 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
                     hasNonRemoteNode = true;
                 }
                 if (hasRemoteNode && hasNonRemoteNode) {
-                    throw new SettingsException("can not switch to STRICT compatibility mode when the cluster contains both remote and non-remote nodes");
+                    throw new SettingsException(
+                        "can not switch to STRICT compatibility mode when the cluster contains both remote and non-remote nodes"
+                    );
                 }
             }
         }

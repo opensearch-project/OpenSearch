@@ -671,9 +671,15 @@ public class RestoreService implements ClusterStateApplier {
                             clusterService.getSettings(),
                             clusterService.getClusterSettings()
                         );
-                        // remote store settings needs to be overridden if the remote store feature is enabled in the
-                        // cluster where snapshot is being restored.
+                        // remote store settings needs to be overridden in the cluster where snapshot is being restored if:
+                        // 1. the remote store feature is enabled
+                        // 2. cluster is undergoing remote store migration
                         MetadataCreateIndexService.updateRemoteStoreSettings(settingsBuilder, clusterService.getSettings());
+                        MetadataCreateIndexService.updateRemoteStoreSettingsForMigration(
+                            settingsBuilder,
+                            clusterService.state(),
+                            clusterService.getClusterSettings()
+                        );
                         return settingsBuilder.build();
                     }
 
@@ -691,8 +697,8 @@ public class RestoreService implements ClusterStateApplier {
                             settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
                         } else if (!INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings)
                             && clusterSettings.get(IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING)) {
-                            settingsBuilder.put(SETTING_REPLICATION_TYPE, clusterSettings.get(CLUSTER_REPLICATION_TYPE_SETTING).name());
-                        }
+                                settingsBuilder.put(SETTING_REPLICATION_TYPE, clusterSettings.get(CLUSTER_REPLICATION_TYPE_SETTING).name());
+                            }
                     }
 
                     private void populateIgnoredShards(String index, final Set<Integer> ignoreShards) {
@@ -1109,8 +1115,8 @@ public class RestoreService implements ClusterStateApplier {
 
     static class CleanRestoreStateTaskExecutor
         implements
-        ClusterStateTaskExecutor<CleanRestoreStateTaskExecutor.Task>,
-        ClusterStateTaskListener {
+            ClusterStateTaskExecutor<CleanRestoreStateTaskExecutor.Task>,
+            ClusterStateTaskListener {
 
         static class Task {
             final String uuid;

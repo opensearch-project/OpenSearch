@@ -1011,7 +1011,11 @@ public class MetadataCreateIndexService {
      * @param clusterState state of cluster
      * @param clusterSettings cluster level settings
      */
-    public static void updateRemoteStoreSettingsForMigration(Settings.Builder settingsBuilder, ClusterState clusterState, ClusterSettings clusterSettings) {
+    public static void updateRemoteStoreSettingsForMigration(
+        Settings.Builder settingsBuilder,
+        ClusterState clusterState,
+        ClusterSettings clusterSettings
+    ) {
         String value = settingsBuilder.get(SETTING_REMOTE_STORE_ENABLED);
         if (value != null && value.toLowerCase(Locale.ROOT).equals("true")) {
             return;
@@ -1025,7 +1029,7 @@ public class MetadataCreateIndexService {
         if (isMixedMode && isRemoteStoreMigrationDirection) {
             String segmentRepo, translogRepo;
 
-            Map<String, DiscoveryNode> nodes = clusterState.nodes().getNodes();;
+            Map<String, DiscoveryNode> nodes = clusterState.nodes().getNodes();
             for (Map.Entry<String, DiscoveryNode> entry : nodes.entrySet()) {
                 DiscoveryNode node = entry.getValue();
                 if (node.isRemoteStoreNode()) {
