@@ -190,7 +190,7 @@ public class TransportClusterManagerTermCheckTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected boolean canUseLocalNodeClusterState() {
+        protected boolean localExecuteSupportedByAction() {
             return true;
         }
 
@@ -276,7 +276,7 @@ public class TransportClusterManagerTermCheckTests extends OpenSearchTestCase {
 
     public void testTermCheckOnOldVersionClusterManager() throws ExecutionException, InterruptedException {
 
-        setUpCluster(Version.V_2_13_0);
+        setUpCluster(Version.V_2_12_0);
         TransportClusterManagerTermCheckTests.Request request = new TransportClusterManagerTermCheckTests.Request();
 
         PlainActionFuture<TransportClusterManagerTermCheckTests.Response> listener = new PlainActionFuture<>();

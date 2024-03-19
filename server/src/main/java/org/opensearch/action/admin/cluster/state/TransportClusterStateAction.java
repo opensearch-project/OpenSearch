@@ -235,7 +235,7 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
     }
 
     @Override
-    protected boolean canUseLocalNodeClusterState() {
+    protected boolean localExecuteSupportedByAction() {
         return true;
     }
 }

@@ -274,7 +274,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                         retryOnMasterChange(clusterState, null);
                     } else {
                         DiscoveryNode clusterManagerNode = nodes.getClusterManagerNode();
-                        if (clusterManagerNode.getVersion().onOrAfter(V_3_0_0) && canUseLocalNodeClusterState()) {
+                        if (clusterManagerNode.getVersion().onOrAfter(V_3_0_0) && localExecuteSupportedByAction()) {
                             BiConsumer<DiscoveryNode, ClusterState> executeOnLocalOrClusterManager = clusterStateLatestChecker(
                                 this::executeOnLocalNode,
                                 this::executeOnClusterManager
@@ -353,8 +353,8 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         }
 
         protected BiConsumer<DiscoveryNode, ClusterState> clusterStateLatestChecker(
-            Consumer<ClusterState> onLatestWithLocalState,
-            BiConsumer<DiscoveryNode, ClusterState> onMisMatchWithLocalState
+            Consumer<ClusterState> onLatestLocalState,
+            BiConsumer<DiscoveryNode, ClusterState> onStaleLocalState
         ) {
             return (clusterManagerNode, clusterState) -> {
                 transportService.sendRequest(
@@ -371,9 +371,9 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                                 isLatestClusterStatePresentOnLocalNode
                             );
                             if (isLatestClusterStatePresentOnLocalNode) {
-                                onLatestWithLocalState.accept(clusterState);
+                                onLatestLocalState.accept(clusterState);
                             } else {
-                                onMisMatchWithLocalState.accept(clusterManagerNode, clusterState);
+                                onStaleLocalState.accept(clusterManagerNode, clusterState);
                             }
                         }
 
@@ -462,13 +462,13 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
     }
 
     /**
-     * Override to true if the transport action need NOT be executed always on cluster-manager (example Read-only actions).
+     * Override to true if the transport action can be executed locally and need NOT be executed always on cluster-manager (Read actions).
      * The action is executed locally if this method returns true AND
      * the ClusterState on local node is in-sync with ClusterManager.
      *
      * @return - boolean if the action can be run locally
      */
-    protected boolean canUseLocalNodeClusterState() {
+    protected boolean localExecuteSupportedByAction() {
         return false;
     }
 }
