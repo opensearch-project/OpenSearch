@@ -240,6 +240,10 @@ public class TransportNodesGatewayStartedShardHelper {
                 && response.storeException() == null
                 && response.replicationCheckpoint() == null;
         }
+
+        public Boolean isEmpty() {
+            return allocationId == null && primary == false && storeException == null && replicationCheckpoint == null;
+        }
     }
 
     /**

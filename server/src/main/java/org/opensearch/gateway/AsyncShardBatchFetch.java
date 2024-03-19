@@ -194,8 +194,8 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extend
          */
         private void fillReverseIdMap() {
             arrayToShardId.clear();
-            for (ShardId shardId : shardIdToArray.keySet()) {
-                arrayToShardId.putIfAbsent(shardIdToArray.get(shardId), shardId);
+            for (Map.Entry<ShardId, Integer> indexMapping : shardIdToArray.entrySet()) {
+                arrayToShardId.putIfAbsent(indexMapping.getValue(), indexMapping.getKey());
             }
         }
 

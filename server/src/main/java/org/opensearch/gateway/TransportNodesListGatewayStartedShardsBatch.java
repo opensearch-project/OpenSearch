@@ -26,7 +26,6 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayStartedShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.store.ShardAttributes;
 import org.opensearch.threadpool.ThreadPool;
@@ -141,15 +140,18 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
             try {
                 shardsOnNode.put(
                     shardId,
-                    getShardInfoOnLocalNode(
-                        logger,
-                        shardId,
-                        namedXContentRegistry,
-                        nodeEnv,
-                        indicesService,
-                        shardAttr.getValue().getCustomDataPath(),
-                        settings,
-                        clusterService
+                    new GatewayStartedShard(
+                        getShardInfoOnLocalNode(
+                            logger,
+                            shardId,
+                            namedXContentRegistry,
+                            nodeEnv,
+                            indicesService,
+                            shardAttr.getValue().getCustomDataPath(),
+                            settings,
+                            clusterService
+                        ),
+                        null
                     )
                 );
             } catch (Exception e) {
@@ -158,7 +160,10 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
                     shardsOnNode.put(shardId, null);
                 } else {
                     // return actual exception as it is for unknown exceptions
-                    shardsOnNode.put(shardId, new GatewayStartedShard(null, false, null, e));
+                    shardsOnNode.put(
+                        shardId,
+                        new GatewayStartedShard(new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(null, false, null, null), e)
+                    );
                 }
             }
         }
@@ -248,6 +253,50 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeMap(shardAttributes, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
+        }
+    }
+
+    public static class GatewayStartedShard {
+        private final TransportNodesGatewayStartedShardHelper.GatewayStartedShard gatewayStartedShard;
+        private final Exception transportError;
+
+        public GatewayStartedShard(
+            TransportNodesGatewayStartedShardHelper.GatewayStartedShard gatewayStartedShard,
+            Exception transportError
+        ) {
+            this.gatewayStartedShard = gatewayStartedShard;
+            this.transportError = transportError;
+        }
+
+        public GatewayStartedShard(StreamInput in) throws IOException {
+            this.gatewayStartedShard = new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(in);
+            if (in.readBoolean()) {
+                this.transportError = in.readException();
+            } else {
+                this.transportError = null;
+            }
+        }
+
+        public void writeTo(StreamOutput out) throws IOException {
+            gatewayStartedShard.writeTo(out);
+            if (transportError != null) {
+                out.writeBoolean(true);
+                out.writeException(transportError);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
+
+        public static boolean isEmpty(GatewayStartedShard gatewayStartedShard) {
+            return gatewayStartedShard.get().isEmpty() && gatewayStartedShard.getTransportError() == null;
+        }
+
+        public Exception getTransportError() {
+            return transportError;
+        }
+
+        public TransportNodesGatewayStartedShardHelper.GatewayStartedShard get() {
+            return gatewayStartedShard;
         }
     }
 
