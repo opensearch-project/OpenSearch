@@ -10,10 +10,18 @@ package org.opensearch.painless;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.fielddata.IndexGeoPointFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
+import org.opensearch.index.fielddata.LeafGeoPointFieldData;
 import org.opensearch.index.fielddata.LeafNumericFieldData;
+import org.opensearch.index.fielddata.MultiGeoPointValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.fielddata.plain.AbstractLeafGeoPointFieldData;
+import org.opensearch.index.fielddata.plain.LeafDoubleFieldData;
+import org.opensearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
@@ -32,9 +40,7 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class DerivedFieldScriptTests extends ScriptTestCase {
@@ -75,15 +81,6 @@ public class DerivedFieldScriptTests extends ScriptTestCase {
         return factory.newFactory(Collections.emptyMap(), lookup);
     }
 
-    // TESTCASE: Test emit function is required
-
-    // TESTCASE: Test Long
-    public void testEmittingLongField() {
-        // Mocking field value to be returned
-
-    }
-
-    // TESTCASE: Test Double
     public void testEmittingDoubleField() throws IOException {
         // Mocking field value to be returned
         NumberFieldType fieldType = new NumberFieldType("test_double_field", NumberType.DOUBLE);
@@ -91,33 +88,22 @@ public class DerivedFieldScriptTests extends ScriptTestCase {
         when(mapperService.fieldType("test_double_field")).thenReturn(fieldType);
 
         SortedNumericDoubleValues doubleValues = mock(SortedNumericDoubleValues.class);
+        when(doubleValues.docValueCount()).thenReturn(1);
         when(doubleValues.advanceExact(anyInt())).thenReturn(true);
         when(doubleValues.nextValue()).thenReturn(2.718);
 
-        LeafNumericFieldData atomicFieldData = mock(LeafNumericFieldData.class);
+        LeafNumericFieldData atomicFieldData = mock(LeafDoubleFieldData.class); // SortedNumericDoubleFieldData
         when(atomicFieldData.getDoubleValues()).thenReturn(doubleValues);
 
-        IndexNumericFieldData fieldData = mock(IndexNumericFieldData.class);
+        IndexNumericFieldData fieldData = mock(IndexNumericFieldData.class); // SortedNumericIndexFieldData
         when(fieldData.getFieldName()).thenReturn("test_double_field");
         when(fieldData.load(any())).thenReturn(atomicFieldData);
 
-        SearchLookup lookup = spy(new SearchLookup(mapperService, (ignored, searchLookup) -> fieldData));
+        SearchLookup lookup = new SearchLookup(mapperService, (ignored, searchLookup) -> fieldData);
 
         // We don't need a real index, just need to construct a LeafReaderContext which cannot be mocked
         MemoryIndex index = new MemoryIndex();
         LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
-
-        LeafSearchLookup leafLookup = mock(LeafSearchLookup.class);
-        doReturn(leafLookup).when(lookup).getLeafSearchLookup(leafReaderContext);
-
-//        when(leafLookup.asMap()).thenReturn(Collections.emptyMap());
-
-//        SearchLookup lookup = mock(SearchLookup.class);
-//        LeafSearchLookup leafLookup = mock(LeafSearchLookup.class);
-//        when(lookup.getLeafSearchLookup(leafReaderContext)).thenReturn(leafLookup);
-//        SourceLookup sourceLookup = mock(SourceLookup.class);
-//        when(leafLookup.asMap()).thenReturn(Collections.singletonMap("_source", sourceLookup));
-//        when(sourceLookup.loadSourceIfNeeded()).thenReturn(Collections.singletonMap("test", 1));
 
         // Execute the script
         DerivedFieldScript script = compile("emit(doc['test_double_field'].value)", lookup).newInstance(leafReaderContext);
@@ -128,11 +114,61 @@ public class DerivedFieldScriptTests extends ScriptTestCase {
         assertEquals(List.of(2.718), result);
     }
 
-    // TESTCASE: Test GeoPoint
+    public void testEmittingGeoPoint() throws IOException {
+        // Mocking field value to be returned
+        GeoPointFieldType fieldType = new GeoPointFieldType("test_geo_field");
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.fieldType("test_geo_field")).thenReturn(fieldType);
 
-    // TESTCASE: Test Boolean
+        MultiGeoPointValues geoPointValues = mock(MultiGeoPointValues.class);
+        when(geoPointValues.docValueCount()).thenReturn(1);
+        when(geoPointValues.advanceExact(anyInt())).thenReturn(true);
+        when(geoPointValues.nextValue()).thenReturn(new GeoPoint(5, 8));
 
-    // TESTCASE: Test String
+        LeafGeoPointFieldData atomicFieldData = mock(AbstractLeafGeoPointFieldData.class); // LatLonPointDVLeafFieldData
+        when(atomicFieldData.getGeoPointValues()).thenReturn(geoPointValues);
 
-    // TESTCASE: Test returning multiple values
+        IndexGeoPointFieldData fieldData = mock(IndexGeoPointFieldData.class);
+        when(fieldData.getFieldName()).thenReturn("test_geo_field");
+        when(fieldData.load(any())).thenReturn(atomicFieldData);
+
+        SearchLookup lookup = new SearchLookup(mapperService, (ignored, searchLookup) -> fieldData);
+
+        // We don't need a real index, just need to construct a LeafReaderContext which cannot be mocked
+        MemoryIndex index = new MemoryIndex();
+        LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
+
+        // Execute the script
+        DerivedFieldScript script = compile(
+            "emit(doc['test_geo_field'].value.getLat(), doc['test_geo_field'].value.getLon())",
+            lookup
+        ).newInstance(leafReaderContext);
+        script.setDocument(1);
+        script.execute();
+
+        List<Object> result = script.getEmittedValues();
+        assertEquals(List.of(new Tuple<>(5.0, 8.0)), result);
+    }
+
+    public void testEmittingMultipleValues() throws IOException {
+        SearchLookup lookup = mock(SearchLookup.class);
+
+        // We don't need a real index, just need to construct a LeafReaderContext which cannot be mocked
+        MemoryIndex index = new MemoryIndex();
+        LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
+
+        LeafSearchLookup leafSearchLookup = mock(LeafSearchLookup.class);
+        when(lookup.getLeafSearchLookup(leafReaderContext)).thenReturn(leafSearchLookup);
+
+        // Execute the script
+        DerivedFieldScript script = compile(
+            "def l = new ArrayList(); l.add('test'); l.add('multiple'); l.add('values'); for (String x : l) emit(x)",
+            lookup
+        ).newInstance(leafReaderContext);
+        script.setDocument(1);
+        script.execute();
+
+        List<Object> result = script.getEmittedValues();
+        assertEquals(List.of("test", "multiple", "values"), result);
+    }
 }
