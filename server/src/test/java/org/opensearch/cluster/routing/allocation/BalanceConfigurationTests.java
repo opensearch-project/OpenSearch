@@ -147,6 +147,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
     private Settings.Builder getSettingsBuilderForPrimaryReBalance() {
         return getSettingsBuilderForPrimaryBalance(true, true);
     }
+
     private Settings.Builder getSettingsBuilderForPrimaryBalance(boolean preferPrimaryBalance, boolean preferPrimaryRebalance) {
         final float indexBalance = 0.55f;
         final float shardBalance = 0.45f;
@@ -207,7 +208,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         int balanceFailed = 0;
 
         AllocationService strategy = createAllocationService(
-            getSettingsBuilderForPrimaryBalance(false ,false).build(),
+            getSettingsBuilderForPrimaryBalance(false, false).build(),
             new TestGatewayAllocator()
         );
         for (int i = 0; i < numberOfRuns; i++) {
@@ -400,8 +401,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
      */
     public void testGlobalPrimaryBalance() throws Exception {
         AllocationService strategy = createAllocationService(getSettingsBuilderForPrimaryBalance().build(), new TestGatewayAllocator());
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .build();
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
         clusterState = addNode(clusterState, strategy);
         clusterState = addNode(clusterState, strategy);
 
@@ -420,8 +420,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
     public void testGlobalPrimaryBalanceWithNodeDrops() throws Exception {
         final float buffer = 0.05f;
         AllocationService strategy = createAllocationService(getSettingsBuilderForPrimaryBalance().build(), new TestGatewayAllocator());
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .build();
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
         clusterState = addNode(clusterState, strategy);
         clusterState = addNode(clusterState, strategy);
         clusterState = addNode(clusterState, strategy);
