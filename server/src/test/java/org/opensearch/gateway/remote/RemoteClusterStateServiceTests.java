@@ -74,7 +74,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -87,8 +86,6 @@ import org.mockito.ArgumentMatchers;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.COORDINATION_METADATA;
-import static org.opensearch.gateway.remote.RemoteClusterStateService.CUSTOM_DELIMITER;
-import static org.opensearch.gateway.remote.RemoteClusterStateService.CUSTOM_METADATA;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.FORMAT_PARAMS;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.INDEX_METADATA_CURRENT_CODEC_VERSION;
@@ -742,7 +739,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                     .putCustom("custom1", new CustomMetadata1("mock_custom_metadata1"))
                     .putCustom("custom2", new CustomMetadata1("mock_custom_metadata2"))
                     .putCustom("custom3", new CustomMetadata1("mock_custom_metadata3"))
-            ).build();
+            )
+            .build();
 
         ClusterMetadataManifest manifest1 = remoteClusterStateService.writeIncrementalMetadata(
             initialClusterState,
@@ -756,12 +754,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                     .putCustom("custom2", new CustomMetadata1("mock_updated_custom_metadata"))
                     .putCustom("custom3", new CustomMetadata1("mock_custom_metadata3"))
                     .putCustom("custom4", new CustomMetadata1("mock_custom_metadata4"))
-            ).build();
-        ClusterMetadataManifest manifest2 = remoteClusterStateService.writeIncrementalMetadata(
-            clusterState1,
-            clusterState2,
-            manifest1
-        );
+            )
+            .build();
+        ClusterMetadataManifest manifest2 = remoteClusterStateService.writeIncrementalMetadata(clusterState1, clusterState2, manifest1);
         // custom1 is removed
         assertFalse(manifest2.getCustomMetadataMap().containsKey("custom1"));
         // custom2 is updated

@@ -898,8 +898,8 @@ public class RemoteClusterStateService implements Closeable {
         Set<String> currentCustoms = new HashSet<>(currentState.metadata().customs().keySet());
         for (Map.Entry<String, Metadata.Custom> cursor : previousState.metadata().customs().entrySet()) {
             if (cursor.getValue().context().contains(Metadata.XContentContext.GATEWAY)) {
-                if (currentCustoms.contains(cursor.getKey()) &&
-                    !cursor.getValue().equals(currentState.metadata().custom(cursor.getKey()))) {
+                if (currentCustoms.contains(cursor.getKey())
+                    && !cursor.getValue().equals(currentState.metadata().custom(cursor.getKey()))) {
                     // If the custom metadata is updated, we need to upload the new version.
                     updatedCustom.put(cursor.getKey(), currentState.metadata().custom(cursor.getKey()));
                 }
@@ -1589,9 +1589,8 @@ public class RemoteClusterStateService implements Closeable {
                     filesToKeep.add(clusterMetadataManifest.getCoordinationMetadata().getUploadedFilename());
                     filesToKeep.add(clusterMetadataManifest.getTemplatesMetadata().getUploadedFilename());
                     filesToKeep.add(clusterMetadataManifest.getSettingsMetadata().getUploadedFilename());
-                    clusterMetadataManifest.getCustomMetadataMap().forEach((key, value) -> {
-                        filesToKeep.add(value.getUploadedFilename());
-                    });
+                    clusterMetadataManifest.getCustomMetadataMap()
+                        .forEach((key, value) -> { filesToKeep.add(value.getUploadedFilename()); });
                 }
             });
             staleManifestBlobMetadata.forEach(blobMetadata -> {
@@ -1613,7 +1612,8 @@ public class RemoteClusterStateService implements Closeable {
                 } else {
                     if (filesToKeep.contains(clusterMetadataManifest.getCoordinationMetadata().getUploadedFilename()) == false) {
                         String[] coordinationMetadataSplitPath = clusterMetadataManifest.getCoordinationMetadata()
-                            .getUploadedFilename().split("/");
+                            .getUploadedFilename()
+                            .split("/");
                         staleGlobalMetadataPaths.add(
                             new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + GLOBAL_METADATA_FORMAT.blobName(
                                 coordinationMetadataSplitPath[coordinationMetadataSplitPath.length - 1]
@@ -1621,7 +1621,8 @@ public class RemoteClusterStateService implements Closeable {
                         );
                     }
                     if (filesToKeep.contains(clusterMetadataManifest.getTemplatesMetadata().getUploadedFilename()) == false) {
-                        String[] templatesMetadataSplitPath = clusterMetadataManifest.getTemplatesMetadata().getUploadedFilename()
+                        String[] templatesMetadataSplitPath = clusterMetadataManifest.getTemplatesMetadata()
+                            .getUploadedFilename()
                             .split("/");
                         staleGlobalMetadataPaths.add(
                             new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + GLOBAL_METADATA_FORMAT.blobName(
@@ -1630,8 +1631,7 @@ public class RemoteClusterStateService implements Closeable {
                         );
                     }
                     if (filesToKeep.contains(clusterMetadataManifest.getSettingsMetadata().getUploadedFilename()) == false) {
-                        String[] settingsMetadataSplitPath = clusterMetadataManifest.getSettingsMetadata().getUploadedFilename()
-                            .split("/");
+                        String[] settingsMetadataSplitPath = clusterMetadataManifest.getSettingsMetadata().getUploadedFilename().split("/");
                         staleGlobalMetadataPaths.add(
                             new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + GLOBAL_METADATA_FORMAT.blobName(
                                 settingsMetadataSplitPath[settingsMetadataSplitPath.length - 1]

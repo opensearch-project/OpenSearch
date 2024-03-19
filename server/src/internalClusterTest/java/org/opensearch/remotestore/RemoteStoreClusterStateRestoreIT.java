@@ -10,7 +10,6 @@ package org.opensearch.remotestore;
 
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -40,7 +39,6 @@ import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import javax.swing.*;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -68,7 +66,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
     static final String COMPONENT_TEMPLATE_NAME = "remote-component-template1";
     static final String COMPOSABLE_TEMPLATE_NAME = "remote-composable-template1";
     static final Setting<String> MOCK_SETTING = Setting.simpleString("mock-setting");
-    static final String[] EXCLUDED_NODES = {"ex-1", "ex-2"};
+    static final String[] EXCLUDED_NODES = { "ex-1", "ex-2" };
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -111,47 +109,42 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         String prevClusterUUID = clusterService().state().metadata().clusterUUID();
         long prevClusterStateVersion = clusterService().state().version();
         // Step - 1.1 Add some cluster state elements
-        ActionFuture<AcknowledgedResponse> response = client().admin().indices().preparePutTemplate(TEMPLATE_NAME)
+        ActionFuture<AcknowledgedResponse> response = client().admin()
+            .indices()
+            .preparePutTemplate(TEMPLATE_NAME)
             .addAlias(new Alias(INDEX_NAME))
             .setPatterns(Arrays.stream(INDEX_NAMES_WILDCARD.split(",")).collect(Collectors.toList()))
             .execute();
         assertTrue(response.get().isAcknowledged());
-        ActionFuture<ClusterUpdateSettingsResponse> clusterUpdateSettingsResponse = client().admin().cluster()
-            .prepareUpdateSettings().setPersistentSettings(
-                Settings.builder().put(SETTING_READ_ONLY_SETTING.getKey(), false).build()
-            ).execute();
+        ActionFuture<ClusterUpdateSettingsResponse> clusterUpdateSettingsResponse = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(SETTING_READ_ONLY_SETTING.getKey(), false).build())
+            .execute();
         assertTrue(clusterUpdateSettingsResponse.get().isAcknowledged());
         // update coordination metadata
-        client().execute(
-            AddVotingConfigExclusionsAction.INSTANCE,
-            new AddVotingConfigExclusionsRequest(EXCLUDED_NODES)
-        );
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(EXCLUDED_NODES));
         // Add a custom metadata as component index template
         ActionFuture<AcknowledgedResponse> componentTemplateResponse = client().execute(
             PutComponentTemplateAction.INSTANCE,
-            new PutComponentTemplateAction.Request(COMPONENT_TEMPLATE_NAME)
-                .componentTemplate(
-                    new ComponentTemplate(new Template(Settings.EMPTY, null, Collections.emptyMap()),
-                        1L,
-                        Collections.emptyMap()
-                    )
-                )
+            new PutComponentTemplateAction.Request(COMPONENT_TEMPLATE_NAME).componentTemplate(
+                new ComponentTemplate(new Template(Settings.EMPTY, null, Collections.emptyMap()), 1L, Collections.emptyMap())
+            )
         );
         assertTrue(componentTemplateResponse.get().isAcknowledged());
         ActionFuture<AcknowledgedResponse> composableTemplateResponse = client().execute(
             PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request(COMPOSABLE_TEMPLATE_NAME)
-                .indexTemplate(
-                        new ComposableIndexTemplate(
-                            Arrays.stream(INDEX_NAMES_WILDCARD.split(",")).collect(Collectors.toList()),
-                            new Template(Settings.EMPTY, null, Collections.emptyMap()),
-                            Collections.singletonList(COMPONENT_TEMPLATE_NAME),
-                            1L,
-                            1L,
-                            Collections.emptyMap(),
-                            null
-                        )
+            new PutComposableIndexTemplateAction.Request(COMPOSABLE_TEMPLATE_NAME).indexTemplate(
+                new ComposableIndexTemplate(
+                    Arrays.stream(INDEX_NAMES_WILDCARD.split(",")).collect(Collectors.toList()),
+                    new Template(Settings.EMPTY, null, Collections.emptyMap()),
+                    Collections.singletonList(COMPONENT_TEMPLATE_NAME),
+                    1L,
+                    1L,
+                    Collections.emptyMap(),
+                    null
                 )
+            )
         );
         assertTrue(composableTemplateResponse.get().isAcknowledged());
 
@@ -171,9 +164,12 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         );
         validateMetadata(List.of(INDEX_NAME));
         verifyRedIndicesAndTriggerRestore(indexStats, INDEX_NAME, true);
-        clusterService().state().metadata().coordinationMetadata().getVotingConfigExclusions().stream().forEach(config ->
-            assertTrue(Arrays.stream(EXCLUDED_NODES).anyMatch(node -> node.equals(config.getNodeId())))
-        );
+        clusterService().state()
+            .metadata()
+            .coordinationMetadata()
+            .getVotingConfigExclusions()
+            .stream()
+            .forEach(config -> assertTrue(Arrays.stream(EXCLUDED_NODES).anyMatch(node -> node.equals(config.getNodeId()))));
         assertFalse(clusterService().state().metadata().templates().isEmpty());
         assertTrue(clusterService().state().metadata().templates().containsKey(TEMPLATE_NAME));
         assertFalse(clusterService().state().metadata().settings().isEmpty());
