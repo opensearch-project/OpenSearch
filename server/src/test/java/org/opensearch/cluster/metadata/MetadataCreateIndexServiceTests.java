@@ -1910,7 +1910,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 request,
                 Settings.EMPTY,
                 null,
-                Settings.builder().put("node.attr.remote_store.setting", "test").build(),
+                Settings.builder().put("node.attr.remote_store.segment.repository", "test").build(),
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 randomShardLimitService(),
                 Collections.emptySet(),
