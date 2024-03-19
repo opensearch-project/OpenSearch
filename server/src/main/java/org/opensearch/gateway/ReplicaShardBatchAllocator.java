@@ -10,7 +10,6 @@ package org.opensearch.gateway;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
@@ -47,7 +46,6 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
      * @param shardBatches a list of shard batches to check for existing recoveries
      */
     public void processExistingRecoveries(RoutingAllocation allocation, List<List<ShardRouting>> shardBatches) {
-        RoutingNodes routingNodes = allocation.routingNodes();
         List<Runnable> shardCancellationActions = new ArrayList<>();
         // iterate through the batches, each batch needs to be processed together as fetch call should be made for shards from same batch
         for (List<ShardRouting> shardBatch : shardBatches) {
@@ -177,11 +175,11 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
 
         Map<DiscoveryNode, StoreFilesMetadata> map = new HashMap<>();
 
-        data.getData().forEach((key, value) -> {
+        data.getData().forEach((discoveryNode, value) -> {
             Map<ShardId, NodeStoreFilesMetadata> batch = value.getNodeStoreFilesMetadataBatch();
             NodeStoreFilesMetadata metadata = batch.get(unassignedShard.shardId());
-            if (metadata != null && metadata.getStoreFileFetchException() == null) {
-                map.put(key, metadata.storeFilesMetadata());
+            if (metadata != null) {
+                map.put(discoveryNode, metadata.storeFilesMetadata());
             }
         });
 
