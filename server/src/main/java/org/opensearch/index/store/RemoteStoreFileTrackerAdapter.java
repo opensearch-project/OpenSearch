@@ -13,7 +13,7 @@ import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.filetracker.FileState;
 import org.opensearch.index.store.remote.utils.filetracker.FileType;
 
-public interface TransferManager {
+public interface RemoteStoreFileTrackerAdapter {
     IndexInput fetchBlob(BlobFetchRequest blobFetchRequest);
 
     void trackFile(String name, FileState fileState, FileType fileType);
