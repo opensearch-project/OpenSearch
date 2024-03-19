@@ -244,8 +244,6 @@ public class SearchStats implements Writeable, ToXContentFragment {
             suggestTimeInMillis = in.readVLong();
             suggestCurrent = in.readVLong();
 
-            searchIdleWakenUpCount = in.readVLong();
-
             if (in.getVersion().onOrAfter(Version.V_2_4_0)) {
                 pitCount = in.readVLong();
                 pitTimeInMillis = in.readVLong();
@@ -261,6 +259,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 concurrentQueryTimeInMillis = in.readVLong();
                 concurrentQueryCurrent = in.readVLong();
                 queryConcurrency = in.readVLong();
+            }
+
+            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+                searchIdleWakenUpCount = in.readVLong();
             }
         }
 
@@ -449,8 +451,6 @@ public class SearchStats implements Writeable, ToXContentFragment {
             out.writeVLong(suggestTimeInMillis);
             out.writeVLong(suggestCurrent);
 
-            out.writeVLong(searchIdleWakenUpCount);
-
             if (out.getVersion().onOrAfter(Version.V_2_4_0)) {
                 out.writeVLong(pitCount);
                 out.writeVLong(pitTimeInMillis);
@@ -473,6 +473,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 out.writeVLong(concurrentQueryTimeInMillis);
                 out.writeVLong(concurrentQueryCurrent);
                 out.writeVLong(queryConcurrency);
+            }
+
+            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+                out.writeVLong(searchIdleWakenUpCount);
             }
 
         }
@@ -667,7 +671,6 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String PIT_CURRENT = "point_in_time_current";
         static final String SUGGEST_TOTAL = "suggest_total";
         static final String SUGGEST_TIME = "suggest_time";
-        static final String SEARCH_IDLE_WAKEN_UP_TOTAL = "search_idle_waken_up_total";
         static final String SUGGEST_TIME_IN_MILLIS = "suggest_time_in_millis";
         static final String SUGGEST_CURRENT = "suggest_current";
         static final String REQUEST = "request";
@@ -675,7 +678,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String TIME = "time";
         static final String CURRENT = "current";
         static final String TOTAL = "total";
-
+        static final String SEARCH_IDLE_WAKEN_UP_TOTAL = "search_idle_waken_up_total";
     }
 
     @Override
