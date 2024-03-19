@@ -581,6 +581,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             }
             ehcacheTest.invalidateAll(); // clear all the entries.
             for (Map.Entry<String, String> entry : keyValueMap.entrySet()) {
+                // Verify that value is null for a removed entry.
                 assertNull(ehcacheTest.get(entry.getKey()));
             }
             assertEquals(0, ehcacheTest.count());
