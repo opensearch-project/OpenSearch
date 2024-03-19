@@ -728,7 +728,11 @@ public class ReplicaShardAllocatorTests extends OpenSearchAllocationTestCase {
                     );
                 }
             }
-            return new AsyncShardFetch.FetchResult<>(shardId, tData, Collections.emptySet());
+            return new AsyncShardFetch.FetchResult<>(tData, new HashMap<>() {
+                {
+                    put(shardId, Collections.emptySet());
+                }
+            });
         }
 
         @Override

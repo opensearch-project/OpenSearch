@@ -98,7 +98,11 @@ public class TestGatewayAllocator extends GatewayAllocator {
                     )
                 );
 
-            return new AsyncShardFetch.FetchResult<>(shardId, foundShards, ignoreNodes);
+            return new AsyncShardFetch.FetchResult<>(foundShards, new HashMap<>() {
+                {
+                    put(shardId, ignoreNodes);
+                }
+            });
         }
     };
 
@@ -111,7 +115,11 @@ public class TestGatewayAllocator extends GatewayAllocator {
         protected AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation) {
             // for now, just pretend no node has data
             final ShardId shardId = shard.shardId();
-            return new AsyncShardFetch.FetchResult<>(shardId, Collections.emptyMap(), allocation.getIgnoreNodes(shardId));
+            return new AsyncShardFetch.FetchResult<>(Collections.emptyMap(), new HashMap<>() {
+                {
+                    put(shardId, allocation.getIgnoreNodes(shardId));
+                }
+            });
         }
 
         @Override
