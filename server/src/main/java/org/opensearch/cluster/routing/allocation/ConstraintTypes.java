@@ -29,6 +29,11 @@ public class ConstraintTypes {
     public final static String CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID = "cluster.primary.shard.balance.constraint";
 
     /**
+     * Defines a cluster constraint which is breached when a node contains more than avg primary shards across all indices
+     */
+    public final static String CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID = "cluster.primary.shard.balance.constraint";
+
+    /**
      * Defines an index constraint which is breached when a node contains more than avg number of shards for an index
      */
     public final static String INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID = "index.shard.count.constraint";

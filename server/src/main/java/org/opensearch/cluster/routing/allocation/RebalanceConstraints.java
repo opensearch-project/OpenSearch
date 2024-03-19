@@ -14,7 +14,7 @@ import org.opensearch.cluster.routing.allocation.allocator.ShardsBalancer;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.opensearch.cluster.routing.allocation.ConstraintTypes.CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID;
+import static org.opensearch.cluster.routing.allocation.ConstraintTypes.CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID;
 import static org.opensearch.cluster.routing.allocation.ConstraintTypes.INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID;
 import static org.opensearch.cluster.routing.allocation.ConstraintTypes.isPerIndexPrimaryShardsPerNodeBreached;
 import static org.opensearch.cluster.routing.allocation.ConstraintTypes.isPrimaryShardsPerNodeBreached;
@@ -33,7 +33,7 @@ public class RebalanceConstraints {
         this.constraints = new HashMap<>();
         this.constraints.putIfAbsent(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, new Constraint(isPerIndexPrimaryShardsPerNodeBreached()));
         this.constraints.putIfAbsent(
-            CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID,
+            CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID,
             new Constraint(isPrimaryShardsPerNodeBreached(preferPrimaryBalanceBuffer))
         );
     }
