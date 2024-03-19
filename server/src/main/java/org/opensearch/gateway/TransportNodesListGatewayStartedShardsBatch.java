@@ -256,6 +256,13 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
         }
     }
 
+    /**
+     * Primary shard response from node. It contains the metadata in
+     * {@link TransportNodesGatewayStartedShardHelper.GatewayStartedShard} and any exception thrown from code will be
+     * stored in transportError. This exception is stored specifically to disambiguate the store related exceptions
+     * present in {@link TransportNodesGatewayStartedShardHelper.GatewayStartedShard} as those exceptions may be used
+     * during decision-making.
+     */
     public static class GatewayStartedShard {
         private final TransportNodesGatewayStartedShardHelper.GatewayStartedShard gatewayStartedShard;
         private final Exception transportError;
