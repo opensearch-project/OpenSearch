@@ -20,6 +20,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.node.IoUsageStats;
 import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControllerStats;
@@ -30,6 +31,8 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.junit.Before;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -50,7 +53,7 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
     private ResourceUsageCollectorService cMResourceCollector;
 
     private static final Settings DISABLE_ADMISSION_CONTROL = Settings.builder()
-        .put(ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED)
+        .put(ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
         .build();
 
     private static final Settings ENFORCE_ADMISSION_CONTROL = Settings.builder()
@@ -92,16 +95,21 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
             fail("expected failure");
         } catch (Exception e) {
             assertTrue(e instanceof OpenSearchRejectedExecutionException);
+            assertTrue(e.getMessage().contains("CPU usage admission controller rejected the request"));
+            assertTrue(e.getMessage().contains("[indices:admin/aliases/get]"));
+            assertTrue(e.getMessage().contains("action-type [CLUSTER_ADMIN]"));
         }
 
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(DISABLE_ADMISSION_CONTROL).execute().actionGet();
         GetAliasesResponse getAliasesResponse = dataNodeClient().admin().indices().getAliases(aliasesRequest).actionGet();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
 
-        AdmissionControlService admissionControlServicePrimary = internalCluster().getClusterManagerNodeInstance(
-            AdmissionControlService.class
+        AdmissionControlService admissionControlServiceCM = internalCluster().getClusterManagerNodeInstance(AdmissionControlService.class);
+
+        AdmissionControllerStats admissionStats = getAdmissionControlStats(admissionControlServiceCM).get(
+            CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER
         );
-        AdmissionControllerStats admissionStats = admissionControlServicePrimary.stats().getAdmissionControllerStatsList().get(0);
+
         assertEquals(admissionStats.rejectionCount.get(AdmissionControlActionType.CLUSTER_ADMIN.getType()).longValue(), 1);
         assertNull(admissionStats.rejectionCount.get(AdmissionControlActionType.SEARCH.getType()));
         assertNull(admissionStats.rejectionCount.get(AdmissionControlActionType.INDEXING.getType()));
@@ -121,8 +129,18 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
     }
 
+    public void testAdmissionControlMonitorOnBreach() throws InterruptedException {
+        admissionControlDisabledOnBreach(
+            Settings.builder().put(ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.MONITOR.getMode()).build()
+        );
+    }
+
     public void testAdmissionControlDisabledOnBreach() throws InterruptedException {
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(DISABLE_ADMISSION_CONTROL).execute().actionGet();
+        admissionControlDisabledOnBreach(DISABLE_ADMISSION_CONTROL);
+    }
+
+    public void admissionControlDisabledOnBreach(Settings admission) throws InterruptedException {
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(admission).execute().actionGet();
 
         cMResourceCollector.collectNodeResourceUsageStats(clusterManagerNodeId, System.currentTimeMillis(), 97, 97, new IoUsageStats(98));
 
@@ -168,5 +186,13 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
     public void tearDown() throws Exception {
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(DISABLE_ADMISSION_CONTROL).execute().actionGet();
         super.tearDown();
+    }
+
+    Map<String, AdmissionControllerStats> getAdmissionControlStats(AdmissionControlService admissionControlService) {
+        Map<String, AdmissionControllerStats> acStats = new HashMap<>();
+        for (AdmissionControllerStats admissionControllerStats : admissionControlService.stats().getAdmissionControllerStatsList()) {
+            acStats.put(admissionControllerStats.getAdmissionControllerName(), admissionControllerStats);
+        }
+        return acStats;
     }
 }

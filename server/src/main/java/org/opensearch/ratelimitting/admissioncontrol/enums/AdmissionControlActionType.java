@@ -34,12 +34,15 @@ public enum AdmissionControlActionType {
 
     public static AdmissionControlActionType fromName(String name) {
         name = name.toLowerCase(Locale.ROOT);
-
-        for (AdmissionControlActionType type : AdmissionControlActionType.values()) {
-            if (type.getType().equals(name)) {
-                return type;
-            }
+        switch (name) {
+            case "indexing":
+                return INDEXING;
+            case "search":
+                return SEARCH;
+            case "cluster_admin":
+                return CLUSTER_ADMIN;
+            default:
+                throw new IllegalArgumentException("Not Supported TransportAction Type: " + name);
         }
-        throw new IllegalArgumentException("Not Supported TransportAction Type: " + name);
     }
 }
