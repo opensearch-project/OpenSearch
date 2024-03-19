@@ -64,6 +64,7 @@ public final class ShardRequestCache {
 
     public void onCached(Accountable key, BytesReference value) {
         totalMetric.inc(key.ramBytesUsed() + value.ramBytesUsed());
+        System.out.println("Cached !!! = " + totalMetric.count() + " size = " + (key.ramBytesUsed() + value.ramBytesUsed()));
     }
 
     public void onRemoval(Accountable key, BytesReference value, boolean evicted) {
@@ -78,5 +79,6 @@ public final class ShardRequestCache {
             dec += value.ramBytesUsed();
         }
         totalMetric.dec(dec);
+        System.out.println("Removed !!! = " + totalMetric.count() + " size = " + dec);
     }
 }
