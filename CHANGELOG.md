@@ -55,6 +55,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `aws-sdk-java` from 2.20.55 to 2.20.86 ([#12251](https://github.com/opensearch-project/OpenSearch/pull/12251))
 - Bump `org.apache.commons:commons-configuration2` from 2.9.0 to 2.10.0 ([#12721](https://github.com/opensearch-project/OpenSearch/pull/12721))
 - Bump `peter-evans/create-pull-request` from 5 to 6 ([#12724](https://github.com/opensearch-project/OpenSearch/pull/12724))
+- Bump `com.azure:azure-json` from 1.0.1 to 1.1.0 ([#12723](https://github.com/opensearch-project/OpenSearch/pull/12723))
 
 ### Changed
 - Allow composite aggregation to run under a parent filter aggregation ([#11499](https://github.com/opensearch-project/OpenSearch/pull/11499))
