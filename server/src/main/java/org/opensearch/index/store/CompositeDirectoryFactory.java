@@ -21,10 +21,12 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.function.Supplier;
 
 public class CompositeDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
+    private static String CACHE_LOCATION = "remote_cache";
 
     private final Supplier<RepositoriesService> repositoriesService;
     private final FileCache remoteStoreFileCache;
@@ -36,8 +38,9 @@ public class CompositeDirectoryFactory implements IndexStorePlugin.DirectoryFact
 
     @Override
     public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
-        final Path location = shardPath.resolveIndex();
-        final FSDirectory primaryDirectory = FSDirectory.open(location);
-        return new CompositeDirectory(primaryDirectory, remoteStoreFileCache);
+        final FSDirectory primaryDirectory = FSDirectory.open(shardPath.resolveIndex());
+        final FSDirectory localCacheDirectory = FSDirectory.open(Files.createDirectories(shardPath.getDataPath().resolve(CACHE_LOCATION)));
+        localCacheDirectory.syncMetaData();
+        return new CompositeDirectory(primaryDirectory, localCacheDirectory, remoteStoreFileCache);
     }
 }
