@@ -15,6 +15,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
+import org.opensearch.index.store.remote.file.OnDemandCompositeBlockIndexInput;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.utils.filetracker.FileState;
@@ -29,12 +30,14 @@ public class CompositeDirectory extends FilterDirectory {
     private final FSDirectory localDirectory;
     private final RemoteStoreFileTrackerAdapter remoteStoreFileTrackerAdapter;
     private final FileCache fileCache;
+    private final FSDirectory localCacheDirectory;
 
-    public CompositeDirectory(FSDirectory localDirectory, FileCache fileCache) {
+    public CompositeDirectory(FSDirectory localDirectory, FSDirectory localCacheDirectory, FileCache fileCache) {
         super(localDirectory);
         this.localDirectory = localDirectory;
         this.fileCache = fileCache;
         this.remoteStoreFileTrackerAdapter = new CompositeDirectoryRemoteStoreFileTrackerAdapter(fileCache);
+        this.localCacheDirectory = localCacheDirectory;
     }
 
     public void setRemoteDirectory(Directory remoteDirectory) {
@@ -102,7 +105,7 @@ public class CompositeDirectory extends FilterDirectory {
                 break;
 
             case REMOTE_ONLY:
-                // TODO - return an implementation of OnDemandBlockIndexInput where the fetchBlock method is implemented
+                indexInput =  new OnDemandCompositeBlockIndexInput(remoteStoreFileTrackerAdapter, name, localCacheDirectory);
                 break;
         }
         return indexInput;

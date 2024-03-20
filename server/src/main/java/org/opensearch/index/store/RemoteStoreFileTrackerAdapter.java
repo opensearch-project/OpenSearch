@@ -13,8 +13,10 @@ import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.filetracker.FileState;
 import org.opensearch.index.store.remote.utils.filetracker.FileType;
 
+import java.io.IOException;
+
 public interface RemoteStoreFileTrackerAdapter {
-    IndexInput fetchBlob(BlobFetchRequest blobFetchRequest);
+    IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws IOException;
 
     void trackFile(String name, FileState fileState, FileType fileType);
 

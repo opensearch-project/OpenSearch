@@ -13,10 +13,12 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.utils.BlobFetchRequest;
+import org.opensearch.index.store.remote.utils.TransferManager;
 import org.opensearch.index.store.remote.utils.filetracker.FileState;
 import org.opensearch.index.store.remote.utils.filetracker.FileTrackingInfo;
 import org.opensearch.index.store.remote.utils.filetracker.FileType;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -36,10 +38,21 @@ public class CompositeDirectoryRemoteStoreFileTrackerAdapter implements RemoteSt
         this.remoteDirectory = (RemoteSegmentStoreDirectory) remoteDirectory;
     }
 
+    public String getUploadedFileName(String name) {
+        return remoteDirectory.getExistingRemoteFilename(name);
+    }
+
+    public long getFileLength(String name) {
+        try {
+            return remoteDirectory.fileLength(name);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @Override
-    public IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) {
-        // TODO - This function will fetch the requested data from blobContainer
-        return null;
+    public IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws IOException {
+        return new TransferManager(remoteDirectory.getDataDirectoryBlobContainer(), fileCache).fetchBlob(blobFetchRequest);
     }
 
     public void trackFile(String name, FileState fileState, FileType fileType) {
