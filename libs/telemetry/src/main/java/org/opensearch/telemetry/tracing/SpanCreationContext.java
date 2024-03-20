@@ -79,8 +79,8 @@ public final class SpanCreationContext {
     }
 
     /**
-     * Sets the parent for spann
-     * @param parent parent
+     * Sets the parent for span
+     * @param parent parent span context
      * @return spanCreationContext
      */
     public SpanCreationContext parent(SpanContext parent) {

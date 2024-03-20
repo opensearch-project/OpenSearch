@@ -11,6 +11,7 @@ package org.opensearch.common.cache.store.settings;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.util.HashMap;
@@ -33,9 +34,25 @@ public class OpenSearchOnHeapCacheSettings {
         (key) -> Setting.memorySizeSetting(key, "1%", NodeScope)
     );
 
-    public static final String MAXIMUM_SIZE_IN_BYTES_KEY = "maximum_size_in_bytes";
+    /**
+     * Setting to define expire after access.
+     *
+     * Setting pattern: {cache_type}.opensearch_onheap.expire
+     */
+    public static final Setting.AffixSetting<TimeValue> EXPIRE_AFTER_ACCESS_SETTING = Setting.suffixKeySetting(
+        OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME + ".expire",
+        (key) -> Setting.positiveTimeSetting(key, TimeValue.MAX_VALUE, Setting.Property.NodeScope)
+    );
 
-    private static final Map<String, Setting.AffixSetting<?>> KEY_SETTING_MAP = Map.of(MAXIMUM_SIZE_IN_BYTES_KEY, MAXIMUM_SIZE_IN_BYTES);
+    public static final String MAXIMUM_SIZE_IN_BYTES_KEY = "maximum_size_in_bytes";
+    public static final String EXPIRE_AFTER_ACCESS_KEY = "expire_after_access";
+
+    private static final Map<String, Setting.AffixSetting<?>> KEY_SETTING_MAP = Map.of(
+        MAXIMUM_SIZE_IN_BYTES_KEY,
+        MAXIMUM_SIZE_IN_BYTES,
+        EXPIRE_AFTER_ACCESS_KEY,
+        EXPIRE_AFTER_ACCESS_SETTING
+    );
 
     public static final Map<CacheType, Map<String, Setting<?>>> CACHE_TYPE_MAP = getCacheTypeMap();
 

@@ -843,10 +843,12 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
                 node,
                 new TransportNodesListGatewayStartedShards.NodeGatewayStartedShards(
                     node,
-                    allocationId,
-                    primary,
-                    replicationCheckpoint,
-                    storeException
+                    new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(
+                        allocationId,
+                        primary,
+                        replicationCheckpoint,
+                        storeException
+                    )
                 )
             );
             return this;

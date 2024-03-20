@@ -42,6 +42,7 @@ import org.opensearch.gateway.AsyncShardFetch;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PrimaryShardAllocator;
 import org.opensearch.gateway.ReplicaShardAllocator;
+import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
@@ -91,9 +92,12 @@ public class TestGatewayAllocator extends GatewayAllocator {
                         routing -> currentNodes.get(routing.currentNodeId()),
                         routing -> new NodeGatewayStartedShards(
                             currentNodes.get(routing.currentNodeId()),
-                            routing.allocationId().getId(),
-                            routing.primary(),
-                            getReplicationCheckpoint(shardId, routing.currentNodeId())
+                            new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(
+                                routing.allocationId().getId(),
+                                routing.primary(),
+                                getReplicationCheckpoint(shardId, routing.currentNodeId()),
+                                null
+                            )
                         )
                     )
                 );

@@ -42,9 +42,12 @@ import org.apache.hc.core5.http.ContentTooLongException;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.ProtocolVersion;
 import org.apache.hc.core5.http.io.entity.InputStreamEntity;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.http.message.BasicClassicHttpResponse;
+import org.apache.hc.core5.http.message.RequestLine;
+import org.apache.hc.core5.http.message.StatusLine;
 import org.apache.hc.core5.http.nio.AsyncPushConsumer;
 import org.apache.hc.core5.http.nio.AsyncRequestProducer;
 import org.apache.hc.core5.http.nio.AsyncResponseConsumer;
@@ -57,6 +60,7 @@ import org.opensearch.OpenSearchStatusException;
 import org.opensearch.Version;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.client.ResponseException;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.http.HttpUriRequestProducer;
 import org.opensearch.client.nio.HeapBufferedAsyncResponseConsumer;
@@ -83,6 +87,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.net.ConnectException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Queue;
@@ -90,9 +95,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+
+import org.mockito.Mockito;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
@@ -515,7 +523,7 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
         Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("some_text.txt").start());
         assertEquals(
             "Error parsing the response, remote is likely not an OpenSearch instance",
-            e.getCause().getCause().getCause().getMessage()
+            e.getCause().getCause().getCause().getCause().getMessage()
         );
     }
 
@@ -524,7 +532,7 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
         Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("main/2_3_3.json").start());
         assertEquals(
             "Error parsing the response, remote is likely not an OpenSearch instance",
-            e.getCause().getCause().getCause().getMessage()
+            e.getCause().getCause().getCause().getCause().getMessage()
         );
     }
 
@@ -701,5 +709,106 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
     private static ClassicHttpRequest getRequest(AsyncRequestProducer requestProducer) {
         assertThat(requestProducer, instanceOf(HttpUriRequestProducer.class));
         return ((HttpUriRequestProducer) requestProducer).getRequest();
+    }
+
+    RemoteScrollableHitSource createRemoteSourceWithFailure(
+        boolean shouldMockRemoteVersion,
+        Exception failure,
+        AtomicInteger invocationCount
+    ) {
+        CloseableHttpAsyncClient httpClient = new CloseableHttpAsyncClient() {
+
+            @Override
+            public void close() throws IOException {}
+
+            @Override
+            public void close(CloseMode closeMode) {}
+
+            @Override
+            public void start() {}
+
+            @Override
+            public void register(String hostname, String uriPattern, Supplier<AsyncPushConsumer> supplier) {}
+
+            @Override
+            public void initiateShutdown() {}
+
+            @Override
+            public IOReactorStatus getStatus() {
+                return null;
+            }
+
+            @Override
+            protected <T> Future<T> doExecute(
+                HttpHost target,
+                AsyncRequestProducer requestProducer,
+                AsyncResponseConsumer<T> responseConsumer,
+                HandlerFactory<AsyncPushConsumer> pushHandlerFactory,
+                HttpContext context,
+                FutureCallback<T> callback
+            ) {
+                invocationCount.getAndIncrement();
+                callback.failed(failure);
+                return null;
+            }
+
+            @Override
+            public void awaitShutdown(org.apache.hc.core5.util.TimeValue waitTime) throws InterruptedException {}
+        };
+        return sourceWithMockedClient(shouldMockRemoteVersion, httpClient);
+    }
+
+    void verifyRetries(boolean shouldMockRemoteVersion, Exception failureResponse, boolean expectedToRetry) {
+        retriesAllowed = 5;
+        AtomicInteger invocations = new AtomicInteger();
+        invocations.set(0);
+        RemoteScrollableHitSource source = createRemoteSourceWithFailure(shouldMockRemoteVersion, failureResponse, invocations);
+
+        Throwable e = expectThrows(RuntimeException.class, source::start);
+        int expectedInvocations = 0;
+        if (shouldMockRemoteVersion) {
+            expectedInvocations += 1; // first search
+            if (expectedToRetry) expectedInvocations += retriesAllowed;
+        } else {
+            expectedInvocations = 1; // the first should fail and not trigger any retry.
+        }
+
+        assertEquals(expectedInvocations, invocations.get());
+
+        // Unwrap the some artifacts from the test
+        while (e.getMessage().equals("failed")) {
+            e = e.getCause();
+        }
+        // There is an additional wrapper for ResponseException.
+        if (failureResponse instanceof ResponseException) {
+            e = e.getCause();
+        }
+
+        assertSame(failureResponse, e);
+    }
+
+    ResponseException withResponseCode(int statusCode, String errorMsg) throws IOException {
+        org.opensearch.client.Response mockResponse = Mockito.mock(org.opensearch.client.Response.class);
+        Mockito.when(mockResponse.getEntity()).thenReturn(new StringEntity(errorMsg, ContentType.TEXT_PLAIN));
+        Mockito.when(mockResponse.getStatusLine()).thenReturn(new StatusLine(new BasicClassicHttpResponse(statusCode, errorMsg)));
+        Mockito.when(mockResponse.getRequestLine()).thenReturn(new RequestLine("GET", "/", new ProtocolVersion("https", 1, 1)));
+        return new ResponseException(mockResponse);
+    }
+
+    public void testRetryOnCallFailure() throws Exception {
+        // First call succeeds. Search calls failing with 5xxs and 429s should be retried but not 400s.
+        verifyRetries(true, withResponseCode(500, "Internal Server Error"), true);
+        verifyRetries(true, withResponseCode(429, "Too many requests"), true);
+        verifyRetries(true, withResponseCode(400, "Client Error"), false);
+
+        // First call succeeds. Search call failed with exceptions other than ResponseException
+        verifyRetries(true, new ConnectException("blah"), true); // should retry connect exceptions.
+        verifyRetries(true, new RuntimeException("foobar"), false);
+
+        // First call(remote version lookup) failed and no retries expected
+        verifyRetries(false, withResponseCode(500, "Internal Server Error"), false);
+        verifyRetries(false, withResponseCode(429, "Too many requests"), false);
+        verifyRetries(false, withResponseCode(400, "Client Error"), false);
+        verifyRetries(false, new ConnectException("blah"), false);
     }
 }

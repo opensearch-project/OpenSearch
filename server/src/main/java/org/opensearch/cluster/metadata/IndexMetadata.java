@@ -635,6 +635,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     static final String KEY_ROLLOVER_INFOS = "rollover_info";
     static final String KEY_SYSTEM = "system";
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
+    public static final String REMOTE_STORE_CUSTOM_KEY = "remote_store";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 

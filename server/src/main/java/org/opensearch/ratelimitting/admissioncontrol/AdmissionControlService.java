@@ -10,11 +10,13 @@ package org.opensearch.ratelimitting.admissioncontrol;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Constants;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.IoBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControllerStats;
@@ -26,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import static org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER;
+import static org.opensearch.ratelimitting.admissioncontrol.controllers.IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER;
 
 /**
  * Admission control Service that bootstraps and manages all the Admission Controllers in OpenSearch.
@@ -58,15 +61,18 @@ public class AdmissionControlService {
         this.clusterService = clusterService;
         this.settings = settings;
         this.resourceUsageCollectorService = resourceUsageCollectorService;
-        this.initialise();
+        this.initialize();
     }
 
     /**
      * Initialise and Register all the admissionControllers
      */
-    private void initialise() {
+    private void initialize() {
         // Initialise different type of admission controllers
         registerAdmissionController(CPU_BASED_ADMISSION_CONTROLLER);
+        if (Constants.LINUX) {
+            registerAdmissionController(IO_BASED_ADMISSION_CONTROLLER);
+        }
     }
 
     /**
@@ -101,6 +107,13 @@ public class AdmissionControlService {
                     this.clusterService,
                     this.settings
                 );
+            case IO_BASED_ADMISSION_CONTROLLER:
+                return new IoBasedAdmissionController(
+                    admissionControllerName,
+                    this.resourceUsageCollectorService,
+                    this.clusterService,
+                    this.settings
+                );
             default:
                 throw new IllegalArgumentException("Not Supported AdmissionController : " + admissionControllerName);
         }
@@ -128,7 +141,7 @@ public class AdmissionControlService {
      */
     public AdmissionControlStats stats() {
         List<AdmissionControllerStats> statsList = new ArrayList<>();
-        if (this.admissionControllers.size() > 0) {
+        if (!this.admissionControllers.isEmpty()) {
             this.admissionControllers.forEach((controllerName, admissionController) -> {
                 AdmissionControllerStats admissionControllerStats = new AdmissionControllerStats(admissionController);
                 statsList.add(admissionControllerStats);

@@ -304,7 +304,8 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
             .getSetting(remoteStoreEnabledIndexName, IndexMetadata.SETTING_INDEX_UUID);
 
         logger.info("--> create two remote index shallow snapshots");
-        List<String> shallowCopySnapshots = createNSnapshots(snapshotRepoName, 2);
+        SnapshotInfo snapshotInfo1 = createFullSnapshot(snapshotRepoName, "snap1");
+        SnapshotInfo snapshotInfo2 = createFullSnapshot(snapshotRepoName, "snap2");
 
         String[] lockFiles = getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME);
         assert (lockFiles.length == 2) : "lock files are " + Arrays.toString(lockFiles);
@@ -315,17 +316,18 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> delete snapshot 1");
         AcknowledgedResponse deleteSnapshotResponse = clusterManagerClient.admin()
             .cluster()
-            .prepareDeleteSnapshot(snapshotRepoName, shallowCopySnapshots.get(0))
+            .prepareDeleteSnapshot(snapshotRepoName, snapshotInfo1.snapshotId().getName())
             .get();
         assertAcked(deleteSnapshotResponse);
 
         lockFiles = getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME, indexUUID);
         assert (lockFiles.length == 1) : "lock files are " + Arrays.toString(lockFiles);
+        assertTrue(lockFiles[0].contains(snapshotInfo2.snapshotId().getUUID()));
 
         logger.info("--> delete snapshot 2");
         deleteSnapshotResponse = clusterManagerClient.admin()
             .cluster()
-            .prepareDeleteSnapshot(snapshotRepoName, shallowCopySnapshots.get(1))
+            .prepareDeleteSnapshot(snapshotRepoName, snapshotInfo2.snapshotId().getName())
             .get();
         assertAcked(deleteSnapshotResponse);
 

@@ -53,6 +53,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayStartedShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.store.ShardAttributes;
@@ -154,7 +155,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     @Override
     protected NodeGatewayStartedShards nodeOperation(NodeRequest request) {
         try {
-            TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard shardInfo = getShardInfoOnLocalNode(
+            GatewayStartedShard shardInfo = getShardInfoOnLocalNode(
                 logger,
                 request.getShardId(),
                 namedXContentRegistry,
@@ -166,10 +167,12 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             );
             return new NodeGatewayStartedShards(
                 clusterService.localNode(),
-                shardInfo.allocationId(),
-                shardInfo.primary(),
-                shardInfo.replicationCheckpoint(),
-                shardInfo.storeException()
+                new GatewayStartedShard(
+                    shardInfo.allocationId(),
+                    shardInfo.primary(),
+                    shardInfo.replicationCheckpoint(),
+                    shardInfo.storeException()
+                )
             );
         } catch (Exception e) {
             throw new OpenSearchException("failed to load started shards", e);
@@ -302,81 +305,51 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
      * @opensearch.internal
      */
     public static class NodeGatewayStartedShards extends BaseNodeResponse {
-        private final String allocationId;
-        private final boolean primary;
-        private final Exception storeException;
-        private final ReplicationCheckpoint replicationCheckpoint;
+        private final GatewayStartedShard gatewayStartedShard;
 
         public NodeGatewayStartedShards(StreamInput in) throws IOException {
             super(in);
-            allocationId = in.readOptionalString();
-            primary = in.readBoolean();
+            String allocationId = in.readOptionalString();
+            boolean primary = in.readBoolean();
+            Exception storeException;
             if (in.readBoolean()) {
                 storeException = in.readException();
             } else {
                 storeException = null;
             }
+            ReplicationCheckpoint replicationCheckpoint;
             if (in.getVersion().onOrAfter(Version.V_2_3_0) && in.readBoolean()) {
                 replicationCheckpoint = new ReplicationCheckpoint(in);
             } else {
                 replicationCheckpoint = null;
             }
+            this.gatewayStartedShard = new GatewayStartedShard(allocationId, primary, replicationCheckpoint, storeException);
         }
 
-        public NodeGatewayStartedShards(
-            DiscoveryNode node,
-            String allocationId,
-            boolean primary,
-            ReplicationCheckpoint replicationCheckpoint
-        ) {
-            this(node, allocationId, primary, replicationCheckpoint, null);
+        public GatewayStartedShard getGatewayShardStarted() {
+            return gatewayStartedShard;
         }
 
-        public NodeGatewayStartedShards(
-            DiscoveryNode node,
-            String allocationId,
-            boolean primary,
-            ReplicationCheckpoint replicationCheckpoint,
-            Exception storeException
-        ) {
+        public NodeGatewayStartedShards(DiscoveryNode node, GatewayStartedShard gatewayStartedShard) {
             super(node);
-            this.allocationId = allocationId;
-            this.primary = primary;
-            this.replicationCheckpoint = replicationCheckpoint;
-            this.storeException = storeException;
-        }
-
-        public String allocationId() {
-            return this.allocationId;
-        }
-
-        public boolean primary() {
-            return this.primary;
-        }
-
-        public ReplicationCheckpoint replicationCheckpoint() {
-            return this.replicationCheckpoint;
-        }
-
-        public Exception storeException() {
-            return this.storeException;
+            this.gatewayStartedShard = gatewayStartedShard;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalString(allocationId);
-            out.writeBoolean(primary);
-            if (storeException != null) {
+            out.writeOptionalString(gatewayStartedShard.allocationId());
+            out.writeBoolean(gatewayStartedShard.primary());
+            if (gatewayStartedShard.storeException() != null) {
                 out.writeBoolean(true);
-                out.writeException(storeException);
+                out.writeException(gatewayStartedShard.storeException());
             } else {
                 out.writeBoolean(false);
             }
             if (out.getVersion().onOrAfter(Version.V_2_3_0)) {
-                if (replicationCheckpoint != null) {
+                if (gatewayStartedShard.replicationCheckpoint() != null) {
                     out.writeBoolean(true);
-                    replicationCheckpoint.writeTo(out);
+                    gatewayStartedShard.replicationCheckpoint().writeTo(out);
                 } else {
                     out.writeBoolean(false);
                 }
@@ -394,33 +367,17 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
             NodeGatewayStartedShards that = (NodeGatewayStartedShards) o;
 
-            return primary == that.primary
-                && Objects.equals(allocationId, that.allocationId)
-                && Objects.equals(storeException, that.storeException)
-                && Objects.equals(replicationCheckpoint, that.replicationCheckpoint);
+            return gatewayStartedShard.equals(that.gatewayStartedShard);
         }
 
         @Override
         public int hashCode() {
-            int result = (allocationId != null ? allocationId.hashCode() : 0);
-            result = 31 * result + (primary ? 1 : 0);
-            result = 31 * result + (storeException != null ? storeException.hashCode() : 0);
-            result = 31 * result + (replicationCheckpoint != null ? replicationCheckpoint.hashCode() : 0);
-            return result;
+            return gatewayStartedShard.hashCode();
         }
 
         @Override
         public String toString() {
-            StringBuilder buf = new StringBuilder();
-            buf.append("NodeGatewayStartedShards[").append("allocationId=").append(allocationId).append(",primary=").append(primary);
-            if (storeException != null) {
-                buf.append(",storeException=").append(storeException);
-            }
-            if (replicationCheckpoint != null) {
-                buf.append(",ReplicationCheckpoint=").append(replicationCheckpoint.toString());
-            }
-            buf.append("]");
-            return buf.toString();
+            return gatewayStartedShard.toString();
         }
     }
 }

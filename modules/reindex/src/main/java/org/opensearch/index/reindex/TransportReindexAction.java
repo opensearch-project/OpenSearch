@@ -42,6 +42,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.reindex.spi.RemoteReindexExtension;
 import org.opensearch.script.ScriptService;
@@ -71,10 +72,31 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         Function.identity(),
         Property.NodeScope
     );
+
+    public static final Setting<TimeValue> REMOTE_REINDEX_RETRY_INITIAL_BACKOFF = Setting.timeSetting(
+        "reindex.remote.retry.initial_backoff",
+        TimeValue.timeValueMillis(500),
+        TimeValue.timeValueMillis(50),
+        TimeValue.timeValueMillis(5000),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    public static final Setting<Integer> REMOTE_REINDEX_RETRY_MAX_COUNT = Setting.intSetting(
+        "reindex.remote.retry.max_count",
+        15,
+        1,
+        100,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static Optional<RemoteReindexExtension> remoteExtension = Optional.empty();
 
     private final ReindexValidator reindexValidator;
     private final Reindexer reindexer;
+
+    private final ClusterService clusterService;
 
     @Inject
     public TransportReindexAction(
@@ -92,10 +114,16 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         super(ReindexAction.NAME, transportService, actionFilters, ReindexRequest::new);
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
         this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig, remoteExtension);
+        this.clusterService = clusterService;
     }
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
+        if (request.getRemoteInfo() != null) {
+            request.setMaxRetries(clusterService.getClusterSettings().get(REMOTE_REINDEX_RETRY_MAX_COUNT));
+            request.setRetryBackoffInitialTime(clusterService.getClusterSettings().get(REMOTE_REINDEX_RETRY_INITIAL_BACKOFF));
+        }
+
         reindexValidator.initialValidation(request);
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         reindexer.initTask(bulkByScrollTask, request, new ActionListener<Void>() {

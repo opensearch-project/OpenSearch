@@ -116,7 +116,7 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
     public void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
     @Override
-    public void onPhaseFailure(SearchPhaseContext context) {}
+    public void onPhaseFailure(SearchPhaseContext context, Throwable cause) {}
 
     @Override
     public void onRequestStart(SearchRequestContext searchRequestContext) {}

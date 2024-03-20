@@ -110,7 +110,6 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
             IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
 
-            final int numDocs = shards.indexDocs(randomInt(10));
             primary.refresh("Test");
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
@@ -124,7 +123,6 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 ) {
                     // trigger a cancellation by closing the replica.
                     targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
-                    resolveCheckpointInfoResponseListener(listener, primary);
                 }
 
                 @Override
@@ -141,7 +139,6 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
             };
             when(sourceFactory.get(any())).thenReturn(source);
             startReplicationAndAssertCancellation(replica, primary, targetService);
-
             shards.removeReplica(replica);
             closeShards(replica);
         }

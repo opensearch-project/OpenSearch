@@ -78,7 +78,7 @@ public class SearchRequestContext {
         this.totalHits = totalHits;
     }
 
-    TotalHits totalHits() {
+    public TotalHits totalHits() {
         return totalHits;
     }
 

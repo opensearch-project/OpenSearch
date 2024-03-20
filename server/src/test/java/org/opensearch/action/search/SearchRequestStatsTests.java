@@ -36,7 +36,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
             testRequestStats.onPhaseStart(ctx);
             assertEquals(1, testRequestStats.getPhaseCurrent(searchPhaseName));
-            testRequestStats.onPhaseFailure(ctx);
+            testRequestStats.onPhaseFailure(ctx, new Throwable());
             assertEquals(0, testRequestStats.getPhaseCurrent(searchPhaseName));
         }
     }
@@ -156,7 +156,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
                 threads[i] = new Thread(() -> {
                     phaser.arriveAndAwaitAdvance();
                     testRequestStats.onPhaseStart(ctx);
-                    testRequestStats.onPhaseFailure(ctx);
+                    testRequestStats.onPhaseFailure(ctx, new Throwable());
                     countDownLatch.countDown();
                 });
                 threads[i].start();

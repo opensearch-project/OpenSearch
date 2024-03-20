@@ -47,6 +47,7 @@ import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.coordination.Coordinator.Mode;
 import org.opensearch.cluster.coordination.LinearizabilityChecker.History;
 import org.opensearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;
 import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
@@ -651,6 +652,12 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     assertFalse(
                         nodeId + " is not in the applied state on " + leaderId,
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId)
+                    );
+                }
+                if (clusterNode.coordinator.getMode() == Mode.LEADER || clusterNode.coordinator.getMode() == Mode.FOLLOWER) {
+                    assertFalse(
+                        "Election scheduler should stop after cluster has stabilised",
+                        clusterNode.coordinator.isElectionSchedulerRunning()
                     );
                 }
             }

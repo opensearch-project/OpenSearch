@@ -258,9 +258,9 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
                             storeStatuses.add(
                                 new IndicesShardStoresResponse.StoreStatus(
                                     response.getNode(),
-                                    response.allocationId(),
+                                    response.getGatewayShardStarted().allocationId(),
                                     allocationStatus,
-                                    response.storeException()
+                                    response.getGatewayShardStarted().storeException()
                                 )
                             );
                         }
@@ -308,7 +308,8 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
              * A shard exists/existed in a node only if shard state file exists in the node
              */
             private boolean shardExistsInNode(final NodeGatewayStartedShards response) {
-                return response.storeException() != null || response.allocationId() != null;
+                return response.getGatewayShardStarted().storeException() != null
+                    || response.getGatewayShardStarted().allocationId() != null;
             }
 
             @Override

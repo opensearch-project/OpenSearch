@@ -21,6 +21,7 @@ import org.opensearch.http.HttpRequest;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
+import org.opensearch.telemetry.tracing.noop.NoopSpan;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportException;
@@ -102,6 +103,16 @@ public class SpanBuilderTests extends OpenSearchTestCase {
         Attributes attributes = context.getAttributes();
         assertEquals(action + " " + NetworkAddress.format(TransportAddress.META_ADDRESS), context.getSpanName());
         assertEquals(connection.getNode().getHostAddress(), attributes.getAttributesMap().get(AttributeNames.TRANSPORT_TARGET_HOST));
+    }
+
+    public void testParentSpan() {
+        String spanName = "test-name";
+        SpanContext parentSpanContext = new SpanContext(NoopSpan.INSTANCE);
+        SpanCreationContext context = SpanBuilder.from(spanName, parentSpanContext);
+        Attributes attributes = context.getAttributes();
+        assertNull(attributes);
+        assertEquals(spanName, context.getSpanName());
+        assertEquals(parentSpanContext, context.getParent());
     }
 
     private static Transport.Connection createTransportConnection() {

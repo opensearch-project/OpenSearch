@@ -1,0 +1,13 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+grant {
+  // allow to test Security policy and codebases 
+  permission java.util.PropertyPermission "*", "read,write";
+  permission java.security.SecurityPermission "createPolicy.JavaPolicy";
+};

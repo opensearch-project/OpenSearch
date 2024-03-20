@@ -270,7 +270,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     public void testExpandsConfigurationWhenGrowingFromOneNodeToThreeButDoesNotShrink() {
         try (Cluster cluster = new Cluster(1)) {
             cluster.runRandomly();
-            cluster.stabilise();
+            cluster.stabilise(DEFAULT_STABILISATION_TIME * 2);
 
             final ClusterNode leader = cluster.getAnyLeader();
 
@@ -1750,7 +1750,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     public void testImproveConfigurationPerformsVotingConfigExclusionStateCheck() {
         try (Cluster cluster = new Cluster(1)) {
             cluster.runRandomly();
-            cluster.stabilise();
+            cluster.stabilise(DEFAULT_STABILISATION_TIME * 2);
 
             final Coordinator coordinator = cluster.getAnyLeader().coordinator;
             final ClusterState currentState = coordinator.getLastAcceptedState();

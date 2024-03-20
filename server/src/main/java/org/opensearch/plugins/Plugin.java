@@ -269,4 +269,13 @@ public abstract class Plugin implements Closeable {
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
         return Collections.emptyList();
     }
+
+    /**
+     * Returns the {@link SecureSettingsFactory} instance that could be used to configure the
+     * security related components (fe. transports)
+     * @return the {@link SecureSettingsFactory} instance
+     */
+    public Optional<SecureSettingsFactory> getSecureSettingFactory(Settings settings) {
+        return Optional.empty();
+    }
 }

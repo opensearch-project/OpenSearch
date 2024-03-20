@@ -82,8 +82,8 @@ setup:
 ---
 "Plain highlighter on a field WITHOUT OFFSETS using max_analyzer_offset should SUCCEED":
   - skip:
-      version: " - 2.1.99"
-      reason: only starting supporting the parameter max_analyzer_offset on version 2.2
+      version: " - 2.12.99"
+      reason: only starting supporting the parameter max_analyzer_offset with plain highlighter on version 2.13
   - do:
       search:
         rest_total_hits_as_int: true

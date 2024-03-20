@@ -37,7 +37,10 @@ import com.fasterxml.jackson.core.JsonParseException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.semver.SemverRange;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -365,6 +368,31 @@ public class PluginInfoTests extends OpenSearchTestCase {
         ByteBufferStreamInput input = new ByteBufferStreamInput(buffer);
         PluginInfo info2 = new PluginInfo(input);
         assertThat(info2.toString(), equalTo(info.toString()));
+    }
+
+    public void testToXContent() throws Exception {
+        PluginInfo info = new PluginInfo(
+            "fake",
+            "foo",
+            "dummy",
+            Version.CURRENT,
+            "1.8",
+            "dummyClass",
+            "folder",
+            Collections.emptyList(),
+            false
+        );
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        String prettyPrint = info.toXContent(builder, ToXContent.EMPTY_PARAMS).prettyPrint().toString();
+        assertTrue(prettyPrint.contains("\"name\" : \"fake\""));
+        assertTrue(prettyPrint.contains("\"version\" : \"dummy\""));
+        assertTrue(prettyPrint.contains("\"opensearch_version\" : \"" + Version.CURRENT));
+        assertTrue(prettyPrint.contains("\"java_version\" : \"1.8\""));
+        assertTrue(prettyPrint.contains("\"description\" : \"foo\""));
+        assertTrue(prettyPrint.contains("\"classname\" : \"dummyClass\""));
+        assertTrue(prettyPrint.contains("\"custom_foldername\" : \"folder\""));
+        assertTrue(prettyPrint.contains("\"extended_plugins\" : [ ]"));
+        assertTrue(prettyPrint.contains("\"has_native_controller\" : false"));
     }
 
     public void testPluginListSorted() {

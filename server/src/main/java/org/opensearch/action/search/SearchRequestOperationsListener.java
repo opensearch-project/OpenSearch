@@ -22,6 +22,16 @@ import java.util.List;
 @InternalApi
 public abstract class SearchRequestOperationsListener {
     private volatile boolean enabled;
+    public static final SearchRequestOperationsListener NOOP = new SearchRequestOperationsListener(false) {
+        @Override
+        protected void onPhaseStart(SearchPhaseContext context) {}
+
+        @Override
+        protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
+
+        @Override
+        protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {}
+    };
 
     protected SearchRequestOperationsListener() {
         this.enabled = true;
@@ -35,7 +45,7 @@ public abstract class SearchRequestOperationsListener {
 
     protected abstract void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext);
 
-    protected abstract void onPhaseFailure(SearchPhaseContext context);
+    protected abstract void onPhaseFailure(SearchPhaseContext context, Throwable cause);
 
     protected void onRequestStart(SearchRequestContext searchRequestContext) {}
 
@@ -91,10 +101,10 @@ public abstract class SearchRequestOperationsListener {
         }
 
         @Override
-        protected void onPhaseFailure(SearchPhaseContext context) {
+        protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
-                    listener.onPhaseFailure(context);
+                    listener.onPhaseFailure(context, cause);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onPhaseFailure listener [{}] failed", listener), e);
                 }

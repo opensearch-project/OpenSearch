@@ -121,3 +121,7 @@ ${path.logs}
 # Once there is no observed impact on performance, this feature flag can be removed.
 #
 #opensearch.experimental.optimization.datetime_formatter_caching.enabled: false
+#
+# Gates the functionality of enabling Opensearch to use pluggable caches with respective store names via setting.
+#
+#opensearch.experimental.feature.pluggable.caching.enabled: false
