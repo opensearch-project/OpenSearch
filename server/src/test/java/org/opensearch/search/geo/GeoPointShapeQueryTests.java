@@ -143,6 +143,8 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
                 e.getCause().getMessage(),
                 containsString("Field [" + defaultGeoFieldName + "] does not support LINEARRING queries")
             );
+        } catch (UnsupportedOperationException e) {
+            assertThat(e.getMessage(), containsString("line ring cannot be serialized using GeoJson"));
         }
     }
 
