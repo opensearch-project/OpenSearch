@@ -29,7 +29,6 @@ import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.opensearch.test.transport.MockTransportService;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -37,7 +36,7 @@ import static java.util.Arrays.asList;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
     protected int maximumNumberOfShards() {
         return 1;
@@ -53,9 +52,8 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
     }
 
     public void testMixedModeRelocation() throws Exception {
-        internalCluster().setBootstrapClusterManagerNodeIndex(0);
-        List<String> cmNodes = internalCluster().startNodes(1);
-        Client client = internalCluster().client(cmNodes.get(0));
+        String docRepNode = internalCluster().startNode();
+        Client client = internalCluster().client(docRepNode);
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed"));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
@@ -66,18 +64,7 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
 
         AtomicInteger numAutoGenDocs = new AtomicInteger();
         final AtomicBoolean finished = new AtomicBoolean(false);
-        Thread indexingThread = new Thread(() -> {
-            while (finished.get() == false && numAutoGenDocs.get() < 100) {
-                IndexResponse indexResponse = client().prepareIndex("test").setId("id").setSource("field", "value").get();
-                assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
-                DeleteResponse deleteResponse = client().prepareDelete("test", "id").get();
-                assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-                client().prepareIndex("test").setSource("auto", true).get();
-                numAutoGenDocs.incrementAndGet();
-                logger.info("Indexed {} docs here", numAutoGenDocs.get());
-            }
-        });
-        indexingThread.start();
+        Thread indexingThread = getIndexingThread(finished, numAutoGenDocs);
 
         refresh("test");
 
@@ -94,14 +81,13 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         GetRepositoriesResponse getRepositoriesResponse = client.admin().cluster().getRepositories(gr).actionGet();
         assertEquals(1, getRepositoriesResponse.repositories().size());
 
-        Thread.sleep(RandomNumbers.randomIntBetween(random(), 0, 2000));
-        logger.info("-->  relocating from {} to {} ", cmNodes.get(0), remoteNode);
-        client().admin()
-            .cluster()
-            .prepareReroute()
-            .add(new MoveAllocationCommand("test", 0, cmNodes.get(0), remoteNode))
-            .execute()
-            .actionGet();
+        // Index some more docs
+        int currentDoc = numAutoGenDocs.get();
+        int finalCurrentDoc1 = currentDoc;
+        waitUntil(() -> numAutoGenDocs.get() > finalCurrentDoc1 + 5);
+
+        logger.info("-->  relocating from {} to {} ", docRepNode, remoteNode);
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, docRepNode, remoteNode)).execute().actionGet();
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()
             .prepareHealth()
@@ -112,8 +98,13 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
             .actionGet();
 
         assertEquals(0, clusterHealthResponse.getRelocatingShards());
+        assertEquals(remoteNode, primaryNodeName("test"));
         logger.info("-->  relocation from docrep to remote  complete");
-        Thread.sleep(RandomNumbers.randomIntBetween(random(), 0, 2000));
+
+        // Index some more docs
+        currentDoc = numAutoGenDocs.get();
+        int finalCurrentDoc = currentDoc;
+        waitUntil(() -> numAutoGenDocs.get() > finalCurrentDoc + 5);
 
         client().admin()
             .cluster()
@@ -131,6 +122,8 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
             .actionGet();
 
         assertEquals(0, clusterHealthResponse.getRelocatingShards());
+        assertEquals(remoteNode2, primaryNodeName("test"));
+
         logger.info("-->  relocation from remote to remote  complete");
 
         finished.set(true);
@@ -148,9 +141,8 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
     }
 
     public void testMixedModeRelocation_RemoteSeedingFail() throws Exception {
-        internalCluster().setBootstrapClusterManagerNodeIndex(0);
-        List<String> cmNodes = internalCluster().startNodes(1);
-        Client client = internalCluster().client(cmNodes.get(0));
+        String docRepNode = internalCluster().startNode();
+        Client client = internalCluster().client(docRepNode);
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed"));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
@@ -161,18 +153,7 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
 
         AtomicInteger numAutoGenDocs = new AtomicInteger();
         final AtomicBoolean finished = new AtomicBoolean(false);
-        Thread indexingThread = new Thread(() -> {
-            while (finished.get() == false && numAutoGenDocs.get() < 100) {
-                IndexResponse indexResponse = client().prepareIndex("test").setId("id").setSource("field", "value").get();
-                assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
-                DeleteResponse deleteResponse = client().prepareDelete("test", "id").get();
-                assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-                client().prepareIndex("test").setSource("auto", true).get();
-                numAutoGenDocs.incrementAndGet();
-                logger.info("Indexed {} docs here", numAutoGenDocs.get());
-            }
-        });
-        indexingThread.start();
+        Thread indexingThread = getIndexingThread(finished, numAutoGenDocs);
 
         refresh("test");
 
@@ -187,14 +168,9 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         assertEquals(1, getRepositoriesResponse.repositories().size());
 
         setFailRate(REPOSITORY_NAME, 100);
-        Thread.sleep(RandomNumbers.randomIntBetween(random(), 0, 2000));
-        logger.info("--> relocating from {} to {} ", cmNodes.get(0), remoteNode);
-        client().admin()
-            .cluster()
-            .prepareReroute()
-            .add(new MoveAllocationCommand("test", 0, cmNodes.get(0), remoteNode))
-            .execute()
-            .actionGet();
+
+        logger.info("--> relocating from {} to {} ", docRepNode, remoteNode);
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, docRepNode, remoteNode)).execute().actionGet();
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()
             .prepareHealth()
@@ -206,6 +182,7 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
 
         assertTrue(clusterHealthResponse.getRelocatingShards() == 1);
         setFailRate(REPOSITORY_NAME, 0);
+        Thread.sleep(RandomNumbers.randomIntBetween(random(), 0, 2000));
         clusterHealthResponse = client().admin()
             .cluster()
             .prepareHealth()
@@ -227,5 +204,20 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
                 .get(),
             numAutoGenDocs.get()
         );
+    }
+
+    private static Thread getIndexingThread(AtomicBoolean finished, AtomicInteger numAutoGenDocs) {
+        Thread indexingThread = new Thread(() -> {
+            while (finished.get() == false && numAutoGenDocs.get() < 10_000) {
+                IndexResponse indexResponse = client().prepareIndex("test").setId("id").setSource("field", "value").get();
+                assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+                DeleteResponse deleteResponse = client().prepareDelete("test", "id").get();
+                assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+                client().prepareIndex("test").setSource("auto", true).get();
+                numAutoGenDocs.incrementAndGet();
+            }
+        });
+        indexingThread.start();
+        return indexingThread;
     }
 }

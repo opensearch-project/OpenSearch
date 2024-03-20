@@ -19,7 +19,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.nio.file.Path;
 import java.util.concurrent.ExecutionException;
 
-import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.repositories.fs.ReloadableFsRepository.REPOSITORIES_FAILRATE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -42,11 +41,10 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
             return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(remoteStoreClusterSettings(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, translogRepoPath))
-                .put("discovery.initial_state_timeout", "500ms")
                 .build();
         } else {
             logger.info("Adding docrep node");
-            return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put("discovery.initial_state_timeout", "500ms").build();
+            return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
         }
     }
 
