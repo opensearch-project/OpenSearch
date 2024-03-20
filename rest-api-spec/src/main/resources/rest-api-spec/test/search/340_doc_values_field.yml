@@ -311,6 +311,17 @@
         index: test-iodvq
         body:
           query:
+            terms:
+              boolean: [true, false]
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
             range: {
               half_float: {
                 gte: 401.0,
@@ -665,13 +676,13 @@
   - match: {hits.total: 1}
 
   - do:
-    search:
-      rest_total_hits_as_int: true
-      index: test-index
-      body:
-        query:
-          term:
-            boolean: true
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            term:
+              boolean: true
 
   - match: { hits.total: 2 }
 
@@ -774,6 +785,17 @@
               ip_field: ["192.168.0.1", "192.168.0.2"]
 
   - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            terms:
+              boolean: [true, false]
+
+  - match: { hits.total: 3 }
 
   - do:
       search:
@@ -1234,6 +1256,17 @@
               unsigned_long: [ 10223372036854775800, 10223372036854775801 ]
 
   - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            terms:
+              boolean: [true, false]
+
+  - match: { hits.total: 3 }
 
   - do:
       search:

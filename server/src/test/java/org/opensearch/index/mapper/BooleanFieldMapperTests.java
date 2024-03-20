@@ -32,14 +32,12 @@
 
 package org.opensearch.index.mapper;
 
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -208,13 +206,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         }));
 
         MappedFieldType ft = mapperService.fieldType("field");
-        assertEquals(
-            new IndexOrDocValuesQuery(
-                new BoostQuery(new TermQuery(new Term("field", "T")), 2.0f),
-                SortedNumericDocValuesField.newSlowExactQuery("field", 1)
-            ),
-            ft.termQuery("true", null)
-        );
+        assertEquals(new BoostQuery(new TermQuery(new Term("field", "T")), 2.0f), ft.termQuery("true", null));
         assertParseMaximalWarnings();
     }
 
@@ -232,16 +224,6 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
         assertEquals(
             new BooleanFieldMapper.BooleanFieldType("bool").indexedValueForSearch(new BytesRef("false")),
-            BooleanFieldMapper.Values.FALSE
-        );
-
-        assertEquals(
-            new BooleanFieldMapper.BooleanFieldType("bool").indexedValueForSearch(new BytesRef("T")),
-            BooleanFieldMapper.Values.TRUE
-        );
-
-        assertEquals(
-            new BooleanFieldMapper.BooleanFieldType("bool").indexedValueForSearch(new BytesRef("F")),
             BooleanFieldMapper.Values.FALSE
         );
 
