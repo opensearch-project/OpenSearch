@@ -144,6 +144,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `reactor-netty` from 1.1.15 to 1.1.17 ([#12633](https://github.com/opensearch-project/OpenSearch/pull/12633))
 - Bump `reactor` from 3.5.14 to 3.5.15 ([#12633](https://github.com/opensearch-project/OpenSearch/pull/12633))
 - Bump `peter-evans/create-pull-request` from 5 to 6 ([#12724](https://github.com/opensearch-project/OpenSearch/pull/12724))
+- Bump `org.apache.commons:commons-configuration2` from 2.9.0 to 2.10.0 ([#12721](https://github.com/opensearch-project/OpenSearch/pull/12721))
 
 ### Changed
 - Allow composite aggregation to run under a parent filter aggregation ([#11499](https://github.com/opensearch-project/OpenSearch/pull/11499))
