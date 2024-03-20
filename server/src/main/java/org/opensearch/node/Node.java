@@ -202,6 +202,7 @@ import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
+import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
@@ -945,6 +946,13 @@ public class Node implements Closeable {
                 admissionControlService
             );
 
+            final Collection<SecureTransportSettingsProvider> secureTransportSettingsProviders = pluginsService.filterPlugins(Plugin.class)
+                .stream()
+                .map(p -> p.getSecureSettingFactory(settings).flatMap(f -> f.getSecureTransportSettingsProvider(settings)))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
+
             List<TransportInterceptor> transportInterceptors = List.of(admissionControlTransportInterceptor);
             final NetworkModule networkModule = new NetworkModule(
                 settings,
@@ -959,7 +967,8 @@ public class Node implements Closeable {
                 restController,
                 clusterService.getClusterSettings(),
                 tracer,
-                transportInterceptors
+                transportInterceptors,
+                secureTransportSettingsProviders
             );
 
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.filterPlugins(
