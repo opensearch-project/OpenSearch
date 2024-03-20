@@ -97,23 +97,30 @@ public class ForceMergeRequestTests extends OpenSearchTestCase {
     public void testBwcSerialization() throws Exception {
         {
             final ForceMergeRequest sample = randomRequest();
-            final Version compatibleVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(compatibleVersion);
+                out.setVersion(version);
                 sample.writeTo(out);
 
                 try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(Version.CURRENT);
+                    in.setVersion(version);
                     TaskId.readFromStream(in);
                     in.readStringArray();
                     IndicesOptions.readIndicesOptions(in);
                     int maxNumSegments = in.readInt();
                     boolean onlyExpungeDeletes = in.readBoolean();
                     boolean flush = in.readBoolean();
+                    boolean primaryOnly = false;
+                    if (version.onOrAfter(Version.V_2_13_0)) {
+                        primaryOnly = in.readBoolean();
+                    }
                     String forceMergeUUID = in.readOptionalString();
                     assertEquals(sample.maxNumSegments(), maxNumSegments);
                     assertEquals(sample.onlyExpungeDeletes(), onlyExpungeDeletes);
                     assertEquals(sample.flush(), flush);
+                    if (version.onOrAfter(Version.V_2_13_0)) {
+                        assertEquals(sample.primaryOnly(), primaryOnly);
+                    }
                     assertEquals(sample.forceMergeUUID(), forceMergeUUID);
                 }
 
@@ -122,30 +129,30 @@ public class ForceMergeRequestTests extends OpenSearchTestCase {
 
         {
             final ForceMergeRequest sample = randomRequest();
-            final Version compatibleVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(Version.CURRENT);
+                out.setVersion(version);
                 sample.getParentTask().writeTo(out);
                 out.writeStringArray(sample.indices());
                 sample.indicesOptions().writeIndicesOptions(out);
                 out.writeInt(sample.maxNumSegments());
                 out.writeBoolean(sample.onlyExpungeDeletes());
                 out.writeBoolean(sample.flush());
-                if (compatibleVersion.onOrAfter(Version.V_2_13_0)) {
+                if (version.onOrAfter(Version.V_2_13_0)) {
                     out.writeBoolean(sample.primaryOnly());
                 }
                 out.writeOptionalString(sample.forceMergeUUID());
 
                 final ForceMergeRequest deserializedRequest;
                 try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(compatibleVersion);
+                    in.setVersion(version);
                     deserializedRequest = new ForceMergeRequest(in);
                 }
 
                 assertEquals(sample.maxNumSegments(), deserializedRequest.maxNumSegments());
                 assertEquals(sample.onlyExpungeDeletes(), deserializedRequest.onlyExpungeDeletes());
                 assertEquals(sample.flush(), deserializedRequest.flush());
-                if (compatibleVersion.onOrAfter(Version.V_2_13_0)) {
+                if (version.onOrAfter(Version.V_2_13_0)) {
                     assertEquals(sample.primaryOnly(), deserializedRequest.primaryOnly());
                 }
                 assertEquals(sample.forceMergeUUID(), deserializedRequest.forceMergeUUID());
