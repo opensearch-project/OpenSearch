@@ -267,7 +267,6 @@ public class IndexingIT extends AbstractRollingTestCase {
      * @throws Exception if index creation fail
      * @throws UnsupportedOperationException if cluster type is unknown
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7679")
     public void testIndexingWithSegRep() throws Exception {
         if (UPGRADE_FROM_VERSION.before(Version.V_2_4_0)) {
             logger.info("--> Skip test for version {} where segment replication feature is not available", UPGRADE_FROM_VERSION);
