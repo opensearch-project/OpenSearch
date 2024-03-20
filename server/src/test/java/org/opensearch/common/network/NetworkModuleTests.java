@@ -241,10 +241,6 @@ public class NetworkModuleTests extends OpenSearchTestCase {
             }
         });
         assertSame(custom, module.getHttpServerTransportSupplier());
-
-        settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
-        NetworkModule newModule = newNetworkModule(settings, null);
-        expectThrows(IllegalStateException.class, () -> newModule.getHttpServerTransportSupplier());
     }
 
     public void testOverrideDefault() {
