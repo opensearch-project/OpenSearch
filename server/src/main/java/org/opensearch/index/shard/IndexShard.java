@@ -650,7 +650,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 // Flush here after relocation of primary, so that replica get all changes from new primary rather than waiting for more
                 // docs to get indexed.
-                if (indexSettings.isSegRepEnabled()) {
+                if (indexSettings.isSegRepEnabledOrRemoteNode()) {
                     flush(new FlushRequest().waitIfOngoing(true).force(true));
                 }
             } else if (currentRouting.primary()
@@ -730,7 +730,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             + newRouting;
                         assert getOperationPrimaryTerm() == newPrimaryTerm;
                         try {
-                            if (indexSettings.isSegRepEnabled()) {
+                            if (indexSettings.isSegRepEnabledOrRemoteNode()) {
                                 // this Shard's engine was read only, we need to update its engine before restoring local history from xlog.
                                 assert newRouting.primary() && currentRouting.primary() == false;
                                 ReplicationTimer timer = new ReplicationTimer();
@@ -750,7 +750,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             }
 
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                            if (indexSettings.isSegRepEnabled()) {
+                            if (indexSettings.isSegRepEnabledOrRemoteNode()) {
                                 // force publish a checkpoint once in primary mode so that replicas not caught up to previous primary
                                 // are brought up to date.
                                 checkpointPublisher.publish(this, getLatestReplicationCheckpoint());
@@ -1068,7 +1068,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         // For Segment Replication enabled replica shards we can be skip parsing the documents as we directly copy segments from primary
         // shard.
-        if (indexSettings.isSegRepEnabled() && routingEntry().primary() == false) {
+        if (indexSettings.isSegRepEnabledOrRemoteNode() && routingEntry().primary() == false) {
             Engine.Index index = new Engine.Index(
                 new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
                 new ParsedDocument(null, null, id, null, null, sourceToParse.source(), sourceToParse.getMediaType(), null),
@@ -1267,7 +1267,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long opPrimaryTerm, long version, String id) throws IOException {
-        if (indexSettings.isSegRepEnabled()) {
+        if (indexSettings.isSegRepEnabledOrRemoteNode()) {
             final Engine.Delete delete = new Engine.Delete(
                 id,
                 new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
@@ -1467,7 +1467,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 new RemoteSegmentStats(remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId).stats())
             );
         }
-        if (indexSettings.isSegRepEnabled()) {
+        if (indexSettings.isSegRepEnabledOrRemoteNode()) {
             segmentsStats.addReplicationStats(getReplicationStats());
         }
         return segmentsStats;
@@ -1523,7 +1523,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * {@link org.opensearch.index.translog.TranslogDeletionPolicy} for details
      */
     public void trimTranslog() {
-        if (isRemoteTranslogEnabled() || isMigratingToRemote()) {
+        if (indexSettings.isRemoteNode()) {
             return;
         }
         verifyNotClosed();
@@ -1688,7 +1688,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      */
     public Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> getLatestSegmentInfosAndCheckpoint() {
-        assert indexSettings.isSegRepEnabled();
+        assert indexSettings.isSegRepEnabledOrRemoteNode();
 
         // do not close the snapshot - caller will close it.
         GatedCloseable<SegmentInfos> snapshot = null;
@@ -1747,7 +1747,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return - True if the shard is able to perform segment replication.
      */
     public boolean isSegmentReplicationAllowed() {
-        if (indexSettings.isSegRepEnabled() == false) {
+        if (indexSettings.isSegRepEnabledOrRemoteNode() == false) {
             logger.trace("Attempting to perform segment replication when it is not enabled on the index");
             return false;
         }
@@ -2555,7 +2555,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);
 
-            if (indexSettings.isSegRepEnabled()) {
+            if (indexSettings.isSegRepEnabledOrRemoteNode()) {
                 // set initial replication checkpoints into tracker.
                 updateReplicationCheckpoint();
             }
@@ -2967,7 +2967,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * This method should only be invoked if Segment Replication or Remote Store is not enabled.
      */
     public Translog.Snapshot getHistoryOperationsFromTranslog(long startingSeqNo, long endSeqNo) throws IOException {
-        assert indexSettings.isSegRepEnabled() == false
+        assert indexSettings.isSegRepEnabledOrRemoteNode() == false
             : "unsupported operation for segment replication enabled indices or remote store backed indices";
         return getEngine().translogManager().newChangesSnapshot(startingSeqNo, endSeqNo, true);
     }
@@ -3134,7 +3134,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public ReplicationStats getReplicationStats() {
-        if (indexSettings.isSegRepEnabled() && routingEntry().primary()) {
+        if (indexSettings.isSegRepEnabledOrRemoteNode() && routingEntry().primary()) {
             final Set<SegmentReplicationShardStats> stats = getReplicationStatsForTrackedReplicas();
             long maxBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).max().orElse(0L);
             long totalBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).sum();
@@ -3538,7 +3538,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // This helps to get a consistent state in remote store where both remote segment store and remote
             // translog contains data.
             try {
-                logger.info("Activating primary mode now");
                 getEngine().translogManager().syncTranslog();
             } catch (IOException e) {
                 logger.error("Failed to sync translog to remote from new primary", e);
@@ -3921,7 +3920,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         internalRefreshListener.clear();
         internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
-        if (indexSettings.isSegRepEnabled()) {
+        if (indexSettings.isSegRepEnabledOrRemoteNode()) {
             internalRefreshListener.add(new ReplicationCheckpointUpdater());
         }
         if (this.checkpointPublisher != null && shardRouting.primary() && indexSettings.isSegRepLocalEnabled()) {
@@ -3942,7 +3941,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
           With segment replication enabled for primary relocation, recover replica shard initially as read only and
           change to a writeable engine during relocation handoff after a round of segment replication.
          */
-        boolean isReadOnlyReplica = indexSettings.isSegRepEnabled()
+        boolean isReadOnlyReplica = indexSettings.isSegRepEnabledOrRemoteNode()
             && (shardRouting.primary() == false
                 || (shardRouting.isRelocationTarget() && recoveryState.getStage() != RecoveryState.Stage.FINALIZE));
 
@@ -4326,7 +4325,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         );
                         // With Segment Replication enabled, we never want to reset a replica's engine unless
                         // it is promoted to primary.
-                        if (currentGlobalCheckpoint < maxSeqNo && indexSettings.isSegRepEnabled() == false) {
+                        if (currentGlobalCheckpoint < maxSeqNo && indexSettings.isSegRepEnabledOrRemoteNode() == false) {
                             resetEngineToGlobalCheckpoint();
                         } else {
                             getEngine().translogManager().rollTranslogGeneration();
@@ -4621,7 +4620,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (isRemoteTranslogEnabled() || indexSettings.isRemoteNode()) {
             return false;
         }
-        return indexSettings.isSegRepEnabled() == false || indexSettings.getNumberOfReplicas() == 0;
+        return indexSettings.isSegRepEnabledOrRemoteNode() == false || indexSettings.getNumberOfReplicas() == 0;
     }
 
     /**
@@ -4905,7 +4904,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // of truth for translog, we play all translogs that exists locally. Otherwise, the recoverUpto happens upto global checkpoint.
         // We also replay all local translog ops with Segment replication, because on engine swap our local translog may
         // hold more ops than the global checkpoint.
-        long recoverUpto = this.isRemoteTranslogEnabled() || indexSettings().isSegRepEnabled() ? Long.MAX_VALUE : globalCheckpoint;
+        long recoverUpto = this.isRemoteTranslogEnabled() || indexSettings().isSegRepEnabledOrRemoteNode()
+            ? Long.MAX_VALUE
+            : globalCheckpoint;
         newEngineReference.get()
             .translogManager()
             .recoverFromTranslog(translogRunner, newEngineReference.get().getProcessedLocalCheckpoint(), recoverUpto);

@@ -90,7 +90,6 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
-import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
@@ -494,26 +493,24 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             Store remoteStore = null;
             boolean seedRemote = false;
             if (targetNode.isRemoteStoreNode()) {
+                final Directory remoteDirectory;
                 if (this.indexSettings.isRemoteStoreEnabled()) {
-                    Directory remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
-                    remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY, path);
+                    remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
                 } else {
                     if (sourceNode != null && sourceNode.isRemoteStoreNode() == false) {
-                        assert routing.primary();
+                        if (routing.primary() == false) {
+                            throw new IllegalStateException("Can't migrate a remote shard to replica before primary " + routing.shardId());
+                        }
                         logger.info("DocRep shard {} is migrating to remote", shardId);
                         seedRemote = true;
                     }
-                    RemoteSegmentStoreDirectoryFactory directoryFactory = new RemoteSegmentStoreDirectoryFactory(
-                        () -> repositoriesService,
-                        threadPool
-                    );
-                    RemoteSegmentStoreDirectory remoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
+                    remoteDirectory = ((RemoteSegmentStoreDirectoryFactory) remoteDirectoryFactory).newDirectory(
                         RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(this.indexSettings.getNodeSettings()),
                         this.indexSettings.getUUID(),
                         shardId
                     );
-                    remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY, path);
                 }
+                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY, path);
             }
 
             Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
@@ -548,7 +545,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 retentionLeaseSyncer,
                 circuitBreakerService,
                 translogFactorySupplier,
-                this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
+                this.indexSettings.isSegRepEnabledOrRemoteNode() ? checkpointPublisher : null,
                 remoteStore,
                 remoteStoreStatsTrackerFactory,
                 clusterRemoteTranslogBufferIntervalSupplier,

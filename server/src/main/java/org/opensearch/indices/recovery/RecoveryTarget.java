@@ -374,7 +374,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
                 // Replicas for segment replication or remote snapshot indices do not create
                 // their own commit points and therefore do not modify the commit user data
                 // in their store. In these cases, reuse the primary's translog UUID.
-                final boolean reuseTranslogUUID = indexShard.indexSettings().isSegRepEnabled()
+                final boolean reuseTranslogUUID = indexShard.indexSettings().isSegRepEnabledOrRemoteNode()
                     || indexShard.indexSettings().isRemoteSnapshot();
                 if (reuseTranslogUUID) {
                     final String translogUUID = store.getMetadata().getCommitUserData().get(TRANSLOG_UUID_KEY);

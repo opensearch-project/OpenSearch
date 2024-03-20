@@ -1059,7 +1059,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     public Function<List<IndexShard>, List<SegmentReplicationTarget>> getReplicationFunc(final IndexShard target) {
-        return target.indexSettings().isSegRepEnabled() ? (shardList) -> {
+        return target.indexSettings().isSegRepEnabledOrRemoteNode() ? (shardList) -> {
             try {
                 assert shardList.size() >= 2;
                 final IndexShard primary = shardList.get(0);
