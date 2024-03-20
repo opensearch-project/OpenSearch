@@ -109,7 +109,7 @@ public class DerivedFieldMapperTests extends MapperTestCase {
         //  If it didn't fail here, it would hit the MapperParsingException for the field being defined more than once
         //  when MappingLookup is initialized
         assertEquals(
-            "Failed to parse mapping [_doc]: mapper [field] cannot be changed from type [derived_field] to [keyword]",
+            "Failed to parse mapping [_doc]: mapper [field] cannot be changed from type [derived] to [keyword]",
             ex.getMessage()
         );
     }
