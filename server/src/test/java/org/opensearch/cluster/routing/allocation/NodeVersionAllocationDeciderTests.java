@@ -441,9 +441,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode).add(oldNode1).add(oldNode2))
             .build();
-        AllocationDeciders allocationDeciders = new AllocationDeciders(
-            Collections.singleton(new NodeVersionAllocationDecider())
-        );
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Collections.singleton(new NodeVersionAllocationDecider()));
         AllocationService strategy = new MockAllocationService(
             allocationDeciders,
             new TestGatewayAllocator(),
@@ -648,9 +646,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode1).add(newNode2).add(oldNode1).add(oldNode2))
             .build();
-        AllocationDeciders allocationDeciders = new AllocationDeciders(
-            Collections.singleton(new NodeVersionAllocationDecider())
-        );
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Collections.singleton(new NodeVersionAllocationDecider()));
         AllocationService strategy = new MockAllocationService(
             allocationDeciders,
             new TestGatewayAllocator(),
@@ -715,16 +711,16 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
                 IndexRoutingTable.builder(shard1.getIndex())
                     .addIndexShard(
                         new IndexShardRoutingTable.Builder(shard1).addShard(
-                                TestShardRouting.newShardRouting(
-                                    shard1.getIndexName(),
-                                    shard1.getId(),
-                                    oldNode1.getId(),
-                                    null,
-                                    true,
-                                    ShardRoutingState.STARTED,
-                                    allocationId1P
-                                )
+                            TestShardRouting.newShardRouting(
+                                shard1.getIndexName(),
+                                shard1.getId(),
+                                oldNode1.getId(),
+                                null,
+                                true,
+                                ShardRoutingState.STARTED,
+                                allocationId1P
                             )
+                        )
                             .addShard(
                                 TestShardRouting.newShardRouting(
                                     shard1.getIndexName(),
@@ -745,9 +741,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode1).add(oldNode1).add(oldNode2))
             .build();
-        AllocationDeciders allocationDeciders = new AllocationDeciders(
-            Collections.singleton(new NodeVersionAllocationDecider())
-        );
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Collections.singleton(new NodeVersionAllocationDecider()));
         AllocationService strategy = new MockAllocationService(
             allocationDeciders,
             new TestGatewayAllocator(),

@@ -39,7 +39,6 @@ import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.util.List;
@@ -58,8 +57,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "node_version";
 
-    public NodeVersionAllocationDecider() {
-    }
+    public NodeVersionAllocationDecider() {}
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
