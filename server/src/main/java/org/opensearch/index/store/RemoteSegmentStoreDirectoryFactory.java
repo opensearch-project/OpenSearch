@@ -12,6 +12,7 @@ import org.apache.lucene.store.Directory;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.remote.RemoteStorePathType;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
@@ -23,6 +24,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
@@ -32,6 +34,8 @@ import java.util.function.Supplier;
  */
 public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     private static final String SEGMENTS = "segments";
+    private final static String DATA_DIR = "data";
+    private final static String METADATA_DIR = "metadata";
 
     private final Supplier<RepositoriesService> repositoriesService;
 
@@ -46,29 +50,38 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
     public Directory newDirectory(IndexSettings indexSettings, ShardPath path) throws IOException {
         String repositoryName = indexSettings.getRemoteStoreRepository();
         String indexUUID = indexSettings.getIndex().getUUID();
-        return newDirectory(repositoryName, indexUUID, path.getShardId());
+        return newDirectory(repositoryName, indexUUID, path.getShardId(), indexSettings.getRemoteStorePathType());
     }
 
-    public Directory newDirectory(String repositoryName, String indexUUID, ShardId shardId) throws IOException {
+    public Directory newDirectory(String repositoryName, String indexUUID, ShardId shardId, RemoteStorePathType pathType)
+        throws IOException {
+        assert Objects.nonNull(pathType);
         try (Repository repository = repositoriesService.get().repository(repositoryName)) {
+
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
             BlobStoreRepository blobStoreRepository = ((BlobStoreRepository) repository);
-            BlobPath commonBlobPath = blobStoreRepository.basePath();
-            commonBlobPath = commonBlobPath.add(indexUUID).add(String.valueOf(shardId.id())).add(SEGMENTS);
+            BlobPath repositoryBasePath = blobStoreRepository.basePath();
+            String shardIdStr = String.valueOf(shardId.id());
 
+            // Derive the path for data directory of SEGMENTS
+            BlobPath dataBlobPath = pathType.generatePath(repositoryBasePath, indexUUID, shardIdStr, SEGMENTS, DATA_DIR);
             RemoteDirectory dataDirectory = new RemoteDirectory(
-                blobStoreRepository.blobStore().blobContainer(commonBlobPath.add("data")),
+                blobStoreRepository.blobStore().blobContainer(dataBlobPath),
                 blobStoreRepository::maybeRateLimitRemoteUploadTransfers,
                 blobStoreRepository::maybeRateLimitRemoteDownloadTransfers
             );
-            RemoteDirectory metadataDirectory = new RemoteDirectory(
-                blobStoreRepository.blobStore().blobContainer(commonBlobPath.add("metadata"))
-            );
+
+            // Derive the path for metadata directory of SEGMENTS
+            BlobPath mdBlobPath = pathType.generatePath(repositoryBasePath, indexUUID, shardIdStr, SEGMENTS, METADATA_DIR);
+            RemoteDirectory metadataDirectory = new RemoteDirectory(blobStoreRepository.blobStore().blobContainer(mdBlobPath));
+
+            // The path for lock is derived within the RemoteStoreLockManagerFactory
             RemoteStoreLockManager mdLockManager = RemoteStoreLockManagerFactory.newLockManager(
                 repositoriesService.get(),
                 repositoryName,
                 indexUUID,
-                String.valueOf(shardId.id())
+                shardIdStr,
+                pathType
             );
 
             return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager, threadPool, shardId);
