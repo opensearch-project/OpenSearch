@@ -45,6 +45,7 @@ import java.util.function.Function;
 
 /**
  * Definition of Script for DerivedField.
+ * It will be used to execute scripts defined against derived fields of any type
  *
  * @opensearch.internal
  */

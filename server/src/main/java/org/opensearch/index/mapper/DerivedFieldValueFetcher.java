@@ -16,7 +16,9 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * ValueFetcher used by Derived Fields.
+ * The value fetcher contains logic to execute script and fetch the value in form of List<Object>.
+ * It expects DerivedFieldScript.LeafFactory as an input and sets the contract with consumer to call
+ * {@link #setNextReader(LeafReaderContext)} whenever a segment is switched.
  */
 public final class DerivedFieldValueFetcher implements ValueFetcher {
     private DerivedFieldScript derivedFieldScript;
