@@ -11,6 +11,7 @@ package org.opensearch.index.translog;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.logging.Loggers;
@@ -39,6 +40,7 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -76,6 +78,8 @@ public class RemoteFsTranslog extends Translog {
     private static final int REMOTE_DELETION_PERMITS = 2;
     private static final int DOWNLOAD_RETRIES = 2;
     public static final String TRANSLOG = "translog";
+    public final static String METADATA_DIR = "metadata";
+    public final static String DATA_DIR = "data";
 
     // Semaphore used to allow only single remote generation to happen at a time
     private final Semaphore remoteGenerationDeletionPermits = new Semaphore(REMOTE_DELETION_PERMITS);
@@ -253,16 +257,16 @@ public class RemoteFsTranslog extends Translog {
         ThreadPool threadPool,
         ShardId shardId,
         FileTransferTracker fileTransferTracker,
-        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        RemoteTranslogTransferTracker tracker,
         RemoteStorePathType pathType
     ) {
-        return new TranslogTransferManager(
-            shardId,
-            new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool),
-            blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(TRANSLOG),
-            fileTransferTracker,
-            remoteTranslogTransferTracker
-        );
+        assert Objects.nonNull(pathType);
+        String indexUUID = shardId.getIndex().getUUID();
+        String shardIdStr = String.valueOf(shardId.id());
+        BlobPath dataPath = pathType.path(blobStoreRepository.basePath(), indexUUID, shardIdStr, TRANSLOG, DATA_DIR);
+        BlobPath mdPath = pathType.path(blobStoreRepository.basePath(), indexUUID, shardIdStr, TRANSLOG, METADATA_DIR);
+        BlobStoreTransferService transferService = new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool);
+        return new TranslogTransferManager(shardId, transferService, dataPath, mdPath, fileTransferTracker, tracker);
     }
 
     @Override

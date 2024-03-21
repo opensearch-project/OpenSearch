@@ -25,15 +25,15 @@ public enum RemoteStorePathType {
 
     FIXED {
         @Override
-        public BlobPath validateAndGeneratePath(BlobPath basePath, String indexUUID, String shardId, String dataCategory, String dataType) {
+        public BlobPath generatePath(BlobPath basePath, String indexUUID, String shardId, String dataCategory, String dataType) {
             return basePath.add(indexUUID).add(shardId).add(dataCategory).add(dataType);
         }
     },
     HASHED_PREFIX {
         @Override
-        public BlobPath validateAndGeneratePath(BlobPath basePath, String indexUUID, String shardId, String dataCategory, String dataType) {
+        public BlobPath generatePath(BlobPath basePath, String indexUUID, String shardId, String dataCategory, String dataType) {
             // TODO - We need to implement this, keeping the same path as Fixed for sake of multiple tests that can fail otherwise.
-            // throw new UnsupportedOperationException("Not implemented"); --> Not using this for some tests
+            // throw new UnsupportedOperationException("Not implemented"); --> Not using this for unblocking couple of tests.
             return basePath.add(indexUUID).add(shardId).add(dataCategory).add(dataType);
         }
     };
@@ -46,25 +46,27 @@ public enum RemoteStorePathType {
      * @param dataType     can be one of data, metadata or lock_files.
      * @return the blob path for the underlying remote store path type.
      */
-    public BlobPath generatePath(BlobPath basePath, String indexUUID, String shardId, String dataCategory, String dataType) {
+    public BlobPath path(BlobPath basePath, String indexUUID, String shardId, String dataCategory, String dataType) {
         assertDataCategoryAndTypeCombination(dataCategory, dataType);
-        return validateAndGeneratePath(basePath, indexUUID, shardId, dataCategory, dataType);
+        return generatePath(basePath, indexUUID, shardId, dataCategory, dataType);
     }
 
-    abstract BlobPath validateAndGeneratePath(BlobPath basePath, String indexUUID, String shardId, String dataCategory, String dataType);
+    abstract BlobPath generatePath(BlobPath basePath, String indexUUID, String shardId, String dataCategory, String dataType);
 
     /**
      * This method verifies that if the data category is translog, then the data type can not be lock_files. All other
      * combination of data categories and data types are possible.
      */
     private static void assertDataCategoryAndTypeCombination(String dataCategory, String dataType) {
-        assert dataCategory.equals(TRANSLOG) == false || dataType.equals(LOCK_FILES) == false;
+        assert TRANSLOG.equals(dataCategory) == false || LOCK_FILES.equals(dataType) == false;
     }
 
     public static RemoteStorePathType parseString(String remoteStoreBlobPathType) {
         try {
             return RemoteStorePathType.valueOf(remoteStoreBlobPathType.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException | NullPointerException e) {
+            // IllegalArgumentException is thrown when the input does not match any enum name
+            // NullPointerException is thrown when the input is null
             throw new IllegalArgumentException("Could not parse RemoteStorePathType for [" + remoteStoreBlobPathType + "]");
         }
     }

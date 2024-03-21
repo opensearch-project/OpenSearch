@@ -48,6 +48,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.mockito.Mockito;
 
+import static org.opensearch.index.translog.RemoteFsTranslog.DATA_DIR;
+import static org.opensearch.index.translog.RemoteFsTranslog.METADATA_DIR;
 import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.METADATA_SEPARATOR;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -95,7 +97,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
-            remoteBaseTransferPath,
+            remoteBaseTransferPath.add(DATA_DIR),
+            remoteBaseTransferPath.add(METADATA_DIR),
             tracker,
             remoteTranslogTransferTracker
         );
@@ -159,7 +162,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
-            remoteBaseTransferPath,
+            remoteBaseTransferPath.add(DATA_DIR),
+            remoteBaseTransferPath.add(METADATA_DIR),
             fileTransferTracker,
             remoteTranslogTransferTracker
         );
@@ -194,7 +198,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
-            remoteBaseTransferPath,
+            remoteBaseTransferPath.add(DATA_DIR),
+            remoteBaseTransferPath.add(METADATA_DIR),
             fileTransferTracker,
             remoteTranslogTransferTracker
         );
@@ -235,7 +240,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
-            remoteBaseTransferPath,
+            remoteBaseTransferPath.add(DATA_DIR),
+            remoteBaseTransferPath.add(METADATA_DIR),
             fileTransferTracker,
             remoteTranslogTransferTracker
         );
@@ -333,7 +339,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
-            remoteBaseTransferPath,
+            remoteBaseTransferPath.add(DATA_DIR),
+            remoteBaseTransferPath.add(METADATA_DIR),
             null,
             remoteTranslogTransferTracker
         );
@@ -354,7 +361,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
-            remoteBaseTransferPath,
+            remoteBaseTransferPath.add(DATA_DIR),
+            remoteBaseTransferPath.add(METADATA_DIR),
             null,
             remoteTranslogTransferTracker
         );
@@ -390,7 +398,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
-            remoteBaseTransferPath,
+            remoteBaseTransferPath.add(DATA_DIR),
+            remoteBaseTransferPath.add(METADATA_DIR),
             null,
             remoteTranslogTransferTracker
         );
@@ -426,7 +435,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
-            remoteBaseTransferPath,
+            remoteBaseTransferPath.add(DATA_DIR),
+            remoteBaseTransferPath.add(METADATA_DIR),
             null,
             remoteTranslogTransferTracker
         );
@@ -499,7 +509,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             blobStoreTransferService,
-            remoteBaseTransferPath,
+            remoteBaseTransferPath.add(DATA_DIR),
+            remoteBaseTransferPath.add(METADATA_DIR),
             tracker,
             remoteTranslogTransferTracker
         );
@@ -518,7 +529,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
-            remoteBaseTransferPath,
+            remoteBaseTransferPath.add(DATA_DIR),
+            remoteBaseTransferPath.add(METADATA_DIR),
             null,
             remoteTranslogTransferTracker
         );
@@ -569,7 +581,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             blobStoreTransferService,
-            remoteBaseTransferPath,
+            remoteBaseTransferPath.add(DATA_DIR),
+            remoteBaseTransferPath.add(METADATA_DIR),
             tracker,
             remoteTranslogTransferTracker
         );
@@ -612,7 +625,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
-            remoteBaseTransferPath,
+            remoteBaseTransferPath.add(DATA_DIR),
+            remoteBaseTransferPath.add(METADATA_DIR),
             null,
             remoteTranslogTransferTracker
         );

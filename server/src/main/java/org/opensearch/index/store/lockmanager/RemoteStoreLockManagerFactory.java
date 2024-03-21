@@ -49,7 +49,7 @@ public class RemoteStoreLockManagerFactory {
         try (Repository repository = repositoriesService.repository(repositoryName)) {
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
             BlobPath repositoryBasePath = ((BlobStoreRepository) repository).basePath();
-            BlobPath lockDirectoryPath = pathType.generatePath(repositoryBasePath, indexUUID, shardId, SEGMENTS, LOCK_FILES);
+            BlobPath lockDirectoryPath = pathType.path(repositoryBasePath, indexUUID, shardId, SEGMENTS, LOCK_FILES);
             BlobContainer lockDirectoryBlobContainer = ((BlobStoreRepository) repository).blobStore().blobContainer(lockDirectoryPath);
             return new RemoteStoreMetadataLockManager(new RemoteBufferedOutputDirectory(lockDirectoryBlobContainer));
         } catch (RepositoryMissingException e) {

@@ -64,16 +64,16 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
             String shardIdStr = String.valueOf(shardId.id());
 
             // Derive the path for data directory of SEGMENTS
-            BlobPath dataBlobPath = pathType.generatePath(repositoryBasePath, indexUUID, shardIdStr, SEGMENTS, DATA_DIR);
+            BlobPath dataPath = pathType.path(repositoryBasePath, indexUUID, shardIdStr, SEGMENTS, DATA_DIR);
             RemoteDirectory dataDirectory = new RemoteDirectory(
-                blobStoreRepository.blobStore().blobContainer(dataBlobPath),
+                blobStoreRepository.blobStore().blobContainer(dataPath),
                 blobStoreRepository::maybeRateLimitRemoteUploadTransfers,
                 blobStoreRepository::maybeRateLimitRemoteDownloadTransfers
             );
 
             // Derive the path for metadata directory of SEGMENTS
-            BlobPath mdBlobPath = pathType.generatePath(repositoryBasePath, indexUUID, shardIdStr, SEGMENTS, METADATA_DIR);
-            RemoteDirectory metadataDirectory = new RemoteDirectory(blobStoreRepository.blobStore().blobContainer(mdBlobPath));
+            BlobPath mdPath = pathType.path(repositoryBasePath, indexUUID, shardIdStr, SEGMENTS, METADATA_DIR);
+            RemoteDirectory metadataDirectory = new RemoteDirectory(blobStoreRepository.blobStore().blobContainer(mdPath));
 
             // The path for lock is derived within the RemoteStoreLockManagerFactory
             RemoteStoreLockManager mdLockManager = RemoteStoreLockManagerFactory.newLockManager(

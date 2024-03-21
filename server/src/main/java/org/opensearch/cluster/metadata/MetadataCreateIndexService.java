@@ -563,6 +563,12 @@ public class MetadataCreateIndexService {
         return tempMetadata;
     }
 
+    /**
+     * Adds the remote store path type information in custom data of index metadata.
+     *
+     * @param tmpImdBuilder     index metadata builder.
+     * @param assertNullOldType flag to verify that the old remote store path type is null
+     */
     public void addRemoteStorePathTypeInCustomData(IndexMetadata.Builder tmpImdBuilder, boolean assertNullOldType) {
         if (remoteStorePathTypeResolver != null) {
             // It is possible that remote custom data exists already. In such cases, we need to only update the path type

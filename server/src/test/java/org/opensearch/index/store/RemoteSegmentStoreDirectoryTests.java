@@ -702,7 +702,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         String repositoryName = "test-repository";
         String indexUUID = "test-idx-uuid";
         ShardId shardId = new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt("0"));
-        RemoteStorePathType pathType = RemoteStorePathType.FIXED;
+        RemoteStorePathType pathType = randomFrom(RemoteStorePathType.values());
 
         RemoteSegmentStoreDirectory.remoteDirectoryCleanup(
             remoteSegmentStoreDirectoryFactory,
