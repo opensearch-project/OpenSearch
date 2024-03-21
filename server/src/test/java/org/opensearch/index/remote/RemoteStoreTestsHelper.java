@@ -21,9 +21,9 @@ import org.opensearch.index.store.Store;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.IndexSettingsModule;
 
+import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLength;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLength;
 
 /**
  * Helper functions for Remote Store tests
@@ -58,7 +58,12 @@ public class RemoteStoreTestsHelper {
     }
 
     public static ShardRouting createShardRouting(boolean isPrimary, boolean remote) {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId(new Index("test_index", "_na_"), 0), randomAlphaOfLength(4), isPrimary, ShardRoutingState.STARTED);
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            new ShardId(new Index("test_index", "_na_"), 0),
+            randomAlphaOfLength(4),
+            isPrimary,
+            ShardRoutingState.STARTED
+        );
         shardRouting.setAssignedToRemoteStoreNode(remote);
         return shardRouting;
     }

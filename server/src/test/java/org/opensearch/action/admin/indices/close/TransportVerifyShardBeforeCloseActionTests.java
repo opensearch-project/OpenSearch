@@ -32,7 +32,6 @@
 package org.opensearch.action.admin.indices.close;
 
 import org.opensearch.action.admin.indices.flush.FlushRequest;
-import org.opensearch.action.admin.indices.readonly.TransportVerifyShardIndexBlockAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.FanoutReplicationProxy;

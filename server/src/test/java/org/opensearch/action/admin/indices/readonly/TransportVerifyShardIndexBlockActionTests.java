@@ -8,7 +8,6 @@
 
 package org.opensearch.action.admin.indices.readonly;
 
-import org.opensearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.cluster.action.shard.ShardStateAction;
@@ -21,10 +20,10 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
 import static org.opensearch.index.remote.RemoteStoreTestsHelper.createShardRouting;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportVerifyShardIndexBlockActionTests extends OpenSearchTestCase {
 
