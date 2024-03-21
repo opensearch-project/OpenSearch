@@ -58,7 +58,6 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     protected static Logger logger = LogManager.getLogger(PublishCheckpointAction.class);
 
     private final SegmentReplicationTargetService replicationService;
-    private final ClusterService clusterService;
 
     @Inject
     public PublishCheckpointAction(
@@ -85,7 +84,6 @@ public class PublishCheckpointAction extends TransportReplicationAction<
             ThreadPool.Names.REFRESH
         );
         this.replicationService = targetService;
-        this.clusterService = clusterService;
     }
 
     @Override

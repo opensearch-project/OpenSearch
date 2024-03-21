@@ -88,8 +88,6 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
         return LOGGER;
     }
 
-    private final ClusterService clusterService;
-
     @Inject
     public RetentionLeaseBackgroundSyncAction(
         final Settings settings,
@@ -113,7 +111,6 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             Request::new,
             ThreadPool.Names.MANAGEMENT
         );
-        this.clusterService = clusterService;
     }
 
     @Override

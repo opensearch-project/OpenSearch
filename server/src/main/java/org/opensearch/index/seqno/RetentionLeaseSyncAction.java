@@ -90,8 +90,6 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
         return LOGGER;
     }
 
-    private final ClusterService clusterService;
-
     @Inject
     public RetentionLeaseSyncAction(
         final Settings settings,
@@ -122,7 +120,6 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
             systemIndices,
             tracer
         );
-        this.clusterService = clusterService;
     }
 
     @Override
