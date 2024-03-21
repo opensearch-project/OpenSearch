@@ -52,6 +52,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.search.pipeline.SearchPipelineService;
 
 import java.util.Arrays;
@@ -624,6 +625,16 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    /**
+     * Expert: Makes indexing threads check for pending flushes on update in order to help out
+     * flushing indexing buffers to disk. This is an experimental Apache Lucene feature.
+     */
+    public static final Setting<Boolean> INDEX_CHECK_PENDING_FLUSH_ENABLED = Setting.boolSetting(
+        "index.check_pending_flush.enabled",
+        true,
+        Property.IndexScope
+    );
+
     public static final Setting<String> TIME_SERIES_INDEX_MERGE_POLICY = Setting.simpleString(
         "indices.time_series_index.default_index_merge_policy",
         DEFAULT_POLICY,
@@ -816,7 +827,10 @@ public final class IndexSettings {
      * Specialized merge-on-flush policy if provided
      */
     private volatile UnaryOperator<MergePolicy> mergeOnFlushPolicy;
-
+    /**
+     * Is flush check by write threads enabled or not
+     */
+    private final boolean checkPendingFlushEnabled;
     /**
      * Is fuzzy set enabled for doc id
      */
@@ -959,6 +973,7 @@ public final class IndexSettings {
         maxFullFlushMergeWaitTime = scopedSettings.get(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME);
         mergeOnFlushEnabled = scopedSettings.get(INDEX_MERGE_ON_FLUSH_ENABLED);
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
+        checkPendingFlushEnabled = scopedSettings.get(INDEX_CHECK_PENDING_FLUSH_ENABLED);
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
         /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
          * For indices created prior version (prior to 2.7) which has IndexSort type, they used to type cast the SortField.Type
@@ -1207,17 +1222,20 @@ public final class IndexSettings {
 
     /**
      * Returns true if segment replication is enabled on the index.
+     *
+     * Every shard on a remote node would also have SegRep enabled even without
+     * proper index setting during the migration.
      */
-    public boolean isSegRepEnabled() {
-        return ReplicationType.SEGMENT.equals(replicationType);
+    public boolean isSegRepEnabledOrRemoteNode() {
+        return ReplicationType.SEGMENT.equals(replicationType) || isRemoteNode();
     }
 
     public boolean isSegRepLocalEnabled() {
-        return isSegRepEnabled() && !isRemoteStoreEnabled();
+        return isSegRepEnabledOrRemoteNode() && !isRemoteStoreEnabled();
     }
 
     public boolean isSegRepWithRemoteEnabled() {
-        return isSegRepEnabled() && isRemoteStoreEnabled();
+        return isSegRepEnabledOrRemoteNode() && isRemoteStoreEnabled();
     }
 
     /**
@@ -1225,6 +1243,10 @@ public final class IndexSettings {
      */
     public boolean isRemoteStoreEnabled() {
         return isRemoteStoreEnabled;
+    }
+
+    public boolean isRemoteNode() {
+        return RemoteStoreNodeAttribute.isRemoteDataAttributePresent(this.getNodeSettings());
     }
 
     /**
@@ -1842,6 +1864,10 @@ public final class IndexSettings {
                     + MERGE_ON_FLUSH_MERGE_POLICY
             );
         }
+    }
+
+    public boolean isCheckPendingFlushEnabled() {
+        return checkPendingFlushEnabled;
     }
 
     public Optional<UnaryOperator<MergePolicy>> getMergeOnFlushPolicy() {
