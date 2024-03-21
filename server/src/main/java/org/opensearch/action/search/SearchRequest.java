@@ -717,7 +717,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             try {
                 sb.append(source.toString(FORMAT_PARAMS));
             } catch (final OpenSearchException ex) {
-                sb.append(ex.getMessage());
+                sb.append("<error: ").append(ex.getMessage()).append(">");
             }
             sb.append("]");
         } else {

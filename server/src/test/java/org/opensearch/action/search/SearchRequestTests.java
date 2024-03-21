@@ -279,7 +279,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertThat(
             toDescription(request),
             equalTo(
-                "indices[], search_type[QUERY_THEN_FETCH], source[java.lang.UnsupportedOperationException: line ring cannot be serialized using GeoJson]"
+                "indices[], search_type[QUERY_THEN_FETCH], source[<error: java.lang.UnsupportedOperationException: line ring cannot be serialized using GeoJson>]"
             )
         );
     }
