@@ -60,7 +60,6 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShardNotStartedException;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ReplicationGroup;
-import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -211,22 +210,16 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             primaryId
         );
         primaryShard.setAssignedToRemoteStoreNode(true);
-        initializingIds.forEach(
-            aId -> {
-                ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId);
-                routing.setAssignedToRemoteStoreNode(true);
-                builder.addShard(routing);
-            }
-        );
-        activeIds.stream()
-            .filter(aId -> !aId.equals(primaryId))
-            .forEach(
-                aId -> {
-                    ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId);
-                    routing.setAssignedToRemoteStoreNode(true);
-                    builder.addShard(routing);
-                }
-            );
+        initializingIds.forEach(aId -> {
+            ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId);
+            routing.setAssignedToRemoteStoreNode(true);
+            builder.addShard(routing);
+        });
+        activeIds.stream().filter(aId -> !aId.equals(primaryId)).forEach(aId -> {
+            ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId);
+            routing.setAssignedToRemoteStoreNode(true);
+            builder.addShard(routing);
+        });
         builder.addShard(primaryShard);
         IndexShardRoutingTable routingTable = builder.build();
 
@@ -283,20 +276,23 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             primaryId
         );
         primaryShard.setAssignedToRemoteStoreNode(true);
-        initializingIds.forEach(
-            aId -> {
-                ShardRouting shardRouting = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId);
-                shardRouting.setAssignedToRemoteStoreNode(true);
-                builder.addShard(shardRouting);
-            }
-        );
-        activeIds.forEach(
-            aId -> {
-                ShardRouting shardRouting = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId);
-                shardRouting.setAssignedToRemoteStoreNode(true);
-                builder.addShard(shardRouting);
-            }
-        );
+        initializingIds.forEach(aId -> {
+            ShardRouting shardRouting = newShardRouting(
+                shardId,
+                nodeIdFromAllocationId(aId),
+                null,
+                false,
+                ShardRoutingState.INITIALIZING,
+                aId
+            );
+            shardRouting.setAssignedToRemoteStoreNode(true);
+            builder.addShard(shardRouting);
+        });
+        activeIds.forEach(aId -> {
+            ShardRouting shardRouting = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId);
+            shardRouting.setAssignedToRemoteStoreNode(true);
+            builder.addShard(shardRouting);
+        });
         builder.addShard(primaryShard);
         IndexShardRoutingTable routingTable = builder.build();
 
@@ -419,24 +415,18 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
         );
         // Marking primary as assigned to remote
         primaryShard.setAssignedToRemoteStoreNode(true);
-        initializingIds.forEach(
-            aId -> {
-                ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId);
-                // Ensuring all other shard copies are docrep
-                routing.setAssignedToRemoteStoreNode(false);
-                builder.addShard(routing);
-            }
-        );
-        activeIds.stream()
-            .filter(aId -> !aId.equals(primaryId))
-            .forEach(
-                aId -> {
-                    ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId);
-                    // Ensuring all other shard copies are docrep
-                    routing.setAssignedToRemoteStoreNode(false);
-                    builder.addShard(routing);
-                }
-            );
+        initializingIds.forEach(aId -> {
+            ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId);
+            // Ensuring all other shard copies are docrep
+            routing.setAssignedToRemoteStoreNode(false);
+            builder.addShard(routing);
+        });
+        activeIds.stream().filter(aId -> !aId.equals(primaryId)).forEach(aId -> {
+            ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId);
+            // Ensuring all other shard copies are docrep
+            routing.setAssignedToRemoteStoreNode(false);
+            builder.addShard(routing);
+        });
         builder.addShard(primaryShard);
         IndexShardRoutingTable routingTable = builder.build();
 

@@ -33,7 +33,6 @@
 package org.opensearch.index.seqno;
 
 import org.opensearch.action.LatchedActionListener;
-import org.opensearch.action.resync.TransportResyncReplicationAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;

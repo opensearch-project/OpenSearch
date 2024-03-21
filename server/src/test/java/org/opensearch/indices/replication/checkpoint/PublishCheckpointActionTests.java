@@ -22,7 +22,6 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.seqno.RetentionLeaseSyncAction;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
