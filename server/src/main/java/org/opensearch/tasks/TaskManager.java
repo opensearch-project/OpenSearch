@@ -207,7 +207,13 @@ public class TaskManager implements ClusterStateApplier {
         Objects.requireNonNull(task);
         assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
         if (logger.isTraceEnabled()) {
-            logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
+            String taskDescription = "";
+            try {
+                taskDescription = task.getDescription();
+            } catch (Exception e) {
+                logger.trace("Exception while fetching task description", e);
+            }
+            logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, taskDescription);
         }
 
         if (task.supportsResourceTracking()) {
