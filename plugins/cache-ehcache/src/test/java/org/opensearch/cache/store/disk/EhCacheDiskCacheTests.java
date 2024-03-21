@@ -8,6 +8,8 @@
 
 package org.opensearch.cache.store.disk;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.opensearch.cache.EhcacheDiskCacheSettings;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.cache.CacheType;
@@ -54,6 +56,7 @@ import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_MAX_SIZE_IN_BYT
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_STORAGE_PATH_KEY;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
+@ThreadLeakFilters(filters = { EhcacheThreadLeakFilter.class })
 public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
     private static final int CACHE_SIZE_IN_BYTES = 1024 * 101;
@@ -551,9 +554,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
-    // TODO: This test passes but leaks threads because of an issue in Ehcache, so I've commented it out:
-    // https://github.com/ehcache/ehcache3/issues/3204
-    /*public void testMemoryTracking() throws Exception {
+    public void testMemoryTracking() throws Exception {
         // Test all cases for EhCacheEventListener.onEvent and check stats memory usage is updated correctly
         Settings settings = Settings.builder().build();
         ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
@@ -626,7 +627,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
             ehcacheTest.close();
         }
-    }*/
+    }
 
     public void testEhcacheKeyIteratorWithRemove() throws IOException {
         Settings settings = Settings.builder().build();
@@ -758,6 +759,49 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    public void testInvalidate() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setIsEventListenerModeSync(true)
+                .setKeyType(String.class)
+                .setKeySerializer(new StringSerializer())
+                .setValueSerializer(new StringSerializer())
+                .setValueType(String.class)
+                .setDimensionNames(List.of(dimensionName))
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setSettings(settings)
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setRemovalListener(removalListener)
+                .setWeigher(getWeigher())
+                .build();
+            int randomKeys = randomIntBetween(10, 100);
+            Map<ICacheKey<String>, String> keyValueMap = new HashMap<>();
+            for (int i = 0; i < randomKeys; i++) {
+                keyValueMap.put(getICacheKey(UUID.randomUUID().toString()), UUID.randomUUID().toString());
+            }
+            for (Map.Entry<ICacheKey<String>, String> entry : keyValueMap.entrySet()) {
+                ehcacheTest.put(entry.getKey(), entry.getValue());
+            }
+            assertEquals(keyValueMap.size(), ehcacheTest.count());
+            List<ICacheKey<String>> removedKeyList = new ArrayList<>();
+            for (Map.Entry<ICacheKey<String>, String> entry : keyValueMap.entrySet()) {
+                if (randomBoolean()) {
+                    removedKeyList.add(entry.getKey());
+                    ehcacheTest.invalidate(entry.getKey());
+                }
+            }
+            for (ICacheKey<String> removedKey : removedKeyList) {
+                assertNull(ehcacheTest.get(removedKey));
+            }
+            assertEquals(keyValueMap.size() - removedKeyList.size(), ehcacheTest.count());
+            ehcacheTest.close();
+        }
+    }
+
     // Modified from OpenSearchOnHeapCacheTests.java
     public void testInvalidateWithDropDimensions() throws Exception {
         Settings settings = Settings.builder().build();
@@ -815,7 +859,6 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         }
         return result;
     }
-
     private static String generateRandomString(int length) {
         String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         StringBuilder randomString = new StringBuilder(length);
