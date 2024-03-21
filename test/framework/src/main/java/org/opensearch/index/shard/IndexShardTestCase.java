@@ -684,7 +684,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 }
                 return new InternalTranslogFactory();
             };
-            final ClusterService clusterService = BlobStoreTestUtil.mockClusterService();
             indexShard = new IndexShard(
                 routing,
                 indexSettings,
@@ -713,8 +712,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
                 "dummy-node",
                 DefaultRecoverySettings.INSTANCE,
-                false,
-                clusterService
+                false
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {

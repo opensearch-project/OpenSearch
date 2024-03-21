@@ -203,20 +203,6 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
         });
     }
 
-    @Override
-    public ReplicationMode getReplicationMode(IndexShard indexShard) {
-        /*
-        Unblock PRRL publication on both docrep and remote shard copies
-        during remote store migration. This is done deliberately to ensure
-        data consistency on remote to docrep shard copy failover during the
-        migration process.
-         */
-        if (RemoteStoreUtils.isMigrationDirectionSet(clusterService)) {
-            return ReplicationMode.FULL_REPLICATION;
-        }
-        return super.getReplicationMode(indexShard);
-    }
-
     /**
      * Request for retention lease bground sync action
      *

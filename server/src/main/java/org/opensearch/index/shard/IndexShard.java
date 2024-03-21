@@ -357,7 +357,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      On source remote node , it will be REMOTE_MIGRATING_UNSEEDED when relocating from docrep node
      */
     private final ShardMigrationState shardMigrationState;
-    private final ClusterService clusterService;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -387,8 +386,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier,
         final String nodeId,
         final RecoverySettings recoverySettings,
-        boolean seedRemote,
-        ClusterService clusterService
+        boolean seedRemote
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -487,7 +485,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.recoverySettings = recoverySettings;
         this.fileDownloader = new RemoteStoreFileDownloader(shardRouting.shardId(), threadPool, recoverySettings);
         this.shardMigrationState = getShardMigrationState(indexSettings, seedRemote);
-        this.clusterService = clusterService;
     }
 
     public ThreadPool getThreadPool() {

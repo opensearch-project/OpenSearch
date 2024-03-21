@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.routing;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -75,14 +76,8 @@ public class ShardRouting implements Writeable, ToXContentObject {
     private final long expectedShardSize;
     @Nullable
     private final ShardRouting targetRelocatingShard;
-
-    /*
-        Local flag to denote whether the shard copy is assigned to a remote enabled node
-        Not serialized, meant to be accessed from the data nodes only.
-        Would always return `false` if accessed from the cluster manager nodes
-        Set on the `createShard` and `updateShard` flow from IndicesClusterStateService state applier
-    */
-    private Boolean assignedToRemoteStoreNode = Boolean.FALSE;
+    @Nullable
+    private Boolean assignedToRemoteStoreNode;
 
     /**
      * A constructor to internally create shard routing instances, note, the internal flag should only be set to true
@@ -888,7 +883,7 @@ public class ShardRouting implements Writeable, ToXContentObject {
     }
 
     public boolean isAssignedToRemoteStoreNode() {
-        return assignedToRemoteStoreNode;
+        return assignedToRemoteStoreNode != null && assignedToRemoteStoreNode;
     }
 
     public void setAssignedToRemoteStoreNode(boolean assignedToRemoteStoreNode) {

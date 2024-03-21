@@ -58,6 +58,7 @@ import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.index.translog.Translog;
@@ -84,6 +85,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.opensearch.action.support.replication.ClusterStateCreationUtils.state;
+import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
+import static org.opensearch.index.remote.RemoteStoreTestsHelper.createShardRouting;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.opensearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
@@ -234,6 +237,8 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
         final TransportResyncReplicationAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
+        when(indexShard.routingEntry()).thenReturn(createShardRouting(true, true));
         assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
@@ -241,6 +246,26 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
         final TransportResyncReplicationAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
+        when(indexShard.routingEntry()).thenReturn(createShardRouting(true, false));
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    public void testGetReplicationModeDuringMigrationOnRemotePrimary() {
+        final TransportResyncReplicationAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
+        when(indexShard.routingEntry()).thenReturn(createShardRouting(true, true));
+        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    public void testGetReplicationModeDuringMigrationOnDocrepReplica() {
+        final TransportResyncReplicationAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
+        when(indexShard.routingEntry()).thenReturn(createShardRouting(false, false));
         assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 
