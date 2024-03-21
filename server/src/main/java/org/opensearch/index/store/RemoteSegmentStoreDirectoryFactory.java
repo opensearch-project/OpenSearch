@@ -33,7 +33,7 @@ import java.util.function.Supplier;
  * @opensearch.internal
  */
 public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
-    private static final String SEGMENTS = "segments";
+    public static final String SEGMENTS = "segments";
     private final static String DATA_DIR = "data";
     private final static String METADATA_DIR = "metadata";
 

@@ -11,8 +11,12 @@ package org.opensearch.index.remote;
 import org.opensearch.common.blobstore.BlobPath;
 
 import java.util.Locale;
+import java.util.Set;
 
+import static org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory.SEGMENTS;
 import static org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory.LOCK_FILES;
+import static org.opensearch.index.translog.RemoteFsTranslog.DATA_DIR;
+import static org.opensearch.index.translog.RemoteFsTranslog.METADATA_DIR;
 import static org.opensearch.index.translog.RemoteFsTranslog.TRANSLOG;
 
 /**
@@ -58,6 +62,8 @@ public enum RemoteStorePathType {
      * combination of data categories and data types are possible.
      */
     private static void assertDataCategoryAndTypeCombination(String dataCategory, String dataType) {
+        assert Set.of(TRANSLOG, SEGMENTS).contains(dataCategory);
+        assert Set.of(DATA_DIR, METADATA_DIR, LOCK_FILES).contains(dataType);
         assert TRANSLOG.equals(dataCategory) == false || LOCK_FILES.equals(dataType) == false;
     }
 
