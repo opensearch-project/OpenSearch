@@ -98,7 +98,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
 
     @Override
     public ReplicationMode getReplicationMode(IndexShard indexShard) {
-        if (indexShard.isRemoteTranslogEnabled() || indexShard.routingEntry().isAssignedToRemoteStoreNode()) {
+        if (indexShard.routingEntry().isAssignedToRemoteStoreNode()) {
             return ReplicationMode.FULL_REPLICATION;
         }
         return super.getReplicationMode(indexShard);
