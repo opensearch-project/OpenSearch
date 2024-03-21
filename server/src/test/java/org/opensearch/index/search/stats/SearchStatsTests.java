@@ -128,7 +128,7 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
         assertEquals(equalTo, stats.getSuggestCount());
         assertEquals(equalTo, stats.getSuggestTimeInMillis());
         assertEquals(equalTo, stats.getSuggestCurrent());
-        assertEquals(equalTo, stats.getSearchIdleWakenUpCount());
+        assertEquals(equalTo, stats.getSearchIdleReactivateCount());
         // avg_concurrency is not summed up across stats
         assertEquals(1, stats.getConcurrentAvgSliceCount(), 0);
     }

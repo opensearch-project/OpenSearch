@@ -148,7 +148,7 @@ public interface SearchOperationListener {
     /**
      * Executed when a shard goes from idle to non-idle state
      */
-    default void onNewSearchIdleWakenUp() {}
+    default void onSearchIdleReactivation() {}
 
     /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
@@ -317,12 +317,12 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void onNewSearchIdleWakenUp() {
+        public void onSearchIdleReactivation() {
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.onNewSearchIdleWakenUp();
+                    listener.onSearchIdleReactivation();
                 } catch (Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("onNewSearchIdleWakenUp listener [{}] failed", listener), e);
+                    logger.warn(() -> new ParameterizedMessage("onNewSearchIdleReactivation listener [{}] failed", listener), e);
                 }
             }
         }

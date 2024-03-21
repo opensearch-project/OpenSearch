@@ -214,7 +214,7 @@ public final class ShardSearchStats implements SearchOperationListener {
     }
 
     @Override
-    public void onNewSearchIdleWakenUp() {
+    public void onSearchIdleReactivation() {
         totalStats.searchIdleMetric.inc();
     }
 

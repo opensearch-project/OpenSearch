@@ -163,7 +163,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         private long pitTimeInMillis;
         private long pitCurrent;
 
-        private long searchIdleWakenUpCount;
+        private long searchIdleReactivateCount;
 
         @Nullable
         private RequestStatsLongHolder requestStatsLongHolder;
@@ -196,7 +196,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             long suggestCount,
             long suggestTimeInMillis,
             long suggestCurrent,
-            long searchIdleWakenUpCount
+            long searchIdleReactivateCount
         ) {
             this.requestStatsLongHolder = new RequestStatsLongHolder();
             this.queryCount = queryCount;
@@ -224,7 +224,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             this.pitTimeInMillis = pitTimeInMillis;
             this.pitCurrent = pitCurrent;
 
-            this.searchIdleWakenUpCount = searchIdleWakenUpCount;
+            this.searchIdleReactivateCount = searchIdleReactivateCount;
         }
 
         private Stats(StreamInput in) throws IOException {
@@ -262,7 +262,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             }
 
             if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-                searchIdleWakenUpCount = in.readVLong();
+                searchIdleReactivateCount = in.readVLong();
             }
         }
 
@@ -292,7 +292,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             pitTimeInMillis += stats.pitTimeInMillis;
             pitCurrent += stats.pitCurrent;
 
-            searchIdleWakenUpCount += stats.searchIdleWakenUpCount;
+            searchIdleReactivateCount += stats.searchIdleReactivateCount;
         }
 
         public void addForClosingShard(Stats stats) {
@@ -318,7 +318,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             pitCurrent += stats.pitCurrent;
             queryConcurrency += stats.queryConcurrency;
 
-            searchIdleWakenUpCount += stats.searchIdleWakenUpCount;
+            searchIdleReactivateCount += stats.searchIdleReactivateCount;
         }
 
         public long getQueryCount() {
@@ -425,8 +425,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             return suggestCurrent;
         }
 
-        public long getSearchIdleWakenUpCount() {
-            return searchIdleWakenUpCount;
+        public long getSearchIdleReactivateCount() {
+            return searchIdleReactivateCount;
         }
 
         public static Stats readStats(StreamInput in) throws IOException {
@@ -476,7 +476,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             }
 
             if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-                out.writeVLong(searchIdleWakenUpCount);
+                out.writeVLong(searchIdleReactivateCount);
             }
         }
 
@@ -507,7 +507,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             builder.humanReadableField(Fields.SUGGEST_TIME_IN_MILLIS, Fields.SUGGEST_TIME, getSuggestTime());
             builder.field(Fields.SUGGEST_CURRENT, suggestCurrent);
 
-            builder.field(Fields.SEARCH_IDLE_WAKEN_UP_TOTAL, searchIdleWakenUpCount);
+            builder.field(Fields.SEARCH_IDLE_REACTIVATE_COUNT_TOTAL, searchIdleReactivateCount);
 
             if (requestStatsLongHolder != null) {
                 builder.startObject(Fields.REQUEST);
@@ -677,7 +677,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String TIME = "time";
         static final String CURRENT = "current";
         static final String TOTAL = "total";
-        static final String SEARCH_IDLE_WAKEN_UP_TOTAL = "search_idle_waken_up_total";
+        static final String SEARCH_IDLE_REACTIVATE_COUNT_TOTAL = "search_idle_reactivate_count_total";
 
     }
 

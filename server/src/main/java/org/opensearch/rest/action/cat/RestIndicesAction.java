@@ -641,6 +641,15 @@ public class RestIndicesAction extends AbstractCatAction {
         );
         table.addCell("pri.search.point_in_time_total", "default:false;text-align:right;desc:completed point in time contexts");
 
+        table.addCell(
+            "search.search_idle_reactivate_count_total",
+            "sibling:pri;alias:ssirct,searchSearchIdleReactivateCountTotal;default:false;text-align:right;desc:number of times a shard reactivated"
+        );
+        table.addCell(
+            "pri.search.search_idle_reactivate_count_total",
+            "default:false;text-align:right;desc:number of times a shard reactivated"
+        );
+
         table.addCell("segments.count", "sibling:pri;alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("pri.segments.count", "default:false;text-align:right;desc:number of segments");
 
@@ -942,6 +951,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getPitCount());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getPitCount());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getSearchIdleReactivateCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getSearchIdleReactivateCount());
 
             table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getCount());
             table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getCount());

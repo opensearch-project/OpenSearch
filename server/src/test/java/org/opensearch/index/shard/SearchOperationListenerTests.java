@@ -64,7 +64,7 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         AtomicInteger newScrollContext = new AtomicInteger();
         AtomicInteger freeScrollContext = new AtomicInteger();
         AtomicInteger validateSearchContext = new AtomicInteger();
-        AtomicInteger searchIdleWakenUp = new AtomicInteger();
+        AtomicInteger searchIdleReactivateCount = new AtomicInteger();
         AtomicInteger timeInNanos = new AtomicInteger(randomIntBetween(0, 10));
         SearchOperationListener listener = new SearchOperationListener() {
             @Override
@@ -136,8 +136,8 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public void onNewSearchIdleWakenUp() {
-                searchIdleWakenUp.incrementAndGet();
+            public void onSearchIdleReactivation() {
+                searchIdleReactivateCount.incrementAndGet();
             }
         };
 
@@ -175,7 +175,7 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
-        assertEquals(0, searchIdleWakenUp.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onFetchPhase(ctx, timeInNanos.get());
@@ -189,7 +189,7 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
-        assertEquals(0, searchIdleWakenUp.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onPreQueryPhase(ctx);
@@ -203,7 +203,7 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
-        assertEquals(0, searchIdleWakenUp.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onPreFetchPhase(ctx);
@@ -217,7 +217,7 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
-        assertEquals(0, searchIdleWakenUp.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onFailedFetchPhase(ctx);
@@ -231,7 +231,7 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
-        assertEquals(0, searchIdleWakenUp.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onFailedQueryPhase(ctx);
@@ -245,7 +245,7 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
-        assertEquals(0, searchIdleWakenUp.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onNewReaderContext(mock(ReaderContext.class));
@@ -259,7 +259,7 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
-        assertEquals(0, searchIdleWakenUp.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onNewScrollContext(mock(ReaderContext.class));
@@ -273,7 +273,7 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         assertEquals(2, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
-        assertEquals(0, searchIdleWakenUp.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onFreeReaderContext(mock(ReaderContext.class));
@@ -287,7 +287,7 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         assertEquals(2, newScrollContext.get());
         assertEquals(2, freeContext.get());
         assertEquals(0, freeScrollContext.get());
-        assertEquals(0, searchIdleWakenUp.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onFreeScrollContext(mock(ReaderContext.class));
@@ -301,10 +301,10 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         assertEquals(2, newScrollContext.get());
         assertEquals(2, freeContext.get());
         assertEquals(2, freeScrollContext.get());
-        assertEquals(0, searchIdleWakenUp.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
-        compositeListener.onNewSearchIdleWakenUp();
+        compositeListener.onSearchIdleReactivation();
         assertEquals(2, preFetch.get());
         assertEquals(2, preQuery.get());
         assertEquals(2, failedFetch.get());
@@ -315,7 +315,7 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         assertEquals(2, newScrollContext.get());
         assertEquals(2, freeContext.get());
         assertEquals(2, freeScrollContext.get());
-        assertEquals(2, searchIdleWakenUp.get());
+        assertEquals(2, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         if (throwingListeners == 0) {
@@ -341,7 +341,7 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         assertEquals(2, newScrollContext.get());
         assertEquals(2, freeContext.get());
         assertEquals(2, freeScrollContext.get());
-        assertEquals(2, searchIdleWakenUp.get());
+        assertEquals(2, searchIdleReactivateCount.get());
         assertEquals(2, validateSearchContext.get());
     }
 }
