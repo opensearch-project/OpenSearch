@@ -1842,7 +1842,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public String toString(Params params) {
         try {
             return XContentHelper.toXContent(this, MediaTypeRegistry.JSON, params, true).utf8ToString();
-        } catch (IOException e) {
+        } catch (IOException | UnsupportedOperationException e) {
             throw new OpenSearchException(e);
         }
     }
