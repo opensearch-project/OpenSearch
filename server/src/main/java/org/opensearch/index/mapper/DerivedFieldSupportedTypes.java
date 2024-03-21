@@ -31,7 +31,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public enum DerivedFieldSupportedTypes {
+enum DerivedFieldSupportedTypes {
 
     BOOLEAN("boolean", (name, context) -> {
         BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder(name);
