@@ -419,7 +419,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
      */
     public void testGlobalPrimaryBalanceWithNodeDrops() throws Exception {
         final float buffer = 0.05f;
-        AllocationService strategy = createAllocationService(getSettingsBuilderForPrimaryBalance().build(), new TestGatewayAllocator());
+        AllocationService strategy = createAllocationService(getSettingsBuilderForPrimaryReBalance().build(), new TestGatewayAllocator());
         ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
         clusterState = addNode(clusterState, strategy);
         clusterState = addNode(clusterState, strategy);
