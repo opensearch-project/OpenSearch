@@ -78,7 +78,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import static org.opensearch.Version.V_3_0_0;
+import static org.opensearch.Version.V_2_13_0;
 
 /**
  * A base class for operations that needs to be performed on the cluster-manager node.
@@ -299,7 +299,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                         retryOnMasterChange(clusterState, null);
                     } else {
                         DiscoveryNode clusterManagerNode = nodes.getClusterManagerNode();
-                        if (clusterManagerNode.getVersion().onOrAfter(V_3_0_0) && localExecuteSupportedByAction()) {
+                        if (clusterManagerNode.getVersion().onOrAfter(V_2_13_0) && localExecuteSupportedByAction()) {
                             BiConsumer<DiscoveryNode, ClusterState> executeOnLocalOrClusterManager = clusterStateLatestChecker(
                                 this::executeOnLocalNode,
                                 this::executeOnClusterManager
