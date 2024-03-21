@@ -179,6 +179,7 @@ import org.opensearch.index.warmer.ShardIndexWarmerService;
 import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
@@ -349,6 +350,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
     private final RemoteStoreFileDownloader fileDownloader;
     private final RecoverySettings recoverySettings;
+    private final RemoteStoreSettings remoteStoreSettings;
     /*
      On source doc rep node,  It will be DOCREP_NON_MIGRATING.
      On source remote node , it will be REMOTE_MIGRATING_SEEDED when relocating from remote node
@@ -381,9 +383,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
         @Nullable final Store remoteStore,
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-        final Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier,
         final String nodeId,
         final RecoverySettings recoverySettings,
+        final RemoteStoreSettings remoteStoreSettings,
         boolean seedRemote
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
@@ -405,7 +407,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             threadPool,
             this::getEngine,
             indexSettings.isRemoteNode(),
-            () -> getRemoteTranslogUploadBufferInterval(clusterRemoteTranslogBufferIntervalSupplier)
+            () -> getRemoteTranslogUploadBufferInterval(remoteStoreSettings::getClusterRemoteTranslogBufferInterval)
         );
         this.mapperService = mapperService;
         this.indexCache = indexCache;
@@ -481,6 +483,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             : mapperService.documentMapper().mappers().containsTimeStampField();
         this.remoteStoreStatsTrackerFactory = remoteStoreStatsTrackerFactory;
         this.recoverySettings = recoverySettings;
+        this.remoteStoreSettings = remoteStoreSettings;
         this.fileDownloader = new RemoteStoreFileDownloader(shardRouting.shardId(), threadPool, recoverySettings);
         this.shardMigrationState = getShardMigrationState(indexSettings, seedRemote);
     }
@@ -596,6 +599,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public RecoverySettings getRecoverySettings() {
         return recoverySettings;
+    }
+
+    public RemoteStoreSettings getRemoteStoreSettings() {
+        return remoteStoreSettings;
     }
 
     public RemoteStoreFileDownloader getFileDownloader() {
