@@ -1377,7 +1377,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final String leaseId = getPeerRecoveryRetentionLeaseId(primaryShard);
         if (retentionLeases.get(leaseId) == null) {
             if (replicationGroup.getReplicationTargets().equals(Collections.singletonList(primaryShard))
-                || indexSettings().isRemoteTranslogStoreEnabled() || primaryShard.isAssignedToRemoteStoreNode()) {
+                || indexSettings().isRemoteTranslogStoreEnabled()
+                || primaryShard.isAssignedToRemoteStoreNode()) {
                 assert primaryShard.allocationId().getId().equals(shardAllocationId) : routingTable.assignedShards()
                     + " vs "
                     + shardAllocationId;
@@ -1534,11 +1535,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         boolean assignedToRemoteStoreNode
     ) {
         /*
-         - If remote translog is enabled, then returns replication mode checking current allocation id against the primary and primary target allocation id.
-         - If remote translog is enabled, then returns true if given allocation id matches the primary or it's relocation target allocation primary and primary target allocation id.
+         - If assigned to a remote node, returns true if given allocation id matches the primary or it's relocation target allocation primary and primary target allocation id.
          - During an ongoing remote migration, the above-mentioned checks are considered when the shard is assigned to a remote store backed node
          */
-        if (indexSettings().isRemoteTranslogStoreEnabled() || assignedToRemoteStoreNode == true) {
+        if (assignedToRemoteStoreNode == true) {
             return (allocationId.equals(primaryAllocationId) || allocationId.equals(primaryTargetAllocationId));
         }
         // For other case which is local translog, return true as the requests are replicated to all shards in the replication group.

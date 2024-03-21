@@ -1237,7 +1237,7 @@ public final class IndexSettings {
     }
 
     public boolean isSegRepWithRemoteEnabled() {
-        return isSegRepEnabledOrRemoteNode() && isRemoteStoreEnabled();
+        return isSegRepEnabledOrRemoteNode() && isRemoteNode();
     }
 
     /**

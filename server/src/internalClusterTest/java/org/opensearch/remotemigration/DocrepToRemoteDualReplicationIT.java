@@ -11,15 +11,18 @@ package org.opensearch.remotemigration;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.remote.RemoteSegmentStats;
+import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -195,6 +198,36 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
             .asMap();
         DiscoveryNodes nodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
         assertReplicaAndPrimaryConsistencyMultiCopy(shardStatsMap, firstBatch, secondBatch, nodes);
+    }
+
+    public void testRetentionLeasePresentOnDocrepCopyButNotOnRemote() throws Exception {
+        testRemotePrimaryDocRepAndRemoteReplica();
+        DiscoveryNodes nodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
+        // Retention lease background sync job runs every 30mins.
+        // Waiting for 40 seconds in assertBusy to ensure that the background task runs
+        assertBusy(() -> {
+            for (ShardStats shardStats : internalCluster().client()
+                .admin()
+                .indices()
+                .prepareStats(REMOTE_PRI_DOCREP_REMOTE_REP)
+                .get()
+                .getShards()) {
+                ShardRouting shardRouting = shardStats.getShardRouting();
+                DiscoveryNode discoveryNode = nodes.get(shardRouting.currentNodeId());
+                RetentionLeases retentionLeases = shardStats.getRetentionLeaseStats().retentionLeases();
+                if (shardRouting.primary()) {
+                    // Primary copy should be on remote node and should have retention leases
+                    assertTrue(discoveryNode.isRemoteStoreNode());
+                    assertRetentionLeaseConsistency(shardStats, retentionLeases);
+                } else if (discoveryNode.isRemoteStoreNode()) {
+                    // Replica copy on remote node should not have retention leases
+                    assertTrue(shardStats.getRetentionLeaseStats().retentionLeases().leases().isEmpty());
+                } else {
+                    // Replica copy on docrep node should have retention leases
+                    assertRetentionLeaseConsistency(shardStats, retentionLeases);
+                }
+            }
+        }, 40, TimeUnit.SECONDS);
     }
 
     /*
@@ -378,5 +411,10 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
             assertEquals(replicaDocCount, initialBatch + secondBatch);
             assertEquals(primaryDocCount, replicaDocCount);
         });
+    }
+
+    private static void assertRetentionLeaseConsistency(ShardStats shardStats, RetentionLeases retentionLeases) {
+        long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
+        assertTrue(retentionLeases.leases().stream().allMatch(l -> l.retainingSequenceNumber() == maxSeqNo + 1));
     }
 }
