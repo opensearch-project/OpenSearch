@@ -671,7 +671,9 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 }
             }
             String type = (String) fieldNode.get("type");
-            if (paramsMap.get("type") == null) { fieldNode.remove("type"); }
+            if (paramsMap.get("type") == null) {
+                fieldNode.remove("type");
+            }
 
             for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();

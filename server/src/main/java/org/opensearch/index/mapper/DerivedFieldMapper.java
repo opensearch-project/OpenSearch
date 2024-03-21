@@ -56,12 +56,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
      */
     public static class Builder extends ParametrizedFieldMapper.Builder {
         // TODO: The type of parameter may change here if the actual underlying FieldType object is needed
-        private final Parameter<String> type = Parameter.stringParam(
-            "type",
-            false,
-            m -> toType(m).type,
-            "text"
-        );
+        private final Parameter<String> type = Parameter.stringParam("type", false, m -> toType(m).type, "text");
 
         private final Parameter<Script> script = new Parameter<>(
             "script",
@@ -83,9 +78,17 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
         @Override
         public DerivedFieldMapper build(BuilderContext context) {
             FieldMapper fieldMapper = DerivedFieldSupportedTypes.getFieldMapperFromType(type.getValue(), name, context);
-            Function<Object, IndexableField> fieldFunction =
-                DerivedFieldSupportedTypes.getIndexableFieldGeneratorType(type.getValue(), name);
-            DerivedFieldType ft = new DerivedFieldType(buildFullName(context), type.getValue(), script.getValue(), fieldMapper, fieldFunction);
+            Function<Object, IndexableField> fieldFunction = DerivedFieldSupportedTypes.getIndexableFieldGeneratorType(
+                type.getValue(),
+                name
+            );
+            DerivedFieldType ft = new DerivedFieldType(
+                buildFullName(context),
+                type.getValue(),
+                script.getValue(),
+                fieldMapper,
+                fieldFunction
+            );
             return new DerivedFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
