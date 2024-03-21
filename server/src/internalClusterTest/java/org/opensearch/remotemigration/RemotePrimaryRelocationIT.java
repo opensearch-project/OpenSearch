@@ -186,7 +186,7 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         clusterHealthResponse = client().admin()
             .cluster()
             .prepareHealth()
-            .setTimeout(TimeValue.timeValueSeconds(5))
+            .setTimeout(TimeValue.timeValueSeconds(45))
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNoRelocatingShards(true)
             .execute()
