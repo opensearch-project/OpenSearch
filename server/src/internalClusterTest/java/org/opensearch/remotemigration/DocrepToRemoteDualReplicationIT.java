@@ -197,6 +197,17 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
         assertReplicaAndPrimaryConsistencyMultiCopy(shardStatsMap, firstBatch, secondBatch, nodes);
     }
 
+    /*
+    Scenario:
+    - Starts 1 docrep backed data node
+    - Creates an index with 0 replica
+    - Starts 1 remote backed data node
+    - Move primary copy from docrep to remote through _cluster/reroute
+    - Expands index to 1 replica
+    - Stops remote enabled node
+    - Ensure doc count is same after failover
+    - Index some more docs to ensure working of failed-over primary
+     */
     public void testFailoverRemotePrimaryToDocrepReplica() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
         internalCluster().startClusterManagerOnlyNode();
@@ -268,6 +279,7 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
         long initialPrimaryDocCount = 0;
         for (ShardRouting shardRouting : shardStatsMap.keySet()) {
             if (shardRouting.primary()) {
+                assertTrue(nodes.get(shardRouting.currentNodeId()).isRemoteStoreNode());
                 initialPrimaryDocCount = shardStatsMap.get(shardRouting).getStats().getDocs().getCount();
             }
         }
@@ -279,10 +291,11 @@ public class DocrepToRemoteDualReplicationIT extends MigrationBaseTestCase {
         ensureYellow(FAILOVER_REMOTE_TO_DOCREP);
 
         shardStatsMap = internalCluster().client().admin().indices().prepareStats(FAILOVER_REMOTE_TO_DOCREP).setDocs(true).get().asMap();
-        DiscoveryNodes discoveryNodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
+        nodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
         long primaryDocCountAfterFailover = 0;
         for (ShardRouting shardRouting : shardStatsMap.keySet()) {
             if (shardRouting.primary()) {
+                assertFalse(nodes.get(shardRouting.currentNodeId()).isRemoteStoreNode());
                 primaryDocCountAfterFailover = shardStatsMap.get(shardRouting).getStats().getDocs().getCount();
             }
         }
