@@ -37,7 +37,13 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Booleans;
@@ -175,6 +181,10 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             this(name, searchable, false, true, false, Collections.emptyMap());
         }
 
+        public BooleanFieldType(String name, boolean searchable, boolean hasDocValues) {
+            this(name, searchable, false, hasDocValues, false, Collections.emptyMap());
+        }
+
         @Override
         public String typeName() {
             return CONTENT_TYPE;
@@ -258,8 +268,67 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
+            if (!isSearchable()) {
+                return SortedNumericDocValuesField.newSlowExactQuery(name(), Values.TRUE.bytesEquals(indexedValueForSearch(value)) ? 1 : 0);
+            }
+            Query query = new TermQuery(new Term(name(), indexedValueForSearch(value)));
+            if (boost() != 1f) {
+                query = new BoostQuery(query, boost());
+            }
+            return query;
+        }
+
+        @Override
+        public Query termsQuery(List<?> values, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
+            if (!isSearchable()) {
+                long[] v = new long[values.size()];
+                for (int i = 0; i < v.length; i++) {
+                    v[i] = Values.TRUE.bytesEquals(indexedValueForSearch(values.get(i))) ? 1 : 0;
+                }
+                return SortedNumericDocValuesField.newSlowSetQuery(name(), v);
+            }
+            BytesRef[] bytesRefs = new BytesRef[values.size()];
+            for (int i = 0; i < bytesRefs.length; i++) {
+                bytesRefs[i] = indexedValueForSearch(values.get(i));
+            }
+            return new TermInSetQuery(name(), List.of(bytesRefs));
+
+        }
+
+        @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            failIfNotIndexed();
+            failIfNotIndexedAndNoDocValues();
+            if (isSearchable() && hasDocValues()) {
+                Query query = new TermRangeQuery(
+                    name(),
+                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                    includeLower,
+                    includeUpper
+                );
+                Query dvQuery = new TermRangeQuery(
+                    name(),
+                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                    includeLower,
+                    includeUpper,
+                    MultiTermQuery.DOC_VALUES_REWRITE
+                );
+                return new IndexOrDocValuesQuery(query, dvQuery);
+            }
+            if (hasDocValues()) {
+                return new TermRangeQuery(
+                    name(),
+                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                    includeLower,
+                    includeUpper,
+                    MultiTermQuery.DOC_VALUES_REWRITE
+                );
+            }
             return new TermRangeQuery(
                 name(),
                 lowerTerm == null ? null : indexedValueForSearch(lowerTerm),

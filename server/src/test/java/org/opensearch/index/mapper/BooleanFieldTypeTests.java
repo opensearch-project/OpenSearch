@@ -31,11 +31,18 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.stream.Stream;
 
 public class BooleanFieldTypeTests extends FieldTypeTestCase {
 
@@ -59,9 +66,41 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new TermQuery(new Term("field", "T")), ft.termQuery("true", null));
         assertEquals(new TermQuery(new Term("field", "F")), ft.termQuery("false", null));
 
-        MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false);
+        MappedFieldType doc_ft = new BooleanFieldMapper.BooleanFieldType("field", false, true);
+        assertEquals(SortedNumericDocValuesField.newSlowExactQuery("field", 1), doc_ft.termQuery("true", null));
+        assertEquals(SortedNumericDocValuesField.newSlowExactQuery("field", 0), doc_ft.termQuery("false", null));
+
+        MappedFieldType boost_ft = new BooleanFieldMapper.BooleanFieldType("field");
+        boost_ft.setBoost(2f);
+        assertEquals(new BoostQuery(new TermQuery(new Term("field", "T")), 2f), boost_ft.termQuery("true", null));
+        assertEquals(new BoostQuery(new TermQuery(new Term("field", "F")), 2f), boost_ft.termQuery("false", null));
+
+        MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false, false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("true", null));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
+    }
+
+    public void testTermsQuery() {
+        MappedFieldType ft = new BooleanFieldMapper.BooleanFieldType("field");
+        List<BytesRef> terms = new ArrayList<>();
+        terms.add(new BytesRef("true"));
+        terms.add(new BytesRef("false"));
+        assertEquals(new TermInSetQuery("field", List.of(new BytesRef("T"), newBytesRef("F"))), ft.termsQuery(terms, null));
+
+        List<BytesRef> newTerms = new ArrayList<>();
+        newTerms.add(new BytesRef("true"));
+        assertEquals(new TermInSetQuery("field", List.of(new BytesRef("T"))), ft.termsQuery(newTerms, null));
+
+        MappedFieldType doc_only_ft = new BooleanFieldMapper.BooleanFieldType("field", false, true);
+
+        assertEquals(
+            SortedNumericDocValuesField.newSlowSetQuery("field", Stream.of(1).mapToLong(l -> l).toArray()),
+            doc_only_ft.termsQuery(newTerms, null)
+        );
+
+        MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false, false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termsQuery(terms, null));
+        assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
     }
 
     public void testFetchSourceValue() throws IOException {
