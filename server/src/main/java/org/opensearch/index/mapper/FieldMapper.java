@@ -35,6 +35,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -61,8 +62,9 @@ import java.util.stream.StreamSupport;
 /**
  * The base OpenSearch Field Mapper
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class FieldMapper extends Mapper implements Cloneable {
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting(
         "index.mapping.ignore_malformed",
@@ -572,8 +574,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Multi field implementation used across field mappers
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class MultiFields implements Iterable<Mapper> {
 
         public static MultiFields empty() {
@@ -702,8 +705,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Represents a list of fields with optional boost factor where the current field should be copied to
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class CopyTo {
 
         private static final CopyTo EMPTY = new CopyTo(Collections.emptyList());

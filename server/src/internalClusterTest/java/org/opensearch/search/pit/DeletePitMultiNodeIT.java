@@ -309,7 +309,11 @@ public class DeletePitMultiNodeIT extends OpenSearchIntegTestCase {
     private void verifySearchContextMissingException(ShardSearchFailure[] failures) {
         for (ShardSearchFailure failure : failures) {
             Throwable cause = ExceptionsHelper.unwrapCause(failure.getCause());
-            assertTrue(failure.toString(), cause instanceof SearchContextMissingException);
+            if (failure.toString().contains("reader_context is already closed can't increment refCount current count")) {
+                // this is fine, expected search error when context is already deleted
+            } else {
+                assertTrue(failure.toString(), cause instanceof SearchContextMissingException);
+            }
         }
     }
 

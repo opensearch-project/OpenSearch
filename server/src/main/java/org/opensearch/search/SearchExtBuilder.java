@@ -33,6 +33,7 @@
 package org.opensearch.search;
 
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -56,8 +57,9 @@ import org.opensearch.plugins.SearchPlugin.SearchExtSpec;
  *
  * @see SearchExtSpec
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class SearchExtBuilder implements NamedWriteable, ToXContentFragment {
 
     public abstract int hashCode();

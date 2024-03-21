@@ -32,6 +32,8 @@
 
 package org.opensearch.index.seqno;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.Map;
 
 /**
@@ -132,8 +134,9 @@ public class SequenceNumbers {
     /**
      * Commit information
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class CommitInfo {
         public final long maxSeqNo;
         public final long localCheckpoint;

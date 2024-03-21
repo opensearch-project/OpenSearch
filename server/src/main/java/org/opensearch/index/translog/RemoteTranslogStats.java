@@ -9,6 +9,7 @@
 package org.opensearch.index.translog;
 
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -23,8 +24,9 @@ import java.util.Objects;
 /**
  * Encapsulates the stats related to Remote Translog Store operations
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.10.0")
 public class RemoteTranslogStats implements ToXContentFragment, Writeable {
     /**
      * Total number of Remote Translog Store uploads that have been started

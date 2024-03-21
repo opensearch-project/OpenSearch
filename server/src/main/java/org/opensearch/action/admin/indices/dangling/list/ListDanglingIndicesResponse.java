@@ -36,6 +36,7 @@ import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.admin.indices.dangling.DanglingIndexInfo;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.ClusterName;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -58,8 +59,9 @@ import java.util.Objects;
  * information for each dangling index is presented under the "dangling_indices" key. If any nodes
  * in the cluster failed to answer, the details are presented under the "_nodes.failures" key.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDanglingIndicesResponse> implements StatusToXContentObject {
 
     public ListDanglingIndicesResponse(StreamInput in) throws IOException {

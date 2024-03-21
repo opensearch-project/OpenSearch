@@ -30,12 +30,11 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -65,7 +64,7 @@ import static org.hamcrest.Matchers.containsString;
  * Multi node integration tests for PIT creation and search operation with PIT ID.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class PitMultiNodeIT extends ParameterizedOpenSearchIntegTestCase {
+public class PitMultiNodeIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public PitMultiNodeIT(Settings settings) {
         super(settings);
     }
@@ -76,11 +75,6 @@ public class PitMultiNodeIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Before
@@ -98,6 +92,7 @@ public class PitMultiNodeIT extends ParameterizedOpenSearchIntegTestCase {
     public void testPit() throws Exception {
         CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
+        indexRandomForConcurrentSearch("index");
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
         SearchResponse searchResponse = client().prepareSearch("index")

@@ -33,6 +33,7 @@
 package org.opensearch.action.update;
 
 import org.opensearch.action.DocWriteResponse;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
@@ -48,8 +49,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
 /**
  * Transport response for updating an index
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class UpdateResponse extends DocWriteResponse {
 
     private static final String GET = "get";
@@ -173,8 +175,9 @@ public class UpdateResponse extends DocWriteResponse {
      * temporarily store the parsed values, then the {@link DocWriteResponse.Builder#build()} method is called to
      * instantiate the {@link UpdateResponse}.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder extends DocWriteResponse.Builder {
 
         private GetResult getResult = null;

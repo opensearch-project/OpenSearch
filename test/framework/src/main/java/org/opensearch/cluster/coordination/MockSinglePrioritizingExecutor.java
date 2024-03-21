@@ -44,25 +44,30 @@ import java.util.concurrent.TimeUnit;
 public class MockSinglePrioritizingExecutor extends PrioritizedOpenSearchThreadPoolExecutor {
 
     public MockSinglePrioritizingExecutor(String name, DeterministicTaskQueue deterministicTaskQueue, ThreadPool threadPool) {
-        super(name, 0, 1, 0L, TimeUnit.MILLISECONDS, r -> new Thread() {
-            @Override
-            public void start() {
-                deterministicTaskQueue.scheduleNow(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            r.run();
-                        } catch (KillWorkerError kwe) {
-                            // hacks everywhere
-                        }
+        super(name, 0, 1, 0L, TimeUnit.MILLISECONDS, r -> {
+            // This executor used to override Thread::start method so the actual runnable is
+            // being scheduled in the scope of current thread of execution. In JDK-19, the Thread::start
+            // is not called anymore (https://bugs.openjdk.org/browse/JDK-8292027) and there is no
+            // suitable option to alter the executor's behavior in the similar way. The closest we
+            // could get to is to schedule the runnable once the ThreadFactory is being asked to
+            // allocate the new thread.
+            deterministicTaskQueue.scheduleNow(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        r.run();
+                    } catch (KillWorkerError kwe) {
+                        // hacks everywhere
                     }
+                }
 
-                    @Override
-                    public String toString() {
-                        return r.toString();
-                    }
-                });
-            }
+                @Override
+                public String toString() {
+                    return r.toString();
+                }
+            });
+
+            return new Thread(() -> {});
         }, threadPool.getThreadContext(), threadPool.scheduler());
     }
 

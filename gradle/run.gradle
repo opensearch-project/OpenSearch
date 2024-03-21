@@ -34,6 +34,12 @@ apply plugin: 'opensearch.testclusters'
 testClusters {
   runTask {
     testDistribution = 'archive'
+    if (findProperty("installedPlugins")) {
+      installedPlugins = Eval.me(installedPlugins)
+      for (String p : installedPlugins) {
+        plugin('plugins:'.concat(p))
+      }
+    }
   }
 }
 

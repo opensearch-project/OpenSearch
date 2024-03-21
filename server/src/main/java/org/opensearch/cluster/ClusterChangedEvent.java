@@ -37,6 +37,7 @@ import org.opensearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.index.Index;
 import org.opensearch.gateway.GatewayService;
 
@@ -52,8 +53,9 @@ import java.util.stream.Collectors;
 /**
  * An event received by the local node, signaling that the cluster state has changed.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterChangedEvent {
 
     private final String source;

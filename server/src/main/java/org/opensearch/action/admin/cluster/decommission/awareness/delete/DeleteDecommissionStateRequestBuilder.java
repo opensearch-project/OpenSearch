@@ -10,12 +10,14 @@ package org.opensearch.action.admin.cluster.decommission.awareness.delete;
 
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Builder for Delete decommission request.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.4.0")
 public class DeleteDecommissionStateRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
     DeleteDecommissionStateRequest,
     DeleteDecommissionStateResponse,

@@ -8,6 +8,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -23,7 +24,10 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
 
 /**
  * This holds information about pit reader context such as pit id and creation time
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.3.0")
 public class ListPitInfo implements ToXContentFragment, Writeable {
     private final String pitId;
     private final long creationTime;

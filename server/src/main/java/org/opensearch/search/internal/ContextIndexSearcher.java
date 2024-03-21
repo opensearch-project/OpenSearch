@@ -64,6 +64,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.DocValueFormat;
@@ -91,8 +92,9 @@ import java.util.concurrent.Executor;
 /**
  * Context-aware extension of {@link IndexSearcher}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private static final Logger logger = LogManager.getLogger(ContextIndexSearcher.class);
@@ -100,6 +102,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * The interval at which we check for search cancellation when we cannot use
      * a {@link CancellableBulkScorer}. See {@link #intersectScorerAndBitSet}.
      */
+
     private static final int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
 
     private AggregatedDfs aggregatedDfs;
@@ -299,6 +302,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         final LeafCollector leafCollector;
         try {
             cancellable.checkCancelled();
+            if (weight instanceof ProfileWeight) {
+                ((ProfileWeight) weight).associateCollectorToLeaves(ctx, collector);
+            }
             weight = wrapWeight(weight);
             // See please https://github.com/apache/lucene/pull/964
             collector.setWeight(weight);
@@ -347,6 +353,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
             }
         }
+
+        // Note: this is called if collection ran successfully, including the above special cases of
+        // CollectionTerminatedException and TimeExceededException, but no other exception.
+        leafCollector.finish();
     }
 
     private Weight wrapWeight(Weight weight) {
@@ -376,6 +386,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     } else {
                         return null;
                     }
+                }
+
+                @Override
+                public int count(LeafReaderContext context) throws IOException {
+                    return weight.count(context);
                 }
             };
         } else {
@@ -498,14 +513,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     private boolean canMatchSearchAfter(LeafReaderContext ctx) throws IOException {
-        if (searchContext.request() != null && searchContext.request().source() != null) {
+        if (searchContext.searchAfter() != null && searchContext.request() != null && searchContext.request().source() != null) {
             // Only applied on primary sort field and primary search_after.
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
             if (primarySortField != null) {
                 MinAndMax<?> minMax = FieldSortBuilder.getMinMaxOrNullForSegment(
                     this.searchContext.getQueryShardContext(),
                     ctx,
-                    primarySortField
+                    primarySortField,
+                    searchContext.sort()
                 );
                 return SearchService.canMatchSearchAfter(
                     searchContext.searchAfter(),

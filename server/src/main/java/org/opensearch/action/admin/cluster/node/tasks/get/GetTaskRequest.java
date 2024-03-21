@@ -34,6 +34,7 @@ package org.opensearch.action.admin.cluster.node.tasks.get;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -46,8 +47,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * A request to get node tasks
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetTaskRequest extends ActionRequest {
     private TaskId taskId = TaskId.EMPTY_TASK_ID;
     private boolean waitForCompletion = false;

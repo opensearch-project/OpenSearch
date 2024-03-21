@@ -39,6 +39,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -63,8 +64,9 @@ import java.util.function.Predicate;
 /**
  * Holds additional information as to why the shard is in unassigned state.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
     public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
@@ -82,8 +84,9 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * Note, ordering of the enum is important, make sure to add new values
      * at the end and handle version serialization properly.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Reason {
         /**
          * Unassigned as a result of an API creation of an index.
@@ -158,8 +161,9 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * Note, ordering of the enum is important, make sure to add new values
      * at the end and handle version serialization properly.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum AllocationStatus implements Writeable {
         /**
          * The shard was denied allocation to a node because the allocation deciders all returned a NO decision

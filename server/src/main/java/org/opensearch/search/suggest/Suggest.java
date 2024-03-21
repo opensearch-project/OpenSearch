@@ -35,6 +35,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
@@ -73,8 +74,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
 /**
  * Top level suggest result, containing the result for each suggestion.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Writeable, ToXContentFragment {
 
     public static final String NAME = "suggest";
@@ -269,7 +271,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     /**
      * The suggestion responses corresponding with the suggestions in the request.
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public abstract static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, NamedWriteable, ToXContentFragment {
 
         public static final int TYPE = 0;
@@ -474,7 +478,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
         /**
          * Represents a part from the suggest text with suggested options.
+         *
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public abstract static class Entry<O extends Option> implements Iterable<O>, Writeable, ToXContentFragment {
 
             private static final String TEXT = "text";
@@ -662,7 +669,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
             /**
              * Contains the suggested text with its document frequency and score.
+             *
+             * @opensearch.api
              */
+            @PublicApi(since = "1.0.0")
             public abstract static class Option implements Writeable, ToXContentFragment {
 
                 public static final ParseField TEXT = new ParseField("text");

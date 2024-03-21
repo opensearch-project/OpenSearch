@@ -12,7 +12,7 @@ import org.opensearch.common.annotation.InternalApi;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 
@@ -53,7 +53,6 @@ class DefaultTracer implements Tracer {
             parentSpan = getCurrentSpanInternal();
         }
         Span span = createSpan(context, parentSpan);
-        setCurrentSpanInContext(span);
         addDefaultAttributes(span);
         return span;
     }
@@ -94,10 +93,6 @@ class DefaultTracer implements Tracer {
         return tracingTelemetry.createSpan(spanCreationContext, parentSpan);
     }
 
-    private void setCurrentSpanInContext(Span span) {
-        tracerContextStorage.put(TracerContextStorage.CURRENT_SPAN, span);
-    }
-
     /**
      * Adds default attributes in the span
      * @param span the current active span
@@ -107,7 +102,7 @@ class DefaultTracer implements Tracer {
     }
 
     @Override
-    public Span startSpan(SpanCreationContext spanCreationContext, Map<String, List<String>> headers) {
+    public Span startSpan(SpanCreationContext spanCreationContext, Map<String, Collection<String>> headers) {
         Optional<Span> propagatedSpan = tracingTelemetry.getContextPropagator().extractFromHeaders(headers);
         return startSpan(spanCreationContext.parent(propagatedSpan.map(SpanContext::new).orElse(null)));
     }

@@ -785,10 +785,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     protected RemoteSegmentStoreDirectory createRemoteSegmentStoreDirectory(ShardId shardId, Path path) throws IOException {
         NodeEnvironment.NodePath remoteNodePath = new NodeEnvironment.NodePath(path);
         ShardPath remoteShardPath = new ShardPath(false, remoteNodePath.resolve(shardId), remoteNodePath.resolve(shardId), shardId);
-        RemoteDirectory dataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
-        RemoteDirectory metadataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
+        RemoteDirectory dataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex().resolve("data"));
+        RemoteDirectory metadataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex().resolve("metadata"));
         RemoteStoreLockManager remoteStoreLockManager = new RemoteStoreMetadataLockManager(
-            new RemoteBufferedOutputDirectory(getBlobContainer(remoteShardPath.resolveIndex()))
+            new RemoteBufferedOutputDirectory(getBlobContainer(remoteShardPath.resolveIndex().resolve("lock_files")))
         );
         return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, remoteStoreLockManager, threadPool, shardId);
     }

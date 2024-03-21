@@ -8,9 +8,7 @@
 
 package org.opensearch.remotestore;
 
-import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.index.IndexResponse;
-import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.transport.MockTransportService;
@@ -20,7 +18,6 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 public class BaseRemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
@@ -47,18 +44,6 @@ public class BaseRemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
 
     protected void restore(String... indices) {
         restore(randomBoolean(), indices);
-    }
-
-    protected void restore(boolean restoreAllShards, String... indices) {
-        if (restoreAllShards) {
-            assertAcked(client().admin().indices().prepareClose(indices));
-        }
-        client().admin()
-            .cluster()
-            .restoreRemoteStore(
-                new RestoreRemoteStoreRequest().indices(indices).restoreAllShards(restoreAllShards),
-                PlainActionFuture.newFuture()
-            );
     }
 
     protected void verifyRestoredData(Map<String, Long> indexStats, String indexName, boolean indexMoreData) throws Exception {

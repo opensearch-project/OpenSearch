@@ -36,9 +36,12 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.core.StreamReadFeature;
+import com.fasterxml.jackson.core.StreamWriteConstraints;
 import com.fasterxml.jackson.core.StreamWriteFeature;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactoryBuilder;
 
+import org.opensearch.common.xcontent.XContentContraints;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
@@ -54,14 +57,12 @@ import java.io.OutputStream;
 import java.io.Reader;
 import java.util.Set;
 
+import org.yaml.snakeyaml.LoaderOptions;
+
 /**
  * A YAML based content implementation using Jackson.
  */
-public class YamlXContent implements XContent {
-    public static final int DEFAULT_MAX_STRING_LEN = Integer.parseInt(
-        System.getProperty("opensearch.xcontent.string.length.max", Integer.toString(Integer.MAX_VALUE) /* no limit */)
-    );
-
+public class YamlXContent implements XContent, XContentContraints {
     public static final boolean USE_FAST_DOUBLE_WRITER = Boolean.getBoolean("opensearch.xcontent.use_fast_double_writer");
 
     public static XContentBuilder contentBuilder() throws IOException {
@@ -72,9 +73,18 @@ public class YamlXContent implements XContent {
     public static final YamlXContent yamlXContent;
 
     static {
-        yamlFactory = new YAMLFactory();
+        final LoaderOptions loaderOptions = new LoaderOptions();
+        loaderOptions.setCodePointLimit(DEFAULT_CODEPOINT_LIMIT);
+        yamlFactory = new YAMLFactoryBuilder(new YAMLFactory()).loaderOptions(loaderOptions).build();
         yamlFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
-        yamlFactory.setStreamReadConstraints(StreamReadConstraints.builder().maxStringLength(DEFAULT_MAX_STRING_LEN).build());
+        yamlFactory.setStreamWriteConstraints(StreamWriteConstraints.builder().maxNestingDepth(DEFAULT_MAX_DEPTH).build());
+        yamlFactory.setStreamReadConstraints(
+            StreamReadConstraints.builder()
+                .maxStringLength(DEFAULT_MAX_STRING_LEN)
+                .maxNameLength(DEFAULT_MAX_NAME_LEN)
+                .maxNestingDepth(DEFAULT_MAX_DEPTH)
+                .build()
+        );
         yamlFactory.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER.mappedFeature(), true);
         yamlFactory.configure(StreamWriteFeature.USE_FAST_DOUBLE_WRITER.mappedFeature(), USE_FAST_DOUBLE_WRITER);
         yamlXContent = new YamlXContent();

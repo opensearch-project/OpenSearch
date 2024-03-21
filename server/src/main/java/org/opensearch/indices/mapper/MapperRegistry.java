@@ -33,6 +33,7 @@
 package org.opensearch.indices.mapper;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MetadataFieldMapper;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
@@ -47,8 +48,9 @@ import java.util.function.Predicate;
 /**
  * A registry for all field mappers.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class MapperRegistry {
 
     private final Map<String, Mapper.TypeParser> mapperParsers;

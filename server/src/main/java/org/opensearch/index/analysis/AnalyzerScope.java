@@ -32,11 +32,14 @@
 
 package org.opensearch.index.analysis;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Enum to identify the scope of an analyzer
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public enum AnalyzerScope {
     INDEX,
     INDICES,

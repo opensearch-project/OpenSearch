@@ -68,8 +68,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class SumIT extends AbstractNumericTestCase {
 
-    public SumIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SumIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @Override

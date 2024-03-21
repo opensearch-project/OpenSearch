@@ -43,6 +43,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterApplier;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Setting;
@@ -81,8 +82,9 @@ import static org.opensearch.common.settings.Setting.positiveTimeSetting;
  * This component does not block on disconnections at all, because a disconnection might need to wait for an ongoing (background) connection
  * attempt to complete first.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class NodeConnectionsService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(NodeConnectionsService.class);
 

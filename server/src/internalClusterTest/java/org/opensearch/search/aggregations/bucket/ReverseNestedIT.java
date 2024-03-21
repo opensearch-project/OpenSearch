@@ -36,7 +36,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.BucketOrder;
@@ -47,7 +46,7 @@ import org.opensearch.search.aggregations.bucket.nested.ReverseNested;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.ValueCount;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -76,10 +75,10 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class ReverseNestedIT extends ParameterizedOpenSearchIntegTestCase {
+public class ReverseNestedIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public ReverseNestedIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public ReverseNestedIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -88,11 +87,6 @@ public class ReverseNestedIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override

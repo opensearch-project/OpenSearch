@@ -33,6 +33,7 @@
 package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -52,8 +53,9 @@ import static java.util.Collections.emptyMap;
 /**
  * Base aggregator for pipline aggs
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class PipelineAggregator implements NamedWriteable {
     /**
      * Parse the {@link PipelineAggregationBuilder} from a {@link XContentParser}.
@@ -84,8 +86,9 @@ public abstract class PipelineAggregator implements NamedWriteable {
      * Tree of {@link PipelineAggregator}s to modify a tree of aggregations
      * after their final reduction.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class PipelineTree {
         /**
          * An empty tree of {@link PipelineAggregator}s.

@@ -64,8 +64,9 @@ public class ResourceWatcherService implements Closeable {
     /**
      * Frequency level to watch.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Frequency {
 
         /**

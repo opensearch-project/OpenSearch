@@ -11,6 +11,7 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContent;
@@ -27,7 +28,10 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Request to delete one or more PIT search contexts based on IDs.
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.3.0")
 public class DeletePitRequest extends ActionRequest implements ToXContentObject {
 
     /**

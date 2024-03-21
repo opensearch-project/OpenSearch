@@ -34,6 +34,7 @@ package org.opensearch.action.support;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
@@ -65,7 +66,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         Writeable.Reader<Request> requestReader,
         String executor
     ) {
-        this(actionName, true, transportService, actionFilters, requestReader, executor);
+        this(actionName, true, null, transportService, actionFilters, requestReader, executor);
     }
 
     protected HandledTransportAction(
@@ -75,19 +76,49 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader
     ) {
-        this(actionName, canTripCircuitBreaker, transportService, actionFilters, requestReader, ThreadPool.Names.SAME);
+        this(actionName, canTripCircuitBreaker, null, transportService, actionFilters, requestReader, ThreadPool.Names.SAME);
     }
 
     protected HandledTransportAction(
         String actionName,
         boolean canTripCircuitBreaker,
+        AdmissionControlActionType admissionControlActionType,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader
+    ) {
+        this(
+            actionName,
+            canTripCircuitBreaker,
+            admissionControlActionType,
+            transportService,
+            actionFilters,
+            requestReader,
+            ThreadPool.Names.SAME
+        );
+    }
+
+    protected HandledTransportAction(
+        String actionName,
+        boolean canTripCircuitBreaker,
+        AdmissionControlActionType admissionControlActionType,
         TransportService transportService,
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
         String executor
     ) {
         super(actionName, actionFilters, transportService.getTaskManager());
-        transportService.registerRequestHandler(actionName, executor, false, canTripCircuitBreaker, requestReader, new TransportHandler());
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            canTripCircuitBreaker,
+            admissionControlActionType,
+            requestReader,
+            new TransportHandler()
+        );
+
     }
 
     /**

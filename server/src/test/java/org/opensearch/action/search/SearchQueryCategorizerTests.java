@@ -34,15 +34,18 @@ import org.junit.Before;
 
 import java.util.Arrays;
 
-import org.mockito.Mockito;
+import org.mockito.ArgumentCaptor;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
+
+    private static final String MULTI_TERMS_AGGREGATION = "multi_terms";
 
     private MetricsRegistry metricsRegistry;
 
@@ -71,7 +74,20 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.aggCounter).add(eq(1.0d));
+        verify(searchQueryCategorizer.searchQueryCounters.aggCounter).add(eq(1.0d), any(Tags.class));
+
+        // capture the arguments passed to the aggCounter.add method
+        ArgumentCaptor<Double> valueCaptor = ArgumentCaptor.forClass(Double.class);
+        ArgumentCaptor<Tags> tagsCaptor = ArgumentCaptor.forClass(Tags.class);
+
+        // Verify that aggCounter.add was called with the expected arguments
+        verify(searchQueryCategorizer.searchQueryCounters.aggCounter).add(valueCaptor.capture(), tagsCaptor.capture());
+
+        double actualValue = valueCaptor.getValue();
+        String actualTag = (String) tagsCaptor.getValue().getTagsMap().get("type");
+
+        assertEquals(1.0d, actualValue, 0.0001);
+        assertEquals(MULTI_TERMS_AGGREGATION, actualTag);
     }
 
     public void testBoolQuery() {

@@ -37,6 +37,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -110,8 +111,9 @@ import static org.opensearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER
  * operation etc. are still preserved.
  * </p>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class Translog extends AbstractIndexShardComponent implements IndexShardComponent, Closeable {
 
     /*
@@ -894,8 +896,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     /**
      * Location in the translot
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Location implements Comparable<Location> {
 
         public final long generation;
@@ -953,8 +956,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     /**
      * A snapshot of the transaction log, allows to iterate over all the transaction log operations.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface Snapshot extends Closeable {
 
         /**
@@ -1039,14 +1043,16 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
      * A generic interface representing an operation performed on the transaction log.
      * Each is associated with a type.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface Operation {
         /**
          * The type of operation
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         enum Type {
             @Deprecated
             CREATE((byte) 1),
@@ -1137,8 +1143,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     /**
      * The source in the translog
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Source {
 
         public final BytesReference source;
@@ -1566,8 +1573,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     /**
      * How to sync the translog
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Durability {
 
         /**
@@ -1810,6 +1818,11 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     protected void onDelete() {}
 
     /**
+     * Drains ongoing syncs to the underlying store. It returns a releasable which can be closed to resume the syncs back.
+     */
+    abstract Releasable drainSync();
+
+    /**
      * deletes all files associated with a reader. package-private to be able to simulate node failures at this point
      */
     void deleteReaderFiles(TranslogReader reader) {
@@ -1833,8 +1846,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     /**
      * References a transaction log generation
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class TranslogGeneration {
         public final String translogUUID;
         public final long translogFileGeneration;

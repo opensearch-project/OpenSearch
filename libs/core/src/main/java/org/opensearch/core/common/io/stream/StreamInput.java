@@ -56,6 +56,7 @@ import org.opensearch.core.common.text.Text;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.semver.SemverRange;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -748,6 +749,8 @@ public abstract class StreamInput extends InputStream {
                 return readCollection(StreamInput::readGenericValue, HashSet::new, Collections.emptySet());
             case 26:
                 return readBigInteger();
+            case 27:
+                return readSemverRange();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
@@ -1086,6 +1089,10 @@ public abstract class StreamInput extends InputStream {
     /** Reads the OpenSearch Version from the input stream */
     public Version readVersion() throws IOException {
         return Version.fromId(readVInt());
+    }
+
+    public SemverRange readSemverRange() throws IOException {
+        return SemverRange.fromString(readString());
     }
 
     /** Reads the {@link Version} from the input stream */

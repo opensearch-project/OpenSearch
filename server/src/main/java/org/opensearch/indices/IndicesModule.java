@@ -59,6 +59,7 @@ import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.Mapper;
+import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
 import org.opensearch.index.mapper.MetadataFieldMapper;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -80,6 +81,7 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
+import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch;
 import org.opensearch.plugins.MapperPlugin;
 
 import java.util.ArrayList;
@@ -158,6 +160,7 @@ public class IndicesModule extends AbstractModule {
         mappers.put(nanoseconds.type(), DateFieldMapper.NANOS_PARSER);
         mappers.put(IpFieldMapper.CONTENT_TYPE, IpFieldMapper.PARSER);
         mappers.put(TextFieldMapper.CONTENT_TYPE, TextFieldMapper.PARSER);
+        mappers.put(MatchOnlyTextFieldMapper.CONTENT_TYPE, MatchOnlyTextFieldMapper.PARSER);
         mappers.put(KeywordFieldMapper.CONTENT_TYPE, KeywordFieldMapper.PARSER);
         mappers.put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser());
         mappers.put(ObjectMapper.NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser());
@@ -279,6 +282,7 @@ public class IndicesModule extends AbstractModule {
         bind(IndicesStore.class).asEagerSingleton();
         bind(IndicesClusterStateService.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetadata.class).asEagerSingleton();
+        bind(TransportNodesListShardStoreMetadataBatch.class).asEagerSingleton();
         bind(GlobalCheckpointSyncAction.class).asEagerSingleton();
         bind(TransportResyncReplicationAction.class).asEagerSingleton();
         bind(PrimaryReplicaSyncer.class).asEagerSingleton();

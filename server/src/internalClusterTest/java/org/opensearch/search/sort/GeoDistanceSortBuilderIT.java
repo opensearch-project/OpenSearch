@@ -41,11 +41,10 @@ import org.opensearch.common.geo.GeoDistance;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.GeoValidationMethod;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -65,7 +64,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSea
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSortValues;
 import static org.hamcrest.Matchers.closeTo;
 
-public class GeoDistanceSortBuilderIT extends ParameterizedOpenSearchIntegTestCase {
+public class GeoDistanceSortBuilderIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public GeoDistanceSortBuilderIT(Settings settings) {
         super(settings);
     }
@@ -76,11 +75,6 @@ public class GeoDistanceSortBuilderIT extends ParameterizedOpenSearchIntegTestCa
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     private static final String LOCATION_FIELD = "location";

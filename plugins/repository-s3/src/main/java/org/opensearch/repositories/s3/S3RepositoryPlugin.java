@@ -99,23 +99,32 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         List<ExecutorBuilder<?>> executorBuilders = new ArrayList<>();
-        int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors(settings));
+        int halfProc = halfNumberOfProcessors(allocatedProcessors(settings));
         executorBuilders.add(
             new FixedExecutorBuilder(settings, URGENT_FUTURE_COMPLETION, urgentPoolCount(settings), 10_000, URGENT_FUTURE_COMPLETION)
         );
-        executorBuilders.add(new ScalingExecutorBuilder(URGENT_STREAM_READER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
+        executorBuilders.add(new ScalingExecutorBuilder(URGENT_STREAM_READER, 1, halfProc, TimeValue.timeValueMinutes(5)));
         executorBuilders.add(
-            new FixedExecutorBuilder(settings, PRIORITY_FUTURE_COMPLETION, priorityPoolCount(settings), 10_000, PRIORITY_FUTURE_COMPLETION)
+            new ScalingExecutorBuilder(PRIORITY_FUTURE_COMPLETION, 1, allocatedProcessors(settings), TimeValue.timeValueMinutes(5))
         );
-        executorBuilders.add(new ScalingExecutorBuilder(PRIORITY_STREAM_READER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
+        executorBuilders.add(new ScalingExecutorBuilder(PRIORITY_STREAM_READER, 1, halfProc, TimeValue.timeValueMinutes(5)));
 
-        executorBuilders.add(new FixedExecutorBuilder(settings, FUTURE_COMPLETION, normalPoolCount(settings), 10_000, FUTURE_COMPLETION));
-        executorBuilders.add(new ScalingExecutorBuilder(STREAM_READER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
+        executorBuilders.add(
+            new ScalingExecutorBuilder(FUTURE_COMPLETION, 1, allocatedProcessors(settings), TimeValue.timeValueMinutes(5))
+        );
+        executorBuilders.add(
+            new ScalingExecutorBuilder(
+                STREAM_READER,
+                allocatedProcessors(settings),
+                4 * allocatedProcessors(settings),
+                TimeValue.timeValueMinutes(5)
+            )
+        );
         return executorBuilders;
     }
 
-    static int halfAllocatedProcessorsMaxFive(final int allocatedProcessors) {
-        return boundedBy((allocatedProcessors + 1) / 2, 1, 5);
+    static int halfNumberOfProcessors(int numberOfProcessors) {
+        return (numberOfProcessors + 1) / 2;
     }
 
     S3RepositoryPlugin(final Settings settings, final Path configPath, final S3Service service, final S3AsyncService s3AsyncService) {
@@ -252,7 +261,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.IDENTITY_TOKEN_FILE_SETTING,
             S3ClientSettings.ROLE_SESSION_NAME_SETTING,
             S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING,
-            S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING
+            S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING,
+            S3Repository.REDIRECT_LARGE_S3_UPLOAD,
+            S3Repository.UPLOAD_RETRY_ENABLED
         );
     }
 

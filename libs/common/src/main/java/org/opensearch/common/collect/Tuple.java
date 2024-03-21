@@ -32,12 +32,15 @@
 
 package org.opensearch.common.collect;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Java 9 Tuple
  * todo: deprecate and remove w/ min jdk upgrade to 11?
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Tuple<V1, V2> {
 
     public static <V1, V2> Tuple<V1, V2> tuple(V1 v1, V2 v2) {

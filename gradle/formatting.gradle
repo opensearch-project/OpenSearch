@@ -99,7 +99,9 @@ allprojects {
           }
         }
         format 'misc', {
-            target '*.md', '*.gradle', '**/*.yaml', '**/*.yml', '**/*.svg'   
+            target '*.md', '*.gradle', '**/*.json', '**/*.yaml', '**/*.yml', '**/*.svg'
+
+            targetExclude '**/simple-bulk11.json', '**/simple-msearch5.json'
 
             trimTrailingWhitespace()
             endWithNewline()

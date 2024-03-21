@@ -969,6 +969,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         for (final ZonedDateTime date : dataset) {
             final long instant = date.toInstant().toEpochMilli();
             document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
+            document.add(new LongPoint(DATE_FIELD, instant));
             document.add(new LongPoint(INSTANT_FIELD, instant));
             document.add(new SortedNumericDocValuesField(NUMERIC_FIELD, i));
             indexWriter.addDocument(document);

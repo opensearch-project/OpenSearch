@@ -59,6 +59,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.Translog.Location;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanBuilder;
 import org.opensearch.telemetry.tracing.SpanScope;
@@ -104,7 +105,8 @@ public abstract class TransportWriteAction<
         boolean forceExecutionOnPrimary,
         IndexingPressureService indexingPressureService,
         SystemIndices systemIndices,
-        Tracer tracer
+        Tracer tracer,
+        AdmissionControlActionType admissionControlActionType
     ) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
         // ThreadPool.Names.WRITE/ThreadPool.Names.SYSTEM_WRITE thread pools in this class.
@@ -121,12 +123,50 @@ public abstract class TransportWriteAction<
             replicaRequest,
             ThreadPool.Names.SAME,
             true,
-            forceExecutionOnPrimary
+            forceExecutionOnPrimary,
+            admissionControlActionType
         );
         this.executorFunction = executorFunction;
         this.indexingPressureService = indexingPressureService;
         this.systemIndices = systemIndices;
         this.tracer = tracer;
+    }
+
+    protected TransportWriteAction(
+        Settings settings,
+        String actionName,
+        TransportService transportService,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ShardStateAction shardStateAction,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> request,
+        Writeable.Reader<ReplicaRequest> replicaRequest,
+        Function<IndexShard, String> executorFunction,
+        boolean forceExecutionOnPrimary,
+        IndexingPressureService indexingPressureService,
+        SystemIndices systemIndices,
+        Tracer tracer
+    ) {
+        this(
+            settings,
+            actionName,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            request,
+            replicaRequest,
+            executorFunction,
+            forceExecutionOnPrimary,
+            indexingPressureService,
+            systemIndices,
+            tracer,
+            null
+        );
     }
 
     protected String executor(IndexShard shard) {

@@ -8,6 +8,7 @@
 
 package org.opensearch.core.common.io.stream;
 
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.EOFException;
@@ -121,4 +122,33 @@ public class BytesStreamInput extends StreamInput {
         return bytes[pos++] & 0xFF;
     }
 
+    @Override
+    public short readShort() throws IOException {
+        if (available() < Short.BYTES) {
+            throw new EOFException();
+        }
+        short value = (short) BitUtil.VH_BE_SHORT.get(bytes, pos);
+        pos += Short.BYTES;
+        return value;
+    }
+
+    @Override
+    public int readInt() throws IOException {
+        if (available() < Integer.BYTES) {
+            throw new EOFException();
+        }
+        int value = (int) BitUtil.VH_BE_INT.get(bytes, pos);
+        pos += Integer.BYTES;
+        return value;
+    }
+
+    @Override
+    public long readLong() throws IOException {
+        if (available() < Long.BYTES) {
+            throw new EOFException();
+        }
+        long value = (long) BitUtil.VH_BE_LONG.get(bytes, pos);
+        pos += Long.BYTES;
+        return value;
+    }
 }

@@ -572,7 +572,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             JsonToStringXContentParser JsonToStringParser = new JsonToStringXContentParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.IGNORE_DEPRECATIONS,
-                context,
+                context.parser(),
                 fieldType().name()
             );
             /*

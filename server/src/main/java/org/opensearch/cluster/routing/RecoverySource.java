@@ -36,6 +36,7 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -57,8 +58,9 @@ import java.util.Objects;
  * - {@link SnapshotRecoverySource} recovery from a snapshot
  * - {@link LocalShardsRecoverySource} recovery from other shards of another index on the same node
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class RecoverySource implements Writeable, ToXContentObject {
 
     @Override
@@ -112,8 +114,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
     /**
      * Type of recovery.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Type {
         EMPTY_STORE,
         EXISTING_STORE,
@@ -248,8 +251,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
     /**
      * recovery from a snapshot
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class SnapshotRecoverySource extends RecoverySource {
 
         public static final String NO_API_RESTORE_UUID = "_no_api_";
@@ -421,8 +425,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
     /**
      * Recovery from remote store
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class RemoteStoreRecoverySource extends RecoverySource {
 
         private final String restoreUUID;

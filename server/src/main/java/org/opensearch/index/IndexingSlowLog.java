@@ -38,6 +38,7 @@ import org.apache.logging.log4j.util.StringBuilders;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.logging.OpenSearchLogMessage;
+import org.opensearch.common.logging.SlowLogLevel;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;

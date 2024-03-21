@@ -45,8 +45,10 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexModule;
+import org.opensearch.semver.SemverRange;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -717,6 +719,45 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString("was built for OpenSearch version 6.0.0"));
     }
 
+    public void testCompatibleOpenSearchVersionRange() {
+        List<SemverRange> pluginCompatibilityRange = List.of(new SemverRange(Version.CURRENT, SemverRange.RangeOperator.TILDE));
+        PluginInfo info = new PluginInfo(
+            "my_plugin",
+            "desc",
+            "1.0",
+            pluginCompatibilityRange,
+            "1.8",
+            "FakePlugin",
+            null,
+            Collections.emptyList(),
+            false
+        );
+        PluginsService.verifyCompatibility(info);
+    }
+
+    public void testIncompatibleOpenSearchVersionRange() {
+        // Version.CURRENT is behind by one with respect to patch version in the range
+        List<SemverRange> pluginCompatibilityRange = List.of(
+            new SemverRange(
+                VersionUtils.getVersion(Version.CURRENT.major, Version.CURRENT.minor, (byte) (Version.CURRENT.revision + 1)),
+                SemverRange.RangeOperator.TILDE
+            )
+        );
+        PluginInfo info = new PluginInfo(
+            "my_plugin",
+            "desc",
+            "1.0",
+            pluginCompatibilityRange,
+            "1.8",
+            "FakePlugin",
+            null,
+            Collections.emptyList(),
+            false
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("was built for OpenSearch version "));
+    }
+
     public void testIncompatibleJavaVersion() throws Exception {
         PluginInfo info = new PluginInfo(
             "my_plugin",
@@ -891,7 +932,10 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         TestExtensiblePlugin extensiblePlugin = new TestExtensiblePlugin();
         PluginsService.loadExtensions(
             Collections.singletonList(
-                Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, Collections.emptyList(), false), extensiblePlugin)
+                Tuple.tuple(
+                    new PluginInfo("extensible", null, null, Version.CURRENT, null, null, Collections.emptyList(), false),
+                    extensiblePlugin
+                )
             )
         );
 
@@ -902,9 +946,12 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         TestPlugin testPlugin = new TestPlugin();
         PluginsService.loadExtensions(
             Arrays.asList(
-                Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, Collections.emptyList(), false), extensiblePlugin),
                 Tuple.tuple(
-                    new PluginInfo("test", null, null, null, null, null, Collections.singletonList("extensible"), false),
+                    new PluginInfo("extensible", null, null, Version.CURRENT, null, null, Collections.emptyList(), false),
+                    extensiblePlugin
+                ),
+                Tuple.tuple(
+                    new PluginInfo("test", null, null, Version.CURRENT, null, null, Collections.singletonList("extensible"), false),
                     testPlugin
                 )
             )
@@ -1034,6 +1081,40 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertThat(e.getCause(), instanceOf(InvocationTargetException.class));
         assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getCause(), hasToString(containsString("test constructor failure")));
+    }
+
+    public void testPluginCompatibilityWithSemverRange() {
+        // Compatible plugin and core versions
+        assertTrue(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("1.0.0"), Version.fromString("1.0.0")));
+
+        assertTrue(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("=1.0.0"), Version.fromString("1.0.0")));
+
+        assertTrue(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("~1.0.0"), Version.fromString("1.0.0")));
+
+        assertTrue(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("~1.0.1"), Version.fromString("1.0.2")));
+
+        // Incompatible plugin and core versions
+        assertFalse(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("1.0.0"), Version.fromString("1.0.1")));
+
+        assertFalse(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("=1.0.0"), Version.fromString("1.0.1")));
+
+        assertFalse(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("~1.0.1"), Version.fromString("1.0.0")));
+
+        assertFalse(PluginsService.isPluginVersionCompatible(getPluginInfoWithWithSemverRange("~1.0.0"), Version.fromString("1.1.0")));
+    }
+
+    private PluginInfo getPluginInfoWithWithSemverRange(String semverRange) {
+        return new PluginInfo(
+            "my_plugin",
+            "desc",
+            "1.0",
+            List.of(SemverRange.fromString(semverRange)),
+            "1.8",
+            "FakePlugin",
+            null,
+            Collections.emptyList(),
+            false
+        );
     }
 
     private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {

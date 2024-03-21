@@ -1,0 +1,146 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test creating remove_by_pattern processor failed":
+  - skip:
+      version: " - 2.11.99"
+      reason: "introduced in 2.12.0"
+  - do:
+      catch: /\[field\_pattern\] either field\_pattern or exclude\_field\_pattern must be set/
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove_by_pattern" : {
+                  "field_pattern" : "foo*",
+                  "exclude_field_pattern" : "bar*"
+                }
+              }
+            ]
+          }
+
+  - do:
+      catch: /\[field\_pattern\] either field\_pattern or exclude\_field\_pattern must be set/
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove_by_pattern" : {
+                }
+              }
+            ]
+          }
+
+---
+"Test remove_by_pattern processor with field_pattern":
+  - skip:
+      version: " - 2.11.99"
+      reason: "introduced in 2.12.0"
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove_by_pattern" : {
+                  "field_pattern" : ["foo*", "*a*b"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo1: "bar",
+          foo2: "bar",
+          zoo: "bar",
+          ab: "bar",
+          aabb: "bar"
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source:  {zoo: "bar" }}
+
+---
+"Test remove_by_pattern processor with exclude_field_pattern":
+  - skip:
+      version: " - 2.11.99"
+      reason: "introduced in 2.12.0"
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove_by_pattern" : {
+                  "exclude_field_pattern": ["foo*", "a*b*"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo1: "bar",
+          foo2: "bar",
+          bar: "zoo",
+          zoo: "bar",
+          ab: "bar",
+          aabb: "bar"
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source:  { foo1: "bar", foo2: "bar", ab: "bar", aabb: "bar"}}
+
+
+---
+"Test cannot remove metadata fields by remove_by_pattern processor":
+  - skip:
+      version: " - 2.11.99"
+      reason: "introduced in 2.12.0"
+  - do:
+      catch: /field\_pattern \[\_id\] must not start with \'\_\'\;/
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove_by_pattern" : {
+                  "field_pattern": "_id"
+                }
+              }
+            ]
+          }

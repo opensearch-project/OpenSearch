@@ -36,6 +36,7 @@ import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.script.Script;
@@ -58,8 +59,9 @@ import java.util.List;
 /**
  * A search action request builder.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse> {
 
     public SearchRequestBuilder(OpenSearchClient client, SearchAction action) {
@@ -401,6 +403,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setTrackScores(boolean trackScores) {
         sourceBuilder().trackScores(trackScores);
+        return this;
+    }
+
+    /**
+     * Applies when fetching scores with named queries, and controls if scores will be tracked as well.
+     * Defaults to {@code false}.
+     */
+    public SearchRequestBuilder setIncludeNamedQueriesScore(boolean includeNamedQueriesScore) {
+        sourceBuilder().includeNamedQueriesScores(includeNamedQueriesScore);
         return this;
     }
 

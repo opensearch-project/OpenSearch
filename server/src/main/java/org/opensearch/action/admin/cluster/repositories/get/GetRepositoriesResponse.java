@@ -34,6 +34,7 @@ package org.opensearch.action.admin.cluster.repositories.get;
 
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -50,8 +51,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
 /**
  * Get repositories response
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetRepositoriesResponse extends ActionResponse implements ToXContentObject {
 
     private RepositoriesMetadata repositories;

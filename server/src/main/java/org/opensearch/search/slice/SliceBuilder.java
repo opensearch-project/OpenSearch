@@ -41,6 +41,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.ParseField;
@@ -77,8 +78,9 @@ import java.util.Set;
  *  Otherwise the provided field must be a numeric and doc_values must be enabled. In that case a
  *  {@link org.opensearch.search.slice.DocValuesSliceQuery} is used to filter the results.
  *
- *  @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SliceBuilder implements Writeable, ToXContentObject {
 
     private static final DeprecationLogger DEPRECATION_LOG = DeprecationLogger.getLogger(SliceBuilder.class);

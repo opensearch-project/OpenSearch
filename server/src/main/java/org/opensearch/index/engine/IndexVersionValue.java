@@ -45,6 +45,7 @@ import java.util.Objects;
 final class IndexVersionValue extends VersionValue {
 
     private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexVersionValue.class);
+    private static final long TRANSLOG_LOC_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Translog.Location.class);
 
     private final Translog.Location translogLocation;
 
@@ -55,7 +56,7 @@ final class IndexVersionValue extends VersionValue {
 
     @Override
     public long ramBytesUsed() {
-        return RAM_BYTES_USED + RamUsageEstimator.shallowSizeOf(translogLocation);
+        return RAM_BYTES_USED + (translogLocation == null ? 0L : TRANSLOG_LOC_RAM_BYTES_USED);
     }
 
     @Override

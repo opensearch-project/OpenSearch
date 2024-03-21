@@ -35,6 +35,7 @@ package org.opensearch.action.admin.cluster.allocation;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -48,8 +49,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * A request to explain the allocation of a shard in the cluster
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterAllocationExplainRequest extends ClusterManagerNodeRequest<ClusterAllocationExplainRequest> {
 
     private static final ObjectParser<ClusterAllocationExplainRequest, Void> PARSER = new ObjectParser<>("cluster/allocation/explain");

@@ -32,6 +32,8 @@
 
 package org.opensearch.action.admin.indices.upgrade.get;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -41,8 +43,9 @@ import java.util.Map;
 /**
  * Status for an Index Upgrade
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndexUpgradeStatus implements Iterable<IndexShardUpgradeStatus> {
 
     private final String index;

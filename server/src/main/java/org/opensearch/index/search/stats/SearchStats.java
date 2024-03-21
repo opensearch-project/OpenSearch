@@ -36,8 +36,8 @@ import org.opensearch.Version;
 import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -55,15 +55,17 @@ import java.util.Map;
 /**
  * Encapsulates stats for search time
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SearchStats implements Writeable, ToXContentFragment {
 
     /**
      * Holds statistic values for a particular phase.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class PhaseStatsLongHolder implements Writeable {
 
         long current;
@@ -110,8 +112,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
     /**
      * Holds requests stats for different phases.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class RequestStatsLongHolder {
 
         Map<String, PhaseStatsLongHolder> requestStatsHolder = new HashMap<>();
@@ -130,9 +133,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
     /**
      * Holder of statistics values
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
-
+    @PublicApi(since = "1.0.0")
     public static class Stats implements Writeable, ToXContentFragment {
 
         private long queryCount;
@@ -462,12 +465,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             builder.humanReadableField(Fields.QUERY_TIME_IN_MILLIS, Fields.QUERY_TIME, getQueryTime());
             builder.field(Fields.QUERY_CURRENT, queryCurrent);
 
-            if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
-                builder.field(Fields.CONCURRENT_QUERY_TOTAL, concurrentQueryCount);
-                builder.humanReadableField(Fields.CONCURRENT_QUERY_TIME_IN_MILLIS, Fields.CONCURRENT_QUERY_TIME, getConcurrentQueryTime());
-                builder.field(Fields.CONCURRENT_QUERY_CURRENT, concurrentQueryCurrent);
-                builder.field(Fields.CONCURRENT_AVG_SLICE_COUNT, getConcurrentAvgSliceCount());
-            }
+            builder.field(Fields.CONCURRENT_QUERY_TOTAL, concurrentQueryCount);
+            builder.humanReadableField(Fields.CONCURRENT_QUERY_TIME_IN_MILLIS, Fields.CONCURRENT_QUERY_TIME, getConcurrentQueryTime());
+            builder.field(Fields.CONCURRENT_QUERY_CURRENT, concurrentQueryCurrent);
+            builder.field(Fields.CONCURRENT_AVG_SLICE_COUNT, getConcurrentAvgSliceCount());
 
             builder.field(Fields.FETCH_TOTAL, fetchCount);
             builder.humanReadableField(Fields.FETCH_TIME_IN_MILLIS, Fields.FETCH_TIME, getFetchTime());

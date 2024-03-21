@@ -32,12 +32,17 @@
 
 package org.opensearch.core.xcontent;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.function.Supplier;
 
 /**
  * Callback for notifying the creator of the {@link XContentParser} that
  * parsing hit a deprecated field.
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface DeprecationHandler {
     /**
      * Throws an {@link UnsupportedOperationException} when parsing hits a

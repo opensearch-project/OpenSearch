@@ -34,8 +34,8 @@ import static org.hamcrest.core.IsNull.notNullValue;
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 public class MultiTermsIT extends BaseStringTermsTestCase {
 
-    public MultiTermsIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MultiTermsIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     // the main purpose of this test is to make sure we're not allocating 2GB of memory per shard

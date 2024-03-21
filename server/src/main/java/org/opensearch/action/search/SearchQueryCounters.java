@@ -21,6 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Class contains all the Counters related to search query types.
  */
 final class SearchQueryCounters {
+    private static final String LEVEL_TAG = "level";
     private static final String UNIT = "1";
     private final MetricsRegistry metricsRegistry;
     public final Counter aggCounter;

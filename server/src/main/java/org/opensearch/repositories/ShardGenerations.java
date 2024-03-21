@@ -33,6 +33,7 @@
 package org.opensearch.repositories;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.util.Arrays;
@@ -50,8 +51,9 @@ import java.util.stream.Collectors;
 /**
  * Generations of shards for snapshots
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class ShardGenerations {
 
     public static final ShardGenerations EMPTY = new ShardGenerations(Collections.emptyMap());
@@ -198,8 +200,9 @@ public final class ShardGenerations {
     /**
      * Builder for the shard generations.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class Builder {
 
         private final Map<IndexId, Map<Integer, String>> generations = new HashMap<>();

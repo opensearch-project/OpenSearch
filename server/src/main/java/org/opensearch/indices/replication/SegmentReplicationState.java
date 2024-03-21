@@ -10,6 +10,7 @@ package org.opensearch.indices.replication;
 
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -29,15 +30,17 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * ReplicationState implementation to track Segment Replication events.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.2.0")
 public class SegmentReplicationState implements ReplicationState, ToXContentFragment, Writeable {
 
     /**
      * The stage of the recovery state
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "2.2.0")
     public enum Stage {
         DONE((byte) 0),
         INIT((byte) 1),

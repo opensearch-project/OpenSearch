@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.upgrade.get;
 
 import org.opensearch.action.support.broadcast.BroadcastResponse;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -50,8 +51,9 @@ import java.util.Set;
 /**
  * Transport Response for retrieving status of upgrading an Index
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class UpgradeStatusResponse extends BroadcastResponse {
     private ShardUpgradeStatus[] shards;
 

@@ -37,6 +37,7 @@ import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -69,8 +70,9 @@ import java.util.Map;
 /**
  * Global information on indices stats running on a specific node.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class NodeIndicesStats implements Writeable, ToXContentFragment {
     private CommonStats stats;
     private Map<Index, List<IndexShardStats>> statsByShard;

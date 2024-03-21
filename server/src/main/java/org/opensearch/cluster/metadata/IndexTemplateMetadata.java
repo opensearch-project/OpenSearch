@@ -273,8 +273,9 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
     /**
      * Builder of index template metadata.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
         private static final Set<String> VALID_FIELDS = Sets.newHashSet(

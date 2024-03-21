@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.mapping.get;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionResponse;
@@ -65,8 +66,9 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalCons
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should go to that client class as well.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetFieldMappingsResponse extends ActionResponse implements ToXContentObject {
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
@@ -178,8 +180,9 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     /**
      * Metadata for field mappings for toXContent
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class FieldMappingMetadata implements ToXContentFragment {
 
         private static final ParseField FULL_NAME = new ParseField("full_name");

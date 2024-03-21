@@ -53,9 +53,9 @@ class ExpressionAggregationScript implements AggregationScript.LeafFactory {
     final SimpleBindings bindings;
     final DoubleValuesSource source;
     final boolean needsScore;
-    final ReplaceableConstDoubleValueSource specialValue; // _value
+    final PerThreadReplaceableConstDoubleValueSource specialValue; // _value
 
-    ExpressionAggregationScript(Expression e, SimpleBindings b, boolean n, ReplaceableConstDoubleValueSource v) {
+    ExpressionAggregationScript(Expression e, SimpleBindings b, boolean n, PerThreadReplaceableConstDoubleValueSource v) {
         exprScript = e;
         bindings = b;
         source = exprScript.getDoubleValuesSource(bindings);

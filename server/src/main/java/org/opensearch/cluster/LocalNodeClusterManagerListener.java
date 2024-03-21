@@ -31,12 +31,15 @@
 
 package org.opensearch.cluster;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Enables listening to cluster-manager changes events of the local node (when the local node becomes the cluster-manager, and when the local
  * node cease being a cluster-manager).
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface LocalNodeClusterManagerListener extends ClusterStateListener {
 
     /**

@@ -61,20 +61,22 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
 
         // Create Index and ingest data
         String indexName = "test-index-11";
-        Settings basicSettings = Settings.builder().put("number_of_shards", 3).put("number_of_replicas", 0).build();
+        Settings basicSettings = Settings.builder()
+            .put("number_of_shards", 2)
+            .put("number_of_replicas", 0)
+            .put("index.routing.allocation.total_shards_per_node", 1)
+            .build();
         createIndex(indexName, basicSettings);
-        indexRandom(true, client.prepareIndex(indexName).setId("1").setSource("field1", "the fox jumps in the well"));
-        indexRandom(true, client.prepareIndex(indexName).setId("1").setSource("field2", "another fox did the same."));
+
+        indexRandom(false, client.prepareIndex(indexName).setId("1").setSource("field1", "the fox jumps in the well"));
+        indexRandom(false, client.prepareIndex(indexName).setId("2").setSource("field2", "another fox did the same."));
 
         ensureGreen();
         refresh();
 
         // Make the search calls; adding the searchType and PreFilterShardSize to make the query path predictable across all the runs.
-        client.prepareSearch().setSearchType("query_then_fetch").setPreFilterShardSize(3).setQuery(queryStringQuery("fox")).get();
-        client.prepareSearch().setSearchType("query_then_fetch").setPreFilterShardSize(3).setQuery(queryStringQuery("jumps")).get();
-
-        ensureGreen();
-        refresh();
+        client.prepareSearch().setSearchType("dfs_query_then_fetch").setPreFilterShardSize(2).setQuery(queryStringQuery("fox")).get();
+        client.prepareSearch().setSearchType("dfs_query_then_fetch").setPreFilterShardSize(2).setQuery(queryStringQuery("jumps")).get();
 
         // Sleep for about 3s to wait for traces are published, delay is (the delay is 1s).
         Thread.sleep(3000);
@@ -88,8 +90,10 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
             )
         );
 
+        // See please https://github.com/opensearch-project/OpenSearch/issues/10291 till local transport is not instrumented,
+        // capturing only the inter-nodes transport actions.
         InMemorySingletonSpanExporter exporter = InMemorySingletonSpanExporter.INSTANCE;
-        validators.validate(exporter.getFinishedSpanItems(), 6);
+        validators.validate(exporter.getFinishedSpanItems(), 4);
     }
 
     private static void updateTelemetrySetting(Client client, boolean value) {

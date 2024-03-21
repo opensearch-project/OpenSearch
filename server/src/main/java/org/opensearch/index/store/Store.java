@@ -66,7 +66,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.annotation.InternalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.Lucene;
@@ -145,8 +145,9 @@ import static org.opensearch.index.store.Store.MetadataSnapshot.loadMetadata;
  *      }
  * </pre>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Store extends AbstractIndexShardComponent implements Closeable, RefCounted {
     /**
      * This is an escape hatch for lucenes internal optimization that checks if the IndexInput is an instance of ByteBufferIndexInput
@@ -224,7 +225,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return directory;
     }
 
-    @InternalApi
     public ShardPath shardPath() {
         return shardPath;
     }
@@ -1022,8 +1022,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @see StoreFileMetadata
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class MetadataSnapshot implements Iterable<StoreFileMetadata>, Writeable {
         private final Map<String, StoreFileMetadata> metadata;
 
@@ -1429,8 +1430,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @see MetadataSnapshot#recoveryDiff(org.opensearch.index.store.Store.MetadataSnapshot)
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class RecoveryDiff {
         /**
          * Files that exist in both snapshots and they can be considered the same ie. they don't need to be recovered

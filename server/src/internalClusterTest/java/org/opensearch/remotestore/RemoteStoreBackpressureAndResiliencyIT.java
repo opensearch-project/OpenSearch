@@ -14,7 +14,6 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRespons
 import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -22,6 +21,7 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexServiceTestUtils;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
@@ -175,7 +175,7 @@ public class RemoteStoreBackpressureAndResiliencyIT extends AbstractRemoteStoreM
 
         logger.info("Increasing the frequency of async trim task to ensure it runs in background while indexing");
         IndexService indexService = internalCluster().getInstance(IndicesService.class, dataNodeName).iterator().next();
-        ((AbstractAsyncTask) indexService.getTrimTranslogTask()).setInterval(TimeValue.timeValueMillis(100));
+        IndexServiceTestUtils.setTrimTranslogTaskInterval(indexService, TimeValue.timeValueMillis(100));
 
         logger.info("--> Indexing data");
         indexData(randomIntBetween(2, 5), true);

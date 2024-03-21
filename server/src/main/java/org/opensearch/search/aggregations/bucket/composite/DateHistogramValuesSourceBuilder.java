@@ -303,7 +303,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
                 // TODO once composite is plugged in to the values source registry or at least understands Date values source types use it
                 // here
                 Rounding.Prepared preparedRounding = rounding.prepareForUnknown();
-                RoundingValuesSource vs = new RoundingValuesSource(numeric, preparedRounding);
+                RoundingValuesSource vs = new RoundingValuesSource(numeric, preparedRounding, rounding);
                 // is specified in the builder.
                 final DocValueFormat docValueFormat = format == null ? DocValueFormat.RAW : valuesSourceConfig.format();
                 final MappedFieldType fieldType = valuesSourceConfig.fieldType();

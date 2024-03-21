@@ -10,7 +10,6 @@ package org.opensearch.remotestore;
 
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
-import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
@@ -43,6 +42,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -139,32 +139,21 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         internalCluster().startDataOnlyNode();
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin()
-            .cluster()
-            .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
-            .setWaitForCompletion(true)
-            .setIndices(indexName1, indexName2)
-            .get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(
-            createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
-        );
-        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+
+        SnapshotInfo snapshotInfo = createSnapshot(snapshotRepoName, snapshotName1, new ArrayList<>(Arrays.asList(indexName1, indexName2)));
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
 
         updateRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, false));
-        CreateSnapshotResponse createSnapshotResponse2 = client.admin()
-            .cluster()
-            .prepareCreateSnapshot(snapshotRepoName, snapshotName2)
-            .setWaitForCompletion(true)
-            .setIndices(indexName1, indexName2)
-            .get();
-        assertThat(createSnapshotResponse2.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(
-            createSnapshotResponse2.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse2.getSnapshotInfo().totalShards())
+        SnapshotInfo snapshotInfo2 = createSnapshot(
+            snapshotRepoName,
+            snapshotName2,
+            new ArrayList<>(Arrays.asList(indexName1, indexName2))
         );
-        assertThat(createSnapshotResponse2.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo2.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo2.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo2.successfulShards(), equalTo(snapshotInfo2.totalShards()));
 
         DeleteResponse deleteResponse = client().prepareDelete(indexName1, "0").execute().actionGet();
         assertEquals(deleteResponse.getResult(), DocWriteResponse.Result.DELETED);
@@ -268,7 +257,6 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertDocsPresentInIndex(client, restoredIndexName1Doc, numDocsInIndex1 + 2);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9326")
     public void testRestoreInSameRemoteStoreEnabledIndex() throws IOException {
         String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         String primary = internalCluster().startDataOnlyNode();
@@ -299,32 +287,24 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         internalCluster().startDataOnlyNode();
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin()
-            .cluster()
-            .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
-            .setWaitForCompletion(true)
-            .setIndices(indexName1, indexName2)
-            .get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(
-            createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+        SnapshotInfo snapshotInfo1 = createSnapshot(
+            snapshotRepoName,
+            snapshotName1,
+            new ArrayList<>(Arrays.asList(indexName1, indexName2))
         );
-        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo1.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo1.successfulShards(), equalTo(snapshotInfo1.totalShards()));
+        assertThat(snapshotInfo1.state(), equalTo(SnapshotState.SUCCESS));
 
         updateRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, false));
-        CreateSnapshotResponse createSnapshotResponse2 = client.admin()
-            .cluster()
-            .prepareCreateSnapshot(snapshotRepoName, snapshotName2)
-            .setWaitForCompletion(true)
-            .setIndices(indexName1, indexName2)
-            .get();
-        assertThat(createSnapshotResponse2.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(
-            createSnapshotResponse2.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse2.getSnapshotInfo().totalShards())
+        SnapshotInfo snapshotInfo2 = createSnapshot(
+            snapshotRepoName,
+            snapshotName2,
+            new ArrayList<>(Arrays.asList(indexName1, indexName2))
         );
-        assertThat(createSnapshotResponse2.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo2.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo2.successfulShards(), equalTo(snapshotInfo2.totalShards()));
+        assertThat(snapshotInfo2.state(), equalTo(SnapshotState.SUCCESS));
 
         DeleteResponse deleteResponse = client().prepareDelete(indexName1, "0").execute().actionGet();
         assertEquals(deleteResponse.getResult(), DocWriteResponse.Result.DELETED);
@@ -350,8 +330,14 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertEquals(restoreSnapshotResponse1.status(), RestStatus.ACCEPTED);
         assertEquals(restoreSnapshotResponse2.status(), RestStatus.ACCEPTED);
         ensureGreen(indexName1, restoredIndexName2);
+
+        assertRemoteSegmentsAndTranslogUploaded(restoredIndexName2);
         assertDocsPresentInIndex(client, indexName1, numDocsInIndex1);
         assertDocsPresentInIndex(client, restoredIndexName2, numDocsInIndex2);
+        // indexing some new docs and validating
+        indexDocuments(client, indexName1, numDocsInIndex1, numDocsInIndex1 + 2);
+        ensureGreen(indexName1);
+        assertDocsPresentInIndex(client, indexName1, numDocsInIndex1 + 2);
 
         // deleting data for restoredIndexName1 and restoring from remote store.
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
@@ -366,9 +352,32 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen(indexName1);
         assertDocsPresentInIndex(client(), indexName1, numDocsInIndex1);
         // indexing some new docs and validating
-        indexDocuments(client, indexName1, numDocsInIndex1, numDocsInIndex1 + 2);
+        indexDocuments(client, indexName1, numDocsInIndex1 + 2, numDocsInIndex1 + 4);
         ensureGreen(indexName1);
-        assertDocsPresentInIndex(client, indexName1, numDocsInIndex1 + 2);
+        assertDocsPresentInIndex(client, indexName1, numDocsInIndex1 + 4);
+    }
+
+    void assertRemoteSegmentsAndTranslogUploaded(String idx) throws IOException {
+        String indexUUID = client().admin().indices().prepareGetSettings(idx).get().getSetting(idx, IndexMetadata.SETTING_INDEX_UUID);
+
+        Path remoteTranslogMetadataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/translog/metadata");
+        Path remoteTranslogDataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/translog/data");
+        Path segmentMetadataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/segments/metadata");
+        Path segmentDataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/segments/data");
+
+        try (
+            Stream<Path> translogMetadata = Files.list(remoteTranslogMetadataPath);
+            Stream<Path> translogData = Files.list(remoteTranslogDataPath);
+            Stream<Path> segmentMetadata = Files.list(segmentMetadataPath);
+            Stream<Path> segmentData = Files.list(segmentDataPath);
+
+        ) {
+            assertTrue(translogData.count() > 0);
+            assertTrue(translogMetadata.count() > 0);
+            assertTrue(segmentMetadata.count() > 0);
+            assertTrue(segmentData.count() > 0);
+        }
+
     }
 
     public void testRemoteRestoreIndexRestoredFromSnapshot() throws IOException, ExecutionException, InterruptedException {
@@ -411,23 +420,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen(indexName1);
         assertDocsPresentInIndex(client(), indexName1, numDocsInIndex1);
 
-        // Make sure remote translog is empty
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(indexName1)
-            .get()
-            .getSetting(indexName1, IndexMetadata.SETTING_INDEX_UUID);
-
-        Path remoteTranslogMetadataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/translog/metadata");
-        Path remoteTranslogDataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/translog/data");
-
-        try (
-            Stream<Path> translogMetadata = Files.list(remoteTranslogMetadataPath);
-            Stream<Path> translogData = Files.list(remoteTranslogDataPath)
-        ) {
-            assertTrue(translogData.count() > 0);
-            assertTrue(translogMetadata.count() > 0);
-        }
+        assertRemoteSegmentsAndTranslogUploaded(indexName1);
 
         // Clear the local data before stopping the node. This will make sure that remote translog is empty.
         IndexShard indexShard = getIndexShard(primaryNodeName(indexName1), indexName1);
@@ -486,18 +479,14 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startDataOnlyNode();
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin()
-            .cluster()
-            .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
-            .setWaitForCompletion(true)
-            .setIndices(indexName1, indexName2)
-            .get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(
-            createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+        SnapshotInfo snapshotInfo1 = createSnapshot(
+            snapshotRepoName,
+            snapshotName1,
+            new ArrayList<>(Arrays.asList(indexName1, indexName2))
         );
-        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo1.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo1.successfulShards(), equalTo(snapshotInfo1.totalShards()));
+        assertThat(snapshotInfo1.state(), equalTo(SnapshotState.SUCCESS));
 
         Settings remoteStoreIndexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStoreRepo2Name)
@@ -573,18 +562,77 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen(indexName1);
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin()
+        SnapshotInfo snapshotInfo1 = createSnapshot(snapshotRepoName, snapshotName1, new ArrayList<>(List.of(indexName1)));
+        assertThat(snapshotInfo1.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo1.successfulShards(), equalTo(snapshotInfo1.totalShards()));
+        assertThat(snapshotInfo1.state(), equalTo(SnapshotState.SUCCESS));
+
+        client().admin().indices().close(Requests.closeIndexRequest(indexName1)).get();
+        createRepository(remoteStoreRepoNameUpdated, "fs", remoteRepoPath);
+        RestoreSnapshotResponse restoreSnapshotResponse2 = client.admin()
             .cluster()
-            .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName1)
             .setWaitForCompletion(true)
             .setIndices(indexName1)
+            .setRenamePattern(indexName1)
+            .setRenameReplacement(restoredIndexName1)
+            .setSourceRemoteStoreRepository(remoteStoreRepoNameUpdated)
             .get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(
-            createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
-        );
-        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+
+        assertTrue(restoreSnapshotResponse2.getRestoreInfo().failedShards() == 0);
+        ensureGreen(restoredIndexName1);
+        assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1);
+
+        // indexing some new docs and validating
+        indexDocuments(client, restoredIndexName1, numDocsInIndex1, numDocsInIndex1 + 2);
+        ensureGreen(restoredIndexName1);
+        assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1 + 2);
+    }
+
+    public void testRestoreShallowSnapshotIndexAfterSnapshot() throws ExecutionException, InterruptedException {
+        String indexName1 = "testindex1";
+        String snapshotRepoName = "test-restore-snapshot-repo";
+        String remoteStoreRepoNameUpdated = "test-rs-repo-updated" + TEST_REMOTE_STORE_REPO_SUFFIX;
+        String snapshotName1 = "test-restore-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        Path absolutePath2 = randomRepoPath().toAbsolutePath();
+        String[] pathTokens = absolutePath1.toString().split("/");
+        String basePath = pathTokens[pathTokens.length - 1];
+        Arrays.copyOf(pathTokens, pathTokens.length - 1);
+        Path location = PathUtils.get(String.join("/", pathTokens));
+        pathTokens = absolutePath2.toString().split("/");
+        String basePath2 = pathTokens[pathTokens.length - 1];
+        Arrays.copyOf(pathTokens, pathTokens.length - 1);
+        Path location2 = PathUtils.get(String.join("/", pathTokens));
+        logger.info("Path 1 [{}]", absolutePath1);
+        logger.info("Path 2 [{}]", absolutePath2);
+        String restoredIndexName1 = indexName1 + "-restored";
+
+        createRepository(snapshotRepoName, "fs", getRepositorySettings(location, basePath, true));
+
+        Client client = client();
+        Settings indexSettings = Settings.builder()
+            .put(super.indexSettings())
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        createIndex(indexName1, indexSettings);
+
+        int numDocsInIndex1 = randomIntBetween(2, 5);
+        indexDocuments(client, indexName1, numDocsInIndex1);
+
+        ensureGreen(indexName1);
+
+        logger.info("--> snapshot");
+        SnapshotInfo snapshotInfo1 = createSnapshot(snapshotRepoName, snapshotName1, new ArrayList<>(List.of(indexName1)));
+        assertThat(snapshotInfo1.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo1.successfulShards(), equalTo(snapshotInfo1.totalShards()));
+        assertThat(snapshotInfo1.state(), equalTo(SnapshotState.SUCCESS));
+
+        int extraNumDocsInIndex1 = randomIntBetween(20, 50);
+        indexDocuments(client, indexName1, extraNumDocsInIndex1);
+        refresh(indexName1);
 
         client().admin().indices().close(Requests.closeIndexRequest(indexName1)).get();
         createRepository(remoteStoreRepoNameUpdated, "fs", remoteRepoPath);

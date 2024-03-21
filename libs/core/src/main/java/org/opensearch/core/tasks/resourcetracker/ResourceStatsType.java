@@ -8,11 +8,14 @@
 
 package org.opensearch.core.tasks.resourcetracker;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Defines the different types of resource stats.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.1.0")
 public enum ResourceStatsType {
     // resource stats of the worker thread reported directly from runnable.
     WORKER_STATS("worker_stats", false);

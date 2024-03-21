@@ -38,8 +38,8 @@ public class BaseStringTermsTestCase extends AbstractTermsTestCase {
     protected static final String MULTI_VALUED_FIELD_NAME = "s_values";
     protected static Map<String, Map<String, Object>> expectedMultiSortBuckets;
 
-    public BaseStringTermsTestCase(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public BaseStringTermsTestCase(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @Override

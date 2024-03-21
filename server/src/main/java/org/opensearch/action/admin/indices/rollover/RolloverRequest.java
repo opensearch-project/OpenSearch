@@ -37,6 +37,7 @@ import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -58,8 +59,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should also go to that client class.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest {
 
     private static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("rollover");

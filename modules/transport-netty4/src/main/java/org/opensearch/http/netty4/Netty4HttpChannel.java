@@ -44,6 +44,7 @@ import java.util.Optional;
 import io.netty.channel.Channel;
 
 public class Netty4HttpChannel implements HttpChannel {
+    private static final String CHANNEL_PROPERTY = "channel";
 
     private final Channel channel;
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
@@ -90,6 +91,10 @@ public class Netty4HttpChannel implements HttpChannel {
     @SuppressWarnings("unchecked")
     @Override
     public <T> Optional<T> get(String name, Class<T> clazz) {
+        if (CHANNEL_PROPERTY.equalsIgnoreCase(name) && clazz.isAssignableFrom(Channel.class)) {
+            return (Optional<T>) Optional.of(getNettyChannel());
+        }
+
         Object handler = getNettyChannel().pipeline().get(name);
 
         if (handler != null && clazz.isInstance(handler) == true) {

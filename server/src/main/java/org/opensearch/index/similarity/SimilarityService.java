@@ -47,6 +47,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.TriFunction;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.AbstractIndexComponent;
@@ -65,8 +66,9 @@ import java.util.function.Supplier;
 /**
  * Service for similarity computations
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class SimilarityService extends AbstractIndexComponent {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimilarityService.class);
     public static final String DEFAULT_SIMILARITY = "BM25";

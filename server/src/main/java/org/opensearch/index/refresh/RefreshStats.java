@@ -33,6 +33,7 @@
 package org.opensearch.index.refresh;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -46,8 +47,9 @@ import java.util.Objects;
 /**
  * Encapsulates stats for index refresh
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RefreshStats implements Writeable, ToXContentFragment {
 
     private long total;

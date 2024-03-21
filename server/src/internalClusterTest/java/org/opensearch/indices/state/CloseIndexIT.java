@@ -287,7 +287,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
                     throw new AssertionError(e);
                 }
                 try {
-                    assertAcked(client().admin().indices().prepareDelete(indexToDelete));
+                    assertAcked(client().admin().indices().prepareDelete(indexToDelete).setTimeout("60s"));
                 } catch (final Exception e) {
                     assertException(e, indexToDelete);
                 }
@@ -301,7 +301,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
                     throw new AssertionError(e);
                 }
                 try {
-                    client().admin().indices().prepareClose(indexToClose).get();
+                    client().admin().indices().prepareClose(indexToClose).setTimeout("60s").get();
                 } catch (final Exception e) {
                     assertException(e, indexToClose);
                 }

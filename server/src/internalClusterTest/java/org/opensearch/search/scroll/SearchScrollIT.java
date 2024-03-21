@@ -45,7 +45,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -60,7 +59,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.InternalTestCluster;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.junit.After;
 
@@ -92,7 +91,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Tests for scrolling.
  */
-public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
+public class SearchScrollIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public SearchScrollIT(Settings settings) {
         super(settings);
     }
@@ -103,11 +102,6 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @After
@@ -135,6 +129,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -188,6 +183,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setSearchType(SearchType.QUERY_THEN_FETCH)
@@ -256,6 +252,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
 
         assertThat(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value, equalTo(500L));
         assertThat(
@@ -328,6 +325,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse1 = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -448,6 +446,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse1 = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -526,6 +525,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
             .prepareUpdateSettings("index")
             .setSettings(Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), Integer.MAX_VALUE))
             .get();
+        indexRandomForConcurrentSearch("index");
 
         for (SearchType searchType : SearchType.values()) {
             SearchRequestBuilder builder = client().prepareSearch("index")
@@ -567,6 +567,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         );
         client().prepareIndex("test").setId("1").setSource("some_field", "test").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test")
             .addSort(new FieldSortBuilder("no_field").order(SortOrder.ASC).missing("_last"))
@@ -592,12 +593,13 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(response.getHits().getHits().length, equalTo(0));
     }
 
-    public void testCloseAndReopenOrDeleteWithActiveScroll() {
+    public void testCloseAndReopenOrDeleteWithActiveScroll() throws InterruptedException {
         createIndex("test");
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", i).get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
             .setSize(35)
@@ -683,7 +685,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(exc.getMessage(), containsString("was (1m > 30s)"));
     }
 
-    public void testInvalidScrollKeepAlive() throws IOException {
+    public void testInvalidScrollKeepAlive() throws IOException, InterruptedException {
         createIndex("test");
         for (int i = 0; i < 2; i++) {
             client().prepareIndex("test")
@@ -692,6 +694,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
                 .get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
         assertAcked(
             client().admin()
                 .cluster()
@@ -733,7 +736,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
      * Ensures that we always create and retain search contexts on every target shards for a scroll request
      * regardless whether that query can be written to match_no_docs on some target shards or not.
      */
-    public void testScrollRewrittenToMatchNoDocs() {
+    public void testScrollRewrittenToMatchNoDocs() throws InterruptedException {
         final int numShards = randomIntBetween(3, 5);
         assertAcked(
             client().admin()
@@ -746,6 +749,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();
         client().prepareIndex("test").setId("3").setSource("created_date", "2020-01-03").get();
         client().admin().indices().prepareRefresh("test").get();
+        indexRandomForConcurrentSearch("test");
         SearchResponse resp = null;
         try {
             int totalHits = 0;
@@ -793,6 +797,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
             index("prod", "_doc", "prod-" + i, Collections.emptyMap());
         }
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("demo", "prod");
         SearchResponse respFromDemoIndex = client().prepareSearch("demo")
             .setSize(randomIntBetween(1, 10))
             .setQuery(new MatchAllQueryBuilder())

@@ -33,6 +33,7 @@ package org.opensearch.search.aggregations;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -60,8 +61,9 @@ import static java.util.stream.Collectors.toList;
 /**
  * An internal implementation of {@link Aggregations}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class InternalAggregations extends Aggregations implements Writeable {
 
     public static final InternalAggregations EMPTY = new InternalAggregations(Collections.emptyList());

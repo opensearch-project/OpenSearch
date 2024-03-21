@@ -22,6 +22,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
@@ -120,7 +121,7 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
     }
 
     public void testRestInitializeExtensionActionFailure() throws Exception {
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, List.of()));
         RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(extensionsManager);
 
         final String content = "{\"name\":\"ad-extension\",\"uniqueId\":\"\",\"hostAddress\":\"127.0.0.1\","
@@ -153,7 +154,10 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
             Function.identity(),
             Setting.Property.ExtensionScope
         );
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(boolSetting, stringSetting, intSetting, listSetting));
+        ExtensionsManager extensionsManager = new ExtensionsManager(
+            Set.of(boolSetting, stringSetting, intSetting, listSetting),
+            new IdentityService(Settings.EMPTY, List.of())
+        );
         ExtensionsManager spy = spy(extensionsManager);
 
         // optionally, you can stub out some methods:
@@ -200,7 +204,10 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
             Function.identity(),
             Setting.Property.ExtensionScope
         );
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(boolSetting, stringSetting, intSetting, listSetting));
+        ExtensionsManager extensionsManager = new ExtensionsManager(
+            Set.of(boolSetting, stringSetting, intSetting, listSetting),
+            new IdentityService(Settings.EMPTY, List.of())
+        );
         ExtensionsManager spy = spy(extensionsManager);
 
         // optionally, you can stub out some methods:

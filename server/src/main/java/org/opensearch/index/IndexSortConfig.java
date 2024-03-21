@@ -36,6 +36,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -69,8 +70,10 @@ import java.util.function.Supplier;
  *     </li>
  * </ul>
  *
- * @opensearch.internal
-**/
+ *
+ * @opensearch.api
+ */
+@PublicApi(since = "1.0.0")
 public final class IndexSortConfig {
     /**
      * The list of field names

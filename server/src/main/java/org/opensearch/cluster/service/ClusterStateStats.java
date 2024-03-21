@@ -9,6 +9,7 @@
 package org.opensearch.cluster.service;
 
 import org.opensearch.cluster.coordination.PersistedStateStats;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -23,8 +24,9 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Cluster state related stats.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.12.0")
 public class ClusterStateStats implements Writeable, ToXContentObject {
 
     private AtomicLong updateSuccess = new AtomicLong(0);

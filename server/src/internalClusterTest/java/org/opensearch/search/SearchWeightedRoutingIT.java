@@ -57,7 +57,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.opensearch.action.search.TransportSearchAction.SEARCH_REQUEST_STATS_ENABLED_KEY;
+import static org.opensearch.action.search.SearchRequestStats.SEARCH_REQUEST_STATS_ENABLED_KEY;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -480,6 +480,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
      * Assertions are put to make sure such shard search requests are served by data node in zone c.
      * @throws IOException throws exception
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10673")
     public void testShardRoutingWithNetworkDisruption_FailOpenEnabled() throws Exception {
 
         Settings commonSettings = Settings.builder()
@@ -501,8 +502,9 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
         logger.info("--> creating network partition disruption");
         final String clusterManagerNode1 = internalCluster().getClusterManagerName();
-        Set<String> nodesInOneSide = Stream.of(clusterManagerNode1, nodeMap.get("b").get(0)).collect(Collectors.toCollection(HashSet::new));
-        Set<String> nodesInOtherSide = Stream.of(nodeMap.get("a").get(0)).collect(Collectors.toCollection(HashSet::new));
+        Set<String> nodesInOneSide = Stream.of(nodeMap.get("a").get(0)).collect(Collectors.toCollection(HashSet::new));
+        Set<String> nodesInOtherSide = Stream.of(clusterManagerNode1, nodeMap.get("b").get(0), nodeMap.get("c").get(0))
+            .collect(Collectors.toCollection(HashSet::new));
 
         NetworkDisruption networkDisruption = new NetworkDisruption(
             new NetworkDisruption.TwoPartitions(nodesInOneSide, nodesInOtherSide),
@@ -870,8 +872,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             SearchStats.Stats searchStats = stat.getIndices().getSearch().getTotal();
             if (stat.getNode().isDataNode()) {
                 if (stat.getNode().getId().equals(dataNodeId)) {
-                    Assert.assertTrue(searchStats.getFetchCount() > 0L);
-                    Assert.assertTrue(searchStats.getQueryCount() > 0L);
+                    Assert.assertTrue(searchStats.getFetchCount() > 0L || searchStats.getQueryCount() > 0L);
                 }
             }
         }
@@ -945,7 +946,6 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         }
 
         logger.info("--> network disruption is stopped");
-        networkDisruption.stopDisrupting();
 
         for (int i = 0; i < 50; i++) {
             try {
@@ -962,6 +962,8 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
                 fail("search should not fail");
             }
         }
+        networkDisruption.stopDisrupting();
+
         assertSearchInAZ("b");
         assertSearchInAZ("c");
         assertNoSearchInAZ("a");
@@ -977,6 +979,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
      * MultiGet with fail open enabled. No request failure on network disruption
      * @throws IOException throws exception
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10755")
     public void testMultiGetWithNetworkDisruption_FailOpenEnabled() throws Exception {
 
         Settings commonSettings = Settings.builder()

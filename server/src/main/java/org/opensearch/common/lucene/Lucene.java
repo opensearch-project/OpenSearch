@@ -40,44 +40,27 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.index.StoredFieldVisitor;
-import org.apache.lucene.index.StoredFields;
-import org.apache.lucene.index.TermVectors;
-import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
@@ -130,7 +113,7 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene95";
+    public static final String LATEST_CODEC = "Lucene99";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -1055,108 +1038,4 @@ public class Lucene {
         return new NumericDocValuesField(SOFT_DELETES_FIELD, 1);
     }
 
-    /**
-     * Returns an empty leaf reader with the given max docs. The reader will be fully deleted.
-     */
-    public static LeafReader emptyReader(final int maxDoc) {
-        return new LeafReader() {
-            final Bits liveDocs = new Bits.MatchNoBits(maxDoc);
-
-            public Terms terms(String field) {
-                return null;
-            }
-
-            public NumericDocValues getNumericDocValues(String field) {
-                return null;
-            }
-
-            public BinaryDocValues getBinaryDocValues(String field) {
-                return null;
-            }
-
-            public SortedDocValues getSortedDocValues(String field) {
-                return null;
-            }
-
-            public SortedNumericDocValues getSortedNumericDocValues(String field) {
-                return null;
-            }
-
-            public SortedSetDocValues getSortedSetDocValues(String field) {
-                return null;
-            }
-
-            public NumericDocValues getNormValues(String field) {
-                return null;
-            }
-
-            public FieldInfos getFieldInfos() {
-                return new FieldInfos(new FieldInfo[0]);
-            }
-
-            public Bits getLiveDocs() {
-                return this.liveDocs;
-            }
-
-            public PointValues getPointValues(String fieldName) {
-                return null;
-            }
-
-            public void checkIntegrity() {}
-
-            public Fields getTermVectors(int docID) {
-                return null;
-            }
-
-            @Override
-            public TermVectors termVectors() throws IOException {
-                return null;
-            }
-
-            public int numDocs() {
-                return 0;
-            }
-
-            public int maxDoc() {
-                return maxDoc;
-            }
-
-            public void document(int docID, StoredFieldVisitor visitor) {}
-
-            @Override
-            public StoredFields storedFields() throws IOException {
-                return null;
-            }
-
-            protected void doClose() {}
-
-            public LeafMetaData getMetaData() {
-                return new LeafMetaData(Version.LATEST.major, Version.LATEST, null);
-            }
-
-            public CacheHelper getCoreCacheHelper() {
-                return null;
-            }
-
-            public CacheHelper getReaderCacheHelper() {
-                return null;
-            }
-
-            @Override
-            public FloatVectorValues getFloatVectorValues(String field) throws IOException {
-                return null;
-            }
-
-            @Override
-            public ByteVectorValues getByteVectorValues(String field) throws IOException {
-                return null;
-            }
-
-            @Override
-            public void searchNearestVectors(String field, byte[] target, KnnCollector k, Bits acceptDocs) throws IOException {}
-
-            @Override
-            public void searchNearestVectors(String field, float[] target, KnnCollector k, Bits acceptDocs) throws IOException {}
-        };
-    }
 }

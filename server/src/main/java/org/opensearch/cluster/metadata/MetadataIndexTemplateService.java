@@ -93,6 +93,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
 import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -1529,6 +1530,9 @@ public class MetadataIndexTemplateService {
                 Optional.empty()
             );
             validationErrors.addAll(indexSettingsValidation);
+
+            // validate index refresh interval settings
+            validateRefreshIntervalSettings(settings, clusterService.getClusterSettings());
         }
 
         if (indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {

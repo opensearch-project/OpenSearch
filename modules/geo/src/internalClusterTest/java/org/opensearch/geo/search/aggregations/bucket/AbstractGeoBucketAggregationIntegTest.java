@@ -87,7 +87,7 @@ public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePlu
      */
     protected void prepareGeoShapeIndexForAggregations(final Random random) throws Exception {
         expectedDocsCountForGeoShapes = new HashMap<>();
-        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         final List<IndexRequestBuilder> geoshapes = new ArrayList<>();
         assertAcked(prepareCreate(GEO_SHAPE_INDEX_NAME).setSettings(settings).setMapping(GEO_SHAPE_FIELD_NAME, "type" + "=geo_shape"));
         boolean isShapeIntersectingBB = false;
@@ -136,7 +136,7 @@ public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePlu
         expectedDocCountsForSingleGeoPoint = new HashMap<>();
         createIndex("idx_unmapped");
         final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("index.number_of_shards", 4)
             .put("index.number_of_replicas", 0)
             .build();
@@ -160,7 +160,7 @@ public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePlu
 
     protected void prepareMultiValuedGeoPointIndex(final Random random) throws Exception {
         multiValuedExpectedDocCountsGeoPoint = new HashMap<>();
-        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         final List<IndexRequestBuilder> cities = new ArrayList<>();
         assertAcked(
             prepareCreate("multi_valued_idx").setSettings(settings)

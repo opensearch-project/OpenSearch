@@ -31,6 +31,7 @@ import org.mockito.plugins.MockMaker;
  * Mockito plugin which wraps the Mockito calls into priviledged execution blocks and respects
  * SecurityManager presence.
  */
+@SuppressWarnings("removal")
 @SuppressForbidden(reason = "allow URL#getFile() to be used in tests")
 public class PriviledgedMockMaker implements MockMaker {
     private static AccessControlContext context;

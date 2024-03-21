@@ -10,10 +10,13 @@ package org.opensearch.identity.shiro;
 
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
+import org.opensearch.identity.Subject;
+import org.opensearch.identity.noop.NoopSubject;
 import org.opensearch.identity.noop.NoopTokenManager;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.BasicAuthToken;
 import org.opensearch.identity.tokens.BearerAuthToken;
+import org.opensearch.identity.tokens.OnBehalfOfClaims;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -34,16 +37,15 @@ import static org.hamcrest.Matchers.notNullValue;
 public class AuthTokenHandlerTests extends OpenSearchTestCase {
 
     private ShiroTokenManager shiroAuthTokenHandler;
-    private NoopTokenManager noopTokenManager;
 
     @Before
     public void testSetup() {
         shiroAuthTokenHandler = new ShiroTokenManager();
-        noopTokenManager = new NoopTokenManager();
     }
 
     public void testShouldExtractBasicAuthTokenSuccessfully() {
         final BasicAuthToken authToken = new BasicAuthToken("Basic YWRtaW46YWRtaW4="); // admin:admin
+        assertEquals(authToken.asAuthHeaderValue(), "YWRtaW46YWRtaW4=");
 
         final AuthenticationToken translatedToken = shiroAuthTokenHandler.translateAuthToken(authToken).get();
         assertThat(translatedToken, is(instanceOf(UsernamePasswordToken.class)));
@@ -98,18 +100,13 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
         assertThrows(UnsupportedAuthenticationToken.class, () -> shiroAuthTokenHandler.getTokenInfo(bearerAuthToken));
     }
 
-    public void testShouldFailValidateToken() {
-        final BearerAuthToken bearerAuthToken = new BearerAuthToken("header.payload.signature");
-        assertFalse(shiroAuthTokenHandler.validateToken(bearerAuthToken));
-    }
-
     public void testShoudPassMapLookupWithToken() {
         final BasicAuthToken authToken = new BasicAuthToken("Basic dGVzdDp0ZTpzdA==");
         shiroAuthTokenHandler.getShiroTokenPasswordMap().put(authToken, "te:st");
         assertTrue(authToken.getPassword().equals(shiroAuthTokenHandler.getShiroTokenPasswordMap().get(authToken)));
     }
 
-    public void testShouldPassThrougbResetToken(AuthToken token) {
+    public void testShouldPassThroughResetToken() {
         final BearerAuthToken bearerAuthToken = new BearerAuthToken("header.payload.signature");
         shiroAuthTokenHandler.resetToken(bearerAuthToken);
     }
@@ -124,6 +121,7 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
         assertEquals(testGoodToken.getPayload(), "payload");
         assertEquals(testGoodToken.getSignature(), "signature");
         assertEquals(testGoodToken.toString(), "Bearer auth token with header=header, payload=payload, signature=signature");
+        assertEquals(testGoodToken.asAuthHeaderValue(), "header.payload.signature");
     }
 
     public void testGeneratedPasswordContents() {
@@ -147,4 +145,35 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
         validator.validate(data);
     }
 
+    public void testIssueOnBehalfOfTokenFromClaims() {
+        Subject subject = new NoopSubject();
+        OnBehalfOfClaims claims = new OnBehalfOfClaims("test", "test");
+        BasicAuthToken authToken = (BasicAuthToken) shiroAuthTokenHandler.issueOnBehalfOfToken(subject, claims);
+        assertTrue(authToken instanceof BasicAuthToken);
+        UsernamePasswordToken translatedToken = (UsernamePasswordToken) shiroAuthTokenHandler.translateAuthToken(authToken).get();
+        assertEquals(authToken.getPassword(), new String(translatedToken.getPassword()));
+        assertTrue(shiroAuthTokenHandler.getShiroTokenPasswordMap().containsKey(authToken));
+        assertEquals(shiroAuthTokenHandler.getShiroTokenPasswordMap().get(authToken), new String(translatedToken.getPassword()));
+    }
+
+    public void testTokenNoopIssuance() {
+        NoopTokenManager tokenManager = new NoopTokenManager();
+        OnBehalfOfClaims claims = new OnBehalfOfClaims("test", "test");
+        Subject subject = new NoopSubject();
+        AuthToken token = tokenManager.issueOnBehalfOfToken(subject, claims);
+        assertTrue(token instanceof AuthToken);
+        AuthToken serviceAccountToken = tokenManager.issueServiceAccountToken("test");
+        assertTrue(serviceAccountToken instanceof AuthToken);
+        assertEquals(serviceAccountToken.asAuthHeaderValue(), "noopToken");
+    }
+
+    public void testShouldSucceedIssueServiceAccountToken() {
+        String audience = "testExtensionName";
+        BasicAuthToken authToken = (BasicAuthToken) shiroAuthTokenHandler.issueServiceAccountToken(audience);
+        assertTrue(authToken instanceof BasicAuthToken);
+        UsernamePasswordToken translatedToken = (UsernamePasswordToken) shiroAuthTokenHandler.translateAuthToken(authToken).get();
+        assertEquals(authToken.getPassword(), new String(translatedToken.getPassword()));
+        assertTrue(shiroAuthTokenHandler.getShiroTokenPasswordMap().containsKey(authToken));
+        assertEquals(shiroAuthTokenHandler.getShiroTokenPasswordMap().get(authToken), new String(translatedToken.getPassword()));
+    }
 }

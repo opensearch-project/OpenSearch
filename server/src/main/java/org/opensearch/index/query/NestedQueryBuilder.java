@@ -131,6 +131,13 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     }
 
     /**
+     * Returns path of the nested query.
+     */
+    public String path() {
+        return path;
+    }
+
+    /**
      * Returns the nested query to execute.
      */
     public QueryBuilder query() {
@@ -315,10 +322,13 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         try {
             context.setParentFilter(parentFilter);
             context.nestedScope().nextLevel(nestedObjectMapper);
-            innerQuery = this.query.toQuery(context);
+            try {
+                innerQuery = this.query.toQuery(context);
+            } finally {
+                context.nestedScope().previousLevel();
+            }
         } finally {
             context.setParentFilter(previousParentFilter);
-            context.nestedScope().previousLevel();
         }
 
         // ToParentBlockJoinQuery requires that the inner query only matches documents

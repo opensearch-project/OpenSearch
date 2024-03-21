@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster.coordination;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -22,8 +23,9 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Persisted cluster state related stats.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.12.0")
 public class PersistedStateStats implements Writeable, ToXContentObject {
     private final String statsName;
     private AtomicLong totalTimeInMillis = new AtomicLong(0);

@@ -434,6 +434,11 @@ updates:
     package-ecosystem: gradle
     schedule:
       interval: weekly
+  - directory: /modules/crypto/
+    open-pull-requests-limit: 1
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
   - directory: /plugins/
     open-pull-requests-limit: 1
     package-ecosystem: gradle

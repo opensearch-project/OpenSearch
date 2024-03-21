@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.alias.get;
 
 import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -46,8 +47,9 @@ import java.util.Objects;
 /**
  * Transport response for listing index aliases
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetAliasesResponse extends ActionResponse {
 
     private final Map<String, List<AliasMetadata>> aliases;

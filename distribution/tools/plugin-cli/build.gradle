@@ -31,7 +31,7 @@
 apply plugin: 'opensearch.build'
 
 base {
-  archivesBaseName = 'opensearch-plugin-cli'
+  archivesName = 'opensearch-plugin-cli'
 }
 
 dependencies {

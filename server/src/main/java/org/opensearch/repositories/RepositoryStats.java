@@ -33,6 +33,7 @@
 package org.opensearch.repositories;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -49,8 +50,9 @@ import java.util.Objects;
 /**
  * Stats about a repository
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RepositoryStats implements Writeable, ToXContentFragment {
 
     public static final RepositoryStats EMPTY_STATS = new RepositoryStats(Collections.emptyMap());

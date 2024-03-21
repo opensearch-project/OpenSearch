@@ -7,7 +7,8 @@ on:
     # Inputs the workflow accepts.
     inputs:
       ref:
-        description:
+        description: 'Lucene ref in github.com/apache/lucene'
+        type: string
         required: false
         default: 'main'
 
@@ -21,40 +22,60 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'adopt'
-
-      - name: Checkout Lucene
+      - name: Checkout Lucene ref:${{ github.event.inputs.ref }}
         uses: actions/checkout@v4
         with:
           repository: 'apache/lucene'
-          path: lucene
           ref: ${{ github.event.inputs.ref }}
 
-      - name: Set hash
-        working-directory: ./lucene
+      - name: Get Java Min Version and Lucene Revision from Lucene Repository
         run: |
-          echo "REVISION=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-        id: version
+          java_version=`cat build.gradle | grep minJavaVersion | head -1 | grep -Eo '_[0-9]+$' | tr -d '_'`
+          echo "JAVA_VERSION=$java_version" >> $GITHUB_ENV
+          echo "REVISION=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
 
       - name: Initialize gradle settings
-        working-directory: ./lucene
         run: ./gradlew localSettings
 
       - name: Publish Lucene to local maven repo.
-        working-directory: ./lucene
-        run: ./gradlew publishJarsPublicationToMavenLocal -Pversion.suffix=snapshot-${{ steps.version.outputs.REVISION }}
+        run: ./gradlew publishJarsPublicationToMavenLocal -Pversion.suffix=snapshot-${{ env.REVISION }}
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.LUCENE_SNAPSHOTS_SECRET_ROLE }}
+          aws-region: us-east-1
+
+      - name: Get S3 Bucket
+        id: get_s3_bucket
+        run: |
+          lucene_snapshots_bucket=`aws secretsmanager get-secret-value --secret-id jenkins-artifact-bucket-name --query SecretString --output text`
+          echo "::add-mask::$lucene_snapshots_bucket"
+          echo "LUCENE_SNAPSHOTS_BUCKET=$lucene_snapshots_bucket" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.LUCENE_SNAPSHOTS_S3_ROLE }}
+          aws-region: us-east-1
+
+      - name: Copy files to S3 with the aws CLI (New)
+        run: |
+          aws s3 cp ~/.m2/repository/org/apache/lucene/ s3://${{ steps.get_s3_bucket.outputs.LUCENE_SNAPSHOTS_BUCKET }}/snapshots/lucene/org/apache/lucene/  --recursive --no-progress
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.LUCENE_SNAPSHOTS_ROLE }}
           aws-region: us-west-2
 
-      - name: Copy files to S3 with the aws CLI.
+        # We will remove this step once all the lucene snapshots old links are updated with the new one
+      - name: Copy files to S3 with the aws CLI (Old)
         run: |
           aws s3 cp ~/.m2/repository/org/apache/lucene/ s3://${{ secrets.LUCENE_SNAPSHOTS_BUCKET }}/snapshots/lucene/org/apache/lucene/  --recursive --no-progress

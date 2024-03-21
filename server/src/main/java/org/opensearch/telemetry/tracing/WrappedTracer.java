@@ -13,7 +13,7 @@ import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -75,7 +75,7 @@ final class WrappedTracer implements Tracer {
     }
 
     @Override
-    public Span startSpan(SpanCreationContext spanCreationContext, Map<String, List<String>> headers) {
+    public Span startSpan(SpanCreationContext spanCreationContext, Map<String, Collection<String>> headers) {
         return defaultTracer.startSpan(spanCreationContext, headers);
     }
 }

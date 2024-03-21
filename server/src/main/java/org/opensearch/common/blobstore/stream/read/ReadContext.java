@@ -17,6 +17,8 @@ import java.util.function.Supplier;
 
 /**
  * ReadContext is used to encapsulate all data needed by <code>BlobContainer#readBlobAsync</code>
+ *
+ * @opensearch.experimental
  */
 @ExperimentalApi
 public class ReadContext {
@@ -55,8 +57,11 @@ public class ReadContext {
     /**
      * Functional interface defining an instance that can create an async action
      * to create a part of an object represented as an InputStreamContainer.
+     *
+     * @opensearch.experimental
      */
     @FunctionalInterface
+    @ExperimentalApi
     public interface StreamPartCreator extends Supplier<CompletableFuture<InputStreamContainer>> {
         /**
          * Kicks off a async process to start streaming.

@@ -55,6 +55,8 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.plugins.NetworkPlugin;
+import org.opensearch.plugins.SecureTransportSettingsProvider;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.RawTaskStatus;
 import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.Tracer;
@@ -66,6 +68,7 @@ import org.opensearch.transport.TransportRequestHandler;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -84,6 +87,9 @@ public final class NetworkModule {
     public static final String HTTP_TYPE_KEY = "http.type";
     public static final String HTTP_TYPE_DEFAULT_KEY = "http.type.default";
     public static final String TRANSPORT_TYPE_DEFAULT_KEY = "transport.type.default";
+    public static final String TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_KEY = "transport.ssl.enforce_hostname_verification";
+    public static final String TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_RESOLVE_HOST_NAME_KEY = "transport.ssl.resolve_hostname";
+    public static final String TRANSPORT_SSL_DUAL_MODE_ENABLED_KEY = "transport.ssl.dual_mode.enabled";
 
     public static final Setting<String> TRANSPORT_DEFAULT_TYPE_SETTING = Setting.simpleString(
         TRANSPORT_TYPE_DEFAULT_KEY,
@@ -92,6 +98,22 @@ public final class NetworkModule {
     public static final Setting<String> HTTP_DEFAULT_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_DEFAULT_KEY, Property.NodeScope);
     public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_KEY, Property.NodeScope);
     public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString(TRANSPORT_TYPE_KEY, Property.NodeScope);
+
+    public static final Setting<Boolean> TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION = Setting.boolSetting(
+        TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_KEY,
+        true,
+        Property.NodeScope
+    );
+    public static final Setting<Boolean> TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_RESOLVE_HOST_NAME = Setting.boolSetting(
+        TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_RESOLVE_HOST_NAME_KEY,
+        true,
+        Property.NodeScope
+    );
+    public static final Setting<Boolean> TRANSPORT_SSL_DUAL_MODE_ENABLED = Setting.boolSetting(
+        TRANSPORT_SSL_DUAL_MODE_ENABLED_KEY,
+        false,
+        Property.NodeScope
+    );
 
     private final Settings settings;
 
@@ -131,7 +153,7 @@ public final class NetworkModule {
 
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
     private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
-    private final List<TransportInterceptor> transportIntercetors = new ArrayList<>();
+    private final List<TransportInterceptor> transportInterceptors = new ArrayList<>();
 
     /**
      * Creates a network module that custom networking classes can be plugged into.
@@ -149,9 +171,18 @@ public final class NetworkModule {
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        Tracer tracer
+        Tracer tracer,
+        List<TransportInterceptor> transportInterceptors,
+        Collection<SecureTransportSettingsProvider> secureTransportSettingsProvider
     ) {
         this.settings = settings;
+
+        if (secureTransportSettingsProvider.size() > 1) {
+            throw new IllegalArgumentException(
+                "there is more than one secure transport settings provider: " + secureTransportSettingsProvider
+            );
+        }
+
         for (NetworkPlugin plugin : plugins) {
             Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(
                 settings,
@@ -168,6 +199,7 @@ public final class NetworkModule {
             for (Map.Entry<String, Supplier<HttpServerTransport>> entry : httpTransportFactory.entrySet()) {
                 registerHttpTransport(entry.getKey(), entry.getValue());
             }
+
             Map<String, Supplier<Transport>> transportFactory = plugin.getTransports(
                 settings,
                 threadPool,
@@ -180,13 +212,54 @@ public final class NetworkModule {
             for (Map.Entry<String, Supplier<Transport>> entry : transportFactory.entrySet()) {
                 registerTransport(entry.getKey(), entry.getValue());
             }
-            List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors(
+
+            // Register any secure transports if available
+            if (secureTransportSettingsProvider.isEmpty() == false) {
+                final SecureTransportSettingsProvider secureSettingProvider = secureTransportSettingsProvider.iterator().next();
+
+                final Map<String, Supplier<HttpServerTransport>> secureHttpTransportFactory = plugin.getSecureHttpTransports(
+                    settings,
+                    threadPool,
+                    bigArrays,
+                    pageCacheRecycler,
+                    circuitBreakerService,
+                    xContentRegistry,
+                    networkService,
+                    dispatcher,
+                    clusterSettings,
+                    secureSettingProvider,
+                    tracer
+                );
+                for (Map.Entry<String, Supplier<HttpServerTransport>> entry : secureHttpTransportFactory.entrySet()) {
+                    registerHttpTransport(entry.getKey(), entry.getValue());
+                }
+
+                final Map<String, Supplier<Transport>> secureTransportFactory = plugin.getSecureTransports(
+                    settings,
+                    threadPool,
+                    pageCacheRecycler,
+                    circuitBreakerService,
+                    namedWriteableRegistry,
+                    networkService,
+                    secureSettingProvider,
+                    tracer
+                );
+                for (Map.Entry<String, Supplier<Transport>> entry : secureTransportFactory.entrySet()) {
+                    registerTransport(entry.getKey(), entry.getValue());
+                }
+            }
+
+            List<TransportInterceptor> pluginTransportInterceptors = plugin.getTransportInterceptors(
                 namedWriteableRegistry,
                 threadPool.getThreadContext()
             );
-            for (TransportInterceptor interceptor : transportInterceptors) {
+            for (TransportInterceptor interceptor : pluginTransportInterceptors) {
                 registerTransportInterceptor(interceptor);
             }
+        }
+        // Adding last because interceptors are triggered from last to first order from the list
+        if (transportInterceptors != null) {
+            transportInterceptors.forEach(this::registerTransportInterceptor);
         }
     }
 
@@ -264,7 +337,7 @@ public final class NetworkModule {
      * Registers a new {@link TransportInterceptor}
      */
     private void registerTransportInterceptor(TransportInterceptor interceptor) {
-        this.transportIntercetors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
+        this.transportInterceptors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
     }
 
     /**
@@ -272,7 +345,7 @@ public final class NetworkModule {
      * @see #registerTransportInterceptor(TransportInterceptor)
      */
     public TransportInterceptor getTransportInterceptor() {
-        return new CompositeTransportInterceptor(this.transportIntercetors);
+        return new CompositeTransportInterceptor(this.transportInterceptors);
     }
 
     static final class CompositeTransportInterceptor implements TransportInterceptor {
@@ -291,6 +364,30 @@ public final class NetworkModule {
         ) {
             for (TransportInterceptor interceptor : this.transportInterceptors) {
                 actualHandler = interceptor.interceptHandler(action, executor, forceExecution, actualHandler);
+            }
+            return actualHandler;
+        }
+
+        /**
+         * Intercept the transport action and perform admission control if applicable
+         * @param action The action the request handler is associated with
+         * @param executor The executor the request handling will be executed on
+         * @param forceExecution Force execution on the executor queue and never reject it
+         * @param actualHandler The handler itself that implements the request handling
+         * @param admissionControlActionType Admission control based on resource usage limits of provided action type
+         * @return returns the actual TransportRequestHandler after intercepting all previous handlers
+         * @param <T>
+         */
+        @Override
+        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
+            String action,
+            String executor,
+            boolean forceExecution,
+            TransportRequestHandler<T> actualHandler,
+            AdmissionControlActionType admissionControlActionType
+        ) {
+            for (TransportInterceptor interceptor : this.transportInterceptors) {
+                actualHandler = interceptor.interceptHandler(action, executor, forceExecution, actualHandler, admissionControlActionType);
             }
             return actualHandler;
         }

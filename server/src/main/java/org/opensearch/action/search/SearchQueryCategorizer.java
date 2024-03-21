@@ -32,13 +32,15 @@ final class SearchQueryCategorizer {
 
     final SearchQueryCounters searchQueryCounters;
 
+    final SearchQueryAggregationCategorizer searchQueryAggregationCategorizer;
+
     public SearchQueryCategorizer(MetricsRegistry metricsRegistry) {
         searchQueryCounters = new SearchQueryCounters(metricsRegistry);
+        searchQueryAggregationCategorizer = new SearchQueryAggregationCategorizer(searchQueryCounters);
     }
 
     public void categorize(SearchSourceBuilder source) {
         QueryBuilder topLevelQueryBuilder = source.query();
-
         logQueryShape(topLevelQueryBuilder);
         incrementQueryTypeCounters(topLevelQueryBuilder);
         incrementQueryAggregationCounters(source.aggregations());
@@ -56,9 +58,11 @@ final class SearchQueryCategorizer {
     }
 
     private void incrementQueryAggregationCounters(AggregatorFactories.Builder aggregations) {
-        if (aggregations != null) {
-            searchQueryCounters.aggCounter.add(1);
+        if (aggregations == null) {
+            return;
         }
+
+        searchQueryAggregationCategorizer.incrementSearchQueryAggregationCounters(aggregations.getAggregatorFactories());
     }
 
     private void incrementQueryTypeCounters(QueryBuilder topLevelQueryBuilder) {
@@ -75,7 +79,7 @@ final class SearchQueryCategorizer {
         }
         QueryShapeVisitor shapeVisitor = new QueryShapeVisitor();
         topLevelQueryBuilder.visit(shapeVisitor);
-        log.debug("Query shape : {}", shapeVisitor.prettyPrintTree("  "));
+        log.trace("Query shape : {}", shapeVisitor.prettyPrintTree("  "));
     }
 
 }

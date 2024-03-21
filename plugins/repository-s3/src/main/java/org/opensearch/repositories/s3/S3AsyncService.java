@@ -374,7 +374,7 @@ class S3AsyncService implements Closeable {
         return new IrsaCredentials(webIdentityTokenFile, roleArn, roleSessionName);
     }
 
-    private synchronized void releaseCachedClients() {
+    public synchronized void releaseCachedClients() {
         // the clients will shutdown when they will not be used anymore
         for (final AmazonAsyncS3Reference clientReference : clientsCache.values()) {
             clientReference.decRef();

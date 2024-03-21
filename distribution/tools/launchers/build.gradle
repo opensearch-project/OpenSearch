@@ -39,7 +39,7 @@ dependencies {
 }
 
 base {
-  archivesBaseName = 'opensearch-launchers'
+  archivesName = 'opensearch-launchers'
 }
 
 tasks.withType(CheckForbiddenApis).configureEach {

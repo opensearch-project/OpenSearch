@@ -34,6 +34,7 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -53,8 +54,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * Transport request for a search scroll
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SearchScrollRequest extends ActionRequest implements ToXContentObject {
 
     private String scrollId;

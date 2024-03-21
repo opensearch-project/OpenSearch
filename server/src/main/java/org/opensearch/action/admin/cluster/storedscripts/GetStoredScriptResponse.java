@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.storedscripts;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionResponse;
@@ -53,8 +54,9 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalCons
 /**
  * Transport response for getting stored script
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetStoredScriptResponse extends ActionResponse implements StatusToXContentObject {
 
     public static final ParseField _ID_PARSE_FIELD = new ParseField("_id");

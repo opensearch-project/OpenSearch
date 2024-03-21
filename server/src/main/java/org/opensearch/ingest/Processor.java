@@ -36,6 +36,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
 import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.Scheduler;
 
@@ -156,6 +157,8 @@ public interface Processor {
          */
         public final Client client;
 
+        public final IndicesService indicesService;
+
         public Parameters(
             Environment env,
             ScriptService scriptService,
@@ -165,7 +168,8 @@ public interface Processor {
             BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
             IngestService ingestService,
             Client client,
-            Consumer<Runnable> genericExecutor
+            Consumer<Runnable> genericExecutor,
+            IndicesService indicesService
         ) {
             this.env = env;
             this.scriptService = scriptService;
@@ -176,6 +180,7 @@ public interface Processor {
             this.ingestService = ingestService;
             this.client = client;
             this.genericExecutor = genericExecutor;
+            this.indicesService = indicesService;
         }
 
     }

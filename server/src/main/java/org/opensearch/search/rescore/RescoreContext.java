@@ -33,6 +33,7 @@
 package org.opensearch.search.rescore;
 
 import org.apache.lucene.search.Query;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.Collections;
 import java.util.List;
@@ -43,8 +44,9 @@ import java.util.Set;
  * implementations should extend this with any additional resources that
  * they will need while rescoring.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RescoreContext {
     private final int windowSize;
     private final Rescorer rescorer;

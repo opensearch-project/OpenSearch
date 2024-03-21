@@ -33,46 +33,7 @@ import org.opensearch.gradle.info.BuildParams
 apply plugin: 'opensearch.publish'
 
 base {
-  archivesBaseName = 'opensearch-core'
-}
-
-// we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 11 so we do not include this source set in our IDEs
-if (!isEclipse) {
-  sourceSets {
-    java11 {
-      java {
-        srcDirs = ['src/main/java11']
-      }
-    }
-  }
-
-  configurations {
-    java11Compile.extendsFrom(compile)
-  }
-
-  dependencies {
-    java11Implementation sourceSets.main.output
-  }
-
-  compileJava11Java {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
-  }
-
-  forbiddenApisJava11 {
-    if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_11) {
-      targetCompatibility = JavaVersion.VERSION_11
-    }
-    replaceSignatureFiles 'jdk-signatures'
-  }
-
-  jar {
-    metaInf {
-      into 'versions/11'
-      from sourceSets.java11.output
-    }
-    manifest.attributes('Multi-Release': 'true')
-  }
+  archivesName = 'opensearch-core'
 }
 
 dependencies {
@@ -104,16 +65,23 @@ tasks.named('forbiddenApisMain').configure {
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     // from log4j
-    'org.osgi.framework.Bundle',
-    'org.osgi.framework.BundleActivator',
-    'org.osgi.framework.BundleContext',
-    'org.osgi.framework.BundleEvent',
-    'org.osgi.framework.FrameworkUtil',
-    'org.osgi.framework.ServiceReference',
-    'org.osgi.framework.ServiceRegistration',
-    'org.osgi.framework.SynchronousBundleListener',
-    'org.osgi.framework.wiring.BundleWire',
-    'org.osgi.framework.wiring.BundleWiring'
+    *[
+        'org.osgi.framework.Bundle',
+        'org.osgi.framework.BundleActivator',
+        'org.osgi.framework.BundleContext',
+        'org.osgi.framework.BundleEvent',
+        'org.osgi.framework.SynchronousBundleListener',
+        'org.osgi.framework.wiring.BundleWire',
+        'org.osgi.framework.wiring.BundleWiring',
+    ]  + (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_20) ? [] : [
+       'jdk.incubator.vector.ByteVector',
+       'jdk.incubator.vector.FloatVector',
+       'jdk.incubator.vector.IntVector',
+       'jdk.incubator.vector.ShortVector',
+       'jdk.incubator.vector.Vector',
+       'jdk.incubator.vector.VectorOperators',
+       'jdk.incubator.vector.VectorSpecies'
+    ]
   )
 }
 

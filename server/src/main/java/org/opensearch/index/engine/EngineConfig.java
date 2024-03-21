@@ -41,6 +41,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.MemorySizeValue;
@@ -75,8 +76,9 @@ import java.util.function.Supplier;
  * Once {@link Engine} has been created with this object, changes to this
  * object will affect the {@link Engine} instance.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class EngineConfig {
     private final ShardId shardId;
     private final IndexSettings indexSettings;
@@ -106,7 +108,7 @@ public final class EngineConfig {
     private final LongSupplier globalCheckpointSupplier;
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
     private final boolean isReadOnlyReplica;
-    private final BooleanSupplier primaryModeSupplier;
+    private final BooleanSupplier startedPrimarySupplier;
     private final Comparator<LeafReader> leafSorter;
 
     /**
@@ -285,7 +287,7 @@ public final class EngineConfig {
         this.primaryTermSupplier = builder.primaryTermSupplier;
         this.tombstoneDocSupplier = builder.tombstoneDocSupplier;
         this.isReadOnlyReplica = builder.isReadOnlyReplica;
-        this.primaryModeSupplier = builder.primaryModeSupplier;
+        this.startedPrimarySupplier = builder.startedPrimarySupplier;
         this.translogFactory = builder.translogFactory;
         this.leafSorter = builder.leafSorter;
     }
@@ -493,11 +495,11 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns the underlying primaryModeSupplier.
+     * Returns the underlying startedPrimarySupplier.
      * @return the primary mode supplier.
      */
-    public BooleanSupplier getPrimaryModeSupplier() {
-        return primaryModeSupplier;
+    public BooleanSupplier getStartedPrimarySupplier() {
+        return startedPrimarySupplier;
     }
 
     /**
@@ -512,8 +514,9 @@ public final class EngineConfig {
      * A supplier supplies tombstone documents which will be used in soft-update methods.
      * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface TombstoneDocSupplier {
         /**
          * Creates a tombstone document for a delete operation.
@@ -574,7 +577,7 @@ public final class EngineConfig {
         private TombstoneDocSupplier tombstoneDocSupplier;
         private TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
         private boolean isReadOnlyReplica;
-        private BooleanSupplier primaryModeSupplier;
+        private BooleanSupplier startedPrimarySupplier;
         private TranslogFactory translogFactory = new InternalTranslogFactory();
         Comparator<LeafReader> leafSorter;
 
@@ -698,8 +701,8 @@ public final class EngineConfig {
             return this;
         }
 
-        public Builder primaryModeSupplier(BooleanSupplier primaryModeSupplier) {
-            this.primaryModeSupplier = primaryModeSupplier;
+        public Builder startedPrimarySupplier(BooleanSupplier startedPrimarySupplier) {
+            this.startedPrimarySupplier = startedPrimarySupplier;
             return this;
         }
 

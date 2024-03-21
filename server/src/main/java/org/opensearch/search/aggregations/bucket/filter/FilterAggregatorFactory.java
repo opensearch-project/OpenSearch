@@ -56,7 +56,7 @@ import java.util.Map;
 public class FilterAggregatorFactory extends AggregatorFactory {
 
     private Weight weight;
-    private Query filter;
+    private final Query filter;
 
     public FilterAggregatorFactory(
         String name,
@@ -85,7 +85,7 @@ public class FilterAggregatorFactory extends AggregatorFactory {
             try {
                 weight = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
             } catch (IOException e) {
-                throw new AggregationInitializationException("Failed to initialse filter", e);
+                throw new AggregationInitializationException("Failed to initialise filter", e);
             }
         }
         return weight;
@@ -98,7 +98,7 @@ public class FilterAggregatorFactory extends AggregatorFactory {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return new FilterAggregator(name, () -> this.getWeight(), factories, searchContext, parent, cardinality, metadata);
+        return new FilterAggregator(name, this::getWeight, factories, searchContext, parent, cardinality, metadata);
     }
 
     @Override

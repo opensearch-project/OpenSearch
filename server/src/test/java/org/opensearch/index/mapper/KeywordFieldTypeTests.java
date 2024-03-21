@@ -44,13 +44,17 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -128,14 +132,29 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         List<BytesRef> terms = new ArrayList<>();
         terms.add(new BytesRef("foo"));
         terms.add(new BytesRef("bar"));
-        assertEquals(new TermInSetQuery("field", terms), ft.termsQuery(Arrays.asList("foo", "bar"), null));
+        Query expected = new IndexOrDocValuesQuery(
+            new TermInSetQuery("field", terms),
+            new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", terms)
+        );
+        assertEquals(expected, ft.termsQuery(Arrays.asList("foo", "bar"), null));
 
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
+        MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
+        Query expectedIndex = new TermInSetQuery("field", terms);
+        assertEquals(expectedIndex, onlyIndexed.termsQuery(Arrays.asList("foo", "bar"), null));
+
+        MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
+        Query expectedDocValues = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", terms);
+        assertEquals(expectedDocValues, onlyDocValues.termsQuery(Arrays.asList("foo", "bar"), null));
+
+        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), null)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals(
+            "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
+            e.getMessage()
+        );
     }
 
     public void testExistsQuery() {
@@ -157,9 +176,36 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testRangeQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
+
+        Query indexExpected = new TermRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false);
+        Query dvExpected = new TermRangeQuery(
+            "field",
+            BytesRefs.toBytesRef("foo"),
+            BytesRefs.toBytesRef("bar"),
+            true,
+            false,
+            MultiTermQuery.DOC_VALUES_REWRITE
+        );
+
+        Query expected = new IndexOrDocValuesQuery(indexExpected, dvExpected);
+        Query actual = ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC);
+        assertEquals(expected, actual);
+
+        MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
+        assertEquals(indexExpected, onlyIndexed.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC));
+
+        MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
+        assertEquals(dvExpected, onlyDocValues.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC));
+
+        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unsearchable.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC)
+        );
+
         assertEquals(
-            new TermRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
-            ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC)
+            "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
+            e.getMessage()
         );
 
         OpenSearchException ee = expectThrows(
@@ -175,16 +221,37 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void testRegexpQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
         assertEquals(
-            new RegexpQuery(new Term("field", "foo.*")),
+            new IndexOrDocValuesQuery(
+                new RegexpQuery(new Term("field", "foo.*")),
+                new RegexpQuery(new Term("field", "foo.*"), 0, 0, RegexpQuery.DEFAULT_PROVIDER, 10, MultiTermQuery.DOC_VALUES_REWRITE)
+            ),
             ft.regexpQuery("foo.*", 0, 0, 10, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC)
         );
 
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
+        Query indexExpected = new RegexpQuery(new Term("field", "foo.*"));
+        MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
+        assertEquals(indexExpected, onlyIndexed.regexpQuery("foo.*", 0, 0, 10, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC));
+
+        Query dvExpected = new RegexpQuery(
+            new Term("field", "foo.*"),
+            0,
+            0,
+            RegexpQuery.DEFAULT_PROVIDER,
+            10,
+            MultiTermQuery.DOC_VALUES_REWRITE
+        );
+        MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
+        assertEquals(dvExpected, onlyDocValues.regexpQuery("foo.*", 0, 0, 10, MultiTermQuery.DOC_VALUES_REWRITE, MOCK_QSC));
+
+        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> unsearchable.regexpQuery("foo.*", 0, 0, 10, null, MOCK_QSC)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals(
+            "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
+            e.getMessage()
+        );
 
         OpenSearchException ee = expectThrows(
             OpenSearchException.class,
@@ -200,18 +267,73 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC)
         );
 
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
+        Query indexExpected = new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true);
+        MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
+        assertEquals(indexExpected, onlyIndexed.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC));
+
+        Query dvExpected = new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true, MultiTermQuery.DOC_VALUES_REWRITE);
+        MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
+        assertEquals(
+            dvExpected,
+            onlyDocValues.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MultiTermQuery.DOC_VALUES_REWRITE, MOCK_QSC)
+        );
+
+        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC)
+            () -> unsearchable.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MultiTermQuery.DOC_VALUES_REWRITE, MOCK_QSC)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals(
+            "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
+            e.getMessage()
+        );
 
         OpenSearchException ee = expectThrows(
             OpenSearchException.class,
             () -> ft.fuzzyQuery("foo", Fuzziness.AUTO, randomInt(10) + 1, randomInt(10) + 1, randomBoolean(), MOCK_QSC_DISALLOW_EXPENSIVE)
         );
         assertEquals("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
+    }
+
+    public void testWildCardQuery() {
+        MappedFieldType ft = new KeywordFieldType("field");
+        Query expected = new IndexOrDocValuesQuery(
+            new WildcardQuery(new Term("field", new BytesRef("foo*"))),
+            new WildcardQuery(
+                new Term("field", new BytesRef("foo*")),
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                MultiTermQuery.DOC_VALUES_REWRITE
+            )
+        );
+        assertEquals(expected, ft.wildcardQuery("foo*", MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC));
+
+        Query indexExpected = new WildcardQuery(new Term("field", new BytesRef("foo*")));
+        MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
+        assertEquals(indexExpected, onlyIndexed.wildcardQuery("foo*", MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC));
+
+        Query dvExpected = new WildcardQuery(
+            new Term("field", new BytesRef("foo*")),
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+            MultiTermQuery.DOC_VALUES_REWRITE
+        );
+        MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
+        assertEquals(dvExpected, onlyDocValues.wildcardQuery("foo*", MultiTermQuery.DOC_VALUES_REWRITE, MOCK_QSC));
+
+        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unsearchable.wildcardQuery("foo*", MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC)
+        );
+        assertEquals(
+            "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
+            e.getMessage()
+        );
+
+        OpenSearchException ee = expectThrows(
+            OpenSearchException.class,
+            () -> ft.wildcardQuery("foo*", MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC_DISALLOW_EXPENSIVE)
+        );
+        assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
 
     public void testNormalizeQueries() {

@@ -33,6 +33,7 @@ package org.opensearch.search.aggregations;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ValidateActions;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -54,8 +55,9 @@ import java.util.Objects;
  * A factory that knows how to create an {@link PipelineAggregator} of a
  * specific type.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class PipelineAggregationBuilder
     implements
         NamedWriteable,

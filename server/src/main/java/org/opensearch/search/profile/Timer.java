@@ -53,6 +53,18 @@ public class Timer {
     private boolean doTiming;
     private long timing, count, lastCount, start, earliestTimerStartTime;
 
+    public Timer() {
+        this(0, 0, 0, 0, 0);
+    }
+
+    public Timer(long timing, long count, long lastCount, long start, long earliestTimerStartTime) {
+        this.timing = timing;
+        this.count = count;
+        this.lastCount = lastCount;
+        this.start = start;
+        this.earliestTimerStartTime = earliestTimerStartTime;
+    }
+
     /** pkg-private for testing */
     long nanoTime() {
         return System.nanoTime();

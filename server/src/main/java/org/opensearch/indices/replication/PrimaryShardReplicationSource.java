@@ -8,16 +8,14 @@
 
 package org.opensearch.indices.replication;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
-import org.opensearch.indices.recovery.RetryableTransportClient;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 
@@ -35,9 +33,7 @@ import static org.opensearch.indices.replication.SegmentReplicationSourceService
  */
 public class PrimaryShardReplicationSource implements SegmentReplicationSource {
 
-    private static final Logger logger = LogManager.getLogger(PrimaryShardReplicationSource.class);
-
-    private final RetryableTransportClient transportClient;
+    private final TransportService transportService;
 
     private final DiscoveryNode sourceNode;
     private final DiscoveryNode targetNode;
@@ -52,12 +48,7 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
         DiscoveryNode sourceNode
     ) {
         this.targetAllocationId = targetAllocationId;
-        this.transportClient = new RetryableTransportClient(
-            transportService,
-            sourceNode,
-            recoverySettings.internalActionRetryTimeout(),
-            logger
-        );
+        this.transportService = transportService;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         this.recoverySettings = recoverySettings;
@@ -69,10 +60,14 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
         ReplicationCheckpoint checkpoint,
         ActionListener<CheckpointInfoResponse> listener
     ) {
-        final Writeable.Reader<CheckpointInfoResponse> reader = CheckpointInfoResponse::new;
-        final ActionListener<CheckpointInfoResponse> responseListener = ActionListener.map(listener, r -> r);
         final CheckpointInfoRequest request = new CheckpointInfoRequest(replicationId, targetAllocationId, targetNode, checkpoint);
-        transportClient.executeRetryableAction(GET_CHECKPOINT_INFO, request, responseListener, reader);
+        transportService.sendRequest(
+            sourceNode,
+            GET_CHECKPOINT_INFO,
+            request,
+            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionRetryTimeout()).build(),
+            new ActionListenerResponseHandler<>(listener, CheckpointInfoResponse::new, ThreadPool.Names.GENERIC)
+        );
     }
 
     @Override
@@ -88,8 +83,6 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
         // MultiFileWriter takes care of progress tracking for downloads in this scenario
         // TODO: Move state management and tracking into replication methods and use chunking and data
         // copy mechanisms only from MultiFileWriter
-        final Writeable.Reader<GetSegmentFilesResponse> reader = GetSegmentFilesResponse::new;
-        final ActionListener<GetSegmentFilesResponse> responseListener = ActionListener.map(listener, r -> r);
         final GetSegmentFilesRequest request = new GetSegmentFilesRequest(
             replicationId,
             targetAllocationId,
@@ -97,20 +90,17 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
             filesToFetch,
             checkpoint
         );
-        final TransportRequestOptions options = TransportRequestOptions.builder()
-            .withTimeout(recoverySettings.internalActionLongTimeout())
-            .build();
-        transportClient.executeRetryableAction(GET_SEGMENT_FILES, request, options, responseListener, reader);
+        transportService.sendRequest(
+            sourceNode,
+            GET_SEGMENT_FILES,
+            request,
+            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
+            new ActionListenerResponseHandler<>(listener, GetSegmentFilesResponse::new, ThreadPool.Names.GENERIC)
+        );
     }
 
     @Override
     public String getDescription() {
         return sourceNode.getName();
     }
-
-    @Override
-    public void cancel() {
-        transportClient.cancel();
-    }
-
 }

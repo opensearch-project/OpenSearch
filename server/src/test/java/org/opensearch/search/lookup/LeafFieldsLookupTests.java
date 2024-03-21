@@ -85,6 +85,7 @@ public class LeafFieldsLookupTests extends OpenSearchTestCase {
             0,
             VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
+            false,
             false
         );
 

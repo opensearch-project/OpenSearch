@@ -14,7 +14,7 @@ import org.opensearch.telemetry.tracing.SpanKind;
 import org.opensearch.telemetry.tracing.TracingContextPropagator;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -52,7 +52,7 @@ public class MockTracingContextPropagator implements TracingContextPropagator {
     }
 
     @Override
-    public Optional<Span> extractFromHeaders(Map<String, List<String>> headers) {
+    public Optional<Span> extractFromHeaders(Map<String, Collection<String>> headers) {
         if (headers != null) {
             Map<String, String> convertedHeader = headers.entrySet()
                 .stream()

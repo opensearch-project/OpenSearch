@@ -39,13 +39,12 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.geo.GeoDistance;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -66,10 +65,10 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class GeoDistanceIT extends ParameterizedOpenSearchIntegTestCase {
+public class GeoDistanceIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public GeoDistanceIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public GeoDistanceIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -78,11 +77,6 @@ public class GeoDistanceIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
@@ -192,6 +186,7 @@ public class GeoDistanceIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
 
         // Order: Asc
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -324,6 +319,7 @@ public class GeoDistanceIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // Order: Asc
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -602,7 +598,7 @@ public class GeoDistanceIT extends ParameterizedOpenSearchIntegTestCase {
     /**
      * Issue 3073
      */
-    public void testGeoDistanceFilter() throws IOException {
+    public void testGeoDistanceFilter() throws IOException, InterruptedException {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         double lat = 40.720611;
@@ -620,6 +616,7 @@ public class GeoDistanceIT extends ParameterizedOpenSearchIntegTestCase {
         assertAcked(prepareCreate("locations").setSettings(settings).setMapping(mapping));
         client().prepareIndex("locations").setId("1").setCreate(true).setSource(source).get();
         refresh();
+        indexRandomForConcurrentSearch("locations");
         client().prepareGet("locations", "1").get();
 
         SearchResponse result = client().prepareSearch("locations")
@@ -668,6 +665,7 @@ public class GeoDistanceIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
 
         refresh();
+        indexRandomForConcurrentSearch("test1", "test2");
 
         // Order: Asc
         SearchResponse searchResponse = client().prepareSearch("test1", "test2")

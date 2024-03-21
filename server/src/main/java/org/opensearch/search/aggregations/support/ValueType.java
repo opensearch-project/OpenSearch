@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.support;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -47,8 +48,9 @@ import java.util.List;
 /**
  * Enum to signal what kind of value type is used in the aggregator
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public enum ValueType implements Writeable {
 
     STRING((byte) 1, "string", "string", CoreValuesSourceType.BYTES, DocValueFormat.RAW),

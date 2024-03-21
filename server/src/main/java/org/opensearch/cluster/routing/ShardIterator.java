@@ -32,13 +32,15 @@
 
 package org.opensearch.cluster.routing;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.index.shard.ShardId;
 
 /**
  * Allows to iterate over a set of shard instances (routing) within a shard id group.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface ShardIterator extends ShardsIterator, Comparable<ShardIterator> {
 
     /**

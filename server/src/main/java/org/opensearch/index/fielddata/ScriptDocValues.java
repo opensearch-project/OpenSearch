@@ -37,6 +37,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.opensearch.common.Numbers;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.time.DateUtils;
@@ -60,8 +61,9 @@ import java.util.function.UnaryOperator;
  * return as a single {@link ScriptDocValues} instance can be reused to return
  * values form multiple documents.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     /**

@@ -83,6 +83,7 @@ class OpenSearch extends EnvironmentAwareCommand {
     /**
      * Main entry point for starting opensearch
      */
+    @SuppressWarnings("removal")
     public static void main(final String[] args) throws Exception {
         overrideDnsCachePolicyProperties();
         /*

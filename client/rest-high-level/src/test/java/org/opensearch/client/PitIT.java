@@ -24,7 +24,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -72,7 +71,7 @@ public class PitIT extends OpenSearchRestHighLevelClientTestCase {
         assertTrue(deletePitResponse.getDeletePitResults().get(0).getPitId().equals(createPitResponse.getId()));
     }
 
-    public void testDeleteAllAndListAllPits() throws IOException, InterruptedException {
+    public void testDeleteAllAndListAllPits() throws Exception {
         CreatePitRequest pitRequest = new CreatePitRequest(new TimeValue(1, TimeUnit.DAYS), true, "index");
         CreatePitResponse pitResponse = execute(pitRequest, highLevelClient()::createPit, highLevelClient()::createPitAsync);
         CreatePitResponse pitResponse1 = execute(pitRequest, highLevelClient()::createPit, highLevelClient()::createPitAsync);
@@ -91,11 +90,9 @@ public class PitIT extends OpenSearchRestHighLevelClientTestCase {
         List<String> pits = getAllPitResponse.getPitInfos().stream().map(r -> r.getPitId()).collect(Collectors.toList());
         assertTrue(pits.contains(pitResponse.getId()));
         assertTrue(pits.contains(pitResponse1.getId()));
-        CountDownLatch countDownLatch = new CountDownLatch(1);
         ActionListener<DeletePitResponse> deletePitListener = new ActionListener<>() {
             @Override
             public void onResponse(DeletePitResponse response) {
-                countDownLatch.countDown();
                 for (DeletePitInfo deletePitInfo : response.getDeletePitResults()) {
                     assertTrue(deletePitInfo.isSuccessful());
                 }
@@ -103,19 +100,20 @@ public class PitIT extends OpenSearchRestHighLevelClientTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                countDownLatch.countDown();
                 if (!(e instanceof OpenSearchStatusException)) {
                     throw new AssertionError("Delete all failed");
                 }
             }
         };
         final CreatePitResponse pitResponse3 = execute(pitRequest, highLevelClient()::createPit, highLevelClient()::createPitAsync);
-
+        assertTrue(pitResponse3.getId() != null);
         ActionListener<GetAllPitNodesResponse> getPitsListener = new ActionListener<GetAllPitNodesResponse>() {
             @Override
             public void onResponse(GetAllPitNodesResponse response) {
                 List<String> pits = response.getPitInfos().stream().map(r -> r.getPitId()).collect(Collectors.toList());
                 assertTrue(pits.contains(pitResponse3.getId()));
+                // delete all pits
+                highLevelClient().deleteAllPitsAsync(RequestOptions.DEFAULT, deletePitListener);
             }
 
             @Override
@@ -126,11 +124,12 @@ public class PitIT extends OpenSearchRestHighLevelClientTestCase {
             }
         };
         highLevelClient().getAllPitsAsync(RequestOptions.DEFAULT, getPitsListener);
-        highLevelClient().deleteAllPitsAsync(RequestOptions.DEFAULT, deletePitListener);
-        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+
         // validate no pits case
-        getAllPitResponse = highLevelClient().getAllPits(RequestOptions.DEFAULT);
-        assertTrue(getAllPitResponse.getPitInfos().size() == 0);
-        highLevelClient().deleteAllPitsAsync(RequestOptions.DEFAULT, deletePitListener);
+        assertBusy(() -> {
+            GetAllPitNodesResponse getAllPitResponse1 = highLevelClient().getAllPits(RequestOptions.DEFAULT);
+            assertTrue(getAllPitResponse1.getPitInfos().size() == 0);
+            highLevelClient().deleteAllPitsAsync(RequestOptions.DEFAULT, deletePitListener);
+        });
     }
 }

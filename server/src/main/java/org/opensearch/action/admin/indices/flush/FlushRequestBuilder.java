@@ -34,12 +34,14 @@ package org.opensearch.action.admin.indices.flush;
 
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Transport request builder for flushing one or more indices
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class FlushRequestBuilder extends BroadcastOperationRequestBuilder<FlushRequest, FlushResponse, FlushRequestBuilder> {
 
     public FlushRequestBuilder(OpenSearchClient client, FlushAction action) {

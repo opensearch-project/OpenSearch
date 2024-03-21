@@ -292,7 +292,7 @@ public class InternalEngine extends Engine {
                     new CompositeTranslogEventListener(Arrays.asList(internalTranslogEventListener, translogEventListener), shardId),
                     this::ensureOpen,
                     engineConfig.getTranslogFactory(),
-                    engineConfig.getPrimaryModeSupplier()
+                    engineConfig.getStartedPrimarySupplier()
                 );
                 this.translogManager = translogManagerRef;
                 this.softDeletesPolicy = newSoftDeletesPolicy();
@@ -1503,7 +1503,9 @@ public class InternalEngine extends Engine {
         final long totalDocs = indexWriter.getPendingNumDocs() + inFlightDocCount.addAndGet(addingDocs);
         if (totalDocs > maxDocs) {
             releaseInFlightDocs(addingDocs);
-            return new IllegalArgumentException("Number of documents in the index can't exceed [" + maxDocs + "]");
+            return new IllegalArgumentException(
+                "Number of documents in shard " + shardId + " exceeds the limit of [" + maxDocs + "] documents per shard"
+            );
         } else {
             return null;
         }
@@ -2030,22 +2032,8 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void rollTranslogGeneration() throws EngineException {
-        try (ReleasableLock ignored = readLock.acquire()) {
-            ensureOpen();
-            translogManager().getTranslog().rollGeneration();
-            translogManager().getTranslog().trimUnreferencedReaders();
-        } catch (AlreadyClosedException e) {
-            failOnTragicEvent(e);
-            throw e;
-        } catch (Exception e) {
-            try {
-                failEngine("translog trimming failed", e);
-            } catch (Exception inner) {
-                e.addSuppressed(inner);
-            }
-            throw new EngineException(shardId, "failed to roll translog", e);
-        }
+    public void rollTranslogGeneration() throws EngineException, IOException {
+        translogManager().rollTranslogGeneration();
     }
 
     @Override
@@ -2485,6 +2473,7 @@ public class InternalEngine extends Engine {
             iwc.setMaxFullFlushMergeWaitMillis(0);
         }
 
+        iwc.setCheckPendingFlushUpdate(config().getIndexSettings().isCheckPendingFlushEnabled());
         iwc.setMergePolicy(new OpenSearchMergePolicy(mergePolicy));
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());

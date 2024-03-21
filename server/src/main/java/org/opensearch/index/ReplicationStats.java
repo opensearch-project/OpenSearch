@@ -8,6 +8,7 @@
 
 package org.opensearch.index;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -20,8 +21,9 @@ import java.io.IOException;
  * ReplicationStats is used to provide segment replication statistics at an index,
  * node and cluster level on a segment replication enabled cluster.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.10.0")
 public class ReplicationStats implements ToXContentFragment, Writeable {
 
     public long maxBytesBehind;

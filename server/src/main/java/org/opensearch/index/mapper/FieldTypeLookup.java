@@ -32,6 +32,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.collect.Iterators;
 import org.opensearch.common.regex.Regex;
 
@@ -48,6 +49,7 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
+@InternalApi
 class FieldTypeLookup implements Iterable<MappedFieldType> {
 
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();

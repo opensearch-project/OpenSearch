@@ -35,6 +35,7 @@ package org.opensearch.script;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.Diff;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
@@ -65,8 +66,9 @@ import java.util.Objects;
  * {@link StoredScriptSource} represents user-defined parameters for a script
  * saved in the {@link ClusterState}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> implements Writeable, ToXContentObject {
 
     /**

@@ -82,7 +82,7 @@ public interface TransportChannel {
 
     /**
      * Returns the contextual property associated with this specific transport channel (the
-     * implementation of how such properties are managed depends on the the particular
+     * implementation of how such properties are managed depends on the particular
      * transport engine).
      *
      * @param name the name of the property

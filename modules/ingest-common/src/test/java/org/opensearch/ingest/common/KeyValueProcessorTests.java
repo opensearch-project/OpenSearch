@@ -36,6 +36,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
+import org.opensearch.ingest.TestTemplateService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -51,7 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class KeyValueProcessorTests extends OpenSearchTestCase {
 
-    private static final KeyValueProcessor.Factory FACTORY = new KeyValueProcessor.Factory();
+    private static final KeyValueProcessor.Factory FACTORY = new KeyValueProcessor.Factory(TestTemplateService.instance());
 
     public void test() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
@@ -123,7 +124,12 @@ public class KeyValueProcessorTests extends OpenSearchTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         Processor processor = createKvProcessor("unknown", "&", "=", null, null, "target", false);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getMessage(), equalTo("field [unknown] not present as part of path [unknown]"));
+        assertThat(exception.getMessage(), equalTo("field [unknown] doesn't exist"));
+
+        // when using template snippet, the resolved field path maybe empty
+        Processor processorWithEmptyFieldPath = createKvProcessor("", "&", "=", null, null, "target", false);
+        exception = expectThrows(IllegalArgumentException.class, () -> processorWithEmptyFieldPath.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("field path cannot be null nor empty"));
     }
 
     public void testNullValueWithIgnoreMissing() throws Exception {

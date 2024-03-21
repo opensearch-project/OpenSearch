@@ -34,6 +34,7 @@ package org.opensearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.ScorerAware;
 import org.opensearch.index.fielddata.ScriptDocValues;
@@ -49,8 +50,9 @@ import java.util.function.Function;
 /**
  * Scripts for aggregations
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class AggregationScript implements ScorerAware {
 
     public static final String[] PARAMETERS = {};
@@ -168,8 +170,9 @@ public abstract class AggregationScript implements ScorerAware {
     /**
      * A factory to construct {@link AggregationScript} instances.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface LeafFactory {
         AggregationScript newInstance(LeafReaderContext ctx) throws IOException;
 
