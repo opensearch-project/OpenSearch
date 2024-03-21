@@ -82,7 +82,7 @@ public class SearchTask extends CancellableTask implements SearchBackpressureTas
     public final String getDescription() {
         try {
             return descriptionSupplier.get();
-        } catch(UnsupportedOperationException e) {
+        } catch (UnsupportedOperationException e) {
             return e.getMessage();
         }
     }
