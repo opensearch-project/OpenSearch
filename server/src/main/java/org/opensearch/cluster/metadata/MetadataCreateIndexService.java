@@ -74,6 +74,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
@@ -967,6 +968,7 @@ public class MetadataCreateIndexService {
         validateStoreTypeSettings(indexSettings);
         validateRefreshIntervalSettings(request.settings(), clusterSettings);
         validateTranslogDurabilitySettings(request.settings(), clusterSettings, settings);
+        validateCompositeFS(request.settings());
 
         return indexSettings;
     }
@@ -1623,5 +1625,15 @@ public class MetadataCreateIndexService {
             );
         }
 
+    }
+
+    public static void validateCompositeFS(Settings indexSettings) {
+        if (indexSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "")
+            .equalsIgnoreCase(IndexModule.Type.COMPOSITEFS.getSettingsKey())
+            && !FeatureFlags.isEnabled(FeatureFlags.WRITEABLE_REMOTE_INDEX_SETTING)) {
+            throw new IllegalArgumentException(
+                "ERROR - Composite FS store type can be enabled only if Feature Flag for Writable Remote Index is true"
+            );
+        }
     }
 }
