@@ -80,7 +80,11 @@ public class SearchTask extends CancellableTask implements SearchBackpressureTas
 
     @Override
     public final String getDescription() {
-        return descriptionSupplier.get();
+        try {
+            return descriptionSupplier.get();
+        } catch(UnsupportedOperationException e) {
+            return e.getMessage();
+        }
     }
 
     @Override
