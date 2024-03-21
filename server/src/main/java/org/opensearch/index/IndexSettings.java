@@ -52,6 +52,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.search.pipeline.SearchPipelineService;
 
 import java.util.Arrays;
@@ -1221,17 +1222,20 @@ public final class IndexSettings {
 
     /**
      * Returns true if segment replication is enabled on the index.
+     *
+     * Every shard on a remote node would also have SegRep enabled even without
+     * proper index setting during the migration.
      */
-    public boolean isSegRepEnabled() {
-        return ReplicationType.SEGMENT.equals(replicationType);
+    public boolean isSegRepEnabledOrRemoteNode() {
+        return ReplicationType.SEGMENT.equals(replicationType) || isRemoteNode();
     }
 
     public boolean isSegRepLocalEnabled() {
-        return isSegRepEnabled() && !isRemoteStoreEnabled();
+        return isSegRepEnabledOrRemoteNode() && !isRemoteStoreEnabled();
     }
 
     public boolean isSegRepWithRemoteEnabled() {
-        return isSegRepEnabled() && isRemoteStoreEnabled();
+        return isSegRepEnabledOrRemoteNode() && isRemoteStoreEnabled();
     }
 
     /**
@@ -1239,6 +1243,10 @@ public final class IndexSettings {
      */
     public boolean isRemoteStoreEnabled() {
         return isRemoteStoreEnabled;
+    }
+
+    public boolean isRemoteNode() {
+        return RemoteStoreNodeAttribute.isRemoteDataAttributePresent(this.getNodeSettings());
     }
 
     /**
