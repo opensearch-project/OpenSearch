@@ -15,6 +15,11 @@ import java.util.List;
 public class ICacheKey<K> {
     public final K key; // K must implement equals()
     public final List<CacheStatsDimension> dimensions;
+    /**
+     * If this key is invalidated and dropDimensions is true, the ICache implementation will also drop all stats,
+     * including hits/misses/evictions, with this combination of dimension values.
+     */
+    private boolean dropStatsForDimensions;
 
     /**
      * Constructor to use when specifying dimensions.
@@ -22,6 +27,7 @@ public class ICacheKey<K> {
     public ICacheKey(K key, List<CacheStatsDimension> dimensions) {
         this.key = key;
         this.dimensions = dimensions;
+        this.dropStatsForDimensions = false;
     }
 
     /**
@@ -30,6 +36,15 @@ public class ICacheKey<K> {
     public ICacheKey(K key) {
         this.key = key;
         this.dimensions = List.of();
+        this.dropStatsForDimensions = false;
+    }
+
+    public void setDropStatsForDimensions(boolean newValue) {
+        this.dropStatsForDimensions = newValue;
+    }
+
+    public boolean getDropStatsForDimensions() {
+        return dropStatsForDimensions;
     }
 
     @Override
@@ -45,6 +60,7 @@ public class ICacheKey<K> {
         }
         ICacheKey other = (ICacheKey) o;
         return key.equals(other.key) && dimensions.equals(other.dimensions);
+        // equals() should not include dropDimensions, as it shouldn't affect finding the key in ICache implementations
     }
 
     @Override

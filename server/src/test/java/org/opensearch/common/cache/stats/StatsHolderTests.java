@@ -8,12 +8,14 @@
 
 package org.opensearch.common.cache.stats;
 
+import org.opensearch.common.Randomness;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 
 import static org.opensearch.common.cache.stats.MultiDimensionCacheStatsTests.getUsedDimensionValues;
@@ -39,25 +41,52 @@ public class StatsHolderTests extends OpenSearchTestCase {
         List<String> dimensionNames = List.of("dim1", "dim2");
         StatsHolder statsHolder = new StatsHolder(dimensionNames);
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
-        Map<Set<CacheStatsDimension>, CacheStatsResponse> expected = populateStats(statsHolder, usedDimensionValues, 100, 10);
+        Map<Set<CacheStatsDimension>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 100, 10);
 
         statsHolder.reset();
 
         for (Set<CacheStatsDimension> dimSet : expected.keySet()) {
-            CacheStatsResponse originalResponse = expected.get(dimSet);
-            originalResponse.sizeInBytes = new CounterMetric();
-            originalResponse.entries = new CounterMetric();
+            CacheStatsCounter originalCounter = expected.get(dimSet);
+            originalCounter.sizeInBytes = new CounterMetric();
+            originalCounter.entries = new CounterMetric();
 
             StatsHolder.Key key = new StatsHolder.Key(StatsHolder.getOrderedDimensionValues(new ArrayList<>(dimSet), dimensionNames));
-            CacheStatsResponse actual = statsHolder.getStatsMap().get(key);
-            assertEquals(originalResponse, actual);
+            CacheStatsCounter actual = statsHolder.getStatsMap().get(key);
+            assertEquals(originalCounter, actual);
         }
 
-        CacheStatsResponse expectedTotal = new CacheStatsResponse();
+        CacheStatsCounter expectedTotal = new CacheStatsCounter();
         for (Set<CacheStatsDimension> dimSet : expected.keySet()) {
             expectedTotal.add(expected.get(dimSet));
         }
         expectedTotal.sizeInBytes = new CounterMetric();
         expectedTotal.entries = new CounterMetric();
+    }
+
+    public void testDropStatsForDimensions() throws Exception {
+        List<String> dimensionNames = List.of("dim1", "dim2");
+        StatsHolder statsHolder = new StatsHolder(dimensionNames);
+        Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
+        populateStats(statsHolder, usedDimensionValues, 100, 10);
+
+        List<CacheStatsDimension> dims = getRandomUsedDimensions(usedDimensionValues);
+        int originalSize = statsHolder.getStatsMap().size();
+        StatsHolder.Key key = new StatsHolder.Key(StatsHolder.getOrderedDimensionValues(dims, dimensionNames));
+        assertNotNull(statsHolder.getStatsMap().get(key));
+
+        statsHolder.dropStatsForDimensions(dims);
+        assertNull(statsHolder.getStatsMap().get(key));
+        assertEquals(originalSize - 1, statsHolder.getStatsMap().size());
+    }
+
+    private List<CacheStatsDimension> getRandomUsedDimensions(Map<String, List<String>> usedDimensionValues) {
+        Random rand = Randomness.get();
+        List<CacheStatsDimension> result = new ArrayList<>();
+        for (String dimName : usedDimensionValues.keySet()) {
+            List<String> dimValues = usedDimensionValues.get(dimName);
+            String dimValue = dimValues.get(rand.nextInt(dimValues.size()));
+            result.add(new CacheStatsDimension(dimName, dimValue));
+        }
+        return result;
     }
 }

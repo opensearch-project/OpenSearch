@@ -19,7 +19,6 @@ import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.stats.CacheStats;
-import org.opensearch.common.cache.stats.MultiDimensionCacheStats;
 import org.opensearch.common.cache.stats.StatsHolder;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
@@ -101,6 +100,9 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
 
     @Override
     public void invalidate(ICacheKey<K> key) {
+        if (key.getDropStatsForDimensions()) {
+            statsHolder.dropStatsForDimensions(key.dimensions);
+        }
         cache.invalidate(key);
     }
 
@@ -130,16 +132,16 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
 
     @Override
     public CacheStats stats() {
-        return new MultiDimensionCacheStats(statsHolder.createSnapshot(), statsHolder.getDimensionNames());
+        return statsHolder.getCacheStats();
     }
 
     @Override
     public void onRemoval(RemovalNotification<ICacheKey<K>, V> notification) {
         removalListener.onRemoval(notification);
         statsHolder.decrementEntries(notification.getKey());
-        statsHolder.incrementSizeInBytes(
+        statsHolder.decrementSizeInBytes(
             notification.getKey(),
-            -cache.getWeigher().applyAsLong(notification.getKey(), notification.getValue())
+            cache.getWeigher().applyAsLong(notification.getKey(), notification.getValue())
         );
 
         if (RemovalReason.EVICTED.equals(notification.getRemovalReason())

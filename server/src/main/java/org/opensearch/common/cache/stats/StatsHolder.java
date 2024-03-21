@@ -12,6 +12,7 @@ import org.opensearch.common.cache.ICacheKey;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,7 +29,7 @@ public class StatsHolder {
     private final List<String> dimensionNames;
 
     // A map from a set of cache stats dimension values -> stats for that ordered list of dimensions.
-    private final ConcurrentMap<Key, CacheStatsResponse> statsMap;
+    private final ConcurrentMap<Key, CacheStatsCounter> statsMap;
 
     public StatsHolder(List<String> dimensionNames) {
         this.dimensionNames = dimensionNames;
@@ -39,34 +40,38 @@ public class StatsHolder {
         return dimensionNames;
     }
 
-    public ConcurrentMap<Key, CacheStatsResponse> getStatsMap() {
+    public ConcurrentMap<Key, CacheStatsCounter> getStatsMap() {
         return statsMap;
     }
 
     // For all these increment functions, the dimensions list comes from the key, and contains all dimensions present in dimensionNames.
     // The order doesn't have to match the order given in dimensionNames.
     public void incrementHits(ICacheKey<?> key) {
-        internalIncrement(key.dimensions, (response, amount) -> response.hits.inc(amount), 1);
+        internalIncrement(key.dimensions, (counter, amount) -> counter.hits.inc(amount), 1);
     }
 
     public void incrementMisses(ICacheKey<?> key) {
-        internalIncrement(key.dimensions, (response, amount) -> response.misses.inc(amount), 1);
+        internalIncrement(key.dimensions, (counter, amount) -> counter.misses.inc(amount), 1);
     }
 
     public void incrementEvictions(ICacheKey<?> key) {
-        internalIncrement(key.dimensions, (response, amount) -> response.evictions.inc(amount), 1);
+        internalIncrement(key.dimensions, (counter, amount) -> counter.evictions.inc(amount), 1);
     }
 
     public void incrementSizeInBytes(ICacheKey<?> key, long amountBytes) {
-        internalIncrement(key.dimensions, (response, amount) -> response.sizeInBytes.inc(amount), amountBytes);
+        internalIncrement(key.dimensions, (counter, amount) -> counter.sizeInBytes.inc(amount), amountBytes);
+    }
+
+    public void decrementSizeInBytes(ICacheKey<?> key, long amountBytes) {
+        internalDecrement(key.dimensions, (counter, amount) -> counter.sizeInBytes.dec(amount), amountBytes);
     }
 
     public void incrementEntries(ICacheKey<?> key) {
-        internalIncrement(key.dimensions, (response, amount) -> response.entries.inc(amount), 1);
+        internalIncrement(key.dimensions, (counter, amount) -> counter.entries.inc(amount), 1);
     }
 
     public void decrementEntries(ICacheKey<?> key) {
-        internalIncrement(key.dimensions, (response, amount) -> response.entries.inc(amount), -1);
+        internalDecrement(key.dimensions, (counter, amount) -> counter.entries.dec(amount), 1);
     }
 
     /**
@@ -74,40 +79,56 @@ public class StatsHolder {
      */
     public void reset() {
         for (Key key : statsMap.keySet()) {
-            CacheStatsResponse response = statsMap.get(key);
-            response.sizeInBytes.dec(response.getSizeInBytes());
-            response.entries.dec(response.getEntries());
+            CacheStatsCounter counter = statsMap.get(key);
+            counter.sizeInBytes.dec(counter.getSizeInBytes());
+            counter.entries.dec(counter.getEntries());
         }
     }
 
     public long count() {
         // Include this here so caches don't have to create an entire CacheStats object to run count().
         long count = 0L;
-        for (Map.Entry<Key, CacheStatsResponse> entry : statsMap.entrySet()) {
+        for (Map.Entry<Key, CacheStatsCounter> entry : statsMap.entrySet()) {
             count += entry.getValue().getEntries();
         }
         return count;
     }
 
-    private void internalIncrement(List<CacheStatsDimension> dimensions, BiConsumer<CacheStatsResponse, Long> incrementer, long amount) {
+    private void internalIncrement(List<CacheStatsDimension> dimensions, BiConsumer<CacheStatsCounter, Long> incrementer, long amount) {
         assert dimensions.size() == dimensionNames.size();
-        CacheStatsResponse stats = internalGetStats(dimensions);
+        CacheStatsCounter stats = internalGetOrCreateStats(dimensions);
         incrementer.accept(stats, amount);
     }
 
-    private CacheStatsResponse internalGetStats(List<CacheStatsDimension> dimensions) {
-        Key key = new Key(getOrderedDimensionValues(dimensions, dimensionNames));
-        CacheStatsResponse response = statsMap.get(key);
-        if (response == null) {
-            response = new CacheStatsResponse();
-            statsMap.put(key, response);
+    /** Similar to internalIncrement, but only applies to existing keys, and does not create a new key if one is absent.
+     * This protects us from erroneously decrementing values for keys which have been entirely deleted,
+     * for example in an async removal listener.
+     */
+    private void internalDecrement(List<CacheStatsDimension> dimensions, BiConsumer<CacheStatsCounter, Long> decrementer, long amount) {
+        assert dimensions.size() == dimensionNames.size();
+        CacheStatsCounter stats = internalGetStats(dimensions);
+        if (stats != null) {
+            decrementer.accept(stats, amount);
         }
-        return response;
+    }
+
+    private CacheStatsCounter internalGetOrCreateStats(List<CacheStatsDimension> dimensions) {
+        Key key = getKey(dimensions);
+        return statsMap.computeIfAbsent(key, (k) -> new CacheStatsCounter());
+    }
+
+    private CacheStatsCounter internalGetStats(List<CacheStatsDimension> dimensions) {
+        Key key = getKey(dimensions);
+        return statsMap.get(key);
+    }
+
+    private Key getKey(List<CacheStatsDimension> dims) {
+        return new Key(getOrderedDimensionValues(dims, dimensionNames));
     }
 
     // Get a list of dimension values, ordered according to dimensionNames, from the possibly differently-ordered dimensions passed in.
-    // Static for testing purposes.
-    static List<String> getOrderedDimensionValues(List<CacheStatsDimension> dimensions, List<String> dimensionNames) {
+    // Public and static for testing purposes.
+    public static List<String> getOrderedDimensionValues(List<CacheStatsDimension> dimensions, List<String> dimensionNames) {
         List<String> result = new ArrayList<>();
         for (String dimensionName : dimensionNames) {
             for (CacheStatsDimension dim : dimensions) {
@@ -119,13 +140,21 @@ public class StatsHolder {
         return result;
     }
 
-    public Map<Key, CacheStatsResponse.Snapshot> createSnapshot() {
-        ConcurrentHashMap<Key, CacheStatsResponse.Snapshot> snapshot = new ConcurrentHashMap<>();
-        for (Map.Entry<Key, CacheStatsResponse> entry : statsMap.entrySet()) {
+    public Map<Key, CacheStatsCounter.Snapshot> createSnapshot() {
+        Map<Key, CacheStatsCounter.Snapshot> snapshot = new HashMap<>();
+        for (Map.Entry<Key, CacheStatsCounter> entry : statsMap.entrySet()) {
             snapshot.put(entry.getKey(), entry.getValue().snapshot());
         }
         // The resulting map is immutable as well as unmodifiable since the backing map is new, not related to statsMap
         return Collections.unmodifiableMap(snapshot);
+    }
+
+    public MultiDimensionCacheStats getCacheStats() {
+        return new MultiDimensionCacheStats(createSnapshot(), dimensionNames);
+    }
+
+    public void dropStatsForDimensions(List<CacheStatsDimension> dims) {
+        statsMap.remove(getKey(dims));
     }
 
     /**
@@ -134,8 +163,12 @@ public class StatsHolder {
     public static class Key {
         final List<String> dimensionValues; // The dimensions must be ordered
 
-        Key(List<String> dimensionValues) {
+        public Key(List<String> dimensionValues) {
             this.dimensionValues = Collections.unmodifiableList(dimensionValues);
+        }
+
+        public List<String> getDimensionValues() {
+            return dimensionValues;
         }
 
         @Override

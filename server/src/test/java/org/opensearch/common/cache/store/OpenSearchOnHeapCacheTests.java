@@ -8,13 +8,17 @@
 
 package org.opensearch.common.cache.store;
 
+import org.opensearch.common.Randomness;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.stats.CacheStatsCounter;
 import org.opensearch.common.cache.stats.CacheStatsDimension;
+import org.opensearch.common.cache.stats.MultiDimensionCacheStats;
+import org.opensearch.common.cache.stats.StatsHolder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
 import org.opensearch.common.metrics.CounterMetric;
@@ -23,6 +27,8 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
+import java.util.TreeMap;
 import java.util.UUID;
 
 import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES_KEY;
@@ -73,6 +79,47 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
             assertEquals((maxKeys - numInvalidated) * keyValueSize, cache.stats().getTotalSizeInBytes());
             assertEquals(numEvicted, cache.stats().getTotalEvictions());
         }
+    }
+
+    public void testInvalidateWithDropDimensions() throws Exception {
+        MockRemovalListener<String, String> listener = new MockRemovalListener<>();
+        int maxKeys = 50;
+        OpenSearchOnHeapCache<String, String> cache = getCache(maxKeys, listener);
+
+        List<ICacheKey<String>> keysAdded = new ArrayList<>();
+
+        for (int i = 0; i < maxKeys - 5; i++) {
+            ICacheKey<String> key = new ICacheKey<>(UUID.randomUUID().toString(), getRandomDimensions());
+            keysAdded.add(key);
+            cache.computeIfAbsent(key, getLoadAwareCacheLoader());
+        }
+
+        ICacheKey<String> keyToDrop = keysAdded.get(0);
+        TreeMap<StatsHolder.Key, CacheStatsCounter.Snapshot> contents = ((MultiDimensionCacheStats) cache.stats()).aggregateByLevels(
+            dimensionNames
+        );
+        int originalStatsSize = contents.size();
+        StatsHolder.Key statsKey = new StatsHolder.Key(StatsHolder.getOrderedDimensionValues(keyToDrop.dimensions, dimensionNames));
+        assertNotNull(contents.get(statsKey));
+
+        // invalidate the first key and drop its dimensions
+        keyToDrop.setDropStatsForDimensions(true);
+        cache.invalidate(keyToDrop);
+
+        // assert there aren't stats for this combination of dimensions anymore
+        contents = ((MultiDimensionCacheStats) cache.stats()).aggregateByLevels(dimensionNames);
+        assertNull(contents.get(statsKey));
+        assertEquals(originalStatsSize - 1, contents.size());
+    }
+
+    private List<CacheStatsDimension> getRandomDimensions() {
+        Random rand = Randomness.get();
+        int bound = 3;
+        List<CacheStatsDimension> result = new ArrayList<>();
+        for (String dimName : dimensionNames) {
+            result.add(new CacheStatsDimension(dimName, String.valueOf(rand.nextInt(bound))));
+        }
+        return result;
     }
 
     private OpenSearchOnHeapCache<String, String> getCache(int maxSizeKeys, MockRemovalListener<String, String> listener) {

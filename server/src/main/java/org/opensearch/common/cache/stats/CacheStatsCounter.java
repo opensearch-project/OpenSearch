@@ -19,14 +19,14 @@ import java.util.Objects;
 /**
  * A class containing the 5 live metrics tracked by a CacheStats object. Mutable.
  */
-public class CacheStatsResponse {
+public class CacheStatsCounter {
     public CounterMetric hits;
     public CounterMetric misses;
     public CounterMetric evictions;
     public CounterMetric sizeInBytes;
     public CounterMetric entries;
 
-    public CacheStatsResponse(long hits, long misses, long evictions, long sizeInBytes, long entries) {
+    public CacheStatsCounter(long hits, long misses, long evictions, long sizeInBytes, long entries) {
         this.hits = new CounterMetric();
         this.hits.inc(hits);
         this.misses = new CounterMetric();
@@ -39,7 +39,7 @@ public class CacheStatsResponse {
         this.entries.inc(entries);
     }
 
-    public CacheStatsResponse() {
+    public CacheStatsCounter() {
         this(0, 0, 0, 0, 0);
     }
 
@@ -51,14 +51,14 @@ public class CacheStatsResponse {
         this.entries.inc(otherEntries);
     }
 
-    public void add(CacheStatsResponse other) {
+    public void add(CacheStatsCounter other) {
         if (other == null) {
             return;
         }
         internalAdd(other.hits.count(), other.misses.count(), other.evictions.count(), other.sizeInBytes.count(), other.entries.count());
     }
 
-    public void add(CacheStatsResponse.Snapshot snapshot) {
+    public void add(CacheStatsCounter.Snapshot snapshot) {
         if (snapshot == null) {
             return;
         }
@@ -70,10 +70,10 @@ public class CacheStatsResponse {
         if (o == null) {
             return false;
         }
-        if (o.getClass() != CacheStatsResponse.class) {
+        if (o.getClass() != CacheStatsCounter.class) {
             return false;
         }
-        CacheStatsResponse other = (CacheStatsResponse) o;
+        CacheStatsCounter other = (CacheStatsCounter) o;
         return (hits.count() == other.hits.count())
             && (misses.count() == other.misses.count())
             && (evictions.count() == other.evictions.count())
@@ -111,7 +111,7 @@ public class CacheStatsResponse {
     }
 
     /**
-     * An immutable snapshot of CacheStatsResponse.
+     * An immutable snapshot of CacheStatsCounter.
      */
     public static class Snapshot implements Writeable { // TODO: Make this extend ToXContent (in API PR)
         private final long hits;
@@ -176,10 +176,10 @@ public class CacheStatsResponse {
             if (o == null) {
                 return false;
             }
-            if (o.getClass() != CacheStatsResponse.Snapshot.class) {
+            if (o.getClass() != CacheStatsCounter.Snapshot.class) {
                 return false;
             }
-            CacheStatsResponse.Snapshot other = (CacheStatsResponse.Snapshot) o;
+            CacheStatsCounter.Snapshot other = (CacheStatsCounter.Snapshot) o;
             return (hits == other.hits)
                 && (misses == other.misses)
                 && (evictions == other.evictions)

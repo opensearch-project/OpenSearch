@@ -25,9 +25,7 @@ import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.serializer.ICacheKeySerializer;
 import org.opensearch.common.cache.serializer.Serializer;
 import org.opensearch.common.cache.stats.CacheStats;
-import org.opensearch.common.cache.stats.MultiDimensionCacheStats;
 import org.opensearch.common.cache.stats.StatsHolder;
-import org.opensearch.common.cache.serializer.Serializer;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.collect.Tuple;
@@ -37,7 +35,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 
 import java.io.File;
-import java.nio.ByteBuffer;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -120,6 +117,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     private final EhCacheEventListener ehCacheEventListener;
     private final String threadPoolAlias;
     private final Settings settings;
+    private final RemovalListener<ICacheKey<K>, V> removalListener;
     private final CacheType cacheType;
     private final String diskCacheAlias;
     private final Serializer<K, byte[]> keySerializer;
@@ -160,7 +158,8 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         this.cacheManager = buildCacheManager();
         Objects.requireNonNull(builder.getRemovalListener(), "Removal listener can't be null");
         this.removalListener = builder.getRemovalListener();
-        this.ehCacheEventListener = new EhCacheEventListener(builder.getRemovalListener());
+        Objects.requireNonNull(builder.getWeigher(), "Weigher can't be null");
+        this.ehCacheEventListener = new EhCacheEventListener(builder.getRemovalListener(), builder.getWeigher());
         this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
         List<String> dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
         this.statsHolder = new StatsHolder(dimensionNames);
@@ -187,7 +186,11 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                     }
 
                     @Override
-                    public Duration getExpiryForUpdate(ICacheKey key, Supplier<? extends ByteArrayWrapper> oldValue, ByteArrayWrapper newValue) {
+                    public Duration getExpiryForUpdate(
+                        ICacheKey key,
+                        Supplier<? extends ByteArrayWrapper> oldValue,
+                        ByteArrayWrapper newValue
+                    ) {
                         return INFINITE;
                     }
                 })
@@ -201,7 +204,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                             (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType).get(DISK_SEGMENT_KEY).get(settings)
                         )
                     )
-                    .withKeySerializer(new KeySerializerWrapper<K>(keySerializer))
+                    .withKeySerializer(new KeySerializerWrapper(keySerializer))
                     .withValueSerializer(new ByteArrayWrapperSerializer())
                 // We pass ByteArrayWrapperSerializer as ehcache's value serializer. If V is an interface, and we pass its
                 // serializer directly to ehcache, ehcache requires the classes match exactly before/after serialization.
@@ -379,6 +382,9 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     @Override
     public void invalidate(ICacheKey<K> key) {
         try {
+            if (key.getDropStatsForDimensions()) {
+                statsHolder.dropStatsForDimensions(key.dimensions);
+            }
             cache.remove(key);
         } catch (CacheWritingException ex) {
             // Handle
@@ -441,7 +447,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
      */
     @Override
     public CacheStats stats() {
-        return new MultiDimensionCacheStats(statsHolder.createSnapshot(), statsHolder.getDimensionNames());
+        return statsHolder.getCacheStats();
     }
 
     /**
@@ -483,10 +489,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         private final RemovalListener<ICacheKey<K>, V> removalListener;
         private ToLongBiFunction<ICacheKey<K>, V> weigher;
 
-        EhCacheEventListener(
-            RemovalListener<ICacheKey<K>, V> removalListener,
-            ToLongBiFunction<ICacheKey<K>, V> weigher
-        ) {
+        EhCacheEventListener(RemovalListener<ICacheKey<K>, V> removalListener, ToLongBiFunction<ICacheKey<K>, V> weigher) {
             this.removalListener = removalListener;
             this.weigher = weigher;
         }
@@ -512,7 +515,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.EVICTED)
                     );
                     statsHolder.decrementEntries(event.getKey());
-                    statsHolder.incrementSizeInBytes(event.getKey(), -getOldValuePairSize(event));
+                    statsHolder.decrementSizeInBytes(event.getKey(), getOldValuePairSize(event));
                     statsHolder.incrementEvictions(event.getKey());
                     assert event.getNewValue() == null;
                     break;
@@ -521,7 +524,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.EXPLICIT)
                     );
                     statsHolder.decrementEntries(event.getKey());
-                    statsHolder.incrementSizeInBytes(event.getKey(), -getOldValuePairSize(event));
+                    statsHolder.decrementSizeInBytes(event.getKey(), getOldValuePairSize(event));
                     assert event.getNewValue() == null;
                     break;
                 case EXPIRED:
@@ -529,7 +532,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.INVALIDATED)
                     );
                     statsHolder.decrementEntries(event.getKey());
-                    statsHolder.incrementSizeInBytes(event.getKey(), -getOldValuePairSize(event));
+                    statsHolder.decrementSizeInBytes(event.getKey(), getOldValuePairSize(event));
                     assert event.getNewValue() == null;
                     break;
                 case UPDATED:
@@ -578,8 +581,6 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
             return serializer.equals(object, arr);
         }
     }
-
-
 
     /**
      * Wrapper allowing Ehcache to serialize ByteArrayWrapper.

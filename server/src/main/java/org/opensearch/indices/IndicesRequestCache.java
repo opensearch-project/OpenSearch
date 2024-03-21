@@ -49,6 +49,7 @@ import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.serializer.BytesReferenceSerializer;
 import org.opensearch.common.cache.service.CacheService;
+import org.opensearch.common.cache.stats.CacheStats;
 import org.opensearch.common.cache.stats.CacheStatsDimension;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.lease.Releasable;
@@ -70,6 +71,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -228,12 +230,18 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     }
 
     private ICacheKey<Key> getICacheKey(Key key) {
-        ShardId shardId = key.shardId;
-        CacheStatsDimension shardIdDimension = new CacheStatsDimension(SHARD_ID_DIMENSION_NAME, shardId.toString());
-        String indexName = shardId.getIndexName();
-        CacheStatsDimension indexDimension = new CacheStatsDimension(INDEX_DIMENSION_NAME, indexName);
+        CacheStatsDimension shardIdDimension = new CacheStatsDimension(SHARD_ID_DIMENSION_NAME, getShardIdDimensionName(key));
+        CacheStatsDimension indexDimension = new CacheStatsDimension(INDEX_DIMENSION_NAME, getIndexDimensionName(key));
         List<CacheStatsDimension> dimensions = List.of(shardIdDimension, indexDimension);
         return new ICacheKey<>(key, dimensions);
+    }
+
+    private String getShardIdDimensionName(Key key) {
+        return key.shardId.toString();
+    }
+
+    private String getIndexDimensionName(Key key) {
+        return key.shardId.getIndexName();
     }
 
     BytesReference getOrCompute(
@@ -624,7 +632,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
                 iterator.remove();
                 if (cleanupKey.readerCacheKeyId == null || !cleanupKey.entity.isOpen()) {
                     // null indicates full cleanup, as does a closed shard
-                    cleanupKeysFromClosedShards.add(((IndexShard) cleanupKey.entity.getCacheIdentity()).shardId());
+                    ShardId shardId = ((IndexShard) cleanupKey.entity.getCacheIdentity()).shardId();
+                    cleanupKeysFromClosedShards.add(shardId);
                 } else {
                     cleanupKeysFromOutdatedReaders.add(cleanupKey);
                 }
@@ -634,16 +643,23 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
                 return;
             }
 
+            List<ICacheKey<Key>> keysToInvalidate = new ArrayList<>();
             for (Iterator<ICacheKey<Key>> iterator = cache.keys().iterator(); iterator.hasNext();) {
-                Key key = iterator.next().key;
-                if (cleanupKeysFromClosedShards.contains(key.shardId)) {
-                    iterator.remove();
+                ICacheKey<Key> key = iterator.next();
+                if (cleanupKeysFromClosedShards.contains(key.key.shardId)) {
+                    // Since the shard is closed, the cache should drop this dimension combination's stats when it invalidates the key.
+                    key.setDropStatsForDimensions(true);
+                    keysToInvalidate.add(key); // Instead of directly removing from iterator, use invalidate() to allow dropping stats
                 } else {
-                    CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId);
+                    CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.key.shardId).orElse(null), key.key.readerCacheKeyId);
                     if (cleanupKeysFromOutdatedReaders.contains(cleanupKey)) {
                         iterator.remove();
                     }
                 }
+            }
+            // Avoid invalidating while iterating over keys
+            for (ICacheKey<Key> key : keysToInvalidate) {
+                cache.invalidate(key);
             }
             cache.refresh();
         }
@@ -740,6 +756,13 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
      */
     long getSizeInBytes() {
         return cache.stats().getTotalSizeInBytes();
+    }
+
+    /**
+     * Returns the current cache stats. Pkg-private for testing.
+     */
+    CacheStats getCacheStats() {
+        return cache.stats();
     }
 
     int numRegisteredCloseListeners() { // for testing

@@ -820,27 +820,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         assertNotNull(onDiskCache.get(keyToBeEvicted));
     }
 
-    private List<CacheStatsDimension> getMockDimensions() {
-        List<CacheStatsDimension> dims = new ArrayList<>();
-        for (String dimensionName : dimensionNames) {
-            dims.add(new CacheStatsDimension(dimensionName, "0"));
-        }
-        return dims;
-    }
-
-    private ICacheKey<String> getICacheKey(String key) {
-        return new ICacheKey<>(key, getMockDimensions());
-    }
-
-    class MockCacheRemovalListener<K, V> implements RemovalListener<ICacheKey<K>, V> {
-        final CounterMetric evictionsMetric = new CounterMetric();
-
-        @Override
-        public void onRemoval(RemovalNotification<ICacheKey<K>, V> notification) {
-            evictionsMetric.inc();
-        }
-    }
-
     public void testDiskTierPolicies() throws Exception {
         // For policy function, allow if what it receives starts with "a" and string is even length
         ArrayList<Predicate<String>> policies = new ArrayList<>();
@@ -879,26 +858,14 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         keyValuePairs.put("key5", "");
         expectedOutputs.put("key5", false);
 
-        LoadAwareCacheLoader<String, String> loader = new LoadAwareCacheLoader<String, String>() {
-            boolean isLoaded = false;
-
-            @Override
-            public boolean isLoaded() {
-                return isLoaded;
-            }
-
-            @Override
-            public String load(String key) throws Exception {
-                isLoaded = true;
-                return keyValuePairs.get(key);
-            }
-        };
+        LoadAwareCacheLoader<ICacheKey<String>, String> loader = getLoadAwareCacheLoader(keyValuePairs);
 
         for (String key : keyValuePairs.keySet()) {
+            ICacheKey<String> iCacheKey = getICacheKey(key);
             Boolean expectedOutput = expectedOutputs.get(key);
-            String value = tieredSpilloverCache.computeIfAbsent(key, loader);
+            String value = tieredSpilloverCache.computeIfAbsent(iCacheKey, loader);
             assertEquals(keyValuePairs.get(key), value);
-            String result = tieredSpilloverCache.get(key);
+            String result = tieredSpilloverCache.get(iCacheKey);
             if (expectedOutput) {
                 // Should retrieve from disk tier if it was accepted
                 assertEquals(keyValuePairs.get(key), result);
@@ -965,6 +932,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setRemovalListener(removalListener)
                 .setSettings(settings)
                 .setMaxSizeInBytes(onHeapCacheSize * keyValueSize)
+                .setDimensionNames(dimensionNames)
                 .setCachedResultParser(new Function<String, CachedQueryResult.PolicyValues>() {
                     @Override
                     public CachedQueryResult.PolicyValues apply(String s) {
@@ -985,22 +953,22 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         // First add all our values to the on heap cache
         for (String key : tookTimeMap.keySet()) {
-            tieredSpilloverCache.computeIfAbsent(key, getLoadAwareCacheLoader(keyValueMap));
+            tieredSpilloverCache.computeIfAbsent(getICacheKey(key), getLoadAwareCacheLoader(keyValueMap));
         }
         assertEquals(tookTimeMap.size(), tieredSpilloverCache.count());
 
         // Ensure all these keys get evicted from the on heap tier by adding > heap tier size worth of random keys
         for (int i = 0; i < onHeapCacheSize; i++) {
-            tieredSpilloverCache.computeIfAbsent(UUID.randomUUID().toString(), getLoadAwareCacheLoader(keyValueMap));
+            tieredSpilloverCache.computeIfAbsent(getICacheKey(UUID.randomUUID().toString()), getLoadAwareCacheLoader(keyValueMap));
         }
         ICache<String, String> onHeapCache = tieredSpilloverCache.getOnHeapCache();
         for (String key : tookTimeMap.keySet()) {
-            assertNull(onHeapCache.get(key));
+            assertNull(onHeapCache.get(getICacheKey(key)));
         }
 
         // Now the original keys should be in the disk tier if the policy allows them, or misses if not
         for (String key : tookTimeMap.keySet()) {
-            String computedValue = tieredSpilloverCache.get(key);
+            String computedValue = tieredSpilloverCache.get(getICacheKey(key));
             String mapValue = keyValueMap.get(key);
             Long tookTime = tookTimeMap.get(mapValue);
             if (tookTime != null && tookTime > timeValueThresholdNanos) {
@@ -1025,6 +993,27 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         assertThrows(IllegalArgumentException.class, () -> concreteSetting.get(belowThresholdSettings));
         assertEquals(validDuration, concreteSetting.get(validSettings));
+    }
+
+    private List<CacheStatsDimension> getMockDimensions() {
+        List<CacheStatsDimension> dims = new ArrayList<>();
+        for (String dimensionName : dimensionNames) {
+            dims.add(new CacheStatsDimension(dimensionName, "0"));
+        }
+        return dims;
+    }
+
+    private ICacheKey<String> getICacheKey(String key) {
+        return new ICacheKey<>(key, getMockDimensions());
+    }
+
+    class MockCacheRemovalListener<K, V> implements RemovalListener<ICacheKey<K>, V> {
+        final CounterMetric evictionsMetric = new CounterMetric();
+
+        @Override
+        public void onRemoval(RemovalNotification<ICacheKey<K>, V> notification) {
+            evictionsMetric.inc();
+        }
     }
 
     private static class AllowFirstLetterA implements Predicate<String> {
@@ -1062,14 +1051,14 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         };
     }
 
-    private LoadAwareCacheLoader<String, String> getLoadAwareCacheLoader(Map<String, String> keyValueMap) {
+    private LoadAwareCacheLoader<ICacheKey<String>, String> getLoadAwareCacheLoader(Map<String, String> keyValueMap) {
         return new LoadAwareCacheLoader<>() {
             boolean isLoaded = false;
 
             @Override
-            public String load(String key) {
+            public String load(ICacheKey<String> key) {
                 isLoaded = true;
-                String mapValue = keyValueMap.get(key);
+                String mapValue = keyValueMap.get(key.key);
                 if (mapValue == null) {
                     mapValue = UUID.randomUUID().toString();
                 }

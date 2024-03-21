@@ -16,8 +16,8 @@ import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
-import org.opensearch.common.cache.stats.CacheStats;
 import org.opensearch.common.cache.policy.CachedQueryResult;
+import org.opensearch.common.cache.stats.CacheStats;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -55,7 +55,6 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     // The listener for removals from the spillover cache as a whole
     // TODO: In TSC stats PR, each tier will have its own separate removal listener.
     private final RemovalListener<ICacheKey<K>, V> removalListener;
-    private final CacheStats stats;
     private final List<String> dimensionNames;
     ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     ReleasableLock readLock = new ReleasableLock(readWriteLock.readLock());
@@ -96,7 +95,6 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         );
         this.diskCache = builder.diskCacheFactory.create(builder.cacheConfig, builder.cacheType, builder.cacheFactories);
         this.cacheList = Arrays.asList(onHeapCache, diskCache);
-        this.stats = null; // TODO - in next stats rework PR
         this.dimensionNames = builder.cacheConfig.getDimensionNames();
         this.policies = builder.policies; // Will never be null; builder initializes it to an empty list
     }
@@ -198,7 +196,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
     @Override
     public CacheStats stats() {
-        return stats;
+        return null; // TODO: in TSC stats PR
     }
 
     private Function<ICacheKey<K>, V> getValueFromTieredCache() {

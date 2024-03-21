@@ -173,6 +173,7 @@ public class CacheConfig<K, V> {
             this.weigher = weigher;
             return this;
         }
+
         public Builder<K, V> setKeySerializer(Serializer<K, ?> keySerializer) {
             this.keySerializer = keySerializer;
             return this;
@@ -183,11 +184,11 @@ public class CacheConfig<K, V> {
             return this;
         }
 
-
         public Builder<K, V> setDimensionNames(List<String> dimensionNames) {
             this.dimensionNames = dimensionNames;
             return this;
         }
+
         public Builder<K, V> setCachedResultParser(Function<V, CachedQueryResult.PolicyValues> function) {
             this.cachedResultParser = function;
             return this;

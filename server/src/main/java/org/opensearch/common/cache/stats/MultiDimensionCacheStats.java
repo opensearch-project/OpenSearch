@@ -26,21 +26,21 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MultiDimensionCacheStats implements CacheStats {
     // A snapshot of a StatsHolder containing stats maintained by the cache.
     // Pkg-private for testing.
-    final Map<StatsHolder.Key, CacheStatsResponse.Snapshot> snapshot;
+    final Map<StatsHolder.Key, CacheStatsCounter.Snapshot> snapshot;
     final List<String> dimensionNames;
 
-    public MultiDimensionCacheStats(Map<StatsHolder.Key, CacheStatsResponse.Snapshot> snapshot, List<String> dimensionNames) {
+    public MultiDimensionCacheStats(Map<StatsHolder.Key, CacheStatsCounter.Snapshot> snapshot, List<String> dimensionNames) {
         this.snapshot = snapshot;
         this.dimensionNames = dimensionNames;
     }
 
     public MultiDimensionCacheStats(StreamInput in) throws IOException {
         this.dimensionNames = List.of(in.readStringArray());
-        Map<StatsHolder.Key, CacheStatsResponse.Snapshot> readMap = in.readMap(
+        Map<StatsHolder.Key, CacheStatsCounter.Snapshot> readMap = in.readMap(
             i -> new StatsHolder.Key(List.of(i.readArray(StreamInput::readString, String[]::new))),
-            CacheStatsResponse.Snapshot::new
+            CacheStatsCounter.Snapshot::new
         );
-        this.snapshot = new ConcurrentHashMap<StatsHolder.Key, CacheStatsResponse.Snapshot>(readMap);
+        this.snapshot = new ConcurrentHashMap<StatsHolder.Key, CacheStatsCounter.Snapshot>(readMap);
     }
 
     @Override
@@ -54,14 +54,14 @@ public class MultiDimensionCacheStats implements CacheStats {
     }
 
     @Override
-    public CacheStatsResponse.Snapshot getTotalStats() {
-        CacheStatsResponse response = new CacheStatsResponse();
-        // To avoid making many Snapshot objects for the incremental sums, add to a mutable CacheStatsResponse and finally convert to
+    public CacheStatsCounter.Snapshot getTotalStats() {
+        CacheStatsCounter counter = new CacheStatsCounter();
+        // To avoid making many Snapshot objects for the incremental sums, add to a mutable CacheStatsCounter and finally convert to
         // Snapshot
-        for (Map.Entry<StatsHolder.Key, CacheStatsResponse.Snapshot> entry : snapshot.entrySet()) {
-            response.add(entry.getValue());
+        for (Map.Entry<StatsHolder.Key, CacheStatsCounter.Snapshot> entry : snapshot.entrySet()) {
+            counter.add(entry.getValue());
         }
-        return response.snapshot();
+        return counter.snapshot();
     }
 
     @Override
@@ -95,25 +95,25 @@ public class MultiDimensionCacheStats implements CacheStats {
      * @param levels The levels to aggregate by
      * @return The resulting stats
      */
-    public TreeMap<StatsHolder.Key, CacheStatsResponse.Snapshot> aggregateByLevels(List<String> levels) {
+    public TreeMap<StatsHolder.Key, CacheStatsCounter.Snapshot> aggregateByLevels(List<String> levels) {
         if (levels.size() == 0) {
             throw new IllegalArgumentException("Levels cannot have size 0");
         }
         int[] levelIndices = getLevelIndices(levels);
-        TreeMap<StatsHolder.Key, CacheStatsResponse.Snapshot> result = new TreeMap<>(new KeyComparator());
+        TreeMap<StatsHolder.Key, CacheStatsCounter.Snapshot> result = new TreeMap<>(new KeyComparator());
 
-        for (Map.Entry<StatsHolder.Key, CacheStatsResponse.Snapshot> entry : snapshot.entrySet()) {
+        for (Map.Entry<StatsHolder.Key, CacheStatsCounter.Snapshot> entry : snapshot.entrySet()) {
             List<String> levelValues = new ArrayList<>(); // The values for the dimensions we're aggregating over for this key
             for (int levelIndex : levelIndices) {
                 levelValues.add(entry.getKey().dimensionValues.get(levelIndex));
             }
             // The new key for the aggregated stats contains only the dimensions specified in levels
             StatsHolder.Key levelsKey = new StatsHolder.Key(levelValues);
-            CacheStatsResponse.Snapshot originalResponse = entry.getValue();
+            CacheStatsCounter.Snapshot originalCounter = entry.getValue();
             if (result.containsKey(levelsKey)) {
-                result.put(levelsKey, result.get(levelsKey).add(originalResponse));
+                result.put(levelsKey, result.get(levelsKey).add(originalCounter));
             } else {
-                result.put(levelsKey, originalResponse);
+                result.put(levelsKey, originalCounter);
             }
         }
         return result;
