@@ -381,6 +381,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     private Path remoteStoreRepositoryPath;
 
+    private ReplicationType randomReplicationType;
+
+    private String randomStorageType;
+
     @BeforeClass
     public static void beforeClass() throws Exception {
         testClusterRule.beforeClass();
@@ -1900,15 +1904,14 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
         // Randomly set a replication strategy for the node. Replication Strategy can still be manually overridden by subclass if needed.
         if (useRandomReplicationStrategy()) {
-            ReplicationType replicationType = randomBoolean() ? ReplicationType.DOCUMENT : ReplicationType.SEGMENT;
-            logger.info("Randomly using Replication Strategy as {}.", replicationType.toString());
-            builder.put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), replicationType);
+            logger.info("Randomly using Replication Strategy as {}.", randomReplicationType.toString());
+            builder.put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), randomReplicationType);
         }
 
+        // Randomly set storage type for the node. Storage Type can still be manually overridden by subclass if needed.
         if (useRemoteBackedStorageRandomly()) {
-            boolean remoteBackedStorageEnabled = randomBoolean();
-            logger.info("Remote Backed Storage (Remote Store) is set to {}.", remoteBackedStorageEnabled);
-            if (remoteBackedStorageEnabled) {
+            logger.info("Randomly using Storage Type as {}.", randomStorageType);
+            if (randomStorageType.equals("REMOTE_STORE")) {
                 if (remoteStoreRepositoryPath == null) {
                     remoteStoreRepositoryPath = randomRepoPath().toAbsolutePath();
                 }
@@ -1970,6 +1973,12 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
+        if (useRandomReplicationStrategy()) {
+            randomReplicationType = randomBoolean() ? ReplicationType.DOCUMENT : ReplicationType.SEGMENT;
+        }
+        if (useRemoteBackedStorageRandomly()) {
+            randomStorageType = randomBoolean() ? "REMOTE_STORE" : "LOCAL";
+        }
         String clusterAddresses = System.getProperty(TESTS_CLUSTER);
         if (Strings.hasLength(clusterAddresses) && ignoreExternalCluster() == false) {
             if (scope == Scope.TEST) {

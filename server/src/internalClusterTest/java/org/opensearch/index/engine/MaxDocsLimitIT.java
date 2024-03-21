@@ -80,11 +80,6 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
     }
 
     @Override
-    public boolean useRemoteBackedStorageRandomly() {
-        return true;
-    }
-
-    @Override
     protected boolean addMockInternalEngine() {
         return false;
     }
