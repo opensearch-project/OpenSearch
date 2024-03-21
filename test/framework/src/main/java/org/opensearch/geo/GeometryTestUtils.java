@@ -102,6 +102,30 @@ public class GeometryTestUtils {
         return new Line(lons, lats);
     }
 
+    public static LinearRing randomLinearRing(boolean hasAlts) {
+        // we use nextPolygon because it guarantees no duplicate points
+        org.apache.lucene.geo.Polygon lucenePolygon = GeoTestUtil.nextPolygon();
+        int size = lucenePolygon.numPoints() - 1;
+        double[] lats = new double[size + 1];
+        double[] lons = new double[size + 1];
+        double[] alts = hasAlts ? new double[size + 1] : null;
+        for (int i = 0; i < size; i++) {
+            lats[i] = lucenePolygon.getPolyLat(i);
+            lons[i] = lucenePolygon.getPolyLon(i);
+            if (hasAlts) {
+                alts[i] = randomAlt();
+            }
+        }
+        // first and last points of the linear ring must be the same
+        lats[size] = lats[0];
+        lons[size] = lons[0];
+        if (hasAlts) {
+            alts[size] = alts[0];
+            return new LinearRing(lons, lats, alts);
+        }
+        return new LinearRing(lons, lats);
+    }
+
     public static Point randomPoint() {
         return randomPoint(OpenSearchTestCase.randomBoolean());
     }

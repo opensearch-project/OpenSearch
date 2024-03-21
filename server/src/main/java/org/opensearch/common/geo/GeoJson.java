@@ -125,8 +125,13 @@ public final class GeoJson {
             }
 
             @Override
-            public XContentBuilder visit(LinearRing ring) {
-                throw new UnsupportedOperationException("linearRing cannot be serialized using GeoJson");
+            public XContentBuilder visit(LinearRing ring) throws IOException {
+                builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
+                builder.startArray();
+                for (int i = 0; i < ring.length(); i++) {
+                    coordinatesToXContent(ring.getLat(i), ring.getLon(i), ring.getAlt(i));
+                }
+                return builder.endArray();
             }
 
             @Override
@@ -254,7 +259,18 @@ public final class GeoJson {
 
             @Override
             public Void visit(LinearRing ring) {
-                throw new UnsupportedOperationException("linearRing cannot be serialized using GeoJson");
+                List<Object> points = new ArrayList<>(ring.length());
+                for (int i = 0; i < ring.length(); i++) {
+                    List<Object> point = new ArrayList<>();
+                    point.add(ring.getX(i));
+                    point.add(ring.getY(i));
+                    if (ring.hasZ()) {
+                        point.add(ring.getZ(i));
+                    }
+                    points.add(point);
+                }
+                root.put(ShapeParser.FIELD_COORDINATES.getPreferredName(), points);
+                return null;
             }
 
             @Override
@@ -428,6 +444,9 @@ public final class GeoJson {
             case LINESTRING:
                 verifyNulls(type, geometries, orientation, radius);
                 return coordinates.asLineString(coerce);
+            case LINEARRING:
+                verifyNulls(type, geometries, orientation, radius);
+                return coordinates.asLinearRing(orientation != null ? orientation : defaultOrientation, coerce);
             case MULTILINESTRING:
                 verifyNulls(type, geometries, orientation, radius);
                 return coordinates.asMultiLineString(coerce);
@@ -558,7 +577,7 @@ public final class GeoJson {
 
             @Override
             public String visit(LinearRing ring) {
-                throw new UnsupportedOperationException("line ring cannot be serialized using GeoJson");
+                return "LinearRing";
             }
 
             @Override
