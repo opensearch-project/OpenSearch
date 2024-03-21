@@ -937,7 +937,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         STARTED((byte) 1, false),
         SUCCESS((byte) 2, true),
         FAILED((byte) 3, true),
-        ABORTED((byte) 4, false);
+        ABORTED((byte) 4, false),
+        PARTIAL((byte) 5, false);
 
         private final byte value;
 
@@ -968,6 +969,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     return FAILED;
                 case 4:
                     return ABORTED;
+                case 5:
+                    return PARTIAL;
                 default:
                     throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
             }

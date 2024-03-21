@@ -357,6 +357,22 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertEquals(SnapshotsInProgress.State.FAILED, snapshotsStatusResponse.getSnapshots().get(0).getState());
     }
 
+    public void testSnapshotStatusOnPartialSnapshot() throws Exception {
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
+        createRepository(repoName, "fs");
+        createIndex("test-idx");
+        logger.info("--> stopping data node before creating snapshot");
+        stopNode(dataNode);
+        startFullSnapshot(repoName, snapshotName, true).get();
+        final List<SnapshotStatus> snapshotStatus = clusterAdmin().snapshotsStatus(
+            new SnapshotsStatusRequest(repoName, new String[] { snapshotName })
+        ).actionGet().getSnapshots();
+        assertThat(snapshotStatus.size(), equalTo(1));
+        assertEquals(SnapshotsInProgress.State.PARTIAL, snapshotStatus.get(0).getState());
+    }
+
     public void testStatusAPICallInProgressShallowSnapshot() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
