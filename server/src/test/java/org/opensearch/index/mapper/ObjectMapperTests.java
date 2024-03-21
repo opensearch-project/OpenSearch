@@ -465,8 +465,7 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .toString();
 
-        DocumentMapper documentMapper = createIndex("test")
-            .mapperService()
+        DocumentMapper documentMapper = createIndex("test").mapperService()
             .documentMapperParser()
             .parse("tweet", new CompressedXContent(mapping));
 
