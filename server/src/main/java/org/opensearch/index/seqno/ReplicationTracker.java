@@ -1089,6 +1089,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             newVersion = replicationGroup.getVersion() + 1;
         }
 
+        assert indexSettings().isRemoteTranslogStoreEnabled()
+            // Handle migration cases. Ignore assertion if any of the shard copies in the replication group is assigned to a remote node
+            || (replicationGroup != null && replicationGroup.getReplicationTargets().stream().anyMatch(ShardRouting::isAssignedToRemoteStoreNode))
+            || checkpoints.entrySet().stream().filter(e -> e.getValue().tracked).allMatch(e -> e.getValue().replicated)
+            : "In absence of remote translog store, all tracked shards must have replication mode as LOGICAL_REPLICATION";
+
         return new ReplicationGroup(
             routingTable,
             checkpoints.entrySet().stream().filter(e -> e.getValue().inSync).map(Map.Entry::getKey).collect(Collectors.toSet()),

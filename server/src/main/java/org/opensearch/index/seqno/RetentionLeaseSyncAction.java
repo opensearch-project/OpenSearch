@@ -215,15 +215,6 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
     }
 
     @Override
-    public ReplicationMode getReplicationMode(IndexShard indexShard) {
-        // Unblock PRRL publication during remote store migration
-        if (RemoteStoreUtils.isMigrationDirectionSet(clusterService)) {
-            return ReplicationMode.FULL_REPLICATION;
-        }
-        return super.getReplicationMode(indexShard);
-    }
-
-    @Override
     public ClusterBlockLevel indexBlockLevel() {
         return null;
     }

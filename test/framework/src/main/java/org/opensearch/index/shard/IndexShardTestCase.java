@@ -685,7 +685,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 }
                 return new InternalTranslogFactory();
             };
-            final ClusterService clusterService = BlobStoreTestUtil.mockClusterService();
             indexShard = new IndexShard(
                 routing,
                 indexSettings,

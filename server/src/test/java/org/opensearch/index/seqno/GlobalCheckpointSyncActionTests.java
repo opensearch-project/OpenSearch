@@ -36,16 +36,21 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.remote.RemoteStoreTestsHelper;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
@@ -54,6 +59,8 @@ import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
 
+import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
+import static org.opensearch.index.remote.RemoteStoreTestsHelper.createShardRouting;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -159,6 +166,8 @@ public class GlobalCheckpointSyncActionTests extends OpenSearchTestCase {
         final GlobalCheckpointSyncAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
+        when(indexShard.routingEntry()).thenReturn(createShardRouting(true, true));
         assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
@@ -166,7 +175,18 @@ public class GlobalCheckpointSyncActionTests extends OpenSearchTestCase {
         final GlobalCheckpointSyncAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
+        when(indexShard.routingEntry()).thenReturn(createShardRouting(true, false));
         assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    public void testGetReplicationModeDuringMigration() {
+        final GlobalCheckpointSyncAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        when(indexShard.routingEntry()).thenReturn(createShardRouting(true, true));
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
+        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     private GlobalCheckpointSyncAction createAction() {

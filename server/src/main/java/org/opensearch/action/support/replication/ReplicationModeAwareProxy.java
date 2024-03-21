@@ -48,7 +48,6 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
         BiConsumer<Consumer<ActionListener<ReplicaResponse>>, ReplicationProxyRequest<ReplicaRequest>> performOnReplicaConsumer
     ) {
         assert replicationMode == ReplicationMode.FULL_REPLICATION || replicationMode == ReplicationMode.PRIMARY_TERM_VALIDATION;
-
         Consumer<ActionListener<ReplicaResponse>> replicasProxyConsumer;
         if (replicationMode == ReplicationMode.FULL_REPLICATION) {
             replicasProxyConsumer = getReplicasProxyConsumer(fullReplicationProxy, proxyRequest);
@@ -59,20 +58,20 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
     }
 
     @Override
-    ReplicationMode determineReplicationMode(ShardRouting shardRouting, ShardRouting primaryRouting) {
+    ReplicationMode determineReplicationMode(ShardRouting targetShardRouting, ShardRouting primaryRouting) {
         // If the current routing is the primary, then it does not need to be replicated
-        if (shardRouting.isSameAllocation(primaryRouting)) {
+        if (targetShardRouting.isSameAllocation(primaryRouting)) {
             return ReplicationMode.NO_REPLICATION;
         }
         // Perform full replication during primary relocation
-        if (primaryRouting.relocating() && shardRouting.isSameAllocation(primaryRouting.getTargetRelocatingShard())) {
+        if (primaryRouting.relocating() && targetShardRouting.isSameAllocation(primaryRouting.getTargetRelocatingShard())) {
             return ReplicationMode.FULL_REPLICATION;
         }
         /*
          Perform full replication if replica is hosted on a non-remote node.
          Only applicable during remote migration
          */
-        if (shardRouting.isAssignedToRemoteStoreNode() == false) {
+        if (targetShardRouting.isAssignedToRemoteStoreNode() == false) {
             return ReplicationMode.FULL_REPLICATION;
         }
         return replicationModeOverride;

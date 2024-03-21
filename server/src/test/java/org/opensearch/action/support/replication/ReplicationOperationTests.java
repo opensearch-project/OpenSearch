@@ -60,6 +60,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShardNotStartedException;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ReplicationGroup;
+import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -209,13 +210,22 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             ShardRoutingState.STARTED,
             primaryId
         );
+        primaryShard.setAssignedToRemoteStoreNode(true);
         initializingIds.forEach(
-            aId -> builder.addShard(newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId))
+            aId -> {
+                ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId);
+                routing.setAssignedToRemoteStoreNode(true);
+                builder.addShard(routing);
+            }
         );
         activeIds.stream()
             .filter(aId -> !aId.equals(primaryId))
             .forEach(
-                aId -> builder.addShard(newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId))
+                aId -> {
+                    ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId);
+                    routing.setAssignedToRemoteStoreNode(true);
+                    builder.addShard(routing);
+                }
             );
         builder.addShard(primaryShard);
         IndexShardRoutingTable routingTable = builder.build();
@@ -272,11 +282,20 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             ShardRoutingState.RELOCATING,
             primaryId
         );
+        primaryShard.setAssignedToRemoteStoreNode(true);
         initializingIds.forEach(
-            aId -> builder.addShard(newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId))
+            aId -> {
+                ShardRouting shardRouting = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId);
+                shardRouting.setAssignedToRemoteStoreNode(true);
+                builder.addShard(shardRouting);
+            }
         );
         activeIds.forEach(
-            aId -> builder.addShard(newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId))
+            aId -> {
+                ShardRouting shardRouting = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId);
+                shardRouting.setAssignedToRemoteStoreNode(true);
+                builder.addShard(shardRouting);
+            }
         );
         builder.addShard(primaryShard);
         IndexShardRoutingTable routingTable = builder.build();
@@ -378,6 +397,82 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
 
         ShardInfo shardInfo = listener.actionGet().getShardInfo();
         assertEquals(activeIds.size() + initializingIds.size(), shardInfo.getTotal());
+    }
+
+    public void testReplicationInDualModeWithDocrepReplica() throws Exception {
+        Set<AllocationId> initializingIds = new HashSet<>();
+        IntStream.range(0, randomIntBetween(2, 5)).forEach(x -> initializingIds.add(AllocationId.newInitializing()));
+        Set<AllocationId> activeIds = new HashSet<>();
+        IntStream.range(0, randomIntBetween(2, 5)).forEach(x -> activeIds.add(AllocationId.newInitializing()));
+
+        AllocationId primaryId = activeIds.iterator().next();
+
+        ShardId shardId = new ShardId("test", "_na_", 0);
+        IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(shardId);
+        final ShardRouting primaryShard = newShardRouting(
+            shardId,
+            nodeIdFromAllocationId(primaryId),
+            null,
+            true,
+            ShardRoutingState.STARTED,
+            primaryId
+        );
+        // Marking primary as assigned to remote
+        primaryShard.setAssignedToRemoteStoreNode(true);
+        initializingIds.forEach(
+            aId -> {
+                ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId);
+                // Ensuring all other shard copies are docrep
+                routing.setAssignedToRemoteStoreNode(false);
+                builder.addShard(routing);
+            }
+        );
+        activeIds.stream()
+            .filter(aId -> !aId.equals(primaryId))
+            .forEach(
+                aId -> {
+                    ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId);
+                    // Ensuring all other shard copies are docrep
+                    routing.setAssignedToRemoteStoreNode(false);
+                    builder.addShard(routing);
+                }
+            );
+        builder.addShard(primaryShard);
+        IndexShardRoutingTable routingTable = builder.build();
+
+        Set<String> inSyncAllocationIds = activeIds.stream().map(AllocationId::getId).collect(Collectors.toSet());
+        ReplicationGroup replicationGroup = new ReplicationGroup(routingTable, inSyncAllocationIds, inSyncAllocationIds, 0);
+        List<ShardRouting> replicationTargets = replicationGroup.getReplicationTargets();
+        assertEquals(inSyncAllocationIds.size(), replicationTargets.size());
+        assertTrue(
+            replicationTargets.stream().map(sh -> sh.allocationId().getId()).collect(Collectors.toSet()).containsAll(inSyncAllocationIds)
+        );
+
+        Request request = new Request(shardId);
+        PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
+        Map<ShardRouting, Exception> simulatedFailures = new HashMap<>();
+        TestReplicaProxy replicasProxy = new TestReplicaProxy(simulatedFailures);
+        TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool);
+        final TestReplicationOperation op = new TestReplicationOperation(
+            request,
+            primary,
+            listener,
+            replicasProxy,
+            0,
+            new ReplicationModeAwareProxy<>(ReplicationMode.NO_REPLICATION, replicasProxy, replicasProxy)
+        );
+        op.execute();
+        assertTrue("request was not processed on primary", request.processedOnPrimary.get());
+        // During dual replication, except for primary, replication action should be executed on all the replicas
+        assertEquals(activeIds.size() - 1, request.processedOnReplicas.size());
+        assertEquals(0, replicasProxy.failedReplicas.size());
+        assertEquals(0, replicasProxy.markedAsStaleCopies.size());
+        assertTrue("post replication operations not run on primary", request.runPostReplicationActionsOnPrimary.get());
+        assertTrue("listener is not marked as done", listener.isDone());
+
+        ShardInfo shardInfo = listener.actionGet().getShardInfo();
+        // All initializing and active shards are set to docrep
+        assertEquals(initializingIds.size() + activeIds.size(), shardInfo.getTotal());
     }
 
     static String nodeIdFromAllocationId(final AllocationId allocationId) {

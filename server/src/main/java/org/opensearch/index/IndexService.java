@@ -552,7 +552,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 remoteStoreStatsTrackerFactory,
                 nodeEnv.nodeId(),
                 recoverySettings,
+<<<<<<< HEAD
                 remoteStoreSettings,
+=======
+>>>>>>> 0a475f03e1d (Adding UTs)
                 seedRemote
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
