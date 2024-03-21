@@ -33,7 +33,7 @@ import java.util.function.Function;
 
 /**
  * MappedFieldType for Derived Fields
- * Contains logic to different type of queries on derived fields
+ * Contains logic to execute different type of queries on a derived field of given type.
  * @opensearch.internal
  */
 public final class DerivedFieldType extends MappedFieldType {
