@@ -358,12 +358,17 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         }
 
         public void startPrimary() throws IOException {
+            startPrimary(false);
+        }
+
+        public void startPrimary(boolean remote) throws IOException {
             recoverPrimary(primary);
             computeReplicationTargets();
             HashSet<String> activeIds = new HashSet<>();
             activeIds.addAll(activeIds());
             activeIds.add(primary.routingEntry().allocationId().getId());
             ShardRouting startedRoutingEntry = ShardRoutingHelper.moveToStarted(primary.routingEntry());
+            startedRoutingEntry.setAssignedToRemoteStoreNode(remote);
             IndexShardRoutingTable routingTable = routingTable(shr -> shr == primary.routingEntry() ? startedRoutingEntry : shr);
             primary.updateShardState(
                 startedRoutingEntry,
@@ -385,6 +390,9 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         public IndexShard addReplica(Path remotePath) throws IOException {
             final ShardRouting replicaRouting = createShardRouting("s" + replicaId.incrementAndGet(), false);
+            if (remotePath != null) {
+                replicaRouting.setAssignedToRemoteStoreNode(true);
+            }
             final IndexShard replica = newShard(
                 replicaRouting,
                 indexMetadata,
