@@ -294,6 +294,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.NamedRegistry;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.common.inject.multibindings.MapBinder;
@@ -1052,8 +1053,9 @@ public class ActionModule extends AbstractModule {
      * <p>
      * This class is modeled after {@link NamedRegistry} but provides both register and unregister capabilities.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "2.7.0")
     public static class DynamicActionRegistry {
         // This is the unmodifiable actions map created during node bootstrap, which
         // will continue to link ActionType and TransportAction pairs from core and plugin
