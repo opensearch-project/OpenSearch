@@ -29,12 +29,12 @@ public class RebalanceConstraints {
 
     private Map<String, Constraint> constraints;
 
-    public RebalanceConstraints(float preferPrimaryBalanceBuffer) {
+    public RebalanceConstraints(RebalanceParameter rebalanceParameter) {
         this.constraints = new HashMap<>();
         this.constraints.putIfAbsent(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, new Constraint(isPerIndexPrimaryShardsPerNodeBreached()));
         this.constraints.putIfAbsent(
             CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID,
-            new Constraint(isPrimaryShardsPerNodeBreached(preferPrimaryBalanceBuffer))
+            new Constraint(isPrimaryShardsPerNodeBreached(rebalanceParameter.getPreferPrimaryBalanceBuffer()))
         );
     }
 

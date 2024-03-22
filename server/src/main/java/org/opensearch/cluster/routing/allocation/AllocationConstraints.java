@@ -28,11 +28,14 @@ import static org.opensearch.cluster.routing.allocation.ConstraintTypes.isPrimar
 public class AllocationConstraints {
     private Map<String, Constraint> constraints;
 
-    public AllocationConstraints() {
+    public AllocationConstraints(AllocationParameter allocationParameter) {
         this.constraints = new HashMap<>();
         this.constraints.putIfAbsent(INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID, new Constraint(isIndexShardsPerNodeBreached()));
         this.constraints.putIfAbsent(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, new Constraint(isPerIndexPrimaryShardsPerNodeBreached()));
-        this.constraints.putIfAbsent(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, new Constraint(isPrimaryShardsPerNodeBreached()));
+        this.constraints.putIfAbsent(
+            CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID,
+            new Constraint(isPrimaryShardsPerNodeBreached(allocationParameter.getPreferPrimaryBalanceBuffer()))
+        );
     }
 
     public void updateAllocationConstraint(String constraint, boolean enable) {
