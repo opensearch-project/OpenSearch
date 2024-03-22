@@ -32,11 +32,14 @@
 
 package org.opensearch.tasks;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Listener for Task success or failure.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface TaskListener<Response> {
     /**
      * Handle task response. This response may constitute a failure or a success
