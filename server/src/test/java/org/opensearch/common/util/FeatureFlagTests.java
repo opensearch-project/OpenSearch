@@ -8,6 +8,7 @@
 
 package org.opensearch.common.util;
 
+import org.opensearch.common.settings.Settings;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -45,7 +46,15 @@ public class FeatureFlagTests extends OpenSearchTestCase {
 
     public void testBooleanFeatureFlagWithDefaultSetToFalse() {
         final String testFlag = IDENTITY;
+        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
         assertNotNull(testFlag);
         assertFalse(FeatureFlags.isEnabled(testFlag));
+    }
+
+    public void testBooleanFeatureFlagInitializedWithEmptySettingsAndDefaultSetToTrue() {
+        final String testFlag = DATETIME_FORMATTER_CACHING;
+        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
+        assertNotNull(testFlag);
+        assertTrue(FeatureFlags.isEnabled(testFlag));
     }
 }

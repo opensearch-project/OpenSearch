@@ -12,9 +12,11 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 
+import java.util.List;
+
 /**
  * Utility class to manage feature flags. Feature flags are system properties that must be set on the JVM.
- * These are used to gate the visibility/availability of incomplete features. Fore more information, see
+ * These are used to gate the visibility/availability of incomplete features. For more information, see
  * https://featureflags.io/feature-flag-introduction/
  *
  * @opensearch.internal
@@ -91,18 +93,27 @@ public class FeatureFlags {
 
     public static final Setting<Boolean> PLUGGABLE_CACHE_SETTING = Setting.boolSetting(PLUGGABLE_CACHE, false, Property.NodeScope);
 
+    private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
+        REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
+        EXTENSIONS_SETTING,
+        IDENTITY_SETTING,
+        TELEMETRY_SETTING,
+        DATETIME_FORMATTER_CACHING_SETTING,
+        WRITEABLE_REMOTE_INDEX_SETTING,
+        PLUGGABLE_CACHE_SETTING
+    );
     /**
      * Should store the settings from opensearch.yml.
      */
-    private static Settings settings = Settings.builder()
-        .put(REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING.getKey(), REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY))
-        .put(EXTENSIONS_SETTING.getKey(), EXTENSIONS_SETTING.getDefault(Settings.EMPTY))
-        .put(IDENTITY_SETTING.getKey(), IDENTITY_SETTING.getDefault(Settings.EMPTY))
-        .put(TELEMETRY_SETTING.getKey(), TELEMETRY_SETTING.getDefault(Settings.EMPTY))
-        .put(DATETIME_FORMATTER_CACHING_SETTING.getKey(), DATETIME_FORMATTER_CACHING_SETTING.getDefault(Settings.EMPTY))
-        .put(WRITEABLE_REMOTE_INDEX_SETTING.getKey(), WRITEABLE_REMOTE_INDEX_SETTING.getDefault(Settings.EMPTY))
-        .put(PLUGGABLE_CACHE_SETTING.getKey(), PLUGGABLE_CACHE_SETTING.getDefault(Settings.EMPTY))
-        .build();
+    private static Settings settings;
+
+    static {
+        Settings.Builder settingsBuilder = Settings.builder();
+        for (Setting<Boolean> ffSetting : ALL_FEATURE_FLAG_SETTINGS) {
+            settingsBuilder = settingsBuilder.put(ffSetting.getKey(), ffSetting.getDefault(Settings.EMPTY));
+        }
+        settings = settingsBuilder.build();
+    }
 
     /**
      * This method is responsible to map settings from opensearch.yml to local stored
@@ -111,7 +122,11 @@ public class FeatureFlags {
      * @param openSearchSettings The settings stored in opensearch.yml.
      */
     public static void initializeFeatureFlags(Settings openSearchSettings) {
-        settings = openSearchSettings;
+        Settings.Builder settingsBuilder = Settings.builder();
+        for (Setting<Boolean> ffSetting : ALL_FEATURE_FLAG_SETTINGS) {
+            settingsBuilder = settingsBuilder.put(ffSetting.getKey(), ffSetting.getDefault(openSearchSettings));
+        }
+        settings = settingsBuilder.build();
     }
 
     /**
