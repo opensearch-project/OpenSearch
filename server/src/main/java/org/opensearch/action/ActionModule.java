@@ -107,6 +107,8 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusActio
 import org.opensearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
 import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.cluster.state.TransportClusterStateAction;
+import org.opensearch.action.admin.cluster.state.term.GetTermVersionAction;
+import org.opensearch.action.admin.cluster.state.term.TransportGetTermVersionAction;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.opensearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
@@ -614,6 +616,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ClusterAllocationExplainAction.INSTANCE, TransportClusterAllocationExplainAction.class);
         actions.register(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);
         actions.register(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);
+        actions.register(GetTermVersionAction.INSTANCE, TransportGetTermVersionAction.class);
         actions.register(ClusterHealthAction.INSTANCE, TransportClusterHealthAction.class);
         actions.register(ClusterUpdateSettingsAction.INSTANCE, TransportClusterUpdateSettingsAction.class);
         actions.register(ClusterRerouteAction.INSTANCE, TransportClusterRerouteAction.class);

@@ -66,6 +66,8 @@ import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.cluster.state.TransportClusterStateAction;
+import org.opensearch.action.admin.cluster.state.term.GetTermVersionAction;
+import org.opensearch.action.admin.cluster.state.term.TransportGetTermVersionAction;
 import org.opensearch.action.admin.indices.create.CreateIndexAction;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
@@ -2437,6 +2439,18 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         indexNameExpressionResolver
                     )
                 );
+
+                actions.put(
+                    GetTermVersionAction.INSTANCE,
+                    new TransportGetTermVersionAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        actionFilters,
+                        indexNameExpressionResolver
+                    )
+                );
+
                 DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
                 dynamicActionRegistry.registerUnmodifiableActionMap(actions);
                 client.initialize(

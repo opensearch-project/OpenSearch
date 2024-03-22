@@ -140,6 +140,7 @@ import org.opensearch.persistent.decider.EnableAssignmentDecider;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
+import org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionControllerSettings;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.script.ScriptService;
@@ -330,6 +331,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
                 NetworkModule.HTTP_TYPE_SETTING,
                 NetworkModule.TRANSPORT_TYPE_SETTING,
+                NetworkModule.TRANSPORT_SSL_DUAL_MODE_ENABLED,
+                NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION,
+                NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_RESOLVE_HOST_NAME,
                 HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS,
                 HttpTransportSettings.SETTING_CORS_ENABLED,
                 HttpTransportSettings.SETTING_CORS_MAX_AGE,
@@ -704,11 +708,18 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING,
                 IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
                 IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING,
+                IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING,
+                IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING,
+
+                // Admission Control Settings
                 AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE,
                 CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                 CpuBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT,
                 CpuBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT,
-                IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING,
+                CpuBasedAdmissionControllerSettings.CLUSTER_ADMIN_CPU_USAGE_LIMIT,
+                IoBasedAdmissionControllerSettings.IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
+                IoBasedAdmissionControllerSettings.SEARCH_IO_USAGE_LIMIT,
+                IoBasedAdmissionControllerSettings.INDEXING_IO_USAGE_LIMIT,
 
                 // Concurrent segment search settings
                 SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING,

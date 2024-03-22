@@ -88,6 +88,8 @@ import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.remote.RemoteStorePathResolver;
+import org.opensearch.index.remote.RemoteStorePathType;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexCreationException;
@@ -138,7 +140,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
 
 /**
  * Service responsible for submitting create index requests
@@ -166,6 +168,9 @@ public class MetadataCreateIndexService {
     private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
     private final ClusterManagerTaskThrottler.ThrottlingKey createIndexTaskKey;
     private AwarenessReplicaBalance awarenessReplicaBalance;
+
+    @Nullable
+    private final RemoteStorePathResolver remoteStorePathResolver;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -198,6 +203,9 @@ public class MetadataCreateIndexService {
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         createIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_KEY, true);
+        remoteStorePathResolver = isRemoteDataAttributePresent(settings)
+            ? new RemoteStorePathResolver(clusterService.getClusterSettings())
+            : null;
     }
 
     /**
@@ -498,7 +506,8 @@ public class MetadataCreateIndexService {
                     temporaryIndexMeta.getSettings(),
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
-                    temporaryIndexMeta.isSystem()
+                    temporaryIndexMeta.isSystem(),
+                    temporaryIndexMeta.getCustomData()
                 );
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
@@ -522,10 +531,11 @@ public class MetadataCreateIndexService {
 
     /**
      * Given a state and index settings calculated after applying templates, validate metadata for
-     * the new index, returning an {@link IndexMetadata} for the new index
+     * the new index, returning an {@link IndexMetadata} for the new index.
+     * <p>
+     * The access level of the method changed to default level for visibility to test.
      */
-    private IndexMetadata buildAndValidateTemporaryIndexMetadata(
-        final ClusterState currentState,
+    IndexMetadata buildAndValidateTemporaryIndexMetadata(
         final Settings aggregatedIndexSettings,
         final CreateIndexClusterStateUpdateRequest request,
         final int routingNumShards
@@ -543,12 +553,29 @@ public class MetadataCreateIndexService {
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(indexSettings);
         tmpImdBuilder.system(isSystem);
+        addRemoteCustomData(tmpImdBuilder);
 
         // Set up everything, now locally create the index to see that things are ok, and apply
         IndexMetadata tempMetadata = tmpImdBuilder.build();
         validateActiveShardCount(request.waitForActiveShards(), tempMetadata);
 
         return tempMetadata;
+    }
+
+    public void addRemoteCustomData(IndexMetadata.Builder tmpImdBuilder) {
+        if (remoteStorePathResolver != null) {
+            // It is possible that remote custom data exists already. In such cases, we need to only update the path type
+            // in the remote store custom data map.
+            Map<String, String> existingRemoteCustomData = tmpImdBuilder.removeCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+            Map<String, String> remoteCustomData = existingRemoteCustomData == null
+                ? new HashMap<>()
+                : new HashMap<>(existingRemoteCustomData);
+            // Determine the path type for use using the remoteStorePathResolver.
+            String newPathType = remoteStorePathResolver.resolveType().toString();
+            String oldPathType = remoteCustomData.put(RemoteStorePathType.NAME, newPathType);
+            logger.trace(() -> new ParameterizedMessage("Added new path type {}, replaced old path type {}", newPathType, oldPathType));
+            tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, remoteCustomData);
+        }
     }
 
     private ClusterState applyCreateIndexRequestWithV1Templates(
@@ -582,7 +609,7 @@ public class MetadataCreateIndexService {
             clusterService.getClusterSettings()
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
         return applyCreateIndexWithTemporaryService(
             currentState,
@@ -647,7 +674,7 @@ public class MetadataCreateIndexService {
             clusterService.getClusterSettings()
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
         return applyCreateIndexWithTemporaryService(
             currentState,
@@ -728,7 +755,7 @@ public class MetadataCreateIndexService {
             clusterService.getClusterSettings()
         );
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
         return applyCreateIndexWithTemporaryService(
             currentState,
@@ -971,7 +998,7 @@ public class MetadataCreateIndexService {
             indexReplicationType = INDEX_REPLICATION_TYPE_SETTING.get(combinedTemplateSettings);
         } else if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings)) {
             indexReplicationType = CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings);
-        } else if (isRemoteStoreAttributePresent(clusterSettings)) {
+        } else if (isRemoteDataAttributePresent(clusterSettings)) {
             indexReplicationType = ReplicationType.SEGMENT;
         } else {
             indexReplicationType = CLUSTER_REPLICATION_TYPE_SETTING.getDefault(clusterSettings);
@@ -985,7 +1012,7 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster level settings
      */
     private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings clusterSettings) {
-        if (isRemoteStoreAttributePresent(clusterSettings)) {
+        if (isRemoteDataAttributePresent(clusterSettings)) {
             settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
                 .put(
                     SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
@@ -1147,7 +1174,8 @@ public class MetadataCreateIndexService {
         Settings indexSettings,
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
-        boolean isSystem
+        boolean isSystem,
+        Map<String, DiffableStringMap> customData
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
@@ -1166,6 +1194,10 @@ public class MetadataCreateIndexService {
         // apply the aliases in reverse order as the lower index ones have higher order
         for (int i = aliases.size() - 1; i >= 0; i--) {
             indexMetadataBuilder.putAlias(aliases.get(i));
+        }
+
+        for (Map.Entry<String, DiffableStringMap> entry : customData.entrySet()) {
+            indexMetadataBuilder.putCustom(entry.getKey(), entry.getValue());
         }
 
         indexMetadataBuilder.state(IndexMetadata.State.OPEN);
@@ -1577,7 +1609,7 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster setting
      */
     static void validateTranslogDurabilitySettings(Settings requestSettings, ClusterSettings clusterSettings, Settings settings) {
-        if (isRemoteStoreAttributePresent(settings) == false
+        if (isRemoteDataAttributePresent(settings) == false
             || IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.exists(requestSettings) == false
             || clusterSettings.get(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING) == false) {
             return;
