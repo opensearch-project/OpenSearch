@@ -13,6 +13,8 @@ import org.opensearch.common.settings.Settings;
 
 /**
  * Utility to provide a {@link RemoteStoreSettings} instance containing all defaults
+ *
+ * @opensearch.internal
  */
 public final class DefaultRemoteStoreSettings {
     private DefaultRemoteStoreSettings() {}
