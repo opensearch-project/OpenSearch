@@ -65,10 +65,44 @@ public class FeatureFlags {
      */
     public static final String PLUGGABLE_CACHE = "opensearch.experimental.feature.pluggable.caching.enabled";
 
+    public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
+        REMOTE_STORE_MIGRATION_EXPERIMENTAL,
+        false,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> EXTENSIONS_SETTING = Setting.boolSetting(EXTENSIONS, false, Property.NodeScope);
+
+    public static final Setting<Boolean> IDENTITY_SETTING = Setting.boolSetting(IDENTITY, false, Property.NodeScope);
+
+    public static final Setting<Boolean> TELEMETRY_SETTING = Setting.boolSetting(TELEMETRY, false, Property.NodeScope);
+
+    public static final Setting<Boolean> DATETIME_FORMATTER_CACHING_SETTING = Setting.boolSetting(
+        DATETIME_FORMATTER_CACHING,
+        true,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> WRITEABLE_REMOTE_INDEX_SETTING = Setting.boolSetting(
+        WRITEABLE_REMOTE_INDEX,
+        false,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> PLUGGABLE_CACHE_SETTING = Setting.boolSetting(PLUGGABLE_CACHE, false, Property.NodeScope);
+
     /**
      * Should store the settings from opensearch.yml.
      */
-    private static Settings settings;
+    private static Settings settings = Settings.builder()
+        .put(REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING.getKey(), REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY))
+        .put(EXTENSIONS_SETTING.getKey(), EXTENSIONS_SETTING.getDefault(Settings.EMPTY))
+        .put(IDENTITY_SETTING.getKey(), IDENTITY_SETTING.getDefault(Settings.EMPTY))
+        .put(TELEMETRY_SETTING.getKey(), TELEMETRY_SETTING.getDefault(Settings.EMPTY))
+        .put(DATETIME_FORMATTER_CACHING_SETTING.getKey(), DATETIME_FORMATTER_CACHING_SETTING.getDefault(Settings.EMPTY))
+        .put(WRITEABLE_REMOTE_INDEX_SETTING.getKey(), WRITEABLE_REMOTE_INDEX_SETTING.getDefault(Settings.EMPTY))
+        .put(PLUGGABLE_CACHE_SETTING.getKey(), PLUGGABLE_CACHE_SETTING.getDefault(Settings.EMPTY))
+        .build();;
 
     /**
      * This method is responsible to map settings from opensearch.yml to local stored
@@ -103,30 +137,4 @@ public class FeatureFlags {
             return featureFlag.getDefault(Settings.EMPTY);
         }
     }
-
-    public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
-        REMOTE_STORE_MIGRATION_EXPERIMENTAL,
-        false,
-        Property.NodeScope
-    );
-
-    public static final Setting<Boolean> EXTENSIONS_SETTING = Setting.boolSetting(EXTENSIONS, false, Property.NodeScope);
-
-    public static final Setting<Boolean> IDENTITY_SETTING = Setting.boolSetting(IDENTITY, false, Property.NodeScope);
-
-    public static final Setting<Boolean> TELEMETRY_SETTING = Setting.boolSetting(TELEMETRY, false, Property.NodeScope);
-
-    public static final Setting<Boolean> DATETIME_FORMATTER_CACHING_SETTING = Setting.boolSetting(
-        DATETIME_FORMATTER_CACHING,
-        true,
-        Property.NodeScope
-    );
-
-    public static final Setting<Boolean> WRITEABLE_REMOTE_INDEX_SETTING = Setting.boolSetting(
-        WRITEABLE_REMOTE_INDEX,
-        false,
-        Property.NodeScope
-    );
-
-    public static final Setting<Boolean> PLUGGABLE_CACHE_SETTING = Setting.boolSetting(PLUGGABLE_CACHE, false, Property.NodeScope);
 }

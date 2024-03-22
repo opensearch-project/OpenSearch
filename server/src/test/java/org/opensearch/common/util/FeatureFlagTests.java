@@ -11,6 +11,8 @@ package org.opensearch.common.util;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 
+import static org.opensearch.common.util.FeatureFlags.DATETIME_FORMATTER_CACHING;
+
 public class FeatureFlagTests extends OpenSearchTestCase {
 
     private final String FLAG_PREFIX = "opensearch.experimental.feature.";
@@ -32,5 +34,11 @@ public class FeatureFlagTests extends OpenSearchTestCase {
         String javaVersionProperty = "java.version";
         assertNotNull(System.getProperty(javaVersionProperty));
         assertFalse(FeatureFlags.isEnabled(javaVersionProperty));
+    }
+
+    public void testBooleanFeatureFlagWithDefaultSetToTrue() {
+        final String testFlag = DATETIME_FORMATTER_CACHING;
+        assertNotNull(testFlag);
+        assertTrue(FeatureFlags.isEnabled(testFlag));
     }
 }
