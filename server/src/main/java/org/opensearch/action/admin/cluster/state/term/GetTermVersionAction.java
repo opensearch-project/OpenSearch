@@ -18,7 +18,7 @@ import org.opensearch.action.ActionType;
 public class GetTermVersionAction extends ActionType<GetTermVersionResponse> {
 
     public static final GetTermVersionAction INSTANCE = new GetTermVersionAction();
-    public static final String NAME = "cluster:monitor/term";
+    public static final String NAME = "internal:monitor/term";
 
     private GetTermVersionAction() {
         super(NAME, GetTermVersionResponse::new);
