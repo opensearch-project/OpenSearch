@@ -33,10 +33,10 @@ package org.opensearch.action.support.clustermanager;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.admin.cluster.state.term.GetTermVersionResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.ThreadedActionListener;
+import org.opensearch.action.support.clustermanager.term.GetTermVersionResponse;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
