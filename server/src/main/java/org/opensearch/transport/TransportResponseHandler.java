@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.transport.TransportResponse;
@@ -42,8 +43,9 @@ import java.util.function.Function;
 /**
  * Handles transport responses
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface TransportResponseHandler<T extends TransportResponse> extends Writeable.Reader<T> {
 
     void handleResponse(T response);
