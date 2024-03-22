@@ -20,6 +20,9 @@ import static org.opensearch.index.remote.RemoteStoreDataEnums.DataType.METADATA
  */
 public class RemoteStoreDataEnums {
 
+    /**
+     * Categories of the data in Remote store.
+     */
     public enum DataCategory {
         SEGMENTS("segments", Set.of(DataType.values())),
         TRANSLOG("translog", Set.of(DATA, METADATA));
@@ -41,6 +44,9 @@ public class RemoteStoreDataEnums {
         }
     }
 
+    /**
+     * Types of data in remote store.
+     */
     public enum DataType {
         DATA("data"),
         METADATA("metadata"),

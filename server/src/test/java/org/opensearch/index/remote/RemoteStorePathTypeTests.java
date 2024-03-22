@@ -64,12 +64,12 @@ public class RemoteStorePathTypeTests extends OpenSearchTestCase {
         String basePath = getPath(pathList) + indexUUID + SEPARATOR + shardId + SEPARATOR;
         // Translog Data
         BlobPath result = FIXED.path(blobPath, indexUUID, shardId, dataCategory, dataType);
-        assertEquals(basePath + dataCategory + SEPARATOR + dataType + SEPARATOR, result.buildAsString());
+        assertEquals(basePath + dataCategory.getName() + SEPARATOR + dataType.getName() + SEPARATOR, result.buildAsString());
 
         // Translog Metadata
         dataType = METADATA;
         result = FIXED.path(blobPath, indexUUID, shardId, dataCategory, dataType);
-        assertEquals(basePath + dataCategory + SEPARATOR + dataType + SEPARATOR, result.buildAsString());
+        assertEquals(basePath + dataCategory.getName() + SEPARATOR + dataType.getName() + SEPARATOR, result.buildAsString());
 
         // Translog Lock files - This is a negative case where the assertion will trip.
         BlobPath finalBlobPath = blobPath;
@@ -79,17 +79,17 @@ public class RemoteStorePathTypeTests extends OpenSearchTestCase {
         dataCategory = SEGMENTS;
         dataType = DATA;
         result = FIXED.path(blobPath, indexUUID, shardId, dataCategory, dataType);
-        assertEquals(basePath + dataCategory + SEPARATOR + dataType + SEPARATOR, result.buildAsString());
+        assertEquals(basePath + dataCategory.getName() + SEPARATOR + dataType.getName() + SEPARATOR, result.buildAsString());
 
         // Segment Metadata
         dataType = METADATA;
         result = FIXED.path(blobPath, indexUUID, shardId, dataCategory, dataType);
-        assertEquals(basePath + dataCategory + SEPARATOR + dataType + SEPARATOR, result.buildAsString());
+        assertEquals(basePath + dataCategory.getName() + SEPARATOR + dataType.getName() + SEPARATOR, result.buildAsString());
 
         // Segment Metadata
         dataType = LOCK_FILES;
         result = FIXED.path(blobPath, indexUUID, shardId, dataCategory, dataType);
-        assertEquals(basePath + dataCategory + SEPARATOR + dataType + SEPARATOR, result.buildAsString());
+        assertEquals(basePath + dataCategory.getName() + SEPARATOR + dataType.getName() + SEPARATOR, result.buildAsString());
     }
 
     private List<String> getPathList() {
