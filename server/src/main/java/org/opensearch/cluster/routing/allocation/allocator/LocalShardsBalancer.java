@@ -899,7 +899,11 @@ public class LocalShardsBalancer extends ShardsBalancer {
             if (allowRandomAllocation) {
                 nodes.add(node);
             } else {
-                nodes.set(0, node);
+                if (nodes.isEmpty()) {
+                    nodes.add(node);
+                } else {
+                    nodes.set(0, node);
+                }
             }
             minWeight = weight;
             this.decision = decision;

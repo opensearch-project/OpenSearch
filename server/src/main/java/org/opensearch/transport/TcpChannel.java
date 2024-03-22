@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
@@ -45,8 +46,9 @@ import java.util.Optional;
  * abstraction used by the {@link TcpTransport} and {@link TransportService}. All tcp transport
  * implementations must return channels that adhere to the required method contracts.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface TcpChannel extends CloseableChannel {
 
     /**
@@ -114,8 +116,9 @@ public interface TcpChannel extends CloseableChannel {
     /**
      * Channel statistics
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     class ChannelStats {
 
         private volatile long lastAccessedTime;

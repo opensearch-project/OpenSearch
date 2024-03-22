@@ -56,6 +56,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayStartedShard;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergePolicyProvider;
@@ -720,11 +721,11 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         );
 
         assertThat(response.getNodes(), hasSize(1));
-        assertThat(response.getNodes().get(0).allocationId(), notNullValue());
+        assertThat(response.getNodes().get(0).getGatewayShardStarted().allocationId(), notNullValue());
         if (corrupt) {
-            assertThat(response.getNodes().get(0).storeException(), notNullValue());
+            assertThat(response.getNodes().get(0).getGatewayShardStarted().storeException(), notNullValue());
         } else {
-            assertThat(response.getNodes().get(0).storeException(), nullValue());
+            assertThat(response.getNodes().get(0).getGatewayShardStarted().storeException(), nullValue());
         }
 
         // start another node so cluster consistency checks won't time out due to the lack of state
@@ -764,11 +765,11 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         );
         final Index index = resolveIndex(indexName);
         final ShardId shardId = new ShardId(index, 0);
-        TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard nodeGatewayStartedShards = response.getNodesMap()
+        GatewayStartedShard gatewayStartedShard = response.getNodesMap()
             .get(searchShardsResponse.getNodes()[0].getId())
             .getNodeGatewayStartedShardsBatch()
             .get(shardId);
-        assertNodeGatewayStartedShardsHappyCase(nodeGatewayStartedShards);
+        assertNodeGatewayStartedShardsHappyCase(gatewayStartedShard);
     }
 
     public void testShardFetchMultiNodeMultiIndexesUsingBatchAction() {
@@ -792,11 +793,8 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             ShardId shardId = clusterSearchShardsGroup.getShardId();
             assertEquals(1, clusterSearchShardsGroup.getShards().length);
             String nodeId = clusterSearchShardsGroup.getShards()[0].currentNodeId();
-            TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard nodeGatewayStartedShards = response.getNodesMap()
-                .get(nodeId)
-                .getNodeGatewayStartedShardsBatch()
-                .get(shardId);
-            assertNodeGatewayStartedShardsHappyCase(nodeGatewayStartedShards);
+            GatewayStartedShard gatewayStartedShard = response.getNodesMap().get(nodeId).getNodeGatewayStartedShardsBatch().get(shardId);
+            assertNodeGatewayStartedShardsHappyCase(gatewayStartedShard);
         }
     }
 
@@ -816,13 +814,13 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             new TransportNodesListGatewayStartedShardsBatch.Request(getDiscoveryNodes(), shardIdShardAttributesMap)
         );
         DiscoveryNode[] discoveryNodes = getDiscoveryNodes();
-        TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard nodeGatewayStartedShards = response.getNodesMap()
+        GatewayStartedShard gatewayStartedShard = response.getNodesMap()
             .get(discoveryNodes[0].getId())
             .getNodeGatewayStartedShardsBatch()
             .get(shardId);
-        assertNotNull(nodeGatewayStartedShards.storeException());
-        assertNotNull(nodeGatewayStartedShards.allocationId());
-        assertTrue(nodeGatewayStartedShards.primary());
+        assertNotNull(gatewayStartedShard.storeException());
+        assertNotNull(gatewayStartedShard.allocationId());
+        assertTrue(gatewayStartedShard.primary());
     }
 
     public void testSingleShardStoreFetchUsingBatchAction() throws ExecutionException, InterruptedException {
@@ -950,12 +948,10 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         assertNotNull(storeFileMetadata.peerRecoveryRetentionLeases());
     }
 
-    private void assertNodeGatewayStartedShardsHappyCase(
-        TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard nodeGatewayStartedShards
-    ) {
-        assertNull(nodeGatewayStartedShards.storeException());
-        assertNotNull(nodeGatewayStartedShards.allocationId());
-        assertTrue(nodeGatewayStartedShards.primary());
+    private void assertNodeGatewayStartedShardsHappyCase(GatewayStartedShard gatewayStartedShard) {
+        assertNull(gatewayStartedShard.storeException());
+        assertNotNull(gatewayStartedShard.allocationId());
+        assertTrue(gatewayStartedShard.primary());
     }
 
     private void prepareIndex(String indexName, int numberOfPrimaryShards) {

@@ -33,6 +33,7 @@
 package org.opensearch.rest;
 
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.rest.RestRequest.Method;
 
@@ -180,8 +181,9 @@ public interface RestHandler {
     /**
      * Route for the request.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     class Route {
 
         protected final String path;
