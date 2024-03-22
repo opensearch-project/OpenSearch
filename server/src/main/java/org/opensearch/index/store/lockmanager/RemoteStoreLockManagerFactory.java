@@ -20,6 +20,9 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.util.function.Supplier;
 
+import static org.opensearch.index.remote.RemoteStoreDataEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreDataEnums.DataType.LOCK_FILES;
+
 /**
  * Factory for remote store lock manager
  *
@@ -27,8 +30,6 @@ import java.util.function.Supplier;
  */
 @PublicApi(since = "2.8.0")
 public class RemoteStoreLockManagerFactory {
-    private static final String SEGMENTS = "segments";
-    public static final String LOCK_FILES = "lock_files";
     private final Supplier<RepositoriesService> repositoriesService;
 
     public RemoteStoreLockManagerFactory(Supplier<RepositoriesService> repositoriesService) {

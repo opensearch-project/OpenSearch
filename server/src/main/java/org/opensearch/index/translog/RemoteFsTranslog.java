@@ -50,6 +50,10 @@ import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
+import static org.opensearch.index.remote.RemoteStoreDataEnums.DataCategory.TRANSLOG;
+import static org.opensearch.index.remote.RemoteStoreDataEnums.DataType.DATA;
+import static org.opensearch.index.remote.RemoteStoreDataEnums.DataType.METADATA;
+
 /**
  * A Translog implementation which syncs local FS with a remote store
  * The current impl uploads translog , ckp and metadata to remote store
@@ -77,9 +81,6 @@ public class RemoteFsTranslog extends Translog {
 
     private static final int REMOTE_DELETION_PERMITS = 2;
     private static final int DOWNLOAD_RETRIES = 2;
-    public static final String TRANSLOG = "translog";
-    public final static String METADATA_DIR = "metadata";
-    public final static String DATA_DIR = "data";
 
     // Semaphore used to allow only single remote generation to happen at a time
     private final Semaphore remoteGenerationDeletionPermits = new Semaphore(REMOTE_DELETION_PERMITS);
@@ -263,8 +264,8 @@ public class RemoteFsTranslog extends Translog {
         assert Objects.nonNull(pathType);
         String indexUUID = shardId.getIndex().getUUID();
         String shardIdStr = String.valueOf(shardId.id());
-        BlobPath dataPath = pathType.path(blobStoreRepository.basePath(), indexUUID, shardIdStr, TRANSLOG, DATA_DIR);
-        BlobPath mdPath = pathType.path(blobStoreRepository.basePath(), indexUUID, shardIdStr, TRANSLOG, METADATA_DIR);
+        BlobPath dataPath = pathType.path(blobStoreRepository.basePath(), indexUUID, shardIdStr, TRANSLOG, DATA);
+        BlobPath mdPath = pathType.path(blobStoreRepository.basePath(), indexUUID, shardIdStr, TRANSLOG, METADATA);
         BlobStoreTransferService transferService = new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool);
         return new TranslogTransferManager(shardId, transferService, dataPath, mdPath, fileTransferTracker, tracker);
     }

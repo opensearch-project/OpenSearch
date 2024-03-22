@@ -9,19 +9,21 @@
 package org.opensearch.index.remote;
 
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.index.remote.RemoteStoreDataEnums.DataCategory;
+import org.opensearch.index.remote.RemoteStoreDataEnums.DataType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import static org.opensearch.index.remote.RemoteStoreDataEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreDataEnums.DataCategory.TRANSLOG;
+import static org.opensearch.index.remote.RemoteStoreDataEnums.DataType.DATA;
+import static org.opensearch.index.remote.RemoteStoreDataEnums.DataType.LOCK_FILES;
+import static org.opensearch.index.remote.RemoteStoreDataEnums.DataType.METADATA;
 import static org.opensearch.index.remote.RemoteStorePathType.FIXED;
 import static org.opensearch.index.remote.RemoteStorePathType.parseString;
-import static org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory.SEGMENTS;
-import static org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory.LOCK_FILES;
-import static org.opensearch.index.translog.RemoteFsTranslog.DATA_DIR;
-import static org.opensearch.index.translog.RemoteFsTranslog.METADATA_DIR;
-import static org.opensearch.index.translog.RemoteFsTranslog.TRANSLOG;
 
 public class RemoteStorePathTypeTests extends OpenSearchTestCase {
 
@@ -56,8 +58,8 @@ public class RemoteStorePathTypeTests extends OpenSearchTestCase {
 
         String indexUUID = randomAlphaOfLength(10);
         String shardId = String.valueOf(randomInt(100));
-        String dataCategory = TRANSLOG;
-        String dataType = DATA_DIR;
+        DataCategory dataCategory = TRANSLOG;
+        DataType dataType = DATA;
 
         String basePath = getPath(pathList) + indexUUID + SEPARATOR + shardId + SEPARATOR;
         // Translog Data
@@ -65,7 +67,7 @@ public class RemoteStorePathTypeTests extends OpenSearchTestCase {
         assertEquals(basePath + dataCategory + SEPARATOR + dataType + SEPARATOR, result.buildAsString());
 
         // Translog Metadata
-        dataType = METADATA_DIR;
+        dataType = METADATA;
         result = FIXED.path(blobPath, indexUUID, shardId, dataCategory, dataType);
         assertEquals(basePath + dataCategory + SEPARATOR + dataType + SEPARATOR, result.buildAsString());
 
@@ -75,12 +77,12 @@ public class RemoteStorePathTypeTests extends OpenSearchTestCase {
 
         // Segment Data
         dataCategory = SEGMENTS;
-        dataType = DATA_DIR;
+        dataType = DATA;
         result = FIXED.path(blobPath, indexUUID, shardId, dataCategory, dataType);
         assertEquals(basePath + dataCategory + SEPARATOR + dataType + SEPARATOR, result.buildAsString());
 
         // Segment Metadata
-        dataType = METADATA_DIR;
+        dataType = METADATA;
         result = FIXED.path(blobPath, indexUUID, shardId, dataCategory, dataType);
         assertEquals(basePath + dataCategory + SEPARATOR + dataType + SEPARATOR, result.buildAsString());
 

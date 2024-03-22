@@ -27,16 +27,16 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.opensearch.index.remote.RemoteStoreDataEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreDataEnums.DataType.DATA;
+import static org.opensearch.index.remote.RemoteStoreDataEnums.DataType.METADATA;
+
 /**
  * Factory for a remote store directory
  *
  * @opensearch.internal
  */
 public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
-    public static final String SEGMENTS = "segments";
-    private final static String DATA_DIR = "data";
-    private final static String METADATA_DIR = "metadata";
-
     private final Supplier<RepositoriesService> repositoriesService;
 
     private final ThreadPool threadPool;
@@ -64,7 +64,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
             String shardIdStr = String.valueOf(shardId.id());
 
             // Derive the path for data directory of SEGMENTS
-            BlobPath dataPath = pathType.path(repositoryBasePath, indexUUID, shardIdStr, SEGMENTS, DATA_DIR);
+            BlobPath dataPath = pathType.path(repositoryBasePath, indexUUID, shardIdStr, SEGMENTS, DATA);
             RemoteDirectory dataDirectory = new RemoteDirectory(
                 blobStoreRepository.blobStore().blobContainer(dataPath),
                 blobStoreRepository::maybeRateLimitRemoteUploadTransfers,
@@ -72,7 +72,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
             );
 
             // Derive the path for metadata directory of SEGMENTS
-            BlobPath mdPath = pathType.path(repositoryBasePath, indexUUID, shardIdStr, SEGMENTS, METADATA_DIR);
+            BlobPath mdPath = pathType.path(repositoryBasePath, indexUUID, shardIdStr, SEGMENTS, METADATA);
             RemoteDirectory metadataDirectory = new RemoteDirectory(blobStoreRepository.blobStore().blobContainer(mdPath));
 
             // The path for lock is derived within the RemoteStoreLockManagerFactory

@@ -9,15 +9,10 @@
 package org.opensearch.index.remote;
 
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.index.remote.RemoteStoreDataEnums.DataCategory;
+import org.opensearch.index.remote.RemoteStoreDataEnums.DataType;
 
 import java.util.Locale;
-import java.util.Set;
-
-import static org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory.SEGMENTS;
-import static org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory.LOCK_FILES;
-import static org.opensearch.index.translog.RemoteFsTranslog.DATA_DIR;
-import static org.opensearch.index.translog.RemoteFsTranslog.METADATA_DIR;
-import static org.opensearch.index.translog.RemoteFsTranslog.TRANSLOG;
 
 /**
  * Enumerates the types of remote store paths resolution techniques supported by OpenSearch.
@@ -50,22 +45,16 @@ public enum RemoteStorePathType {
      * @param dataType     can be one of data, metadata or lock_files.
      * @return the blob path for the underlying remote store path type.
      */
-    public BlobPath path(BlobPath basePath, String indexUUID, String shardId, String dataCategory, String dataType) {
-        assertDataCategoryAndTypeCombination(dataCategory, dataType);
-        return generatePath(basePath, indexUUID, shardId, dataCategory, dataType);
+    public BlobPath path(BlobPath basePath, String indexUUID, String shardId, DataCategory dataCategory, DataType dataType) {
+        assert dataCategory.isSupportedDataType(dataType) : "category:"
+            + dataCategory
+            + " type:"
+            + dataType
+            + " are not supported together";
+        return generatePath(basePath, indexUUID, shardId, dataCategory.getName(), dataType.getName());
     }
 
     abstract BlobPath generatePath(BlobPath basePath, String indexUUID, String shardId, String dataCategory, String dataType);
-
-    /**
-     * This method verifies that if the data category is translog, then the data type can not be lock_files. All other
-     * combination of data categories and data types are possible.
-     */
-    private static void assertDataCategoryAndTypeCombination(String dataCategory, String dataType) {
-        assert Set.of(TRANSLOG, SEGMENTS).contains(dataCategory);
-        assert Set.of(DATA_DIR, METADATA_DIR, LOCK_FILES).contains(dataType);
-        assert TRANSLOG.equals(dataCategory) == false || LOCK_FILES.equals(dataType) == false;
-    }
 
     public static RemoteStorePathType parseString(String remoteStoreBlobPathType) {
         try {
