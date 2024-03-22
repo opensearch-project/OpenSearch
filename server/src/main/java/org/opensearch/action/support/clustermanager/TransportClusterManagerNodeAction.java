@@ -64,6 +64,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.node.NodeClosedException;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
@@ -77,7 +78,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import static org.opensearch.Version.V_3_0_0;
+import static org.opensearch.Version.V_2_13_0;
 
 /**
  * A base class for operations that needs to be performed on the cluster-manager node.
@@ -105,7 +106,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
+        this(actionName, true, null, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
     }
 
     protected TransportClusterManagerNodeAction(
@@ -118,7 +119,31 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
+        this(
+            actionName,
+            canTripCircuitBreaker,
+            null,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            request,
+            indexNameExpressionResolver
+        );
+    }
+
+    protected TransportClusterManagerNodeAction(
+        String actionName,
+        boolean canTripCircuitBreaker,
+        AdmissionControlActionType admissionControlActionType,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> request,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(actionName, canTripCircuitBreaker, admissionControlActionType, transportService, actionFilters, request);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -274,7 +299,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                         retryOnMasterChange(clusterState, null);
                     } else {
                         DiscoveryNode clusterManagerNode = nodes.getClusterManagerNode();
-                        if (clusterManagerNode.getVersion().onOrAfter(V_3_0_0) && localExecuteSupportedByAction()) {
+                        if (clusterManagerNode.getVersion().onOrAfter(V_2_13_0) && localExecuteSupportedByAction()) {
                             BiConsumer<DiscoveryNode, ClusterState> executeOnLocalOrClusterManager = clusterStateLatestChecker(
                                 this::executeOnLocalNode,
                                 this::executeOnClusterManager
