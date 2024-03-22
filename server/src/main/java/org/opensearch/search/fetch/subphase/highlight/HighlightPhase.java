@@ -35,6 +35,8 @@ package org.opensearch.search.fetch.subphase.highlight;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.index.mapper.DerivedFieldMapper;
+import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.SourceFieldMapper;
@@ -145,6 +147,12 @@ public class HighlightPhase implements FetchSubPhase {
             boolean fieldNameContainsWildcards = field.field().contains("*");
             for (String fieldName : fieldNamesToHighlight) {
                 MappedFieldType fieldType = context.mapperService().fieldType(fieldName);
+                if (fieldType == null && context.getQueryShardContext().getDerivedFieldsMapper() != null) {
+                    DocumentMapper derivedFieldsMapper = context.getQueryShardContext().getDerivedFieldsMapper();
+                    if (derivedFieldsMapper.mappers() != null && derivedFieldsMapper.mappers().getMapper(fieldName) != null) {
+                        fieldType = ((DerivedFieldMapper) derivedFieldsMapper.mappers().getMapper(fieldName)).fieldType();
+                    }
+                }
                 if (fieldType == null) {
                     continue;
                 }
@@ -170,12 +178,13 @@ public class HighlightPhase implements FetchSubPhase {
                 Query highlightQuery = field.fieldOptions().highlightQuery();
 
                 boolean forceSource = highlightContext.forceSource(field);
+                MappedFieldType finalFieldType = fieldType;
                 builders.put(
                     fieldName,
                     hc -> new FieldHighlightContext(
-                        fieldType.name(),
+                        finalFieldType.name(),
                         field,
-                        fieldType,
+                        finalFieldType,
                         context,
                         hc,
                         highlightQuery == null ? query : highlightQuery,
