@@ -2473,6 +2473,7 @@ public class InternalEngine extends Engine {
             iwc.setMaxFullFlushMergeWaitMillis(0);
         }
 
+        iwc.setCheckPendingFlushUpdate(config().getIndexSettings().isCheckPendingFlushEnabled());
         iwc.setMergePolicy(new OpenSearchMergePolicy(mergePolicy));
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
