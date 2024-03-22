@@ -12,6 +12,7 @@ import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.common.util.FeatureFlags.DATETIME_FORMATTER_CACHING;
+import static org.opensearch.common.util.FeatureFlags.IDENTITY;
 
 public class FeatureFlagTests extends OpenSearchTestCase {
 
@@ -40,5 +41,11 @@ public class FeatureFlagTests extends OpenSearchTestCase {
         final String testFlag = DATETIME_FORMATTER_CACHING;
         assertNotNull(testFlag);
         assertTrue(FeatureFlags.isEnabled(testFlag));
+    }
+
+    public void testBooleanFeatureFlagWithDefaultSetToFalse() {
+        final String testFlag = IDENTITY;
+        assertNotNull(testFlag);
+        assertFalse(FeatureFlags.isEnabled(testFlag));
     }
 }

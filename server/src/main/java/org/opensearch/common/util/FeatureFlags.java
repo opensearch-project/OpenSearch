@@ -102,7 +102,7 @@ public class FeatureFlags {
         .put(DATETIME_FORMATTER_CACHING_SETTING.getKey(), DATETIME_FORMATTER_CACHING_SETTING.getDefault(Settings.EMPTY))
         .put(WRITEABLE_REMOTE_INDEX_SETTING.getKey(), WRITEABLE_REMOTE_INDEX_SETTING.getDefault(Settings.EMPTY))
         .put(PLUGGABLE_CACHE_SETTING.getKey(), PLUGGABLE_CACHE_SETTING.getDefault(Settings.EMPTY))
-        .build();;
+        .build();
 
     /**
      * This method is responsible to map settings from opensearch.yml to local stored
