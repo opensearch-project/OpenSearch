@@ -6,12 +6,10 @@
  * compatible open source license.
  */
 
-package org.opensearch.cluster.state;
+package org.opensearch.action.support.clustermanager.term;
 
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.action.admin.cluster.state.term.GetTermVersionAction;
-import org.opensearch.action.admin.cluster.state.term.GetTermVersionResponse;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.coordination.ClusterStateTermVersion;

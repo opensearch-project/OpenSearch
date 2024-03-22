@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.state.term;
+package org.opensearch.action.support.clustermanager.term;
 
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
