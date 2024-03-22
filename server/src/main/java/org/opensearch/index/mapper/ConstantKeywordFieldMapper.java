@@ -31,10 +31,12 @@ import java.util.function.Supplier;
  *
  * @opensearch.api
  */
-@PublicApi(since = "2.13.0")
+@PublicApi(since = "2.14.0")
 public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "constant_keyword";
+
+    private static final String valuePropertyName = "value";
 
     /**
      * A {@link Mapper.TypeParser} for the constant keyword field.
@@ -44,10 +46,10 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (!node.containsKey("value")) {
+            if (!node.containsKey(valuePropertyName)) {
                 throw new OpenSearchParseException("Field [" + name + "] is missing required parameter [value]");
             }
-            Object value = node.remove("value");
+            Object value = node.remove(valuePropertyName);
             if (!(value instanceof String)) {
                 throw new OpenSearchParseException("Field [" + name + "] is expected to be a string value");
             }
@@ -70,7 +72,7 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
         public Builder(String name, String value) {
             super(name);
-            this.value = Parameter.stringParam("value", false, m -> toType(m).value, value);
+            this.value = Parameter.stringParam(valuePropertyName, false, m -> toType(m).value, value);
         }
 
         @Override

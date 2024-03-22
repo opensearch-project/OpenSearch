@@ -23,52 +23,33 @@ import java.util.function.Predicate;
 
 public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
 
-    public void testTermQuery() {
-        ConstantKeywordFieldMapper.ConstantKeywordFieldType ft = new ConstantKeywordFieldMapper.ConstantKeywordFieldType(
-            "field",
-            "default"
-        );
+    final ConstantKeywordFieldMapper.ConstantKeywordFieldType ft = new ConstantKeywordFieldMapper.ConstantKeywordFieldType(
+        "field",
+        "default"
+    );
 
+    public void testTermQuery() {
         assertEquals(new MatchAllDocsQuery(), ft.termQuery("default", createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.termQuery("not_default", createContext()));
     }
 
     public void testTermsQuery() {
-        ConstantKeywordFieldMapper.ConstantKeywordFieldType ft = new ConstantKeywordFieldMapper.ConstantKeywordFieldType(
-            "field",
-            "default"
-        );
-
         assertEquals(new MatchAllDocsQuery(), ft.termsQuery(Arrays.asList("default", "not_default"), createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.termsQuery(Arrays.asList("no_default", "not_default"), createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.termsQuery(List.of(), createContext()));
     }
 
     public void testInsensitiveTermQuery() {
-        ConstantKeywordFieldMapper.ConstantKeywordFieldType ft = new ConstantKeywordFieldMapper.ConstantKeywordFieldType(
-            "field",
-            "default"
-        );
-
         assertEquals(new MatchAllDocsQuery(), ft.termQueryCaseInsensitive("defaUlt", createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.termQueryCaseInsensitive("not_defaUlt", createContext()));
     }
 
     public void testPrefixQuery() {
-        ConstantKeywordFieldMapper.ConstantKeywordFieldType ft = new ConstantKeywordFieldMapper.ConstantKeywordFieldType(
-            "field",
-            "default"
-        );
-
         assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("defau", null, createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.prefixQuery("not_default", null, createContext()));
     }
 
     public void testWildcardQuery() {
-        ConstantKeywordFieldMapper.ConstantKeywordFieldType ft = new ConstantKeywordFieldMapper.ConstantKeywordFieldType(
-            "field",
-            "default"
-        );
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("defa*lt", null, createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("no_defa*lt", null, createContext()));
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("defa*", null, createContext()));
@@ -77,10 +58,6 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testExistsQuery() {
-        ConstantKeywordFieldMapper.ConstantKeywordFieldType ft = new ConstantKeywordFieldMapper.ConstantKeywordFieldType(
-            "field",
-            "default"
-        );
         assertEquals(new MatchAllDocsQuery(), ft.existsQuery(createContext()));
     }
 
