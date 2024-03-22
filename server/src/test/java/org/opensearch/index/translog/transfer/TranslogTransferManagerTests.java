@@ -195,7 +195,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
     public void testTransferSnapshotOnUploadTimeout() throws Exception {
         doAnswer(invocationOnMock -> {
-            Thread.sleep(31 * 1000);
+            Thread.sleep(5);
             return null;
         }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
         FileTransferTracker fileTransferTracker = new FileTransferTracker(
