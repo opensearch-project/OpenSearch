@@ -124,7 +124,10 @@ public class FeatureFlags {
     public static void initializeFeatureFlags(Settings openSearchSettings) {
         Settings.Builder settingsBuilder = Settings.builder();
         for (Setting<Boolean> ffSetting : ALL_FEATURE_FLAG_SETTINGS) {
-            settingsBuilder = settingsBuilder.put(ffSetting.getKey(), ffSetting.getDefault(openSearchSettings));
+            settingsBuilder = settingsBuilder.put(
+                ffSetting.getKey(),
+                openSearchSettings.getAsBoolean(ffSetting.getKey(), ffSetting.getDefault(openSearchSettings))
+            );
         }
         settings = settingsBuilder.build();
     }
