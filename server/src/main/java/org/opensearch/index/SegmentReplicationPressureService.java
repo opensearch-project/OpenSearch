@@ -147,7 +147,9 @@ public class SegmentReplicationPressureService implements Closeable {
         final IndexService indexService = indicesService.indexService(shardId.getIndex());
         if (indexService != null) {
             final IndexShard shard = indexService.getShard(shardId.id());
-            if (isSegmentReplicationBackpressureEnabled && shard.indexSettings().isSegRepEnabled() && shard.routingEntry().primary()) {
+            if (isSegmentReplicationBackpressureEnabled
+                && shard.indexSettings().isSegRepEnabledOrRemoteNode()
+                && shard.routingEntry().primary()) {
                 validateReplicationGroup(shard);
             }
         }
@@ -266,7 +268,8 @@ public class SegmentReplicationPressureService implements Closeable {
                             stats.getShardStats().get(shardId).getReplicaStats()
                         );
                         final IndexService indexService = pressureService.indicesService.indexService(shardId.getIndex());
-                        if (indexService.getIndexSettings() != null && indexService.getIndexSettings().isSegRepEnabled() == false) {
+                        if (indexService.getIndexSettings() != null
+                            && indexService.getIndexSettings().isSegRepEnabledOrRemoteNode() == false) {
                             return;
                         }
                         final IndexShard primaryShard = indexService.getShard(shardId.getId());

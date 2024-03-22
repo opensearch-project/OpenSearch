@@ -219,8 +219,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             new ByteSizeValue(8, ByteSizeUnit.KB),
             new ByteSizeValue(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES)
         );
-
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings);
+        // To simulate that the node is remote backed
+        Settings nodeSettings = Settings.builder().put("node.attr.remote_store.translog.repository", "my-repo-1").build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings, nodeSettings);
         return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize, "");
     }
 

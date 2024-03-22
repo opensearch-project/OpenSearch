@@ -303,7 +303,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         // Verify index setting isSegRepEnabled.
         Index index = resolveIndex(RESTORED_INDEX_NAME);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class);
-        assertEquals(indicesService.indexService(index).getIndexSettings().isSegRepEnabled(), false);
+        assertEquals(indicesService.indexService(index).getIndexSettings().isSegRepEnabledOrRemoteNode(), false);
     }
 
     /**
