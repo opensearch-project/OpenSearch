@@ -66,7 +66,7 @@ public final class DerivedFieldQuery extends Query {
 
     @Override
     public void visit(QueryVisitor visitor) {
-
+        query.visit(visitor);
     }
 
     @Override
