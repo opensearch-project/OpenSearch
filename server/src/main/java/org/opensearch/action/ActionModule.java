@@ -107,8 +107,6 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusActio
 import org.opensearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
 import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.cluster.state.TransportClusterStateAction;
-import org.opensearch.action.admin.cluster.state.term.GetTermVersionAction;
-import org.opensearch.action.admin.cluster.state.term.TransportGetTermVersionAction;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.opensearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
@@ -283,6 +281,8 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.TransportAction;
+import org.opensearch.action.support.clustermanager.term.GetTermVersionAction;
+import org.opensearch.action.support.clustermanager.term.TransportGetTermVersionAction;
 import org.opensearch.action.termvectors.MultiTermVectorsAction;
 import org.opensearch.action.termvectors.TermVectorsAction;
 import org.opensearch.action.termvectors.TransportMultiTermVectorsAction;
