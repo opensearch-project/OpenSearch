@@ -183,7 +183,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.SYSTEM_WRITE, ThreadPoolType.FIXED);
         map.put(Names.TRANSLOG_TRANSFER, ThreadPoolType.SCALING);
         map.put(Names.TRANSLOG_SYNC, ThreadPoolType.FIXED);
-        map.put(Names.REMOTE_PURGE, ThreadPoolType.SCALING);
+        map.put(Names.REMOTE_PURGE, ThreadPoolType.FIXED);
         map.put(Names.REMOTE_REFRESH_RETRY, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_RECOVERY, ThreadPoolType.SCALING);
         map.put(Names.INDEX_SEARCHER, ThreadPoolType.RESIZABLE);
@@ -265,7 +265,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             new ScalingExecutorBuilder(Names.TRANSLOG_TRANSFER, 1, halfProc, TimeValue.timeValueMinutes(5))
         );
         builders.put(Names.TRANSLOG_SYNC, new FixedExecutorBuilder(settings, Names.TRANSLOG_SYNC, allocatedProcessors * 4, 10000));
-        builders.put(Names.REMOTE_PURGE, new ScalingExecutorBuilder(Names.REMOTE_PURGE, 1, halfProc, TimeValue.timeValueMinutes(5)));
+        builders.put(Names.REMOTE_PURGE, new FixedExecutorBuilder(settings, Names.REMOTE_PURGE, halfProc, 10000));
         builders.put(
             Names.REMOTE_REFRESH_RETRY,
             new ScalingExecutorBuilder(Names.REMOTE_REFRESH_RETRY, 1, halfProc, TimeValue.timeValueMinutes(5))
