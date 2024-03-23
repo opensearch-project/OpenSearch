@@ -50,7 +50,7 @@ public class RemoteStoreMigrationAllocationIT extends MigrationBaseTestCase {
 
     // tests for primary shard copy allocation with MIXED mode and REMOTE_STORE direction
 
-    public void testDontAllocateNewPrimaryShardOnNonRemoteNodeForMixedModeAndRemoteStoreDirection() throws Exception {
+    public void testAllocateNewPrimaryShardForMixedModeAndRemoteStoreDirection() throws Exception {
         logger.info(" --> initialize cluster");
         initializeCluster(false);
 
@@ -71,59 +71,29 @@ public class RemoteStoreMigrationAllocationIT extends MigrationBaseTestCase {
         setDirection(REMOTE_STORE.direction);
 
         Decision decision = getDecisionForTargetNode(nonRemoteNode, true, true, false);
-        Decision.Type type = Decision.Type.NO;
-        assertEquals(type, decision.type());
+        assertEquals(Decision.Type.NO, decision.type());
         assertEquals(
             "[remote_store migration_direction]: primary shard copy can not be allocated to a non-remote node",
             decision.getExplanation().toLowerCase(Locale.ROOT)
         );
 
-        logger.info(" --> attempt allocation");
+        logger.info(" --> attempt allocation on non-remote node");
         attemptAllocation(nonRemoteNodeName);
 
-        logger.info(" --> verify non-allocation of primary shard");
+        logger.info(" --> verify non-allocation of primary shard on non-remote node");
         assertNonAllocation(true);
-    }
-
-    public void testAllocateNewPrimaryShardOnRemoteNodeForMixedModeAndRemoteStoreDirection() throws Exception {
-        logger.info(" --> initialize cluster");
-        initializeCluster(false);
-
-        logger.info(" --> add remote and non-remote nodes");
-        setClusterMode(MIXED.mode);
-        addRemote = true;
-        String remoteNodeName = internalCluster().startNode();
-        addRemote = false;
-        String nonRemoteNodeName = internalCluster().startNode();
-        internalCluster().validateClusterFormed();
-        DiscoveryNode remoteNode = assertNodeInCluster(remoteNodeName);
-        DiscoveryNode nonRemoteNode = assertNodeInCluster(nonRemoteNodeName);
 
         logger.info(" --> verify expected decision for allocating a new primary shard on a remote node");
-        prepareIndexWithoutReplica(Optional.empty());
-
-        logger.info(" --> set remote_store direction");
-        setDirection(REMOTE_STORE.direction);
-
-        Decision decision = getDecisionForTargetNode(remoteNode, true, true, false);
+        prepareDecisions();
+        decision = getDecisionForTargetNode(remoteNode, true, true, false);
         assertEquals(Decision.Type.YES, decision.type());
         assertEquals(
             "[remote_store migration_direction]: primary shard copy can be allocated to a remote node",
             decision.getExplanation().toLowerCase(Locale.ROOT)
         );
 
-        logger.info(" --> attempt allocation");
-        client.admin()
-            .indices()
-            .prepareUpdateSettings(TEST_INDEX)
-            .setSettings(
-                Settings.builder()
-                    .put("index.routing.allocation.include._name", allNodesExcept(null))
-                    .put("index.routing.allocation.exclude._name", "")
-            )
-            .execute()
-            .actionGet();
-
+        logger.info(" --> attempt allocation on remote node");
+        attemptAllocation(remoteNodeName);
         ensureGreen(TEST_INDEX);
 
         logger.info(" --> verify allocation of primary shard");
@@ -236,11 +206,11 @@ public class RemoteStoreMigrationAllocationIT extends MigrationBaseTestCase {
         logger.info(" --> verify expected decision for replica shard");
         prepareDecisions();
         Decision decision = getDecisionForTargetNode(nonRemoteNode2, false, true, false);
-        Decision.Type type = Decision.Type.YES;
-        String reason = "[remote_store migration_direction]: replica shard copy can be allocated to a non-remote node";
+        Decision.Type expectedType = Decision.Type.YES;
+        String expectedReason = "[remote_store migration_direction]: replica shard copy can be allocated to a non-remote node";
 
-        assertEquals(type, decision.type());
-        assertEquals(reason, decision.getExplanation().toLowerCase(Locale.ROOT));
+        assertEquals(expectedType, decision.type());
+        assertEquals(expectedReason, decision.getExplanation().toLowerCase(Locale.ROOT));
 
         logger.info(" --> allocate replica shard on the other non-remote node");
         attemptAllocation(nonRemoteNodeName2);
@@ -276,8 +246,8 @@ public class RemoteStoreMigrationAllocationIT extends MigrationBaseTestCase {
         prepareDecisions();
         Decision decision = getDecisionForTargetNode(nonRemoteNode, false, true, false);
 
-        Decision.Type type = Decision.Type.YES;
-        assertEquals(type, decision.type());
+        Decision.Type expectedType = Decision.Type.YES;
+        assertEquals(expectedType, decision.type());
         assertEquals(
             "[remote_store migration_direction]: replica shard copy can be allocated to a non-remote node",
             decision.getExplanation().toLowerCase(Locale.ROOT)
@@ -352,13 +322,13 @@ public class RemoteStoreMigrationAllocationIT extends MigrationBaseTestCase {
         prepareDecisions();
         Decision decision = getDecisionForTargetNode(targetNode, !isReplicaAllocation, true, false);
         assertEquals(Decision.Type.YES, decision.type());
-        String reason = String.format(
+        String expectedReason = String.format(
             Locale.ROOT,
             "[remote_store migration_direction]: %s shard copy can be allocated to a %s node for strict compatibility mode",
             (isReplicaAllocation ? "replica" : "primary"),
             (isRemoteCluster ? "remote" : "non-remote")
         );
-        assertEquals(reason, decision.getExplanation().toLowerCase(Locale.ROOT));
+        assertEquals(expectedReason, decision.getExplanation().toLowerCase(Locale.ROOT));
 
         logger.info(" --> attempt allocation");
         attemptAllocation(targetNode.getName());
@@ -410,12 +380,12 @@ public class RemoteStoreMigrationAllocationIT extends MigrationBaseTestCase {
         prepareDecisions();
         Decision decision = getDecisionForTargetNode(nonRemoteNode, !isReplicaAllocation, false, false);
         assertEquals(Decision.Type.NO, decision.type());
-        String reason = String.format(
+        String expectedReason = String.format(
             Locale.ROOT,
             "[remote_store migration_direction]: %s shard copy can not be allocated to a non-remote node because a remote store backed index's shard copy can only be allocated to a remote node",
             (isReplicaAllocation ? "replica" : "primary")
         );
-        assertEquals(reason, decision.getExplanation().toLowerCase(Locale.ROOT));
+        assertEquals(expectedReason, decision.getExplanation().toLowerCase(Locale.ROOT));
 
         logger.info(" --> attempt allocation of shard on non-remote node");
         attemptAllocation(nonRemoteNodeName);

@@ -319,6 +319,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.Final
     );
 
+    public static final String SETTING_REMOTE_STORE_PREFIX = "index.remote_store.";
+
     public static final String SETTING_REMOTE_STORE_ENABLED = "index.remote_store.enabled";
 
     public static final String SETTING_REMOTE_SEGMENT_STORE_REPOSITORY = "index.remote_store.segment.repository";
