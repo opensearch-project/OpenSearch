@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.state.term;
+package org.opensearch.action.support.clustermanager.term;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
