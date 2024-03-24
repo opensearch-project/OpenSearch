@@ -7,4 +7,4 @@
  */
 
 /** Cluster Term transport handler. */
-package org.opensearch.action.admin.cluster.state.term;
+package org.opensearch.action.support.clustermanager.term;
