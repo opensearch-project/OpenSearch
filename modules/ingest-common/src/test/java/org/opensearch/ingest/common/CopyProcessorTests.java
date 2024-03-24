@@ -24,7 +24,7 @@ public class CopyProcessorTests extends OpenSearchTestCase {
     public void testCopyExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String sourceFieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
-        String targetFieldName = RandomDocumentPicks.randomFieldName(random());
+        String targetFieldName = sourceFieldName + "_" + randomAlphaOfLength(10);
         Processor processor = createCopyProcessor(sourceFieldName, targetFieldName, false, false, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(targetFieldName), equalTo(true));
@@ -71,7 +71,7 @@ public class CopyProcessorTests extends OpenSearchTestCase {
     public void testCopyWithRemoveSource() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String sourceFieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
-        String targetFieldName = RandomDocumentPicks.randomFieldName(random());
+        String targetFieldName = sourceFieldName + "_" + randomAlphaOfLength(10);
         Object sourceValue = ingestDocument.getFieldValue(sourceFieldName, Object.class);
 
         Processor processor = createCopyProcessor(sourceFieldName, targetFieldName, false, true, false);
