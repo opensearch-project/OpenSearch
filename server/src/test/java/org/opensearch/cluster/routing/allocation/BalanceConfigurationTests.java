@@ -92,7 +92,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
     public void testIndexBalance() {
         /* Tests balance over indices only */
         final float indexBalance = 1.0f;
-        final float shardBalance = 0.001f;
+        final float shardBalance = 0.0f;
         final float balanceThreshold = 1.0f;
 
         Settings.Builder settings = Settings.builder();
