@@ -122,6 +122,9 @@ public final class ConvertProcessor extends AbstractProcessor {
         IP {
             @Override
             public Object convert(Object value) {
+                // If the value is a valid ipv4/ipv6 address, we return the original value directly because IpFieldType
+                // can accept string value, this is simpler than we return an InetAddress object which needs to do more
+                // work such as serialization
                 if (value instanceof String && InetAddresses.isInetAddress(value.toString())) {
                     return value;
                 } else {
