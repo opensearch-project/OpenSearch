@@ -1859,10 +1859,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void markSearcherAccessed() {
-        if (isSearchIdle()) {
-            SearchOperationListener searchOperationListener = getSearchOperationListener();
-            searchOperationListener.onSearchIdleReactivation();
-        }
         lastSearcherAccess.lazySet(threadPool.relativeTimeInMillis());
     }
 
@@ -4591,9 +4587,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *                 <code>true</code> if the listener was registered to wait for a refresh.
      */
     public final void awaitShardSearchActive(Consumer<Boolean> listener) {
+        boolean isSearchIdle = isSearchIdle();
         markSearcherAccessed(); // move the shard into non-search idle
         final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {
+            if (isSearchIdle) {
+                SearchOperationListener searchOperationListener = getSearchOperationListener();
+                searchOperationListener.onSearchIdleReactivation();
+            }
             addRefreshListener(location, (b) -> {
                 pendingRefreshLocation.compareAndSet(location, null);
                 listener.accept(true);
