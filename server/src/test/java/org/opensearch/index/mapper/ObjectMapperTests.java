@@ -447,7 +447,7 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             .startObject("tweet")
             .startObject("derived")
             .startObject("derived_field_name1")
-            .field("type", "text")
+            .field("type", "boolean")
             .endObject()
             .startObject("derived_field_name2")
             .field("type", "keyword")
@@ -458,7 +458,7 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .startObject("properties")
             .startObject("field_name")
-            .field("type", "text")
+            .field("type", "date")
             .endObject()
             .endObject()
             .endObject()
@@ -472,7 +472,7 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         Mapper mapper = documentMapper.root().getMapper("derived_field_name1");
         assertTrue(mapper instanceof DerivedFieldMapper);
         DerivedFieldMapper derivedFieldMapper = (DerivedFieldMapper) mapper;
-        assertEquals("text", derivedFieldMapper.getType());
+        assertEquals("boolean", derivedFieldMapper.getType());
         assertNull(derivedFieldMapper.getScript());
 
         mapper = documentMapper.root().getMapper("derived_field_name2");
@@ -484,7 +484,7 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         // Check that field in properties was parsed correctly as well
         mapper = documentMapper.root().getMapper("field_name");
         assertNotNull(mapper);
-        assertEquals("text", mapper.typeName());
+        assertEquals("date", mapper.typeName());
     }
 
     @Override
