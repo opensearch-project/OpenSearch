@@ -35,8 +35,6 @@ package org.opensearch.indices;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.opensearch.action.admin.indices.alias.Alias;
-import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
-import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
@@ -60,7 +58,6 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
@@ -79,14 +76,12 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
 
     @ParametersFactory
     public static Collection<Object[]> parameters() {
-        return Collections.singleton(new Object[]{Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE, "true").build()});
-
-//        return Arrays.asList(
-//            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
-//            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() },
-//            new Object[] { Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE, "true").build() },
-//            new Object[] { Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE, "false").build() }
-//        );
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() },
+            new Object[] { Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE, "true").build() },
+            new Object[] { Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE, "false").build() }
+        );
     }
 
     @Override
@@ -696,75 +691,5 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             Arrays.asList(expectedHits, expectedMisses, 0L),
             Arrays.asList(requestCacheStats.getHitCount(), requestCacheStats.getMissCount(), requestCacheStats.getEvictions())
         );
-
     }
-
-    public void testInvalidationAndCleanupLogicWithIndicesRequestCache() throws Exception {
-        Client client = client();
-        assertAcked(
-            client.admin()
-                .indices()
-                .prepareCreate("index")
-                .setMapping("k", "type=keyword")
-                .setSettings(
-                    Settings.builder()
-                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                )
-                .get()
-        );
-        int numberOfIndexedItems = 2;
-        for (int iterator = 0; iterator < numberOfIndexedItems; iterator++) {
-            indexRandom(true, client.prepareIndex("index").setSource("k" + iterator, "hello" + iterator));
-        }
-        ensureSearchable("index");
-        for (int iterator = 0; iterator < numberOfIndexedItems; iterator++) {
-            SearchResponse resp =
-                client.prepareSearch("index").setRequestCache(true).setQuery(QueryBuilders.termQuery("k" + iterator,
-                    "hello" + iterator)).get();
-            assertSearchResponse(resp);
-        }
-        RequestCacheStats requestCacheStats = client.admin()
-            .indices()
-            .prepareStats("index")
-            .setRequestCache(true)
-            .get()
-            .getTotal()
-            .getRequestCache();
-        System.out.println("hits = " + requestCacheStats.getHitCount() + " misses = " + requestCacheStats.getMissCount() + " size = " + requestCacheStats.getMemorySizeInBytes()
-            + " evictions = " + requestCacheStats.getEvictions());
-        for (int iterator = 0; iterator < numberOfIndexedItems; iterator++) {
-            SearchResponse resp =
-                client.prepareSearch("index").setRequestCache(true).setQuery(QueryBuilders.termQuery("k" + iterator,
-                    "hello" + iterator)).get();
-            assertSearchResponse(resp);
-        }
-        //System.out.println(resp.toString());
-        requestCacheStats = client.admin()
-            .indices()
-            .prepareStats("index")
-            .setRequestCache(true)
-            .get()
-            .getTotal()
-            .getRequestCache();
-        System.out.println("hits = " + requestCacheStats.getHitCount() + " misses = " + requestCacheStats.getMissCount() + " size = " + requestCacheStats.getMemorySizeInBytes()
-            + " evictions = " + requestCacheStats.getEvictions());         // Explicit refresh would invalidate cache
-        refreshAndWaitForReplication();
-        ClearIndicesCacheRequest request = new ClearIndicesCacheRequest("index");
-        ClearIndicesCacheResponse response = client.admin().indices().clearCache(request).get();
-        System.out.println("status of clear indices = " + response.getStatus().getStatus());
-        Thread.sleep(2000);
-        requestCacheStats = client.admin()
-            .indices()
-            .prepareStats("index")
-            .setRequestCache(true)
-            .get()
-            .getTotal()
-            .getRequestCache();
-        System.out.println("hits = " + requestCacheStats.getHitCount() + " misses = " + requestCacheStats.getMissCount() + " size = " + requestCacheStats.getMemorySizeInBytes()
-            + " evictions = " + requestCacheStats.getEvictions());
-        assertEquals(0, requestCacheStats.getMemorySizeInBytes());
-    }
-
 }
