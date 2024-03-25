@@ -1582,6 +1582,14 @@ public class IngestServiceTests extends OpenSearchTestCase {
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
+
+        // index name matches with ITMD for bulk upsert
+        IndexRequest upsertRequest = new IndexRequest().source(emptyMap());
+        UpdateRequest updateRequest = new UpdateRequest("idx", "id1").upsert(upsertRequest).script(mockScript("1"));
+        result = IngestService.resolvePipelines(updateRequest, TransportBulkAction.getIndexWriteRequest(updateRequest), metadata);
+        assertThat(result, is(true));
+        assertThat(upsertRequest.isPipelineResolved(), is(true));
+        assertThat(upsertRequest.getPipeline(), equalTo("default-pipeline"));
     }
 
     public void testResolveFinalPipeline() {
@@ -1619,6 +1627,14 @@ public class IngestServiceTests extends OpenSearchTestCase {
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
         assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+
+        // index name matches with ITMD for bulk upsert:
+        IndexRequest upsertRequest = new IndexRequest().source(emptyMap());
+        UpdateRequest updateRequest = new UpdateRequest("idx", "id1").upsert(upsertRequest).script(mockScript("1"));
+        result = IngestService.resolvePipelines(updateRequest, TransportBulkAction.getIndexWriteRequest(updateRequest), metadata);
+        assertThat(result, is(true));
+        assertThat(upsertRequest.isPipelineResolved(), is(true));
+        assertThat(upsertRequest.getFinalPipeline(), equalTo("final-pipeline"));
     }
 
     public void testResolveRequestOrDefaultPipelineAndFinalPipeline() {
