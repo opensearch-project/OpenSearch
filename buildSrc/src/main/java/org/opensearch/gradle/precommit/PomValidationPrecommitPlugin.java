@@ -48,7 +48,7 @@ public class PomValidationPrecommitPlugin extends PrecommitPlugin {
     public TaskProvider<? extends Task> createTask(Project project) {
         TaskProvider<Task> validatePom = project.getTasks().register("validatePom");
         PublishingExtension publishing = project.getExtensions().getByType(PublishingExtension.class);
-        publishing.getPublications().configureEach(publication -> {
+        publishing.getPublications().all(publication -> {
             String publicationName = Util.capitalize(publication.getName());
             TaskProvider<PomValidationTask> validateTask = project.getTasks()
                 .register("validate" + publicationName + "Pom", PomValidationTask.class);
@@ -59,7 +59,7 @@ public class PomValidationPrecommitPlugin extends PrecommitPlugin {
             validateTask.configure(task -> {
                 task.dependsOn(generateMavenPom);
                 task.getPomFile().fileProvider(generateMavenPom.map(GenerateMavenPom::getDestination));
-                publishing.getPublications().configureEach(publicationForPomGen -> {
+                publishing.getPublications().all(publicationForPomGen -> {
                     task.mustRunAfter(
                         project.getTasks()
                             .withType(GenerateMavenPom.class)
