@@ -151,28 +151,12 @@ teardown:
   - skip:
       version: " - 2.99.99"
       reason: "fixed in 3.0.0"
-  - do:
-      ingest.put_pipeline:
-        id: "my_pipeline"
-        body:  >
-          {
-            "description": "_description",
-            "processors": [
-              {
-                "set" : {
-                  "field" : "foo",
-                  "value" : "bar"
-                }
-              }
-            ]
-          }
-  - match: { acknowledged: true }
 
   - do:
       bulk:
         refresh: true
         body:
-          - '{"update": {"_index": "test_index", "_id": "test_id3", "pipeline": "my_pipeline"}}'
+          - '{"update": {"_index": "test_index", "_id": "test_id3", "pipeline": "pipeline1"}}'
           - '{"upsert": {"f1": "v2", "f2": 47}, "doc": {"x": 1}}'
 
   - match: { errors: false }
@@ -182,4 +166,4 @@ teardown:
       get:
         index: test_index
         id: test_id3
-  - match: { _source: {"f1": "v2", "f2": 47, "foo": "bar"}}
+  - match: { _source: {"f1": "v2", "f2": 47, "field1": "value1"}}
