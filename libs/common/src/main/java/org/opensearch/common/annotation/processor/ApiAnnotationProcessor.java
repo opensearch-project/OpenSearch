@@ -179,6 +179,11 @@ public class ApiAnnotationProcessor extends AbstractProcessor {
             return;
         }
 
+        // Skip protobuf generated classes used in public apis
+        if (ref.toString().contains("Proto")) {
+            return;
+        }
+
         if (ref instanceof DeclaredType) {
             final DeclaredType declaredType = (DeclaredType) ref;
 

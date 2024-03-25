@@ -125,3 +125,7 @@ ${path.logs}
 # Gates the functionality of enabling Opensearch to use pluggable caches with respective store names via setting.
 #
 #opensearch.experimental.feature.pluggable.caching.enabled: false
+#
+# Gates the functionality of enabling Opensearch to use protobuf with basic searches and for node-to-node communication.
+#
+#opensearch.experimental.feature.search_with_protobuf.enabled: false

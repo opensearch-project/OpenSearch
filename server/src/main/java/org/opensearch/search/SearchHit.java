@@ -32,7 +32,6 @@
 
 package org.opensearch.search;
 
-import com.google.protobuf.ByteString;
 import org.apache.lucene.search.Explanation;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
@@ -69,12 +68,11 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 import org.opensearch.search.lookup.SourceLookup;
+import org.opensearch.search.serializer.SearchHitProtobufSerializer;
 import org.opensearch.server.proto.FetchSearchResultProto;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -172,7 +170,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.documentFields = documentFields == null ? emptyMap() : documentFields;
         this.metaFields = metaFields == null ? emptyMap() : metaFields;
         if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF)) {
-            this.searchHitProto = convertHitToProto(this);
+            this.searchHitProto = SearchHitProtobufSerializer.convertHitToProto(this);
         }
     }
 
@@ -246,114 +244,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
     }
 
-    public SearchHit(byte[] in) throws IOException {
-        assert FeatureFlags.isEnabled(FeatureFlags.PROTOBUF) : "protobuf feature flag is not enabled";
-        this.searchHitProto = FetchSearchResultProto.SearchHit.parseFrom(in);
-        this.docId = -1;
-        this.score = this.searchHitProto.getScore();
-        this.id = new Text(this.searchHitProto.getId());
-        if (!this.searchHitProto.hasNestedIdentity() && this.searchHitProto.getNestedIdentity().toByteArray().length > 0) {
-            this.nestedIdentity = new NestedIdentity(this.searchHitProto.getNestedIdentity().toByteArray());
-        } else {
-            this.nestedIdentity = null;
-        }
-        this.version = this.searchHitProto.getVersion();
-        this.seqNo = this.searchHitProto.getSeqNo();
-        this.primaryTerm = this.searchHitProto.getPrimaryTerm();
-        this.source = BytesReference.fromByteBuffer(ByteBuffer.wrap(this.searchHitProto.getSource().toByteArray()));
-        if (source.length() == 0) {
-            source = null;
-        }
-        this.documentFields = new HashMap<>();
-        this.searchHitProto.getDocumentFieldsMap().forEach((k, v) -> {
-            try {
-                this.documentFields.put(k, new DocumentField(v.toByteArray()));
-            } catch (IOException e) {
-                throw new OpenSearchParseException("failed to parse document field", e);
-            }
-        });
-        this.metaFields = new HashMap<>();
-        this.searchHitProto.getMetaFieldsMap().forEach((k, v) -> {
-            try {
-                this.metaFields.put(k, new DocumentField(v.toByteArray()));
-            } catch (IOException e) {
-                throw new OpenSearchParseException("failed to parse document field", e);
-            }
-        });
-        this.highlightFields = new HashMap<>();
-        this.searchHitProto.getHighlightFieldsMap().forEach((k, v) -> {
-            try {
-                this.highlightFields.put(k, new HighlightField(v.toByteArray()));
-            } catch (IOException e) {
-                throw new OpenSearchParseException("failed to parse highlight field", e);
-            }
-        });
-        this.sortValues = new SearchSortValues(this.searchHitProto.getSortValues().toByteArray());
-        if (this.searchHitProto.getMatchedQueriesCount() > 0) {
-            this.matchedQueries = new LinkedHashMap<>(this.searchHitProto.getMatchedQueriesCount());
-            for (String query : this.searchHitProto.getMatchedQueriesList()) {
-                matchedQueries.put(query, Float.NaN);
-            }
-        }
-        if (this.searchHitProto.getMatchedQueriesWithScoresCount() > 0) {
-            Map<String, Float> tempMap = this.searchHitProto.getMatchedQueriesWithScoresMap()
-                .entrySet()
-                .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue()));
-            this.matchedQueries = tempMap.entrySet()
-                .stream()
-                .sorted(Map.Entry.comparingByKey())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (oldValue, newValue) -> oldValue, LinkedHashMap::new));
-        }
-        if (this.searchHitProto.hasExplanation()) {
-            this.explanation = readExplanation(this.searchHitProto.getExplanation().toByteArray());
-        }
-        SearchShardTarget searchShardTarget = new SearchShardTarget(
-            this.searchHitProto.getShard().getNodeId(),
-            new ShardId(
-                this.searchHitProto.getShard().getShardId().getIndexName(),
-                this.searchHitProto.getShard().getShardId().getIndexUUID(),
-                this.searchHitProto.getShard().getShardId().getShardId()
-            ),
-            this.searchHitProto.getShard().getClusterAlias(),
-            OriginalIndices.NONE
-        );
-        shard(searchShardTarget);
-        if (this.searchHitProto.getInnerHitsCount() > 0) {
-            this.innerHits = new HashMap<>();
-            this.searchHitProto.getInnerHitsMap().forEach((k, v) -> {
-                try {
-                    this.innerHits.put(k, new SearchHits(v.toByteArray()));
-                } catch (IOException e) {
-                    throw new OpenSearchParseException("failed to parse inner hits", e);
-                }
-            });
-        } else {
-            this.innerHits = null;
-        }
-
-    }
-
-    public static FetchSearchResultProto.SearchHit convertHitToProto(SearchHit hit) {
-        FetchSearchResultProto.SearchHit.Builder searchHitBuilder = FetchSearchResultProto.SearchHit.newBuilder();
-        if (hit.getIndex() != null) {
-            searchHitBuilder.setIndex(hit.getIndex());
-        }
-        searchHitBuilder.setId(hit.getId());
-        searchHitBuilder.setScore(hit.getScore());
-        searchHitBuilder.setSeqNo(hit.getSeqNo());
-        searchHitBuilder.setPrimaryTerm(hit.getPrimaryTerm());
-        searchHitBuilder.setVersion(hit.getVersion());
-        searchHitBuilder.setDocId(hit.docId);
-        if (hit.getSourceRef() != null) {
-            searchHitBuilder.setSource(ByteString.copyFrom(hit.getSourceRef().toBytesRef().bytes));
-        }
-        for (Map.Entry<String, DocumentField> entry : hit.getFields().entrySet()) {
-            searchHitBuilder.putDocumentFields(entry.getKey(), DocumentField.convertDocumentFieldToProto(entry.getValue()));
-        }
-        return searchHitBuilder.build();
-    }
-
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
     @Override
@@ -406,10 +296,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 entry.getValue().writeTo(out);
             }
         }
-    }
-
-    public void writeTo(OutputStream out) throws IOException {
-        out.write(this.searchHitProto.toByteArray());
     }
 
     public int docId() {
@@ -571,7 +457,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (documentFields.isEmpty()) this.documentFields = new HashMap<>();
         this.documentFields.put(fieldName, field);
         if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF)) {
-            this.searchHitProto = convertHitToProto(this);
+            this.searchHitProto = SearchHitProtobufSerializer.convertHitToProto(this);
         }
     }
 
@@ -1186,26 +1072,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             field = in.readOptionalText();
             offset = in.readInt();
             child = in.readOptionalWriteable(NestedIdentity::new);
-        }
-
-        NestedIdentity(byte[] in) throws IOException {
-            assert FeatureFlags.isEnabled(FeatureFlags.PROTOBUF) : "protobuf feature flag is not enabled";
-            FetchSearchResultProto.SearchHit.NestedIdentity proto = FetchSearchResultProto.SearchHit.NestedIdentity.parseFrom(in);
-            if (proto.hasField()) {
-                field = new Text(proto.getField());
-            } else {
-                field = null;
-            }
-            if (proto.hasOffset()) {
-                offset = proto.getOffset();
-            } else {
-                offset = -1;
-            }
-            if (proto.hasChild()) {
-                child = new NestedIdentity(proto.getChild().toByteArray());
-            } else {
-                child = null;
-            }
         }
 
         /**

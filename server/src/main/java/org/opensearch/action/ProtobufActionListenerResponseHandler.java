@@ -68,7 +68,6 @@ public class ProtobufActionListenerResponseHandler<Response extends TransportRes
 
     @Override
     public Response read(StreamInput in) throws IOException {
-        // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'read'");
     }
 
