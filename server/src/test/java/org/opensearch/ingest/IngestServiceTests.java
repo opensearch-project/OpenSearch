@@ -1583,7 +1583,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
 
-        // index name matches with ITMD within bulk upsert:
+        // index name matches with ITMD for bulk upsert
         IndexRequest upsertRequest = new IndexRequest().source(emptyMap());
         UpdateRequest updateRequest = new UpdateRequest("idx", "id1").upsert(upsertRequest).script(mockScript("1"));
         result = IngestService.resolvePipelines(updateRequest, TransportBulkAction.getIndexWriteRequest(updateRequest), metadata);
@@ -1628,7 +1628,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
         assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
 
-        // index name matches with ITMD within bulk upsert:
+        // index name matches with ITMD for bulk upsert:
         IndexRequest upsertRequest = new IndexRequest().source(emptyMap());
         UpdateRequest updateRequest = new UpdateRequest("idx", "id1").upsert(upsertRequest).script(mockScript("1"));
         result = IngestService.resolvePipelines(updateRequest, TransportBulkAction.getIndexWriteRequest(updateRequest), metadata);
