@@ -31,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Built-in secure transports support ([#12435](https://github.com/opensearch-project/OpenSearch/pull/12435))
 - Lightweight Transport action to verify local term before fetching cluster-state from remote ([#12252](https://github.com/opensearch-project/OpenSearch/pull/12252/))
 - Integrate with admission controller for cluster-manager Read API. ([#12496](https://github.com/opensearch-project/OpenSearch/pull/12496))
+- Add explicit dependency to validatePom and generatePom tasks ([#12909](https://github.com/opensearch-project/OpenSearch/pull/12909))
 
 ### Dependencies
 - Bump `com.google.api.grpc:proto-google-common-protos` from 2.25.1 to 2.37.1 ([#12289](https://github.com/opensearch-project/OpenSearch/pull/12289), [#12365](https://github.com/opensearch-project/OpenSearch/pull/12365))
