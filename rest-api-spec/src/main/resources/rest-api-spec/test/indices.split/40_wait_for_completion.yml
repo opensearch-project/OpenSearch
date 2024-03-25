@@ -4,8 +4,8 @@
   # will return a task immediately and the split operation will run in background.
 
   - skip:
-      version: " - 2.99.99"
-      reason: "only available in 3.0+"
+      version: " - 2.6.99"
+      reason: "wait_for_completion was introduced in 2.7.0"
       features: allowed_warnings
 
   - do:

@@ -24,7 +24,7 @@ public class BytesReferenceSerializer implements Serializer<BytesReference, byte
 
     @Override
     public byte[] serialize(BytesReference object) {
-        return BytesReference.toBytes(object);
+        return BytesReference.toBytesWithoutCompact(object);
     }
 
     @Override

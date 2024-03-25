@@ -123,6 +123,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
+import org.opensearch.index.remote.RemoteStorePathType;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.seqno.RetentionLeaseStats;
@@ -149,6 +150,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
@@ -200,6 +202,7 @@ import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
 import static org.opensearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.opensearch.index.IndexService.IndexCreationContext.METADATA_VERIFICATION;
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
@@ -311,6 +314,18 @@ public class IndicesService extends AbstractLifecycleComponent
         false,
         Property.NodeScope,
         Property.Final
+    );
+
+    /**
+     * This setting is used to set the remote store blob store path prefix strategy. This setting is effective only for
+     * remote store enabled cluster.
+     */
+    public static final Setting<RemoteStorePathType> CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING = new Setting<>(
+        "cluster.remote_store.index.path.prefix.type",
+        RemoteStorePathType.FIXED.toString(),
+        RemoteStorePathType::parseString,
+        Property.NodeScope,
+        Property.Dynamic
     );
 
     /**
@@ -490,7 +505,12 @@ public class IndicesService extends AbstractLifecycleComponent
         this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
         this.remoteDirectoryFactory = remoteDirectoryFactory;
-        this.translogFactorySupplier = getTranslogFactorySupplier(repositoriesServiceSupplier, threadPool, remoteStoreStatsTrackerFactory);
+        this.translogFactorySupplier = getTranslogFactorySupplier(
+            repositoriesServiceSupplier,
+            threadPool,
+            remoteStoreStatsTrackerFactory,
+            settings
+        );
         this.searchRequestStats = searchRequestStats;
         this.clusterDefaultRefreshInterval = CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
@@ -520,7 +540,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private static BiFunction<IndexSettings, ShardRouting, TranslogFactory> getTranslogFactorySupplier(
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         ThreadPool threadPool,
-        RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
+        RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        Settings settings
     ) {
         return (indexSettings, shardRouting) -> {
             if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
@@ -528,6 +549,13 @@ public class IndicesService extends AbstractLifecycleComponent
                     repositoriesServiceSupplier,
                     threadPool,
                     indexSettings.getRemoteStoreTranslogRepository(),
+                    remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId())
+                );
+            } else if (isRemoteDataAttributePresent(settings) && shardRouting.primary()) {
+                return new RemoteBlobStoreInternalTranslogFactory(
+                    repositoriesServiceSupplier,
+                    threadPool,
+                    RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(indexSettings.getNodeSettings()),
                     remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId())
                 );
             }
@@ -919,7 +947,7 @@ public class IndicesService extends AbstractLifecycleComponent
             if (idxSettings.isRemoteSnapshot()) {
                 return config -> new ReadOnlyEngine(config, new SeqNoStats(0, 0, 0), new TranslogStats(), true, Function.identity(), false);
             }
-            if (idxSettings.isSegRepEnabled()) {
+            if (idxSettings.isSegRepEnabledOrRemoteNode() || idxSettings.isRemoteNode()) {
                 return new NRTReplicationEngineFactory();
             }
             return new InternalEngineFactory();
@@ -1019,7 +1047,10 @@ public class IndicesService extends AbstractLifecycleComponent
             globalCheckpointSyncer,
             retentionLeaseSyncer,
             checkpointPublisher,
-            remoteStoreStatsTrackerFactory
+            remoteStoreStatsTrackerFactory,
+            repositoriesService,
+            targetNode,
+            sourceNode
         );
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {

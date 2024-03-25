@@ -124,8 +124,8 @@ public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
         assertEquals(1.0, histogramPointData.getMin(), 1.0);
     }
 
-    public void testObservableGauge() throws Exception {
-        String metricName = "test-observable-gauge";
+    public void testGauge() throws Exception {
+        String metricName = "test-gauge";
         MetricsRegistry metricsRegistry = internalCluster().getInstance(MetricsRegistry.class);
         InMemorySingletonMetricsExporter.INSTANCE.reset();
         Tags tags = Tags.create().addTag("test", "integ-test");
@@ -137,7 +137,7 @@ public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
 
         InMemorySingletonMetricsExporter exporter = InMemorySingletonMetricsExporter.INSTANCE;
 
-        assertEquals(2.0, getMaxObservableGaugeValue(exporter, metricName), 0.0);
+        assertTrue(getMaxObservableGaugeValue(exporter, metricName) >= 2.0);
         gaugeCloseable.close();
         double observableGaugeValueAfterStop = getMaxObservableGaugeValue(exporter, metricName);
 

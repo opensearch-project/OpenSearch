@@ -112,7 +112,10 @@ public class SimpleQueryStringIT extends ParameterizedStaticSettingsOpenSearchIn
 
     @BeforeClass
     public static void createRandomClusterSetting() {
-        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(60, 100);
+        // Lower bound can't be small(such as 60), simpleQueryStringQuery("foo Bar 19 127.0.0.1") in testDocWithAllTypes
+        // will create many clauses of BooleanClause, In that way, it will throw too_many_nested_clauses exception.
+        // So we need to set a higher bound(such as 80) to avoid failures.
+        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(80, 100);
     }
 
     @Override

@@ -29,6 +29,7 @@
 
 package org.opensearch.common.inject.spi;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.internal.SourceProvider;
@@ -50,8 +51,9 @@ import java.util.Objects;
  *
  * @author crazybob@google.com (Bob Lee)
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class Message implements Element {
     private final String message;
     private final Throwable cause;
