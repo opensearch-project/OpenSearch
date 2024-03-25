@@ -8,12 +8,15 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Base class for inbound data as a message.
  * Different implementations are used for different protocols.
  *
  * @opensearch.internal
  */
+@ExperimentalApi
 public interface BaseInboundMessage {
 
     /**

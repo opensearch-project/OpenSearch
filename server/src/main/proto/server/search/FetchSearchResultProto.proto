@@ -30,7 +30,7 @@ message SearchHits {
   repeated SearchHit hits = 4;
   repeated SortField sortFields = 5;
   optional string collapseField = 6;
-  repeated CollapseValue collapseValues = 7;
+  repeated SortValue collapseValues = 7;
 }
 
 message SearchHit {
@@ -71,8 +71,8 @@ message SearchHit {
   }
   
   message SearchSortValues {
-    repeated bytes formattedSortValues = 1;
-    repeated bytes rawSortValues = 2;
+    repeated SortValue formattedSortValues = 1;
+    repeated SortValue rawSortValues = 2;
   }
 
   message Explanation {
@@ -105,7 +105,7 @@ message SortField {
   }
 }
 
-message CollapseValue {
+message SortValue {
   optional string collapseString = 1;
   optional int32 collapseInt = 2;
   optional int64 collapseLong = 3;

@@ -42,9 +42,11 @@ import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.serializer.SearchHitsProtobufSerializer;
 import org.opensearch.server.proto.FetchSearchResultProto;
 import org.opensearch.server.proto.ShardSearchRequestProto;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -79,7 +81,8 @@ public final class FetchSearchResult extends SearchPhaseResult {
             this.fetchSearchResultProto.getContextId().getSessionId(),
             this.fetchSearchResultProto.getContextId().getId()
         );
-        hits = new SearchHits(this.fetchSearchResultProto.getHits().toByteArray());
+        SearchHitsProtobufSerializer protobufSerializer = new SearchHitsProtobufSerializer();
+        hits = protobufSerializer.createSearchHits(new ByteArrayInputStream(this.fetchSearchResultProto.getHits().toByteArray()));
     }
 
     public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
@@ -106,7 +109,9 @@ public final class FetchSearchResult extends SearchPhaseResult {
         assert assertNoSearchTarget(hits);
         this.hits = hits;
         if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING) && this.fetchSearchResultProto != null) {
-            this.fetchSearchResultProto = this.fetchSearchResultProto.toBuilder().setHits(SearchHits.convertHitsToProto(hits)).build();
+            this.fetchSearchResultProto = this.fetchSearchResultProto.toBuilder()
+                .setHits(SearchHitsProtobufSerializer.convertHitsToProto(hits))
+                .build();
         }
     }
 
@@ -121,7 +126,8 @@ public final class FetchSearchResult extends SearchPhaseResult {
         if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING) && this.fetchSearchResultProto != null) {
             SearchHits hits;
             try {
-                hits = new SearchHits(this.fetchSearchResultProto.getHits().toByteArray());
+                SearchHitsProtobufSerializer protobufSerializer = new SearchHitsProtobufSerializer();
+                hits = protobufSerializer.createSearchHits(new ByteArrayInputStream(this.fetchSearchResultProto.getHits().toByteArray()));
                 return hits;
             } catch (IOException e) {
                 throw new RuntimeException(e);

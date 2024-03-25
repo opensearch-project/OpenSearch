@@ -32,13 +32,9 @@
 
 package org.opensearch.search;
 
-import com.google.protobuf.ByteString;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.SuppressForbidden;
-import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
@@ -50,12 +46,9 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.action.search.RestSearchAction;
-import org.opensearch.server.proto.FetchSearchResultProto;
-import org.opensearch.server.proto.QuerySearchResultProto;
+import org.opensearch.search.serializer.SearchHitsProtobufSerializer;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -112,82 +105,8 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         this.collapseField = collapseField;
         this.collapseValues = collapseValues;
         if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
-            this.searchHitsProto = convertHitsToProto(this);
+            this.searchHitsProto = SearchHitsProtobufSerializer.convertHitsToProto(this);
         }
-    }
-
-    public static FetchSearchResultProto.SearchHits convertHitsToProto(SearchHits hits) {
-        List<FetchSearchResultProto.SearchHit> searchHitList = new ArrayList<>();
-        for (SearchHit hit : hits) {
-            searchHitList.add(SearchHit.convertHitToProto(hit));
-        }
-        QuerySearchResultProto.TotalHits.Builder totalHitsBuilder = QuerySearchResultProto.TotalHits.newBuilder();
-        if (hits.getTotalHits() != null) {
-            totalHitsBuilder.setValue(hits.getTotalHits().value);
-            totalHitsBuilder.setRelation(
-                hits.getTotalHits().relation == Relation.EQUAL_TO
-                    ? QuerySearchResultProto.TotalHits.Relation.EQUAL_TO
-                    : QuerySearchResultProto.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
-            );
-        }
-        FetchSearchResultProto.SearchHits.Builder searchHitsBuilder = FetchSearchResultProto.SearchHits.newBuilder();
-        searchHitsBuilder.setMaxScore(hits.getMaxScore());
-        searchHitsBuilder.addAllHits(searchHitList);
-        searchHitsBuilder.setTotalHits(totalHitsBuilder.build());
-        if (hits.getSortFields() != null && hits.getSortFields().length > 0) {
-            for (SortField sortField : hits.getSortFields()) {
-                FetchSearchResultProto.SortField.Builder sortFieldBuilder = FetchSearchResultProto.SortField.newBuilder();
-                if (sortField.getField() != null) {
-                    sortFieldBuilder.setField(sortField.getField());
-                }
-                sortFieldBuilder.setType(FetchSearchResultProto.SortField.Type.valueOf(sortField.getType().name()));
-                searchHitsBuilder.addSortFields(sortFieldBuilder.build());
-            }
-        }
-        if (hits.getCollapseField() != null) {
-            searchHitsBuilder.setCollapseField(hits.getCollapseField());
-            for (Object value : hits.getCollapseValues()) {
-                FetchSearchResultProto.CollapseValue.Builder collapseValueBuilder = FetchSearchResultProto.CollapseValue.newBuilder();
-                try {
-                    collapseValueBuilder = readCollapseValueForProtobuf(value, collapseValueBuilder);
-                } catch (IOException e) {
-                    throw new OpenSearchException(e);
-                }
-                searchHitsBuilder.addCollapseValues(collapseValueBuilder.build());
-            }
-        }
-        return searchHitsBuilder.build();
-    }
-
-    private static FetchSearchResultProto.CollapseValue.Builder readCollapseValueForProtobuf(
-        Object collapseValue,
-        FetchSearchResultProto.CollapseValue.Builder collapseValueBuilder
-    ) throws IOException {
-        Class type = collapseValue.getClass();
-        if (type == String.class) {
-            collapseValueBuilder.setCollapseString((String) collapseValue);
-        } else if (type == Integer.class || type == Short.class) {
-            collapseValueBuilder.setCollapseInt((Integer) collapseValue);
-        } else if (type == Long.class) {
-            collapseValueBuilder.setCollapseLong((Long) collapseValue);
-        } else if (type == Float.class) {
-            collapseValueBuilder.setCollapseFloat((Float) collapseValue);
-        } else if (type == Double.class) {
-            collapseValueBuilder.setCollapseDouble((Double) collapseValue);
-        } else if (type == Byte.class) {
-            byte b = (Byte) collapseValue;
-            collapseValueBuilder.setCollapseBytes(ByteString.copyFrom(new byte[] { b }));
-        } else if (type == Boolean.class) {
-            collapseValueBuilder.setCollapseBool((Boolean) collapseValue);
-        } else if (type == BytesRef.class) {
-            collapseValueBuilder.setCollapseBytes(ByteString.copyFrom(((BytesRef) collapseValue).bytes));
-        } else if (type == BigInteger.class) {
-            BigInteger bigInt = (BigInteger) collapseValue;
-            collapseValueBuilder.setCollapseBytes(ByteString.copyFrom(bigInt.toByteArray()));
-        } else {
-            throw new IOException("Can't handle sort field value of type [" + type + "]");
-        }
-        return collapseValueBuilder;
     }
 
     public SearchHits(StreamInput in) throws IOException {
@@ -210,50 +129,6 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
         collapseField = in.readOptionalString();
         collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
-    }
-
-    @SuppressForbidden(reason = "serialization of object to protobuf")
-    public SearchHits(byte[] in) throws IOException {
-        assert FeatureFlags.isEnabled(FeatureFlags.PROTOBUF) : "protobuf feature flag is not enabled";
-        this.searchHitsProto = org.opensearch.server.proto.FetchSearchResultProto.SearchHits.parseFrom(in);
-        this.hits = new SearchHit[this.searchHitsProto.getHitsCount()];
-        for (int i = 0; i < this.searchHitsProto.getHitsCount(); i++) {
-            this.hits[i] = new SearchHit(this.searchHitsProto.getHits(i).toByteArray());
-        }
-        this.totalHits = new TotalHits(
-            this.searchHitsProto.getTotalHits().getValue(),
-            Relation.valueOf(this.searchHitsProto.getTotalHits().getRelation().toString())
-        );
-        this.maxScore = this.searchHitsProto.getMaxScore();
-        this.sortFields = this.searchHitsProto.getSortFieldsList()
-            .stream()
-            .map(sortField -> new SortField(sortField.getField(), SortField.Type.valueOf(sortField.getType().toString())))
-            .toArray(SortField[]::new);
-        this.collapseField = this.searchHitsProto.getCollapseField();
-        this.collapseValues = new Object[this.searchHitsProto.getCollapseValuesCount()];
-        for (int i = 0; i < this.searchHitsProto.getCollapseValuesCount(); i++) {
-            this.collapseValues[i] = readCollapseValueFromProtobuf(this.searchHitsProto.getCollapseValues(i));
-        }
-    }
-
-    private Object readCollapseValueFromProtobuf(FetchSearchResultProto.CollapseValue collapseValue) throws IOException {
-        if (collapseValue.hasCollapseString()) {
-            return collapseValue.getCollapseString();
-        } else if (collapseValue.hasCollapseInt()) {
-            return collapseValue.getCollapseInt();
-        } else if (collapseValue.hasCollapseLong()) {
-            return collapseValue.getCollapseLong();
-        } else if (collapseValue.hasCollapseFloat()) {
-            return collapseValue.getCollapseFloat();
-        } else if (collapseValue.hasCollapseDouble()) {
-            return collapseValue.getCollapseDouble();
-        } else if (collapseValue.hasCollapseBytes()) {
-            return new BytesRef(collapseValue.getCollapseBytes().toByteArray());
-        } else if (collapseValue.hasCollapseBool()) {
-            return collapseValue.getCollapseBool();
-        } else {
-            throw new IOException("Can't handle sort field value of type [" + collapseValue + "]");
-        }
     }
 
     @Override
@@ -475,7 +350,4 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         }
     }
 
-    public void writeTo(OutputStream out) throws IOException {
-        out.write(searchHitsProto.toByteArray());
-    }
 }

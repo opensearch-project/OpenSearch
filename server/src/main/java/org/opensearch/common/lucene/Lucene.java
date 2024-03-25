@@ -85,7 +85,6 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -654,7 +653,6 @@ public class Lucene {
     }
 
     public static Explanation readExplanation(byte[] in) throws IOException {
-        assert FeatureFlags.isEnabled(FeatureFlags.PROTOBUF) : "protobuf feature flag is not enabled";
         FetchSearchResultProto.SearchHit.Explanation explanationProto = FetchSearchResultProto.SearchHit.Explanation.parseFrom(in);
         boolean match = explanationProto.getMatch();
         String description = explanationProto.getDescription();

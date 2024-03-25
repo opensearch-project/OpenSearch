@@ -38,7 +38,6 @@ import org.apache.lucene.search.TopDocs;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
@@ -115,11 +114,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         SearchSourceBuilder source = request.source();
         this.hasTopDocs = source == null || source.size() != 0;
-        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF)) {
-            this.hasAggs = false;
-        } else {
-            this.hasAggs = source != null && source.aggregations() != null;
-        }
+        this.hasAggs = source != null && source.aggregations() != null;
         int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         this.pendingMerges = new PendingMerges(batchReduceSize, request.resolveTrackTotalHitsUpTo());
     }
@@ -325,7 +320,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
          * provided {@link QuerySearchResult}.
          */
         long ramBytesUsedQueryResult(QuerySearchResult result) {
-            if (hasAggs == false || FeatureFlags.isEnabled(FeatureFlags.PROTOBUF)) {
+            if (hasAggs == false) {
                 return 0;
             }
             return result.aggregations().asSerialized(InternalAggregations::readFrom, namedWriteableRegistry).ramBytesUsed();
@@ -494,7 +489,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
 
         public synchronized List<InternalAggregations> consumeAggs() {
-            if (hasAggs == false || FeatureFlags.isEnabled(FeatureFlags.PROTOBUF)) {
+            if (hasAggs == false) {
                 return Collections.emptyList();
             }
             List<InternalAggregations> aggsList = new ArrayList<>();
