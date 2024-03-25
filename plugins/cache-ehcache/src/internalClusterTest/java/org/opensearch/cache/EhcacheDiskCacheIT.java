@@ -8,6 +8,8 @@
 
 package org.opensearch.cache;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -17,11 +19,11 @@ import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cache.store.disk.EhcacheDiskCache;
+import org.opensearch.cache.store.disk.EhcacheThreadLeakFilter;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.settings.CacheSettings;
-import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.env.NodeEnvironment;
@@ -43,12 +45,14 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.greaterThan;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_LISTENER_MODE_SYNC_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_STORAGE_PATH_KEY;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.greaterThan;
 
+@ThreadLeakFilters(filters = { EhcacheThreadLeakFilter.class })
 public class EhcacheDiskCacheIT extends OpenSearchIntegTestCase {
 
     @Override
@@ -66,13 +70,21 @@ public class EhcacheDiskCacheIT extends OpenSearchIntegTestCase {
         try (NodeEnvironment env = newNodeEnvironment(Settings.EMPTY)) {
             return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
-                    .get(DISK_STORAGE_PATH_KEY)
-                    .getKey(), env.nodePaths()[0].indicesPath.toString() +
-                    "/request_cache")
+                .put(
+                    EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                        .get(DISK_STORAGE_PATH_KEY)
+                        .getKey(),
+                    env.nodePaths()[0].indicesPath.toString() + "/request_cache"
+                )
                 .put(
                     CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
                     EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME
+                )
+                .put(
+                    EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                        .get(DISK_LISTENER_MODE_SYNC_KEY)
+                        .getKey(),
+                    true
                 )
                 .build();
         } catch (IOException e) {
@@ -134,7 +146,6 @@ public class EhcacheDiskCacheIT extends OpenSearchIntegTestCase {
         );
     }
 
-
     public void testInvalidationAndCleanupLogicWithIndicesRequestCache() throws Exception {
         Client client = client();
         assertAcked(
@@ -150,15 +161,16 @@ public class EhcacheDiskCacheIT extends OpenSearchIntegTestCase {
                 )
                 .get()
         );
-        int numberOfIndexedItems = 2;
+        int numberOfIndexedItems = randomIntBetween(2, 10);
         for (int iterator = 0; iterator < numberOfIndexedItems; iterator++) {
             indexRandom(true, client.prepareIndex("index").setSource("k" + iterator, "hello" + iterator));
         }
         ensureSearchable("index");
         for (int iterator = 0; iterator < numberOfIndexedItems; iterator++) {
-            SearchResponse resp =
-                client.prepareSearch("index").setRequestCache(true).setQuery(QueryBuilders.termQuery("k" + iterator,
-                    "hello" + iterator)).get();
+            SearchResponse resp = client.prepareSearch("index")
+                .setRequestCache(true)
+                .setQuery(QueryBuilders.termQuery("k" + iterator, "hello" + iterator))
+                .get();
             assertSearchResponse(resp);
         }
         RequestCacheStats requestCacheStats = client.admin()
@@ -168,40 +180,27 @@ public class EhcacheDiskCacheIT extends OpenSearchIntegTestCase {
             .get()
             .getTotal()
             .getRequestCache();
-        System.out.println("hits = " + requestCacheStats.getHitCount() + " misses = " + requestCacheStats.getMissCount() + " size = " + requestCacheStats.getMemorySizeInBytes()
-        + " evictions = " + requestCacheStats.getEvictions());
+        assertEquals(numberOfIndexedItems, requestCacheStats.getMissCount());
+        assertEquals(0, requestCacheStats.getHitCount());
+        assertEquals(0, requestCacheStats.getEvictions());
+        assertTrue(requestCacheStats.getMemorySizeInBytes() > 0);
         for (int iterator = 0; iterator < numberOfIndexedItems; iterator++) {
-            SearchResponse resp =
-                client.prepareSearch("index").setRequestCache(true).setQuery(QueryBuilders.termQuery("k" + iterator,
-                    "hello" + iterator)).get();
+            SearchResponse resp = client.prepareSearch("index")
+                .setRequestCache(true)
+                .setQuery(QueryBuilders.termQuery("k" + iterator, "hello" + iterator))
+                .get();
             assertSearchResponse(resp);
         }
-        //System.out.println(resp.toString());
-        requestCacheStats = client.admin()
-            .indices()
-            .prepareStats("index")
-            .setRequestCache(true)
-            .get()
-            .getTotal()
-            .getRequestCache();
-        System.out.println("hits = " + requestCacheStats.getHitCount() + " misses = " + requestCacheStats.getMissCount() + " size = " + requestCacheStats.getMemorySizeInBytes()
-            + " evictions = " + requestCacheStats.getEvictions());        // Explicit refresh would invalidate cache
+        requestCacheStats = client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache();
+        assertEquals(numberOfIndexedItems, requestCacheStats.getHitCount());
+        assertEquals(numberOfIndexedItems, requestCacheStats.getMissCount());
+        // Explicit refresh would invalidate cache entries.
         refreshAndWaitForReplication();
         ClearIndicesCacheRequest request = new ClearIndicesCacheRequest("index");
         ClearIndicesCacheResponse response = client.admin().indices().clearCache(request).get();
-        System.out.println("status of clear indices = " + response.getStatus().getStatus());
-        Thread.sleep(5000);
-        requestCacheStats = client.admin()
-            .indices()
-            .prepareStats("index")
-            .setRequestCache(true)
-            .get()
-            .getTotal()
-            .getRequestCache();
-        System.out.println("hits = " + requestCacheStats.getHitCount() + " misses = " + requestCacheStats.getMissCount() + " size = " + requestCacheStats.getMemorySizeInBytes()
-            + " evictions = " + requestCacheStats.getEvictions());
+        requestCacheStats = client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache();
         assertEquals(0, requestCacheStats.getMemorySizeInBytes());
+        assertEquals(numberOfIndexedItems, requestCacheStats.getHitCount());
+        assertEquals(numberOfIndexedItems, requestCacheStats.getMissCount());
     }
-
-
 }

@@ -189,7 +189,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         cache.invalidateAll();
         cache.close();
         cacheCleanupManager.close();
-        cache.close();
     }
 
     private double getStalenessThreshold(Settings settings) {

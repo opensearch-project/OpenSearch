@@ -290,7 +290,6 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
      */
     @Override
     public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
-        System.out.println("SAGARX here!!!!!");
         // Ehache doesn't provide any computeIfAbsent function. Exposes putIfAbsent but that works differently and is
         // not performant in case there are multiple concurrent request for same key. Below is our own custom
         // implementation of computeIfAbsent on top of ehcache. Inspired by OpenSearch Cache implementation.
