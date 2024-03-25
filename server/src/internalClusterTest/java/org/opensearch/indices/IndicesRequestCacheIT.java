@@ -691,5 +691,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             Arrays.asList(expectedHits, expectedMisses, 0L),
             Arrays.asList(requestCacheStats.getHitCount(), requestCacheStats.getMissCount(), requestCacheStats.getEvictions())
         );
+
     }
+
 }
