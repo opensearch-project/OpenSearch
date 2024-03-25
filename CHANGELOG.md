@@ -113,6 +113,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Removed
 
 ### Fixed
+- Fix bulk upsert ignores the default_pipeline and final_pipeline when auto-created index matches with the index template
 
 ### Security
 
