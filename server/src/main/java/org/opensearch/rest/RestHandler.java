@@ -47,6 +47,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 @FunctionalInterface
 public interface RestHandler {
 
@@ -233,7 +234,10 @@ public interface RestHandler {
 
     /**
      * Represents an API that has been deprecated and is slated for removal.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     class DeprecatedRoute extends Route {
 
         private final String deprecationMessage;
@@ -251,7 +255,10 @@ public interface RestHandler {
     /**
      * Represents an API that has had its {@code path} or {@code method} changed. Holds both the
      * new and previous {@code path} and {@code method} combination.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     class ReplacedRoute extends Route {
 
         private final String deprecatedPath;
