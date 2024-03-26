@@ -25,64 +25,64 @@ import java.io.IOException;
 public class PeerRecoveryStats implements Writeable, ToXContentFragment {
 
     // Stats for total started recoveries.
-    private final long total_started_recoveries;
+    private long totalStartedRecoveries;
     // Stats for total failed recoveries.
-    private final long total_failed_recoveries;
+    private long totalFailedRecoveries;
     // Stats for total completed recoveries by the node. This is the number of recoveries that were successful.
-    private final long total_completed_recoveries;
+    private long totalCompletedRecoveries;
     // Stats for total number of recoveries which were retried
-    private final long total_retried_recoveries;
+    private long totalRetriedRecoveries;
     // Stats for total number of recoveries which were cancelled
-    private final long total_cancelled_recoveries;
+    private long totalCancelledRecoveries;
 
     public PeerRecoveryStats(StreamInput in) throws IOException {
-        total_started_recoveries = in.readVLong();
-        total_failed_recoveries = in.readVLong();
-        total_completed_recoveries = in.readVLong();
-        total_retried_recoveries = in.readVLong();
-        total_cancelled_recoveries = in.readVLong();
+        totalStartedRecoveries = in.readVLong();
+        totalFailedRecoveries = in.readVLong();
+        totalCompletedRecoveries = in.readVLong();
+        totalRetriedRecoveries = in.readVLong();
+        totalCancelledRecoveries = in.readVLong();
     }
 
     public PeerRecoveryStats(
-        long total_started_recoveries,
-        long total_failed_recoveries,
-        long total_completed_recoveries,
-        long total_retried_recoveries,
-        long total_cancelled_recoveries
+        long totalStartedRecoveries,
+        long totalFailedRecoveries,
+        long totalCompletedRecoveries,
+        long totalRetriedRecoveries,
+        long totalCancelledRecoveries
     ) {
-        this.total_started_recoveries = total_started_recoveries;
-        this.total_failed_recoveries = total_failed_recoveries;
-        this.total_completed_recoveries = total_completed_recoveries;
-        this.total_retried_recoveries = total_retried_recoveries;
-        this.total_cancelled_recoveries = total_cancelled_recoveries;
+        this.totalStartedRecoveries = totalStartedRecoveries;
+        this.totalFailedRecoveries = totalFailedRecoveries;
+        this.totalCompletedRecoveries = totalCompletedRecoveries;
+        this.totalRetriedRecoveries = totalRetriedRecoveries;
+        this.totalCancelledRecoveries = totalCancelledRecoveries;
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(total_started_recoveries);
-        out.writeVLong(total_failed_recoveries);
-        out.writeVLong(total_completed_recoveries);
-        out.writeVLong(total_retried_recoveries);
-        out.writeVLong(total_cancelled_recoveries);
+        out.writeVLong(totalStartedRecoveries);
+        out.writeVLong(totalFailedRecoveries);
+        out.writeVLong(totalCompletedRecoveries);
+        out.writeVLong(totalRetriedRecoveries);
+        out.writeVLong(totalCancelledRecoveries);
     }
 
     public long getTotalStartedRecoveries() {
-        return total_started_recoveries;
+        return totalStartedRecoveries;
     }
 
     public long getTotalFailedRecoveries() {
-        return total_failed_recoveries;
+        return totalFailedRecoveries;
     }
 
     public long getTotalCompletedRecoveries() {
-        return total_completed_recoveries;
+        return totalCompletedRecoveries;
     }
 
     public long getTotalRetriedRecoveries() {
-        return total_retried_recoveries;
+        return totalRetriedRecoveries;
     }
 
     public long getTotalCancelledRecoveries() {
-        return total_cancelled_recoveries;
+        return totalCancelledRecoveries;
     }
 
     public static final class Fields {
@@ -97,12 +97,20 @@ public class PeerRecoveryStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.PEER_RECOVERY_STATS);
         {
-            builder.field(Fields.TOTAL_STARTED_RECOVERIES, total_started_recoveries);
-            builder.field(Fields.TOTAL_FAILED_RECOVERIES, total_failed_recoveries);
-            builder.field(Fields.TOTAL_COMPLETED_RECOVERIES, total_completed_recoveries);
-            builder.field(Fields.TOTAL_RETRIED_RECOVERIES, total_retried_recoveries);
-            builder.field(Fields.TOTAL_CANCELLED_RECOVERIES, total_cancelled_recoveries);
+            builder.field(Fields.TOTAL_STARTED_RECOVERIES, totalStartedRecoveries);
+            builder.field(Fields.TOTAL_FAILED_RECOVERIES, totalFailedRecoveries);
+            builder.field(Fields.TOTAL_COMPLETED_RECOVERIES, totalCompletedRecoveries);
+            builder.field(Fields.TOTAL_RETRIED_RECOVERIES, totalRetriedRecoveries);
+            builder.field(Fields.TOTAL_CANCELLED_RECOVERIES, totalCancelledRecoveries);
         }
         return builder.endObject();
+    }
+
+    public void add(PeerRecoveryStats stats) {
+        this.totalStartedRecoveries += stats.totalStartedRecoveries;
+        this.totalFailedRecoveries += stats.totalFailedRecoveries;
+        this.totalCompletedRecoveries += stats.totalCompletedRecoveries;
+        this.totalRetriedRecoveries += stats.totalRetriedRecoveries;
+        this.totalCancelledRecoveries += stats.totalCancelledRecoveries;
     }
 }

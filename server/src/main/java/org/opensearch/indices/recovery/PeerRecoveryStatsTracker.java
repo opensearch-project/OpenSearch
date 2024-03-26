@@ -30,23 +30,23 @@ public class PeerRecoveryStatsTracker {
         totalCancelledRecoveries = new AtomicLong();
     }
 
-    public void incrementTotalStartedRecoveries(long increment) {
+    public void addTotalStartedRecoveries(long increment) {
         totalStartedRecoveries.addAndGet(increment);
     }
 
-    public void incrementTotalFailedRecoveries(long increment) {
+    public void addTotalFailedRecoveries(long increment) {
         totalFailedRecoveries.addAndGet(increment);
     }
 
-    public void incrementTotalCompletedRecoveries(long increment) {
+    public void addTotalCompletedRecoveries(long increment) {
         totalCompletedRecoveries.addAndGet(increment);
     }
 
-    public void incrementTotalRetriedRecoveries(long increment) {
+    public void addTotalRetriedRecoveries(long increment) {
         totalRetriedRecoveries.addAndGet(increment);
     }
 
-    public void incrementTotalCancelledRecoveries(long increment) {
+    public void addTotalCancelledRecoveries(long increment) {
         totalCancelledRecoveries.addAndGet(increment);
     }
 

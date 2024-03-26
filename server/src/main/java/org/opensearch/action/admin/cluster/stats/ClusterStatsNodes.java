@@ -49,9 +49,13 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryModule;
+import org.opensearch.indices.recovery.PeerRecoveryStats;
+import org.opensearch.ingest.IngestStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.os.OsInfo;
+import org.opensearch.monitor.os.OsStats;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.transport.TransportInfo;
 
@@ -860,45 +864,18 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
     static class PeerRecoveryStats implements ToXContentFragment {
 
-        private long totalStartedRecoveries;
-        private long totalFailedRecoveries;
-        private long totalCompletedRecoveries;
-        private long totalRetriedRecoveries;
-        private long totalCancelledRecoveries;
+        org.opensearch.indices.recovery.PeerRecoveryStats peerRecoveryStats;
 
         PeerRecoveryStats(List<NodeStats> nodeStats) {
+            this.peerRecoveryStats = new org.opensearch.indices.recovery.PeerRecoveryStats(0, 0, 0, 0, 0);
             for (NodeStats nodeStat : nodeStats) {
-                if (nodeStat.getPeerRecoveryStats() != null) {
-                    totalStartedRecoveries += nodeStat.getPeerRecoveryStats().getTotalStartedRecoveries();
-                    totalFailedRecoveries += nodeStat.getPeerRecoveryStats().getTotalFailedRecoveries();
-                    totalCompletedRecoveries += nodeStat.getPeerRecoveryStats().getTotalCompletedRecoveries();
-                    totalRetriedRecoveries += nodeStat.getPeerRecoveryStats().getTotalRetriedRecoveries();
-                    totalCancelledRecoveries += nodeStat.getPeerRecoveryStats().getTotalCancelledRecoveries();
-                }
+                peerRecoveryStats.add(nodeStat.getPeerRecoveryStats());
             }
-        }
-
-        public static final class Fields {
-            static final String PEER_RECOVERY_STATS = "peer_recovery_stats";
-            static final String TOTAL_STARTED_RECOVERIES = "total_started_recoveries";
-            static final String TOTAL_FAILED_RECOVERIES = "total_failed_recoveries";
-            static final String TOTAL_COMPLETED_RECOVERIES = "total_completed_recoveries";
-            static final String TOTAL_RETRIED_RECOVERIES = "total_retried_recoveries";
-            static final String TOTAL_CANCELLED_RECOVERIES = "total_cancelled_recoveries";
         }
 
         @Override
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-            builder.startObject(Fields.PEER_RECOVERY_STATS);
-            {
-                builder.field(Fields.TOTAL_STARTED_RECOVERIES, totalStartedRecoveries);
-                builder.field(Fields.TOTAL_FAILED_RECOVERIES, totalFailedRecoveries);
-                builder.field(Fields.TOTAL_COMPLETED_RECOVERIES, totalCompletedRecoveries);
-                builder.field(Fields.TOTAL_RETRIED_RECOVERIES, totalRetriedRecoveries);
-                builder.field(Fields.TOTAL_CANCELLED_RECOVERIES, totalCancelledRecoveries);
-            }
-            builder.endObject();
-            return builder;
+            return peerRecoveryStats.toXContent(builder, params);
         }
     }
 
