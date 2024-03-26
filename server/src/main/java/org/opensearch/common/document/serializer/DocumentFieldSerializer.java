@@ -6,17 +6,15 @@
  * compatible open source license.
  */
 
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.common.document.serializer;
 
 import org.opensearch.common.document.DocumentField;
 
 import java.io.IOException;
 
+/**
+ * Serializer for {@link DocumentField} which can be implemented for different types of serialization.
+ */
 public interface DocumentFieldSerializer<T> {
 
     DocumentField createDocumentField(T inputStream) throws IOException;

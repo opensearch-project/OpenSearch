@@ -33,7 +33,6 @@
 package org.opensearch.common.document;
 
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.document.serializer.DocumentFieldProtobufSerializer;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -42,7 +41,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.search.SearchHit;
-import org.opensearch.server.proto.FetchSearchResultProto;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,7 +64,6 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
 
     private final String name;
     private final List<Object> values;
-    private FetchSearchResultProto.SearchHit.DocumentField documentField;
 
     public DocumentField(StreamInput in) throws IOException {
         name = in.readString();
@@ -76,16 +73,6 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
     public DocumentField(String name, List<Object> values) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.values = Objects.requireNonNull(values, "values must not be null");
-    }
-
-    public static FetchSearchResultProto.SearchHit.DocumentField convertDocumentFieldToProto(DocumentField documentField) {
-        FetchSearchResultProto.SearchHit.DocumentField.Builder builder = FetchSearchResultProto.SearchHit.DocumentField.newBuilder();
-        builder.setName(documentField.getName());
-        for (Object value : documentField.getValues()) {
-            FetchSearchResultProto.DocumentFieldValue.Builder valueBuilder = FetchSearchResultProto.DocumentFieldValue.newBuilder();
-            builder.addValues(DocumentFieldProtobufSerializer.convertDocumentFieldValueToProto(value, valueBuilder));
-        }
-        return builder.build();
     }
 
     /**

@@ -6,11 +6,6 @@
  * compatible open source license.
  */
 
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.search.serializer;
 
 import org.opensearch.search.SearchHit.NestedIdentity;
@@ -20,6 +15,9 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
+/**
+ * Serializer for {@link NestedIdentity} to/from protobuf.
+ */
 public class NestedIdentityProtobufSerializer implements NestedIdentitySerializer<InputStream> {
 
     @Override

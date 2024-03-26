@@ -6,11 +6,6 @@
  * compatible open source license.
  */
 
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.search.serializer;
 
 import com.google.protobuf.ByteString;
@@ -31,6 +26,9 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Serializer for {@link SearchHits} to/from protobuf.
+ */
 public class SearchHitsProtobufSerializer implements SearchHitsSerializer<InputStream> {
 
     private FetchSearchResultProto.SearchHits searchHitsProto;

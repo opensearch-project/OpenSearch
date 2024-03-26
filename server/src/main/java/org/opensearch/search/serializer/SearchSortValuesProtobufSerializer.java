@@ -6,11 +6,6 @@
  * compatible open source license.
  */
 
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.search.serializer;
 
 import org.opensearch.search.SearchSortValues;
@@ -19,6 +14,9 @@ import org.opensearch.server.proto.FetchSearchResultProto;
 import java.io.IOException;
 import java.io.InputStream;
 
+/**
+ * Serializer for {@link SearchSortValues} to/from protobuf.
+ */
 public class SearchSortValuesProtobufSerializer implements SearchSortValuesSerializer<InputStream> {
 
     @Override

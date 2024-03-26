@@ -6,17 +6,15 @@
  * compatible open source license.
  */
 
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.search.serializer;
 
 import org.opensearch.search.SearchHit;
 
 import java.io.IOException;
 
+/**
+ * Serializer for {@link SearchHit} which can be implemented for different types of serialization.
+ */
 public interface SearchHitSerializer<T> {
 
     SearchHit createSearchHit(T inputStream) throws IOException;

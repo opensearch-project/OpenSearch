@@ -6,11 +6,6 @@
  * compatible open source license.
  */
 
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.search.serializer;
 
 import com.google.protobuf.ByteString;
@@ -40,6 +35,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Serializer for {@link SearchHit} to/from protobuf.
+ */
 public class SearchHitProtobufSerializer implements SearchHitSerializer<InputStream> {
 
     private FetchSearchResultProto.SearchHit searchHitProto;
@@ -171,7 +169,10 @@ public class SearchHitProtobufSerializer implements SearchHitSerializer<InputStr
             searchHitBuilder.setSource(ByteString.copyFrom(hit.getSourceRef().toBytesRef().bytes));
         }
         for (Map.Entry<String, DocumentField> entry : hit.getFields().entrySet()) {
-            searchHitBuilder.putDocumentFields(entry.getKey(), DocumentField.convertDocumentFieldToProto(entry.getValue()));
+            searchHitBuilder.putDocumentFields(
+                entry.getKey(),
+                DocumentFieldProtobufSerializer.convertDocumentFieldToProto(entry.getValue())
+            );
         }
         return searchHitBuilder.build();
     }

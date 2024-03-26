@@ -6,11 +6,6 @@
  * compatible open source license.
  */
 
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.common.document.serializer;
 
 import com.google.protobuf.ByteString;
@@ -33,6 +28,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Serializer for {@link DocumentField} to/from protobuf.
+ */
 public class DocumentFieldProtobufSerializer implements DocumentFieldSerializer<InputStream> {
 
     private FetchSearchResultProto.SearchHit.DocumentField documentField;
@@ -130,6 +128,16 @@ public class DocumentFieldProtobufSerializer implements DocumentFieldSerializer<
             throw new OpenSearchException("Can't convert generic value of type [" + type + "] to protobuf");
         }
         return valueBuilder;
+    }
+
+    public static FetchSearchResultProto.SearchHit.DocumentField convertDocumentFieldToProto(DocumentField documentField) {
+        FetchSearchResultProto.SearchHit.DocumentField.Builder builder = FetchSearchResultProto.SearchHit.DocumentField.newBuilder();
+        builder.setName(documentField.getName());
+        for (Object value : documentField.getValues()) {
+            FetchSearchResultProto.DocumentFieldValue.Builder valueBuilder = FetchSearchResultProto.DocumentFieldValue.newBuilder();
+            builder.addValues(DocumentFieldProtobufSerializer.convertDocumentFieldValueToProto(value, valueBuilder));
+        }
+        return builder.build();
     }
 
 }

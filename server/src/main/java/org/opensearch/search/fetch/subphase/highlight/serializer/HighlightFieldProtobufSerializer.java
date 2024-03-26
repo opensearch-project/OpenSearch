@@ -6,11 +6,6 @@
  * compatible open source license.
  */
 
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.search.fetch.subphase.highlight.serializer;
 
 import org.opensearch.core.common.text.Text;
@@ -22,7 +17,10 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-public class HighlightFieldProtobufSerializer implements HighlightFieldSerializer {
+/**
+ * Serializer for {@link HighlightField} to/from protobuf.
+ */
+public class HighlightFieldProtobufSerializer implements HighlightFieldSerializer<InputStream> {
 
     @Override
     public HighlightField createHighLightField(InputStream inputStream) throws IOException {
