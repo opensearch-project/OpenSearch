@@ -56,21 +56,19 @@ public class TraceableActionListener<Response> implements ActionListener<Respons
     @Override
     public void onResponse(Response response) {
         try (SpanScope scope = tracer.withSpanInScope(span)) {
-            delegate.onResponse(response);
-        } finally {
             span.endSpan();
+        } finally {
+            delegate.onResponse(response);
         }
-
     }
 
     @Override
     public void onFailure(Exception e) {
         try (SpanScope scope = tracer.withSpanInScope(span)) {
-            delegate.onFailure(e);
-        } finally {
             span.setError(e);
             span.endSpan();
+        } finally {
+            delegate.onFailure(e);
         }
-
     }
 }

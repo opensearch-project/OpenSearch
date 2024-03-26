@@ -42,6 +42,13 @@ public class TelemetrySettings {
         Setting.Property.Final
     );
 
+    public static final Setting<Boolean> TRACER_INFERRED_SAMPLER_ALLOWLISTED = Setting.boolSetting(
+        "telemetry.inferred.sampler.allowlisted",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     /**
      * Probability of sampler
      */
@@ -68,15 +75,18 @@ public class TelemetrySettings {
     private volatile double samplingProbability;
     private final boolean tracingFeatureEnabled;
     private final boolean metricsFeatureEnabled;
+    private volatile boolean inferredSamplingAllowListed;
 
     public TelemetrySettings(Settings settings, ClusterSettings clusterSettings) {
         this.tracingEnabled = TRACER_ENABLED_SETTING.get(settings);
         this.samplingProbability = TRACER_SAMPLER_PROBABILITY.get(settings);
         this.tracingFeatureEnabled = TRACER_FEATURE_ENABLED_SETTING.get(settings);
         this.metricsFeatureEnabled = METRICS_FEATURE_ENABLED_SETTING.get(settings);
+        this.inferredSamplingAllowListed = TRACER_INFERRED_SAMPLER_ALLOWLISTED.get(settings);
 
         clusterSettings.addSettingsUpdateConsumer(TRACER_ENABLED_SETTING, this::setTracingEnabled);
         clusterSettings.addSettingsUpdateConsumer(TRACER_SAMPLER_PROBABILITY, this::setSamplingProbability);
+        clusterSettings.addSettingsUpdateConsumer(TRACER_INFERRED_SAMPLER_ALLOWLISTED, this::setInferredSamplingAllowListed);
     }
 
     public void setTracingEnabled(boolean tracingEnabled) {
@@ -85,6 +95,22 @@ public class TelemetrySettings {
 
     public boolean isTracingEnabled() {
         return tracingEnabled;
+    }
+
+    /**
+     * Set sampling allowListing
+     * @param inferredSamplingAllowListed boolean
+     */
+    public void setInferredSamplingAllowListed(boolean inferredSamplingAllowListed) {
+        this.inferredSamplingAllowListed = inferredSamplingAllowListed;
+    }
+
+    /**
+     * Get sampling allowListing
+     * @return boolean
+     */
+    public boolean getInferredSamplingAllowListed() {
+        return inferredSamplingAllowListed;
     }
 
     /**

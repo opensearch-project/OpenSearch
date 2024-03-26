@@ -191,6 +191,7 @@ public class MockSpan extends AbstractSpan {
      * @param key key
      * @return value
      */
+    @Override
     public Object getAttribute(String key) {
         return metadata.get(key);
     }
@@ -199,6 +200,7 @@ public class MockSpan extends AbstractSpan {
      * Returns the attributes as map.
      * @return returns the attributes map.
      */
+    @Override
     public Map<String, Object> getAttributes() {
         return metadata;
     }

@@ -80,7 +80,26 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
         if (source.containsKey(CURRENT_SPAN)) {
             final SpanReference current = (SpanReference) source.get(CURRENT_SPAN);
             if (current != null && current.getSpan() != null) {
-                tracingTelemetry.getContextPropagator().inject(current.getSpan(), (key, value) -> headers.put(key, value));
+                tracingTelemetry.getContextPropagator().inject(current.getSpan(), headers::put);
+            }
+
+            // We will be sending one more header with the response if the request is marked for sampling
+            if (headers.containsKey("traceparent")) {
+                final String currentTrace = headers.get("traceparent");
+                if (currentTrace.length() > 0) {
+                    String[] traceParent = currentTrace.split("-");
+                    if (traceParent.length > 2) {
+                        String traceID = traceParent[1];
+                        if (current.getSpan().getTraceId().equals(traceID)) {
+                            if (current.getSpan().getAttributes().containsKey(SAMPLED)) {
+                                headers.put(SAMPLED, "true");
+                            }
+                            if (current.getSpan().getAttributes().containsKey(INFERRED_SAMPLER)) {
+                                headers.put(INFERRED_SAMPLER, "true");
+                            }
+                        }
+                    }
+                }
             }
         }
 

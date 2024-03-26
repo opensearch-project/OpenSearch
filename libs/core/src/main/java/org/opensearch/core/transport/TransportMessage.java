@@ -45,12 +45,22 @@ public abstract class TransportMessage implements Writeable {
 
     private TransportAddress remoteAddress;
 
+    private boolean sampled;
+
     public void remoteAddress(TransportAddress remoteAddress) {
         this.remoteAddress = remoteAddress;
     }
 
+    public void markSampled() {
+        this.sampled = true;
+    }
+
     public TransportAddress remoteAddress() {
         return remoteAddress;
+    }
+
+    public boolean sampled() {
+        return sampled;
     }
 
     /**

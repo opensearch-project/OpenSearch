@@ -11,6 +11,8 @@ package org.opensearch.telemetry.tracing.noop;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.telemetry.tracing.Span;
 
+import java.util.Map;
+
 /**
  * No-op implementation of {@link org.opensearch.telemetry.tracing.Span}
  *
@@ -81,5 +83,26 @@ public class NoopSpan implements Span {
     @Override
     public String getSpanId() {
         return "noop-span-id";
+    }
+
+    /**
+     * Returns attribute.
+     *
+     * @param key key
+     * @return value
+     */
+    @Override
+    public Object getAttribute(String key) {
+        return null;
+    }
+
+    /**
+     * Returns the attributes as map.
+     *
+     * @return returns the attributes map.
+     */
+    @Override
+    public Map<String, Object> getAttributes() {
+        return null;
     }
 }

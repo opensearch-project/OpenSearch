@@ -15,6 +15,7 @@ import org.opensearch.telemetry.OTelTelemetryPlugin;
 import java.io.Closeable;
 import java.io.IOException;
 
+import io.opentelemetry.api.baggage.Baggage;
 import io.opentelemetry.api.trace.TracerProvider;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
@@ -63,7 +64,19 @@ public class OTelTracingTelemetry<T extends TracerProvider & Closeable> implemen
             OTelSpanKindConverter.convert(spanCreationContext.getSpanKind())
         );
         Span newSpan = new OTelSpan(spanCreationContext.getSpanName(), otelSpan, parentSpan);
+
+        // This attribute is added for inferred sampling
+        addInferredAttribute(newSpan, spanCreationContext);
+
         return newSpan;
+    }
+
+    private void addInferredAttribute(Span newSpan, SpanCreationContext spanCreationContext) {
+        // If the current context has this attribute we need to add the same to the span as well.
+        if (Baggage.current().getEntryValue(TracerContextStorage.INFERRED_SAMPLER) != null
+            || spanCreationContext.getAttributes().getAttributesMap().containsKey(TracerContextStorage.INFERRED_SAMPLER)) {
+            newSpan.addAttribute(TracerContextStorage.INFERRED_SAMPLER, true);
+        }
     }
 
     io.opentelemetry.api.trace.Span otelSpan(
