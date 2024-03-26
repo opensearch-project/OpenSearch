@@ -1002,7 +1002,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final LongSupplier currentTimeMillisSupplier,
         final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
         final Supplier<SafeCommitInfo> safeCommitInfoSupplier,
-        final Function<String, Boolean> checkForRemoteDiscoveryNode
+        final Function<String, Boolean> isShardOnRemoteEnabledNode
     ) {
         this(
             shardId,
@@ -1015,7 +1015,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             onSyncRetentionLeases,
             safeCommitInfoSupplier,
             x -> {},
-            checkForRemoteDiscoveryNode
+            isShardOnRemoteEnabledNode
         );
     }
 

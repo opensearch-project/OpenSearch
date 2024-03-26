@@ -878,5 +878,4 @@ public class ShardRouting implements Writeable, ToXContentObject {
         }
         return false;
     }
-
 }

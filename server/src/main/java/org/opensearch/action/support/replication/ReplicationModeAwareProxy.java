@@ -53,6 +53,7 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
         BiConsumer<Consumer<ActionListener<ReplicaResponse>>, ReplicationProxyRequest<ReplicaRequest>> performOnReplicaConsumer
     ) {
         assert replicationMode == ReplicationMode.FULL_REPLICATION || replicationMode == ReplicationMode.PRIMARY_TERM_VALIDATION;
+
         Consumer<ActionListener<ReplicaResponse>> replicasProxyConsumer;
         if (replicationMode == ReplicationMode.FULL_REPLICATION) {
             replicasProxyConsumer = getReplicasProxyConsumer(fullReplicationProxy, proxyRequest);
