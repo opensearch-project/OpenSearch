@@ -6,11 +6,6 @@
  * compatible open source license.
  */
 
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.transport;
 
 import org.apache.logging.log4j.LogManager;

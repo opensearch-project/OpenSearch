@@ -6,17 +6,15 @@
  * compatible open source license.
  */
 
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.search.serializer;
 
 import org.opensearch.search.SearchSortValues;
 
 import java.io.IOException;
 
+/**
+ * Serializer for {@link SearchSortValues} which can be implemented for different types of serialization.
+ */
 public interface SearchSortValuesSerializer<T> {
 
     SearchSortValues createSearchSortValues(T inputStream) throws IOException;

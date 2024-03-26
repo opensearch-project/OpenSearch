@@ -6,17 +6,15 @@
  * compatible open source license.
  */
 
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.search.serializer;
 
 import org.opensearch.search.SearchHit.NestedIdentity;
 
 import java.io.IOException;
 
+/**
+ * Serializer for {@link NestedIdentity} which can be implemented for different types of serialization.
+ */
 public interface NestedIdentitySerializer<T> {
 
     public NestedIdentity createNestedIdentity(T inputStream) throws IOException, Exception;
