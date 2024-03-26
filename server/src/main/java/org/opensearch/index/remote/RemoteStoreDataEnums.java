@@ -8,6 +8,8 @@
 
 package org.opensearch.index.remote;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.Set;
 
 import static org.opensearch.index.remote.RemoteStoreDataEnums.DataType.DATA;
@@ -16,13 +18,14 @@ import static org.opensearch.index.remote.RemoteStoreDataEnums.DataType.METADATA
 /**
  * This class contains the different enums related to remote store data categories and types.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 public class RemoteStoreDataEnums {
 
     /**
      * Categories of the data in Remote store.
      */
+    @PublicApi(since = "2.14.0")
     public enum DataCategory {
         SEGMENTS("segments", Set.of(DataType.values())),
         TRANSLOG("translog", Set.of(DATA, METADATA));
@@ -47,6 +50,7 @@ public class RemoteStoreDataEnums {
     /**
      * Types of data in remote store.
      */
+    @PublicApi(since = "2.14.0")
     public enum DataType {
         DATA("data"),
         METADATA("metadata"),
