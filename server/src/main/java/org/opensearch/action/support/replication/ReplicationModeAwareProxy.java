@@ -9,6 +9,7 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.action.support.replication.ReplicationOperation.ReplicaResponse;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.core.action.ActionListener;
 
@@ -31,14 +32,18 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
      */
     private final ReplicationOperation.Replicas<ReplicaRequest> primaryTermValidationProxy;
 
+    private final DiscoveryNodes discoveryNodes;
+
     public ReplicationModeAwareProxy(
         ReplicationMode replicationModeOverride,
+        DiscoveryNodes discoveryNodes,
         ReplicationOperation.Replicas<ReplicaRequest> replicasProxy,
         ReplicationOperation.Replicas<ReplicaRequest> primaryTermValidationProxy
     ) {
         super(replicasProxy);
         this.replicationModeOverride = Objects.requireNonNull(replicationModeOverride);
         this.primaryTermValidationProxy = Objects.requireNonNull(primaryTermValidationProxy);
+        this.discoveryNodes = discoveryNodes;
     }
 
     @Override
@@ -58,20 +63,20 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
     }
 
     @Override
-    ReplicationMode determineReplicationMode(ShardRouting targetShardRouting, ShardRouting primaryRouting) {
+    ReplicationMode determineReplicationMode(ShardRouting shardRouting, ShardRouting primaryRouting) {
         // If the current routing is the primary, then it does not need to be replicated
-        if (targetShardRouting.isSameAllocation(primaryRouting)) {
+        if (shardRouting.isSameAllocation(primaryRouting)) {
             return ReplicationMode.NO_REPLICATION;
         }
         // Perform full replication during primary relocation
-        if (primaryRouting.relocating() && targetShardRouting.isSameAllocation(primaryRouting.getTargetRelocatingShard())) {
+        if (primaryRouting.relocating() && shardRouting.isSameAllocation(primaryRouting.getTargetRelocatingShard())) {
             return ReplicationMode.FULL_REPLICATION;
         }
         /*
          Perform full replication if replica is hosted on a non-remote node.
          Only applicable during remote migration
          */
-        if (targetShardRouting.isAssignedToRemoteStoreNode() == false) {
+        if (discoveryNodes.get(shardRouting.currentNodeId()).isRemoteStoreNode() == false) {
             return ReplicationMode.FULL_REPLICATION;
         }
         return replicationModeOverride;

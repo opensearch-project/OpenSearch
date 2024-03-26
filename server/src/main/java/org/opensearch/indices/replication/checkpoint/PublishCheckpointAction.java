@@ -98,7 +98,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
 
     @Override
     public ReplicationMode getReplicationMode(IndexShard indexShard) {
-        if (indexShard.routingEntry().isAssignedToRemoteStoreNode()) {
+        if (indexShard.indexSettings().isRemoteNode()) {
             return ReplicationMode.FULL_REPLICATION;
         }
         return super.getReplicationMode(indexShard);
@@ -199,6 +199,9 @@ public class PublishCheckpointAction extends TransportReplicationAction<
         Objects.requireNonNull(replica);
         ActionListener.completeWith(listener, () -> {
             logger.trace(() -> new ParameterizedMessage("Checkpoint {} received on replica {}", request, replica.shardId()));
+            if (replica.indexSettings().isRemoteNode() == false) {
+                logger.trace("Received segrep checkpoint on a docrep shard copy during an ongoing remote migration. NoOp.");
+            }
             if (request.getCheckpoint().getShardId().equals(replica.shardId())) {
                 replicationService.onNewCheckpoint(request.getCheckpoint(), replica);
             }

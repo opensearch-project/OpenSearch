@@ -716,7 +716,8 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             nodeId,
             DefaultRecoverySettings.INSTANCE,
             DefaultRemoteStoreSettings.INSTANCE,
-            false
+            false,
+            IndexShardTestUtils.getFakeDiscoveryNodes(initializingShardRouting)
         );
     }
 

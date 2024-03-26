@@ -57,7 +57,6 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
             replica.failShard("test", null);
 
             final ShardRouting replicaRouting = replica.routingEntry();
-            replicaRouting.setAssignedToRemoteStoreNode(true);
             final IndexMetadata newIndexMetadata = IndexMetadata.builder(replica.indexSettings().getIndexMetadata())
                 .primaryTerm(replicaRouting.shardId().id(), replica.getOperationPrimaryTerm() + 1)
                 .build();
@@ -66,16 +65,14 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
 
             int moreDocs = shards.indexDocs(randomIntBetween(20, 100));
             shards.flush();
-            ShardRouting newShardRouting = newShardRouting(
-                replicaRouting.shardId(),
-                replicaRouting.currentNodeId(),
-                false,
-                ShardRoutingState.INITIALIZING,
-                RecoverySource.PeerRecoverySource.INSTANCE
-            );
-            newShardRouting.setAssignedToRemoteStoreNode(true);
             IndexShard newReplicaShard = newShard(
-                newShardRouting,
+                newShardRouting(
+                    replicaRouting.shardId(),
+                    replicaRouting.currentNodeId(),
+                    false,
+                    ShardRoutingState.INITIALIZING,
+                    RecoverySource.PeerRecoverySource.INSTANCE
+                ),
                 replica.shardPath(),
                 newIndexMetadata,
                 null,

@@ -61,7 +61,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
-import static org.opensearch.index.remote.RemoteStoreTestsHelper.createShardRouting;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
@@ -217,36 +216,14 @@ public class RetentionLeaseBackgroundSyncActionTests extends OpenSearchTestCase 
     public void testGetReplicationModeWithRemoteTranslog() {
         final RetentionLeaseBackgroundSyncAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
         when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
-        when(indexShard.routingEntry()).thenReturn(createShardRouting(true, true));
         assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
         final RetentionLeaseBackgroundSyncAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
         when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
-        when(indexShard.routingEntry()).thenReturn(createShardRouting(true, false));
-        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
-    }
-
-    public void testGetReplicationModeDuringMigrationOnRemotePrimary() {
-        final RetentionLeaseBackgroundSyncAction action = createAction();
-        final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
-        when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
-        when(indexShard.routingEntry()).thenReturn(createShardRouting(true, true));
-        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
-    }
-
-    public void testGetReplicationModeDuringMigrationOnDocrepReplica() {
-        final RetentionLeaseBackgroundSyncAction action = createAction();
-        final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
-        when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
-        when(indexShard.routingEntry()).thenReturn(createShardRouting(false, false));
         assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 

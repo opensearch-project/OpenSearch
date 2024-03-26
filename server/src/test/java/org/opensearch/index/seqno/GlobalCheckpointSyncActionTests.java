@@ -55,7 +55,6 @@ import org.opensearch.transport.TransportService;
 import java.util.Collections;
 
 import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
-import static org.opensearch.index.remote.RemoteStoreTestsHelper.createShardRouting;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -160,28 +159,15 @@ public class GlobalCheckpointSyncActionTests extends OpenSearchTestCase {
     public void testGetReplicationModeWithRemoteTranslog() {
         final GlobalCheckpointSyncAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
         when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
-        when(indexShard.routingEntry()).thenReturn(createShardRouting(true, true));
         assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
         final GlobalCheckpointSyncAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
         when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
-        when(indexShard.routingEntry()).thenReturn(createShardRouting(true, false));
         assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
-    }
-
-    public void testGetReplicationModeDuringMigration() {
-        final GlobalCheckpointSyncAction action = createAction();
-        final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
-        when(indexShard.routingEntry()).thenReturn(createShardRouting(true, true));
-        when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
-        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     private GlobalCheckpointSyncAction createAction() {
