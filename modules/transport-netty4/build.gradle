@@ -186,6 +186,7 @@ thirdPartyAudit {
     'org.slf4j.spi.LocationAwareLogger',
 
     'com.github.luben.zstd.Zstd',
+    'com.github.luben.zstd.ZstdInputStreamNoFinalizer',
     'com.google.protobuf.ExtensionRegistryLite',
     'com.google.protobuf.MessageLiteOrBuilder',
     'com.google.protobuf.nano.CodedOutputByteBufferNano',
