@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 2.x]
 ### Added
+- Add explicit dependency to validatePom and generatePom tasks ([#12909](https://github.com/opensearch-project/OpenSearch/pull/12909))
 
 ### Dependencies
 - Bump `asm` from 9.6 to 9.7 ([#12908](https://github.com/opensearch-project/OpenSearch/pull/12908))
