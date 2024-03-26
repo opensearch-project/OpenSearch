@@ -61,6 +61,7 @@ import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTarget;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -87,16 +88,20 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
     // latch that can be used to blockingly wait for RecoveryTarget to be closed
     private final CountDownLatch closedLatch = new CountDownLatch(1);
 
+    private final ThreadPool threadPool;
+
     /**
      * Creates a new recovery target object that represents a recovery to the provided shard.
      *
-     * @param indexShard                        local shard where we want to recover to
-     * @param sourceNode                        source node of the recovery where we recover from
-     * @param listener                          called when recovery is completed/failed
+     * @param indexShard local shard where we want to recover to
+     * @param sourceNode source node of the recovery where we recover from
+     * @param listener   called when recovery is completed/failed
+     * @param threadPool threadpool instance
      */
-    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, ReplicationListener listener) {
+    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, ReplicationListener listener, ThreadPool threadPool) {
         super("recovery_status", indexShard, indexShard.recoveryState().getIndex(), listener);
         this.sourceNode = sourceNode;
+        this.threadPool = threadPool;
         indexShard.recoveryStats().incCurrentAsTarget();
         final String tempFilePrefix = getPrefix() + UUIDs.randomBase64UUID() + ".";
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, tempFilePrefix, logger, this::ensureRefCount);
@@ -108,7 +113,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
      * @return a copy of this recovery target
      */
     public RecoveryTarget retryCopy() {
-        return new RecoveryTarget(indexShard, sourceNode, listener);
+        return new RecoveryTarget(indexShard, sourceNode, listener, threadPool);
     }
 
     public String source() {
@@ -209,6 +214,15 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
             state().getIndex().setFileDetailsComplete(); // ops-based recoveries don't send the file details
             state().getTranslog().totalOperations(totalTranslogOps);
             indexShard().openEngineAndSkipTranslogRecovery();
+            // upload to remote store in migration for primary shard
+            if (indexShard.shouldSeedRemoteStore() && indexShard.routingEntry().primary()) {
+                indexShard.deleteRemoteStoreContents();
+                // This cleans up remote translog's 0 generation, as we don't want to get that uploaded
+                indexShard.sync();
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> { indexShard.refresh("remote store migration"); });
+                indexShard.waitForRemoteStoreSync(this::setLastAccessTime);
+                logger.info("Remote Store is now seeded for {}", indexShard.shardId());
+            }
             return null;
         });
     }
@@ -360,7 +374,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
                 // Replicas for segment replication or remote snapshot indices do not create
                 // their own commit points and therefore do not modify the commit user data
                 // in their store. In these cases, reuse the primary's translog UUID.
-                final boolean reuseTranslogUUID = indexShard.indexSettings().isSegRepEnabled()
+                final boolean reuseTranslogUUID = indexShard.indexSettings().isSegRepEnabledOrRemoteNode()
                     || indexShard.indexSettings().isRemoteSnapshot();
                 if (reuseTranslogUUID) {
                     final String translogUUID = store.getMetadata().getCommitUserData().get(TRANSLOG_UUID_KEY);

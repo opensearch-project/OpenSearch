@@ -168,7 +168,8 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.routingTableChanged()) {
             for (IndexService indexService : indicesService) {
-                if (indexService.getIndexSettings().isSegRepEnabled() && event.indexRoutingTableChanged(indexService.index().getName())) {
+                if (indexService.getIndexSettings().isSegRepEnabledOrRemoteNode()
+                    && event.indexRoutingTableChanged(indexService.index().getName())) {
                     for (IndexShard shard : indexService) {
                         if (shard.routingEntry().primary() == false) {
                             // for this shard look up its primary routing, if it has completed a relocation trigger replication
@@ -197,7 +198,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
      */
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
-        if (indexShard != null && indexShard.indexSettings().isSegRepEnabled()) {
+        if (indexShard != null && indexShard.indexSettings().isSegRepEnabledOrRemoteNode()) {
             onGoingReplications.cancelForShard(indexShard.shardId(), "Shard closing");
             latestReceivedCheckpoint.remove(shardId);
         }
@@ -209,7 +210,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
      */
     @Override
     public void afterIndexShardStarted(IndexShard indexShard) {
-        if (indexShard.indexSettings().isSegRepEnabled() && indexShard.routingEntry().primary() == false) {
+        if (indexShard.indexSettings().isSegRepEnabledOrRemoteNode() && indexShard.routingEntry().primary() == false) {
             processLatestReceivedCheckpoint(indexShard, Thread.currentThread());
         }
     }
@@ -219,7 +220,10 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
      */
     @Override
     public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
-        if (oldRouting != null && indexShard.indexSettings().isSegRepEnabled() && oldRouting.primary() == false && newRouting.primary()) {
+        if (oldRouting != null
+            && indexShard.indexSettings().isSegRepEnabledOrRemoteNode()
+            && oldRouting.primary() == false
+            && newRouting.primary()) {
             onGoingReplications.cancelForShard(indexShard.shardId(), "Shard has been promoted to primary");
             latestReceivedCheckpoint.remove(indexShard.shardId());
         }
