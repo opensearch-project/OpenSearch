@@ -44,8 +44,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.monitor.StatusInfo;
-import org.opensearch.telemetry.metrics.Counter;
-import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.TestInMemoryMetricsRegistry;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.EqualsHashCodeTestUtils.CopyFunction;
@@ -80,13 +80,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.ArgumentMatchers.anyDouble;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 public class LeaderCheckerTests extends OpenSearchTestCase {
 
@@ -184,14 +177,13 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         transportService.acceptIncomingRequests();
 
         final AtomicBoolean leaderFailed = new AtomicBoolean();
-        final MetricsRegistry metricsRegistry = mock(MetricsRegistry.class);
-        final Counter leaderCheckFailedCounter = mock(Counter.class);
-        when(metricsRegistry.createCounter(anyString(), anyString(), anyString())).thenReturn(leaderCheckFailedCounter);
+        TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
+        final ClusterManagerMetrics clusterManagerMetrics = new ClusterManagerMetrics(metricsRegistry);
 
         final LeaderChecker leaderChecker = new LeaderChecker(settings, clusterSettings, transportService, e -> {
             assertThat(e.getMessage(), matchesRegex("node \\[.*\\] failed \\[[1-9][0-9]*\\] consecutive checks"));
             assertTrue(leaderFailed.compareAndSet(false, true));
-        }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"), metricsRegistry);
+        }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"), clusterManagerMetrics);
 
         logger.info("--> creating first checker");
         leaderChecker.updateLeader(leader1);
@@ -241,8 +233,7 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
             );
         }
         leaderChecker.updateLeader(null);
-        verify(metricsRegistry, times(1)).createCounter(anyString(), anyString(), anyString());
-        verify(leaderCheckFailedCounter, times(1)).add(anyDouble());
+        assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("leader.checker.failure.count").getCounterValue());
     }
 
     enum Response {
@@ -307,14 +298,13 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         transportService.acceptIncomingRequests();
 
         final AtomicBoolean leaderFailed = new AtomicBoolean();
-        final MetricsRegistry metricsRegistry = mock(MetricsRegistry.class);
-        final Counter leaderCheckFailedCounter = mock(Counter.class);
-        when(metricsRegistry.createCounter(anyString(), anyString(), anyString())).thenReturn(leaderCheckFailedCounter);
+        TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
+        final ClusterManagerMetrics clusterManagerMetrics = new ClusterManagerMetrics(metricsRegistry);
 
         final LeaderChecker leaderChecker = new LeaderChecker(settings, clusterSettings, transportService, e -> {
             assertThat(e.getMessage(), anyOf(endsWith("disconnected"), endsWith("disconnected during check")));
             assertTrue(leaderFailed.compareAndSet(false, true));
-        }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"), metricsRegistry);
+        }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"), clusterManagerMetrics);
 
         leaderChecker.updateLeader(leader);
         {
@@ -369,8 +359,7 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue(leaderFailed.get());
         }
-        verify(metricsRegistry, times(1)).createCounter(anyString(), anyString(), anyString());
-        verify(leaderCheckFailedCounter, times(2)).add(anyDouble());
+        assertEquals(Integer.valueOf(3), metricsRegistry.getCounterStore().get("leader.checker.failure.count").getCounterValue());
     }
 
     public void testFollowerFailsImmediatelyOnHealthCheckFailure() {
@@ -427,13 +416,12 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         transportService.acceptIncomingRequests();
 
         final AtomicBoolean leaderFailed = new AtomicBoolean();
-        final MetricsRegistry metricsRegistry = mock(MetricsRegistry.class);
-        final Counter leaderChecksFailedCounter = mock(Counter.class);
-        when(metricsRegistry.createCounter(anyString(), anyString(), anyString())).thenReturn(leaderChecksFailedCounter);
+        TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
+        final ClusterManagerMetrics clusterManagerMetrics = new ClusterManagerMetrics(metricsRegistry);
         final LeaderChecker leaderChecker = new LeaderChecker(settings, clusterSettings, transportService, e -> {
             assertThat(e.getMessage(), endsWith("failed health checks"));
             assertTrue(leaderFailed.compareAndSet(false, true));
-        }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"), metricsRegistry);
+        }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"), clusterManagerMetrics);
 
         leaderChecker.updateLeader(leader);
 
@@ -453,8 +441,8 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
 
             assertTrue(leaderFailed.get());
         }
-        verify(metricsRegistry, times(1)).createCounter(anyString(), anyString(), anyString());
-        verify(leaderChecksFailedCounter, times(1)).add(anyDouble());
+
+        assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("leader.checker.failure.count").getCounterValue());
     }
 
     public void testLeaderBehaviour() {
@@ -478,16 +466,14 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        final MetricsRegistry metricsRegistry = mock(MetricsRegistry.class);
-        final Counter leaderChecksFailedCounter = mock(Counter.class);
-        when(metricsRegistry.createCounter(anyString(), anyString(), anyString())).thenReturn(leaderChecksFailedCounter);
+        final ClusterManagerMetrics clusterManagerMetrics = new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE);
         final LeaderChecker leaderChecker = new LeaderChecker(
             settings,
             clusterSettings,
             transportService,
             e -> fail("shouldn't be checking anything"),
             () -> nodeHealthServiceStatus.get(),
-            metricsRegistry
+            clusterManagerMetrics
         );
 
         final DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
@@ -552,8 +538,6 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
                 equalTo("rejecting leader check from [" + otherNode + "] sent to a node that is no longer the cluster-manager")
             );
         }
-        verify(metricsRegistry, times(1)).createCounter(anyString(), anyString(), anyString());
-        verifyNoInteractions(leaderChecksFailedCounter);
     }
 
     private class CapturingTransportResponseHandler implements TransportResponseHandler<Empty> {

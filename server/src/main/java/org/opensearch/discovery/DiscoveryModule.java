@@ -35,6 +35,7 @@ package org.opensearch.discovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.coordination.ClusterManagerMetrics;
 import org.opensearch.cluster.coordination.Coordinator;
 import org.opensearch.cluster.coordination.ElectionStrategy;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
@@ -55,7 +56,6 @@ import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.plugins.DiscoveryPlugin;
-import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -135,7 +135,7 @@ public class DiscoveryModule {
         NodeHealthService nodeHealthService,
         PersistedStateRegistry persistedStateRegistry,
         RemoteStoreNodeService remoteStoreNodeService,
-        MetricsRegistry metricsRegistry
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
@@ -214,7 +214,7 @@ public class DiscoveryModule {
                 nodeHealthService,
                 persistedStateRegistry,
                 remoteStoreNodeService,
-                metricsRegistry
+                clusterManagerMetrics
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");

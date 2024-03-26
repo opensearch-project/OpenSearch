@@ -48,8 +48,6 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
-import org.opensearch.telemetry.metrics.Counter;
-import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.Transport;
@@ -114,8 +112,6 @@ public class FollowersChecker {
         Setting.Property.NodeScope
     );
 
-    private static final String UNIT = "1";
-
     private final Settings settings;
 
     private final TimeValue followerCheckInterval;
@@ -131,7 +127,7 @@ public class FollowersChecker {
     private final TransportService transportService;
     private final NodeHealthService nodeHealthService;
     private volatile FastResponseState fastResponseState;
-    private Counter followerChecksFailureCounter;
+    private ClusterManagerMetrics clusterManagerMetrics;
 
     public FollowersChecker(
         Settings settings,
@@ -140,7 +136,7 @@ public class FollowersChecker {
         Consumer<FollowerCheckRequest> handleRequestAndUpdateState,
         BiConsumer<DiscoveryNode, String> onNodeFailure,
         NodeHealthService nodeHealthService,
-        MetricsRegistry metricsRegistry
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -167,15 +163,7 @@ public class FollowersChecker {
                 handleDisconnectedNode(node);
             }
         });
-        initializeMetrics(metricsRegistry);
-    }
-
-    private void initializeMetrics(MetricsRegistry metricsRegistry) {
-        this.followerChecksFailureCounter = metricsRegistry.createCounter(
-            "followers.checker.failure.count",
-            "Counter for number of failed follower checks",
-            UNIT
-        );
+        this.clusterManagerMetrics = clusterManagerMetrics;
     }
 
     private void setFollowerCheckTimeout(TimeValue followerCheckTimeout) {
@@ -416,7 +404,6 @@ public class FollowersChecker {
                             return;
                         }
 
-                        followerChecksFailureCounter.add(1);
                         failNode(reason);
                     }
 
@@ -442,6 +429,7 @@ public class FollowersChecker {
                         followerCheckers.remove(discoveryNode);
                     }
                     onNodeFailure.accept(discoveryNode, reason);
+                    clusterManagerMetrics.incrementCounter(clusterManagerMetrics.followerChecksFailureCounter, 1.0);
                 }
 
                 @Override

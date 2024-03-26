@@ -87,7 +87,6 @@ import org.opensearch.discovery.SeedHostsResolver;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
-import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportService;
@@ -209,7 +208,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         NodeHealthService nodeHealthService,
         PersistedStateRegistry persistedStateRegistry,
         RemoteStoreNodeService remoteStoreNodeService,
-        MetricsRegistry metricsRegistry
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -269,7 +268,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             transportService,
             this::onLeaderFailure,
             nodeHealthService,
-            metricsRegistry
+            clusterManagerMetrics
         );
         this.followersChecker = new FollowersChecker(
             settings,
@@ -278,7 +277,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             this::onFollowerCheckRequest,
             this::removeNode,
             nodeHealthService,
-            metricsRegistry
+            clusterManagerMetrics
         );
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.clusterApplier = clusterApplier;
