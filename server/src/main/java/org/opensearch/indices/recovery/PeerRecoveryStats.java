@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.recovery;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -22,6 +23,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
+@PublicApi(since = "2.13.0")
 public class PeerRecoveryStats implements Writeable, ToXContentFragment {
 
     // Stats for total started recoveries.
@@ -85,6 +87,9 @@ public class PeerRecoveryStats implements Writeable, ToXContentFragment {
         return totalCancelledRecoveries;
     }
 
+    /**
+     * Stores the fields for PeerRecoveryStats response
+     */
     public static final class Fields {
         static final String PEER_RECOVERY_STATS = "peer_recovery_stats";
         static final String TOTAL_STARTED_RECOVERIES = "total_started_recoveries";
