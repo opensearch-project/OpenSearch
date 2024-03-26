@@ -1059,7 +1059,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;
         this.onReplicationGroupUpdated = onReplicationGroupUpdated;
-        this.latestReplicationCheckpoint = indexSettings.isSegRepEnabled() ? ReplicationCheckpoint.empty(shardId) : null;
+        this.latestReplicationCheckpoint = indexSettings.isSegRepEnabledOrRemoteNode() ? ReplicationCheckpoint.empty(shardId) : null;
         assert Version.V_EMPTY.equals(indexSettings.getIndexVersionCreated()) == false;
         assert invariant();
     }
@@ -1173,7 +1173,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @param visibleCheckpoint the visible checkpoint
      */
     public synchronized void updateVisibleCheckpointForShard(final String allocationId, final ReplicationCheckpoint visibleCheckpoint) {
-        assert indexSettings.isSegRepEnabled();
+        assert indexSettings.isSegRepEnabledOrRemoteNode();
         assert primaryMode;
         assert handoffInProgress == false;
         assert invariant();
@@ -1217,7 +1217,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @param checkpoint {@link ReplicationCheckpoint}
      */
     public synchronized void setLatestReplicationCheckpoint(ReplicationCheckpoint checkpoint) {
-        assert indexSettings.isSegRepEnabled();
+        assert indexSettings.isSegRepEnabledOrRemoteNode();
         if (checkpoint.equals(latestReplicationCheckpoint) == false) {
             this.latestReplicationCheckpoint = checkpoint;
         }
@@ -1269,7 +1269,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @param checkpoint {@link ReplicationCheckpoint}
      */
     public synchronized void startReplicationLagTimers(ReplicationCheckpoint checkpoint) {
-        assert indexSettings.isSegRepEnabled();
+        assert indexSettings.isSegRepEnabledOrRemoteNode();
         if (checkpoint.equals(latestReplicationCheckpoint) == false) {
             this.latestReplicationCheckpoint = checkpoint;
         }
@@ -1294,7 +1294,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * V2 - Set of {@link SegmentReplicationShardStats} per shard in this primary's replication group.
      */
     public synchronized Set<SegmentReplicationShardStats> getSegmentReplicationStats() {
-        assert indexSettings.isSegRepEnabled();
+        assert indexSettings.isSegRepEnabledOrRemoteNode();
         if (primaryMode) {
             return this.checkpoints.entrySet()
                 .stream()

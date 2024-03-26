@@ -84,6 +84,8 @@ import org.opensearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StopWatch;
+import org.opensearch.common.cache.module.CacheModule;
+import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Module;
@@ -179,6 +181,7 @@ import org.opensearch.persistent.PersistentTasksExecutorRegistry;
 import org.opensearch.persistent.PersistentTasksService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.AnalysisPlugin;
+import org.opensearch.plugins.CachePlugin;
 import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.plugins.CryptoKeyProviderPlugin;
@@ -199,6 +202,7 @@ import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
+import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
@@ -793,6 +797,8 @@ public class Node implements Closeable {
             final SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService);
 
             remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, settings);
+            CacheModule cacheModule = new CacheModule(pluginsService.filterPlugins(CachePlugin.class), settings);
+            CacheService cacheService = cacheModule.getCacheService();
             final IndicesService indicesService = new IndicesService(
                 settings,
                 pluginsService,
@@ -818,7 +824,8 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 searchRequestStats,
                 remoteStoreStatsTrackerFactory,
-                recoverySettings
+                recoverySettings,
+                cacheService
             );
 
             final IngestService ingestService = new IngestService(
@@ -917,6 +924,7 @@ public class Node implements Closeable {
             final RestController restController = actionModule.getRestController();
 
             final NodeResourceUsageTracker nodeResourceUsageTracker = new NodeResourceUsageTracker(
+                monitorService.fsService(),
                 threadPool,
                 settings,
                 clusterService.getClusterSettings()
@@ -938,6 +946,13 @@ public class Node implements Closeable {
                 admissionControlService
             );
 
+            final Collection<SecureTransportSettingsProvider> secureTransportSettingsProviders = pluginsService.filterPlugins(Plugin.class)
+                .stream()
+                .map(p -> p.getSecureSettingFactory(settings).flatMap(f -> f.getSecureTransportSettingsProvider(settings)))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
+
             List<TransportInterceptor> transportInterceptors = List.of(admissionControlTransportInterceptor);
             final NetworkModule networkModule = new NetworkModule(
                 settings,
@@ -952,7 +967,8 @@ public class Node implements Closeable {
                 restController,
                 clusterService.getClusterSettings(),
                 tracer,
-                transportInterceptors
+                transportInterceptors,
+                secureTransportSettingsProviders
             );
 
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.filterPlugins(

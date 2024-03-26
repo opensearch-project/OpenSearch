@@ -34,11 +34,13 @@ package org.opensearch.search.aggregations;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -62,6 +64,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.TriConsumer;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -121,6 +124,7 @@ import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregatorFactories.Builder;
 import org.opensearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.opensearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.metrics.MetricsAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
@@ -147,6 +151,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -177,6 +182,14 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
     // A list of field types that should not be tested, or are not currently supported
     private static List<String> TYPE_TEST_DENYLIST;
+
+    protected static final TriConsumer<Document, String, String> ADD_SORTED_SET_FIELD_NOT_INDEXED = (document, field, value) -> document
+        .add(new SortedSetDocValuesField(field, new BytesRef(value)));
+
+    protected static final TriConsumer<Document, String, String> ADD_SORTED_SET_FIELD_INDEXED = (document, field, value) -> {
+        document.add(new SortedSetDocValuesField(field, new BytesRef(value)));
+        document.add(new StringField(field, value, Field.Store.NO));
+    };
 
     static {
         List<String> denylist = new ArrayList<>();
@@ -433,7 +446,6 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays
     ) {
-
         return new QueryShardContext(
             0,
             indexSettings,
@@ -1093,6 +1105,89 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         protected void doWriteTo(StreamOutput out) throws IOException {
             throw new UnsupportedOperationException();
 
+        }
+    }
+
+    /**
+     * Wrapper around Aggregator class
+     * Maintains a count for times collect() is invoked - number of documents visited
+     */
+    protected static class CountingAggregator extends Aggregator {
+        private final AtomicInteger collectCounter;
+        public final Aggregator delegate;
+
+        public CountingAggregator(AtomicInteger collectCounter, TermsAggregator delegate) {
+            this.collectCounter = collectCounter;
+            this.delegate = delegate;
+        }
+
+        public AtomicInteger getCollectCount() {
+            return collectCounter;
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+
+        @Override
+        public String name() {
+            return delegate.name();
+        }
+
+        @Override
+        public SearchContext context() {
+            return delegate.context();
+        }
+
+        @Override
+        public Aggregator parent() {
+            return delegate.parent();
+        }
+
+        @Override
+        public Aggregator subAggregator(String name) {
+            return delegate.subAggregator(name);
+        }
+
+        @Override
+        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+            return delegate.buildAggregations(owningBucketOrds);
+        }
+
+        @Override
+        public InternalAggregation buildEmptyAggregation() {
+            return delegate.buildEmptyAggregation();
+        }
+
+        @Override
+        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+            return new LeafBucketCollector() {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    delegate.getLeafCollector(ctx).collect(doc, bucket);
+                    collectCounter.incrementAndGet();
+                }
+            };
+        }
+
+        @Override
+        public ScoreMode scoreMode() {
+            return delegate.scoreMode();
+        }
+
+        @Override
+        public void preCollection() throws IOException {
+            delegate.preCollection();
+        }
+
+        @Override
+        public void postCollection() throws IOException {
+            delegate.postCollection();
+        }
+
+        public void setWeight(Weight weight) {
+            this.delegate.setWeight(weight);
         }
     }
 

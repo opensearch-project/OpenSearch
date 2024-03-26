@@ -386,6 +386,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                     @Override
                     public void onSuccess(String source) {
+                        closePrevotingAndElectionScheduler();
                         applyListener.onResponse(null);
                     }
                 });
@@ -472,15 +473,27 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     private void closePrevotingAndElectionScheduler() {
+        closePrevoting();
+        closeElectionScheduler();
+    }
+
+    private void closePrevoting() {
         if (prevotingRound != null) {
             prevotingRound.close();
             prevotingRound = null;
         }
+    }
 
+    private void closeElectionScheduler() {
         if (electionScheduler != null) {
             electionScheduler.close();
             electionScheduler = null;
         }
+    }
+
+    // package-visible for testing
+    boolean isElectionSchedulerRunning() {
+        return electionScheduler != null;
     }
 
     private void updateMaxTermSeen(final long term) {
@@ -724,7 +737,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         lastKnownLeader = Optional.of(getLocalNode());
         peerFinder.deactivate(getLocalNode());
         clusterFormationFailureHelper.stop();
-        closePrevotingAndElectionScheduler();
+        closePrevoting();
         preVoteCollector.update(getPreVoteResponse(), getLocalNode());
 
         assert leaderChecker.leader() == null : leaderChecker.leader();
@@ -761,7 +774,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         lastKnownLeader = Optional.of(leaderNode);
         peerFinder.deactivate(leaderNode);
         clusterFormationFailureHelper.stop();
-        closePrevotingAndElectionScheduler();
+        closePrevoting();
         cancelActivePublication("become follower: " + method);
         preVoteCollector.update(getPreVoteResponse(), leaderNode);
 
@@ -927,7 +940,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert lastKnownLeader.isPresent() && lastKnownLeader.get().equals(getLocalNode());
                 assert joinAccumulator instanceof JoinHelper.LeaderJoinAccumulator;
                 assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
-                assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
                 assert becomingClusterManager || getStateForClusterManagerService().nodes().getClusterManagerNodeId() != null
                     : getStateForClusterManagerService();
@@ -972,7 +984,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
                 assert joinAccumulator instanceof JoinHelper.FollowerJoinAccumulator;
                 assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
-                assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
                 assert getStateForClusterManagerService().nodes().getClusterManagerNodeId() == null : getStateForClusterManagerService();
                 assert leaderChecker.currentNodeIsClusterManager() == false;
@@ -1693,6 +1704,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                     updateMaxTermSeen(getCurrentTerm());
 
                                     if (mode == Mode.LEADER) {
+                                        closePrevotingAndElectionScheduler();
                                         // if necessary, abdicate to another node or improve the voting configuration
                                         boolean attemptReconfiguration = true;
                                         final ClusterState state = getLastAcceptedState(); // committed state

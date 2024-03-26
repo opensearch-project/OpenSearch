@@ -86,15 +86,18 @@ public class NodesInfoRequestTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test that a newly constructed NodesInfoRequestObject requests all of the
-     * possible metrics defined in {@link NodesInfoRequest.Metric}.
+     * Test that a newly constructed NodesInfoRequestObject does not request all the
+     * possible metrics defined in {@link NodesInfoRequest.Metric} but only the default metrics
+     * according to {@link NodesInfoRequest.Metric#defaultMetrics()}.
      */
     public void testNodesInfoRequestDefaults() {
-        NodesInfoRequest defaultNodesInfoRequest = new NodesInfoRequest(randomAlphaOfLength(8));
-        NodesInfoRequest allMetricsNodesInfoRequest = new NodesInfoRequest(randomAlphaOfLength(8));
-        allMetricsNodesInfoRequest.all();
+        NodesInfoRequest requestOOTB = new NodesInfoRequest(randomAlphaOfLength(8));
+        NodesInfoRequest requestAll = new NodesInfoRequest(randomAlphaOfLength(8)).all();
+        NodesInfoRequest requestDefault = new NodesInfoRequest(randomAlphaOfLength(8)).defaultMetrics();
 
-        assertThat(defaultNodesInfoRequest.requestedMetrics(), equalTo(allMetricsNodesInfoRequest.requestedMetrics()));
+        assertTrue(requestAll.requestedMetrics().size() > requestOOTB.requestedMetrics().size());
+        assertTrue(requestDefault.requestedMetrics().size() == requestOOTB.requestedMetrics().size());
+        assertThat(requestOOTB.requestedMetrics(), equalTo(requestDefault.requestedMetrics()));
     }
 
     /**
@@ -105,6 +108,21 @@ public class NodesInfoRequestTests extends OpenSearchTestCase {
         request.all();
 
         assertThat(request.requestedMetrics(), equalTo(NodesInfoRequest.Metric.allMetrics()));
+    }
+
+    /**
+     * Test that the {@link NodesInfoRequest#defaultMetrics()} method enables default metrics.
+     */
+    public void testNodesInfoRequestDefault() {
+        NodesInfoRequest request = new NodesInfoRequest("node");
+        request.defaultMetrics();
+
+        assertEquals(11, request.requestedMetrics().size());
+        assertThat(request.requestedMetrics(), equalTo(NodesInfoRequest.Metric.defaultMetrics()));
+        assertTrue(request.requestedMetrics().contains(NodesInfoRequest.Metric.JVM.metricName()));
+        assertTrue(request.requestedMetrics().contains(NodesInfoRequest.Metric.AGGREGATIONS.metricName()));
+        // search_pipelines metrics are not included
+        assertFalse(request.requestedMetrics().contains(NodesInfoRequest.Metric.SEARCH_PIPELINES.metricName()));
     }
 
     /**

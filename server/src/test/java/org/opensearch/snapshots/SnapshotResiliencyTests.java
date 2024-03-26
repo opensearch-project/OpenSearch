@@ -103,6 +103,8 @@ import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.action.support.clustermanager.term.GetTermVersionAction;
+import org.opensearch.action.support.clustermanager.term.TransportGetTermVersionAction;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.update.UpdateHelper;
 import org.opensearch.client.AdminClient;
@@ -157,6 +159,7 @@ import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.cache.module.CacheModule;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -239,6 +242,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -2072,7 +2076,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     repositoriesServiceReference::get,
                     null,
                     new RemoteStoreStatsTrackerFactory(clusterService, settings),
-                    DefaultRecoverySettings.INSTANCE
+                    DefaultRecoverySettings.INSTANCE,
+                    new CacheModule(new ArrayList<>(), settings).getCacheService()
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
@@ -2310,7 +2315,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             client
                         ),
                         NoopMetricsRegistry.INSTANCE,
-                        searchRequestOperationsCompositeListenerFactory
+                        searchRequestOperationsCompositeListenerFactory,
+                        NoopTracer.INSTANCE
                     )
                 );
                 actions.put(
@@ -2433,6 +2439,18 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         indexNameExpressionResolver
                     )
                 );
+
+                actions.put(
+                    GetTermVersionAction.INSTANCE,
+                    new TransportGetTermVersionAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        actionFilters,
+                        indexNameExpressionResolver
+                    )
+                );
+
                 DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
                 dynamicActionRegistry.registerUnmodifiableActionMap(actions);
                 client.initialize(
