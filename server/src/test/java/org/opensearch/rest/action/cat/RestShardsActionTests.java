@@ -125,7 +125,7 @@ public class RestShardsActionTests extends OpenSearchTestCase {
         assertThat(headers.get(6).value, equalTo("ip"));
         assertThat(headers.get(7).value, equalTo("id"));
         assertThat(headers.get(8).value, equalTo("node"));
-        assertThat(headers.get(78).value, equalTo("docs.deleted"));
+        assertThat(headers.get(79).value, equalTo("docs.deleted"));
 
         final List<List<Table.Cell>> rows = table.getRows();
         assertThat(rows.size(), equalTo(numShards));
@@ -141,9 +141,9 @@ public class RestShardsActionTests extends OpenSearchTestCase {
             assertThat(row.get(4).value, equalTo(shardStats.getStats().getDocs().getCount()));
             assertThat(row.get(6).value, equalTo(localNode.getHostAddress()));
             assertThat(row.get(7).value, equalTo(localNode.getId()));
-            assertThat(row.get(76).value, equalTo(shardStats.getDataPath()));
-            assertThat(row.get(77).value, equalTo(shardStats.getStatePath()));
-            assertThat(row.get(78).value, equalTo(shardStats.getStats().getDocs().getDeleted()));
+            assertThat(row.get(77).value, equalTo(shardStats.getDataPath()));
+            assertThat(row.get(78).value, equalTo(shardStats.getStatePath()));
+            assertThat(row.get(79).value, equalTo(shardStats.getStats().getDocs().getDeleted()));
         }
     }
 }
