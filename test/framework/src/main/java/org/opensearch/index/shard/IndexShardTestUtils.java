@@ -47,7 +47,7 @@ public class IndexShardTestUtils {
 
     public static DiscoveryNodes getFakeDiscoveryNodes(List<ShardRouting> shardRoutings) {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        for (ShardRouting routing: shardRoutings) {
+        for (ShardRouting routing : shardRoutings) {
             builder.add(getFakeDiscoNode(routing.currentNodeId()));
         }
         return builder.build();
@@ -55,7 +55,7 @@ public class IndexShardTestUtils {
 
     public static DiscoveryNodes getFakeRemoteEnabledDiscoveryNodes(List<ShardRouting> shardRoutings) {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        for (ShardRouting routing: shardRoutings) {
+        for (ShardRouting routing : shardRoutings) {
             builder.add(getFakeRemoteEnabledNode(routing.currentNodeId()));
         }
         return builder.build();

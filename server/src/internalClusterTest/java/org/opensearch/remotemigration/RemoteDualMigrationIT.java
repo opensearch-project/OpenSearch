@@ -66,8 +66,7 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
 
         int initialBatch = randomIntBetween(1, 1000);
         logger.info("---> Indexing {} docs", initialBatch);
-        SyncIndexingService indexingService = new SyncIndexingService(REMOTE_PRI_DOCREP_REP, initialBatch);
-        indexingService.startIndexing();
+        indexBulk(REMOTE_PRI_DOCREP_REP, initialBatch);
 
         initDocRepToRemoteMigration();
 
@@ -97,6 +96,17 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
                 .get()
         );
         ensureGreen(REMOTE_PRI_DOCREP_REP);
+        assertTrue(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareState()
+                .get()
+                .getState()
+                .getNodes()
+                .get(primaryNodeName(REMOTE_PRI_DOCREP_REP))
+                .isRemoteStoreNode()
+        );
 
         int secondBatch = randomIntBetween(1, 10);
         logger.info("---> Indexing another {} docs", secondBatch);
@@ -152,8 +162,7 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
 
         int firstBatch = randomIntBetween(1, 100);
         logger.info("---> Indexing {} docs", firstBatch);
-        SyncIndexingService indexingService = new SyncIndexingService(REMOTE_PRI_DOCREP_REMOTE_REP, firstBatch);
-        indexingService.startIndexing();
+        indexBulk(REMOTE_PRI_DOCREP_REMOTE_REP, firstBatch);
 
         String primaryShardHostingNode = primaryNodeName(REMOTE_PRI_DOCREP_REMOTE_REP);
         logger.info("---> Moving primary copy from {} to remote enabled node {}", primaryShardHostingNode, remoteNodeName);
@@ -166,6 +175,17 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
                 .get()
         );
         ensureGreen(REMOTE_PRI_DOCREP_REMOTE_REP);
+        assertTrue(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareState()
+                .get()
+                .getState()
+                .getNodes()
+                .get(primaryNodeName(REMOTE_PRI_DOCREP_REMOTE_REP))
+                .isRemoteStoreNode()
+        );
 
         logger.info("---> Starting another remote enabled node");
         internalCluster().startDataOnlyNode();
@@ -262,10 +282,9 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
             2
         );
 
-        int firstBatch = randomIntBetween(1, 100);
-        logger.info("---> Indexing {} docs", firstBatch);
-        SyncIndexingService indexingService = new SyncIndexingService(FAILOVER_REMOTE_TO_DOCREP, firstBatch);
-        indexingService.startIndexing();
+        logger.info("---> Starting doc ingestion in parallel thread");
+        AsyncIndexingService asyncIndexingService = new AsyncIndexingService(FAILOVER_REMOTE_TO_DOCREP);
+        asyncIndexingService.startIndexing();
 
         String primaryShardHostingNode = primaryNodeName(FAILOVER_REMOTE_TO_DOCREP);
         logger.info("---> Moving primary copy from {} to remote enabled node {}", primaryShardHostingNode, remoteNodeName);
@@ -291,6 +310,8 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
                 .get()
         );
         ensureGreen(FAILOVER_REMOTE_TO_DOCREP);
+        logger.info("---> Stopping indexing thread");
+        asyncIndexingService.stopIndexing();
 
         refreshAndWaitForReplication(FAILOVER_REMOTE_TO_DOCREP);
         Map<ShardRouting, ShardStats> shardStatsMap = internalCluster().client()
@@ -308,6 +329,7 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
                 initialPrimaryDocCount = shardStatsMap.get(shardRouting).getStats().getDocs().getCount();
             }
         }
+        int firstBatch = (int) asyncIndexingService.getIndexedDocs();
         assertReplicaAndPrimaryConsistency(FAILOVER_REMOTE_TO_DOCREP, firstBatch, 0);
 
         logger.info("---> Stop remote store enabled node");
@@ -329,8 +351,7 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
         logger.info("---> Index some more docs to ensure that the failed over primary is ingesting new docs");
         int secondBatch = randomIntBetween(1, 10);
         logger.info("---> Indexing {} more docs", secondBatch);
-        indexingService = new SyncIndexingService(FAILOVER_REMOTE_TO_DOCREP, secondBatch);
-        indexingService.startIndexing();
+        indexBulk(FAILOVER_REMOTE_TO_DOCREP, secondBatch);
         refreshAndWaitForReplication(FAILOVER_REMOTE_TO_DOCREP);
 
         shardStatsMap = internalCluster().client().admin().indices().prepareStats(FAILOVER_REMOTE_TO_DOCREP).setDocs(true).get().asMap();
@@ -450,6 +471,13 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
         });
     }
 
+    /**
+     * For a docrep enabled shard copy or a primary shard copy,
+     * asserts that the stored Retention Leases equals to 1 + maxSeqNo ingested on the node
+     *
+     * @param shardStats ShardStats object from NodesStats API
+     * @param retentionLeases RetentionLeases from NodesStats API
+     */
     private static void assertRetentionLeaseConsistency(ShardStats shardStats, RetentionLeases retentionLeases) {
         long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
         assertTrue(retentionLeases.leases().stream().allMatch(l -> l.retainingSequenceNumber() == maxSeqNo + 1));

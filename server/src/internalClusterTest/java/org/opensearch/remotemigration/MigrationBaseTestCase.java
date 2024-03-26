@@ -27,7 +27,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
@@ -112,28 +112,27 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
         return client().bulk(bulkRequest).actionGet();
     }
 
+    private void indexSingleDoc(String indexName) {
+        IndexResponse indexResponse = client().prepareIndex(indexName).setId("id").setSource("field", "value").get();
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+        DeleteResponse deleteResponse = client().prepareDelete(indexName, "id").get();
+        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+        client().prepareIndex(indexName).setSource("auto", true).get();
+    }
+
     public class AsyncIndexingService {
-        private AtomicBoolean finished = new AtomicBoolean();
-        private AtomicInteger numAutoGenDocs = new AtomicInteger();
-        private Thread indexingThread;
         private String indexName;
+        private AtomicLong indexedDocs = new AtomicLong(0);
+        private AtomicBoolean finished = new AtomicBoolean();
+        private Thread indexingThread;
 
         AsyncIndexingService(String indexName) {
-            this(indexName, Integer.MAX_VALUE);
+            this.indexName = indexName;
         }
 
-        AsyncIndexingService(String indexName, int maxDocs) {
-            indexingThread = new Thread(() -> {
-                while (finished.get() == false && numAutoGenDocs.get() < maxDocs) {
-                    IndexResponse indexResponse = client().prepareIndex(indexName).setId("id").setSource("field", "value").get();
-                    assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
-                    DeleteResponse deleteResponse = client().prepareDelete("test", "id").get();
-                    assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-                    client().prepareIndex(indexName).setSource("auto", true).get();
-                    numAutoGenDocs.incrementAndGet();
-                    logger.info("Indexed {} docs here", numAutoGenDocs.get());
-                }
-            });
+        public void startIndexing() {
+            indexingThread = getIndexingThread();
+            indexingThread.start();
         }
 
         public void stopIndexing() throws InterruptedException {
@@ -141,53 +140,19 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
             indexingThread.join();
         }
 
-        public int totalIndexedDocs() {
-            return numAutoGenDocs.get();
+        public long getIndexedDocs() {
+            return indexedDocs.get();
         }
 
-        public void startIndexing() {
-            indexingThread.start();
-        }
+        private Thread getIndexingThread() {
+            return new Thread(() -> {
+                while (finished.get() == false) {
+                    indexSingleDoc(indexName);
+                    long currentDocCount = indexedDocs.incrementAndGet();
+                    logger.info("Completed ingestion of {} docs", currentDocCount);
 
-        public Thread getIndexingThread() {
-            return indexingThread;
-        }
-    }
-
-    public class SyncIndexingService {
-        private int maxDocs;
-        private int currentIndexedDocs;
-        private boolean forceStop;
-        private String indexName;
-
-        SyncIndexingService(String indexName) {
-            this(indexName, Integer.MAX_VALUE);
-        }
-
-        SyncIndexingService(String indexName, int maxDocs) {
-            this.indexName = indexName;
-            this.maxDocs = maxDocs;
-            this.forceStop = false;
-        }
-
-        public void forceStopIndexing() throws InterruptedException {
-            this.forceStop = true;
-        }
-
-        public int getCurrentIndexedDocs() {
-            return currentIndexedDocs;
-        }
-
-        public void startIndexing() {
-            while (currentIndexedDocs < maxDocs && forceStop == false) {
-                IndexResponse indexResponse = client().prepareIndex(indexName).setId("id").setSource("field", "value").get();
-                assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
-                DeleteResponse deleteResponse = client().prepareDelete(indexName, "id").get();
-                assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-                client().prepareIndex(indexName).setSource("auto", true).get();
-                currentIndexedDocs += 1;
-                logger.info("Indexed {} docs here", currentIndexedDocs);
-            }
+                }
+            });
         }
     }
 }
