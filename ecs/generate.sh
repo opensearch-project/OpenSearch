@@ -23,7 +23,7 @@ generate_mappings() {
 
   # Generate mappings
   python scripts/generator.py --strict --ref "$ECS_VERSION" \
-    --include "$IN_FILES_DIR/custom/wazuh.yml" \
+    --include "$IN_FILES_DIR/custom/" \
     --subset "$IN_FILES_DIR/subset.yml" \
     --template-settings "$IN_FILES_DIR/template-settings.json" \
     --template-settings-legacy "$IN_FILES_DIR/template-settings-legacy.json" \
