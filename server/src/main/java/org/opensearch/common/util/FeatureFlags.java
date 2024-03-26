@@ -12,9 +12,11 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 
+import java.util.List;
+
 /**
  * Utility class to manage feature flags. Feature flags are system properties that must be set on the JVM.
- * These are used to gate the visibility/availability of incomplete features. Fore more information, see
+ * These are used to gate the visibility/availability of incomplete features. For more information, see
  * https://featureflags.io/feature-flag-introduction/
  *
  * @opensearch.internal
@@ -65,45 +67,6 @@ public class FeatureFlags {
      */
     public static final String PLUGGABLE_CACHE = "opensearch.experimental.feature.pluggable.caching.enabled";
 
-    /**
-     * Should store the settings from opensearch.yml.
-     */
-    private static Settings settings;
-
-    /**
-     * This method is responsible to map settings from opensearch.yml to local stored
-     * settings value. That is used for the existing isEnabled method.
-     *
-     * @param openSearchSettings The settings stored in opensearch.yml.
-     */
-    public static void initializeFeatureFlags(Settings openSearchSettings) {
-        settings = openSearchSettings;
-    }
-
-    /**
-     * Used to test feature flags whose values are expected to be booleans.
-     * This method returns true if the value is "true" (case-insensitive),
-     * and false otherwise.
-     */
-    public static boolean isEnabled(String featureFlagName) {
-        if ("true".equalsIgnoreCase(System.getProperty(featureFlagName))) {
-            // TODO: Remove the if condition once FeatureFlags are only supported via opensearch.yml
-            return true;
-        }
-        return settings != null && settings.getAsBoolean(featureFlagName, false);
-    }
-
-    public static boolean isEnabled(Setting<Boolean> featureFlag) {
-        if ("true".equalsIgnoreCase(System.getProperty(featureFlag.getKey()))) {
-            // TODO: Remove the if condition once FeatureFlags are only supported via opensearch.yml
-            return true;
-        } else if (settings != null) {
-            return featureFlag.get(settings);
-        } else {
-            return featureFlag.getDefault(Settings.EMPTY);
-        }
-    }
-
     public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL,
         false,
@@ -129,4 +92,67 @@ public class FeatureFlags {
     );
 
     public static final Setting<Boolean> PLUGGABLE_CACHE_SETTING = Setting.boolSetting(PLUGGABLE_CACHE, false, Property.NodeScope);
+
+    private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
+        REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
+        EXTENSIONS_SETTING,
+        IDENTITY_SETTING,
+        TELEMETRY_SETTING,
+        DATETIME_FORMATTER_CACHING_SETTING,
+        WRITEABLE_REMOTE_INDEX_SETTING,
+        PLUGGABLE_CACHE_SETTING
+    );
+    /**
+     * Should store the settings from opensearch.yml.
+     */
+    private static Settings settings;
+
+    static {
+        Settings.Builder settingsBuilder = Settings.builder();
+        for (Setting<Boolean> ffSetting : ALL_FEATURE_FLAG_SETTINGS) {
+            settingsBuilder = settingsBuilder.put(ffSetting.getKey(), ffSetting.getDefault(Settings.EMPTY));
+        }
+        settings = settingsBuilder.build();
+    }
+
+    /**
+     * This method is responsible to map settings from opensearch.yml to local stored
+     * settings value. That is used for the existing isEnabled method.
+     *
+     * @param openSearchSettings The settings stored in opensearch.yml.
+     */
+    public static void initializeFeatureFlags(Settings openSearchSettings) {
+        Settings.Builder settingsBuilder = Settings.builder();
+        for (Setting<Boolean> ffSetting : ALL_FEATURE_FLAG_SETTINGS) {
+            settingsBuilder = settingsBuilder.put(
+                ffSetting.getKey(),
+                openSearchSettings.getAsBoolean(ffSetting.getKey(), ffSetting.getDefault(openSearchSettings))
+            );
+        }
+        settings = settingsBuilder.build();
+    }
+
+    /**
+     * Used to test feature flags whose values are expected to be booleans.
+     * This method returns true if the value is "true" (case-insensitive),
+     * and false otherwise.
+     */
+    public static boolean isEnabled(String featureFlagName) {
+        if ("true".equalsIgnoreCase(System.getProperty(featureFlagName))) {
+            // TODO: Remove the if condition once FeatureFlags are only supported via opensearch.yml
+            return true;
+        }
+        return settings != null && settings.getAsBoolean(featureFlagName, false);
+    }
+
+    public static boolean isEnabled(Setting<Boolean> featureFlag) {
+        if ("true".equalsIgnoreCase(System.getProperty(featureFlag.getKey()))) {
+            // TODO: Remove the if condition once FeatureFlags are only supported via opensearch.yml
+            return true;
+        } else if (settings != null) {
+            return featureFlag.get(settings);
+        } else {
+            return featureFlag.getDefault(Settings.EMPTY);
+        }
+    }
 }

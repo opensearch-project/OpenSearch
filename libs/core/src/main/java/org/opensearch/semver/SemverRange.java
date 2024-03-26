@@ -10,6 +10,7 @@ package org.opensearch.semver;
 
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.semver.expr.Caret;
@@ -31,7 +32,10 @@ import static java.util.Arrays.stream;
  *     <li>'~' Allows for patch version variability starting from the range version. For example, ~1.2.3 range would match versions greater than or equal to 1.2.3 but less than 1.3.0</li>
  *     <li>'^' Allows for patch and minor version variability starting from the range version. For example, ^1.2.3 range would match versions greater than or equal to 1.2.3 but less than 2.0.0</li>
  * </ul>
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.13.0")
 public class SemverRange implements ToXContentFragment {
 
     private final Version rangeVersion;

@@ -29,6 +29,7 @@
 
 package org.opensearch.common.inject;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.binder.AnnotatedElementBuilder;
 
 /**
@@ -38,8 +39,9 @@ import org.opensearch.common.inject.binder.AnnotatedElementBuilder;
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface PrivateBinder extends Binder {
 
     /**

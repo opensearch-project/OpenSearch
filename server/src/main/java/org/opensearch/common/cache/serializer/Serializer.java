@@ -8,10 +8,15 @@
 
 package org.opensearch.common.cache.serializer;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Defines an interface for serializers, to be used by pluggable caches.
  * T is the class of the original object, and U is the serialized class.
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public interface Serializer<T, U> {
     /**
      * Serializes an object.

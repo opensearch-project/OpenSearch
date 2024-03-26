@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.rest.RestStatus;
@@ -52,7 +53,10 @@ import static java.util.Collections.unmodifiableList;
 
 /**
  * An action that forwards REST requests to an extension
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public class RestSendToExtensionAction extends BaseRestHandler {
 
     private static final String SEND_TO_EXTENSION_ACTION = "send_to_extension_action";

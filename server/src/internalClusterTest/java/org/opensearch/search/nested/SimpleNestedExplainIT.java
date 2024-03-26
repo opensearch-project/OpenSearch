@@ -30,6 +30,11 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class SimpleNestedExplainIT extends OpenSearchIntegTestCase {
 
+    @Override
+    protected int numberOfShards() {
+        return 1;
+    }
+
     /*
      * Tests the explain output for multiple docs. Concurrent search with multiple slices is tested
      * here as call to indexRandomForMultipleSlices is made and compared with explain output for
@@ -70,7 +75,23 @@ public class SimpleNestedExplainIT extends OpenSearchIntegTestCase {
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        indexRandomForMultipleSlices("test");
+        client().prepareIndex("test")
+            .setId("2")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("field1", "value2")
+                    .startArray("nested1")
+                    .startObject()
+                    .field("n_field1", "n_value2")
+                    .endObject()
+                    .startObject()
+                    .field("n_field1", "n_value2")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         // Turn off the concurrent search setting to test search with non-concurrent search
         client().admin()

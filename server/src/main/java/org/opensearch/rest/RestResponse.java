@@ -33,6 +33,7 @@
 package org.opensearch.rest;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.rest.RestStatus;
@@ -49,6 +50,7 @@ import java.util.Set;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class RestResponse {
 
     private Map<String, List<String>> customHeaders;

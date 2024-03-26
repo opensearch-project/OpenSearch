@@ -29,6 +29,8 @@
 
 package org.opensearch.common.inject;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * A module contributes configuration information, typically interface
  * bindings, which will be used to create an {@link Injector}. A Guice-based
@@ -43,8 +45,9 @@ package org.opensearch.common.inject;
  * Use scope and binding annotations on these methods to configure the
  * bindings.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface Module {
 
     /**

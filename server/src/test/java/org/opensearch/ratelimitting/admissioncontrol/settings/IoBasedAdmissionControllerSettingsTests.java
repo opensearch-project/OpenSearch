@@ -72,6 +72,10 @@ public class IoBasedAdmissionControllerSettingsTests extends OpenSearchTestCase 
         assertEquals(ioBasedAdmissionControllerSettings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
         assertEquals(ioBasedAdmissionControllerSettings.getIndexingIOUsageLimit().longValue(), percent);
         assertEquals(ioBasedAdmissionControllerSettings.getSearchIOUsageLimit().longValue(), percent);
+        assertEquals(
+            ioBasedAdmissionControllerSettings.getClusterAdminIOUsageLimit().longValue(),
+            IoBasedAdmissionControllerSettings.Defaults.CLUSTER_ADMIN_IO_USAGE_LIMIT
+        );
     }
 
     public void testGetConfiguredSettings() {
@@ -134,6 +138,10 @@ public class IoBasedAdmissionControllerSettingsTests extends OpenSearchTestCase 
         assertEquals(ioBasedAdmissionControllerSettings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
         assertEquals(ioBasedAdmissionControllerSettings.getSearchIOUsageLimit().longValue(), searchPercent);
         assertEquals(ioBasedAdmissionControllerSettings.getIndexingIOUsageLimit().longValue(), percent);
+        assertEquals(
+            ioBasedAdmissionControllerSettings.getClusterAdminIOUsageLimit().longValue(),
+            IoBasedAdmissionControllerSettings.Defaults.CLUSTER_ADMIN_IO_USAGE_LIMIT
+        );
 
         Settings updatedSettings = Settings.builder()
             .put(
@@ -146,6 +154,10 @@ public class IoBasedAdmissionControllerSettingsTests extends OpenSearchTestCase 
         assertEquals(ioBasedAdmissionControllerSettings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.MONITOR);
         assertEquals(ioBasedAdmissionControllerSettings.getSearchIOUsageLimit().longValue(), searchPercent);
         assertEquals(ioBasedAdmissionControllerSettings.getIndexingIOUsageLimit().longValue(), indexingPercent);
+        assertEquals(
+            ioBasedAdmissionControllerSettings.getClusterAdminIOUsageLimit().longValue(),
+            IoBasedAdmissionControllerSettings.Defaults.CLUSTER_ADMIN_IO_USAGE_LIMIT
+        );
 
         searchPercent = 70;
         updatedSettings = Settings.builder()
@@ -156,5 +168,9 @@ public class IoBasedAdmissionControllerSettingsTests extends OpenSearchTestCase 
         clusterService.getClusterSettings().applySettings(updatedSettings);
         assertEquals(ioBasedAdmissionControllerSettings.getSearchIOUsageLimit().longValue(), searchPercent);
         assertEquals(ioBasedAdmissionControllerSettings.getIndexingIOUsageLimit().longValue(), indexingPercent);
+        assertEquals(
+            ioBasedAdmissionControllerSettings.getClusterAdminIOUsageLimit().longValue(),
+            IoBasedAdmissionControllerSettings.Defaults.CLUSTER_ADMIN_IO_USAGE_LIMIT
+        );
     }
 }

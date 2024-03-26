@@ -40,6 +40,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
@@ -73,6 +74,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class BaseRestHandler implements RestHandler {
 
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX = Setting.boolSetting(
@@ -195,8 +197,11 @@ public abstract class BaseRestHandler implements RestHandler {
     /**
      * REST requests are handled by preparing a channel consumer that represents the execution of
      * the request against a channel.
+     *
+     * @opensearch.api
      */
     @FunctionalInterface
+    @PublicApi(since = "1.0.0")
     protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {}
 
     /**

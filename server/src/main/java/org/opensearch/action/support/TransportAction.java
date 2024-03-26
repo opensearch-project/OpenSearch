@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -52,8 +53,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Base class for a transport action
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class TransportAction<Request extends ActionRequest, Response extends ActionResponse> {
 
     public final String actionName;

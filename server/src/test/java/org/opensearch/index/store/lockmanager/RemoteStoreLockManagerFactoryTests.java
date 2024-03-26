@@ -11,6 +11,7 @@ package org.opensearch.index.store.lockmanager;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.index.remote.RemoteStorePathType;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchTestCase;
@@ -48,6 +49,7 @@ public class RemoteStoreLockManagerFactoryTests extends OpenSearchTestCase {
         String testRepository = "testRepository";
         String testIndexUUID = "testIndexUUID";
         String testShardId = "testShardId";
+        RemoteStorePathType pathType = RemoteStorePathType.FIXED;
 
         BlobStoreRepository repository = mock(BlobStoreRepository.class);
         BlobStore blobStore = mock(BlobStore.class);
@@ -59,7 +61,12 @@ public class RemoteStoreLockManagerFactoryTests extends OpenSearchTestCase {
 
         when(repositoriesService.repository(testRepository)).thenReturn(repository);
 
-        RemoteStoreLockManager lockManager = remoteStoreLockManagerFactory.newLockManager(testRepository, testIndexUUID, testShardId);
+        RemoteStoreLockManager lockManager = remoteStoreLockManagerFactory.newLockManager(
+            testRepository,
+            testIndexUUID,
+            testShardId,
+            pathType
+        );
 
         assertTrue(lockManager != null);
         ArgumentCaptor<BlobPath> blobPathCaptor = ArgumentCaptor.forClass(BlobPath.class);

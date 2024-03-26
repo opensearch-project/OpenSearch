@@ -9,6 +9,7 @@
 package org.opensearch.common.blobstore;
 
 import org.opensearch.cluster.metadata.CryptoMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.crypto.CryptoHandler;
 import org.opensearch.crypto.CryptoHandlerRegistry;
 import org.opensearch.crypto.CryptoRegistryException;
@@ -63,6 +64,15 @@ public class EncryptedBlobStore implements BlobStore {
             return new AsyncMultiStreamEncryptedBlobContainer<>((AsyncMultiStreamBlobContainer) blobContainer, cryptoHandler);
         }
         return new EncryptedBlobContainer<>(blobContainer, cryptoHandler);
+    }
+
+    /**
+     * Reoload blobstore metadata
+     * @param repositoryMetadata new repository metadata
+     */
+    @Override
+    public void reload(RepositoryMetadata repositoryMetadata) {
+        blobStore.reload(repositoryMetadata);
     }
 
     /**

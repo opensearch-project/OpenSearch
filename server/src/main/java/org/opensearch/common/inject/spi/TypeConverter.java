@@ -29,6 +29,7 @@
 
 package org.opensearch.common.inject.spi;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.TypeLiteral;
 
 /**
@@ -37,8 +38,9 @@ import org.opensearch.common.inject.TypeLiteral;
  * @author crazybob@google.com (Bob Lee)
  * @since 2.0
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface TypeConverter {
 
     /**

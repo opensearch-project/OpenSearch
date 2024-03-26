@@ -67,7 +67,8 @@ public class CpuBasedAdmissionController extends AdmissionController {
                 throw new OpenSearchRejectedExecutionException(
                     String.format(
                         Locale.ROOT,
-                        "CPU usage admission controller rejected the request for action [%s] as CPU limit reached",
+                        "CPU usage admission controller rejected the request for action [%s] as CPU limit reached for action-type [%s]",
+                        actionName,
                         admissionControlActionType.name()
                     )
                 );
@@ -112,6 +113,8 @@ public class CpuBasedAdmissionController extends AdmissionController {
                 return this.settings.getSearchCPULimit();
             case INDEXING:
                 return this.settings.getIndexingCPULimit();
+            case CLUSTER_ADMIN:
+                return this.settings.getClusterAdminCPULimit();
             default:
                 throw new IllegalArgumentException(
                     String.format(

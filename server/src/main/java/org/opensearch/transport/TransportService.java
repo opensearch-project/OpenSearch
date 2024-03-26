@@ -1214,7 +1214,11 @@ public class TransportService extends AbstractLifecycleComponent
         TransportRequestHandler<Request> handler
     ) {
         validateActionName(action);
-        handler = interceptor.interceptHandler(action, executor, forceExecution, handler, admissionControlActionType);
+        if (admissionControlActionType != null) {
+            handler = interceptor.interceptHandler(action, executor, forceExecution, handler, admissionControlActionType);
+        } else {
+            handler = interceptor.interceptHandler(action, executor, forceExecution, handler);
+        }
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
             action,
             requestReader,
