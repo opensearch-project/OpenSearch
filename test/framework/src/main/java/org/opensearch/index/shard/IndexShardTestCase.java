@@ -1008,14 +1008,18 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             currentClusterStateVersion.incrementAndGet(),
             inSyncIds,
             newRoutingTable,
-            DiscoveryNodes.builder().add(new DiscoveryNode(
-                shardRouting.currentNodeId(),
-                shardRouting.currentNodeId(),
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                DiscoveryNodeRole.BUILT_IN_ROLES,
-                Version.CURRENT
-            )).build()
+            DiscoveryNodes.builder()
+                .add(
+                    new DiscoveryNode(
+                        shardRouting.currentNodeId(),
+                        shardRouting.currentNodeId(),
+                        buildNewFakeTransportAddress(),
+                        Collections.emptyMap(),
+                        DiscoveryNodeRole.BUILT_IN_ROLES,
+                        Version.CURRENT
+                    )
+                )
+                .build()
         );
     }
 
@@ -1167,9 +1171,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             currentClusterStateVersion.incrementAndGet(),
             inSyncIds,
             routingTable,
-            primary.isRemoteTranslogEnabled() ?
-                IndexShardTestUtils.getFakeRemoteEnabledDiscoveryNodes(routingTable.getShards()) :
-                IndexShardTestUtils.getFakeDiscoveryNodes(routingTable.getShards())
+            primary.isRemoteTranslogEnabled()
+                ? IndexShardTestUtils.getFakeRemoteEnabledDiscoveryNodes(routingTable.getShards())
+                : IndexShardTestUtils.getFakeDiscoveryNodes(routingTable.getShards())
         );
         try {
             PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
@@ -1204,9 +1208,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             currentClusterStateVersion.incrementAndGet(),
             inSyncIdsWithReplica,
             newRoutingTable,
-            primary.indexSettings.isRemoteTranslogStoreEnabled() ?
-                IndexShardTestUtils.getFakeRemoteEnabledDiscoveryNodes(routingTable.shards()):
-                IndexShardTestUtils.getFakeDiscoveryNodes(routingTable.shards())
+            primary.indexSettings.isRemoteTranslogStoreEnabled()
+                ? IndexShardTestUtils.getFakeRemoteEnabledDiscoveryNodes(routingTable.shards())
+                : IndexShardTestUtils.getFakeDiscoveryNodes(routingTable.shards())
         );
         replica.updateShardState(
             replica.routingEntry().moveToStarted(),
@@ -1215,9 +1219,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             currentClusterStateVersion.get(),
             inSyncIdsWithReplica,
             newRoutingTable,
-            replica.indexSettings.isRemoteTranslogStoreEnabled() ?
-                IndexShardTestUtils.getFakeRemoteEnabledDiscoveryNodes(routingTable.shards()):
-                IndexShardTestUtils.getFakeDiscoveryNodes(routingTable.shards())
+            replica.indexSettings.isRemoteTranslogStoreEnabled()
+                ? IndexShardTestUtils.getFakeRemoteEnabledDiscoveryNodes(routingTable.shards())
+                : IndexShardTestUtils.getFakeDiscoveryNodes(routingTable.shards())
         );
     }
 

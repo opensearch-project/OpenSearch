@@ -110,7 +110,6 @@ import org.opensearch.threadpool.ThreadPool.Names;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -350,7 +349,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             } else {
                 builder.add(IndexShardTestUtils.getFakeDiscoNode(primary.routingEntry().currentNodeId()));
             }
-            for (IndexShard replica: replicas) {
+            for (IndexShard replica : replicas) {
                 if (replica.indexSettings() != null && replica.indexSettings().isRemoteNode()) {
                     builder.add(IndexShardTestUtils.getFakeRemoteEnabledNode(replica.routingEntry().currentNodeId()));
                 } else {
@@ -362,7 +361,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         public synchronized void updateDiscoveryNodesOnShards(DiscoveryNodes discoveryNodes) {
             primary.setDiscoveryNodes(discoveryNodes);
-            for (IndexShard replica: replicas) {
+            for (IndexShard replica : replicas) {
                 replica.setDiscoveryNodes(discoveryNodes);
             }
         }
@@ -679,9 +678,9 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 currentClusterStateVersion.incrementAndGet(),
                 activeIds(),
                 routingTable(Function.identity()),
-                primary.indexSettings().isRemoteTranslogStoreEnabled() ?
-                    IndexShardTestUtils.getFakeRemoteEnabledDiscoveryNodes(routingTable(Function.identity()).getShards()) :
-                    IndexShardTestUtils.getFakeDiscoveryNodes(routingTable(Function.identity()).getShards())
+                primary.indexSettings().isRemoteTranslogStoreEnabled()
+                    ? IndexShardTestUtils.getFakeRemoteEnabledDiscoveryNodes(routingTable(Function.identity()).getShards())
+                    : IndexShardTestUtils.getFakeDiscoveryNodes(routingTable(Function.identity()).getShards())
             );
         }
 
