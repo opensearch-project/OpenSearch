@@ -678,7 +678,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                         () -> mockRepoSvc,
                         threadPool,
                         settings.getRemoteStoreTranslogRepository(),
-                        new RemoteTranslogTransferTracker(shardRouting.shardId(), 20)
+                        new RemoteTranslogTransferTracker(shardRouting.shardId(), 20),
+                        false
                     );
                 }
                 return new InternalTranslogFactory();

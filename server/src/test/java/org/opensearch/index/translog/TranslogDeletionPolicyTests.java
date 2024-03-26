@@ -258,6 +258,7 @@ public class TranslogDeletionPolicyTests extends OpenSearchTestCase {
                 new TragicExceptionHolder(),
                 seqNo -> {},
                 BigArrays.NON_RECYCLING_INSTANCE,
+                null,
                 null
             );
             writer = Mockito.spy(writer);

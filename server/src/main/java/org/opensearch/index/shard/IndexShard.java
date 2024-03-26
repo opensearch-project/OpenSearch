@@ -2522,7 +2522,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     syncSegmentsFromRemoteSegmentStore(false);
                 }
                 if (shardRouting.primary()) {
-                    if (syncFromRemote) {
+                    if (syncFromRemote || this.isRemoteSeeded()) {
                         syncRemoteTranslogAndUpdateGlobalCheckpoint();
                     } else {
                         // we will enter this block when we do not want to recover from remote translog.

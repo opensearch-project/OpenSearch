@@ -33,6 +33,7 @@
 package org.opensearch.common.blobstore;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -44,6 +45,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
+@PublicApi(since = "2.14.0")
 public class BlobPath implements Iterable<String> {
 
     private static final String SEPARATOR = "/";

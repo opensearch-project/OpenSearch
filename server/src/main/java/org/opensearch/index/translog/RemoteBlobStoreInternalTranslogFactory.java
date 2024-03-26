@@ -34,11 +34,14 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
 
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
 
+    private final boolean shouldSeedRemote;
+
     public RemoteBlobStoreInternalTranslogFactory(
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         ThreadPool threadPool,
         String repositoryName,
-        RemoteTranslogTransferTracker remoteTranslogTransferTracker
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        boolean shouldSeedRemote
     ) {
         Repository repository;
         try {
@@ -49,6 +52,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         this.repository = repository;
         this.threadPool = threadPool;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
+        this.shouldSeedRemote = shouldSeedRemote;
     }
 
     @Override
@@ -74,7 +78,8 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
             blobStoreRepository,
             threadPool,
             startedPrimarySupplier,
-            remoteTranslogTransferTracker
+            remoteTranslogTransferTracker,
+            shouldSeedRemote
         );
     }
 

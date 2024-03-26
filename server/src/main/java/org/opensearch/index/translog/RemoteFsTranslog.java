@@ -90,6 +90,8 @@ public class RemoteFsTranslog extends Translog {
     private final Semaphore syncPermit = new Semaphore(SYNC_PERMIT);
     private final AtomicBoolean pauseSync = new AtomicBoolean(false);
 
+    private final boolean shouldSeedRemote;
+
     public RemoteFsTranslog(
         TranslogConfig config,
         String translogUUID,
@@ -100,7 +102,8 @@ public class RemoteFsTranslog extends Translog {
         BlobStoreRepository blobStoreRepository,
         ThreadPool threadPool,
         BooleanSupplier startedPrimarySupplier,
-        RemoteTranslogTransferTracker remoteTranslogTransferTracker
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        boolean shouldSeedRemote
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         logger = Loggers.getLogger(getClass(), shardId);
@@ -115,33 +118,38 @@ public class RemoteFsTranslog extends Translog {
             remoteTranslogTransferTracker,
             indexSettings().getRemoteStorePathType()
         );
+        this.shouldSeedRemote = shouldSeedRemote;
         try {
-            download(translogTransferManager, location, logger);
-            Checkpoint checkpoint = readCheckpoint(location);
-            logger.info("Downloaded data from remote translog till maxSeqNo = {}", checkpoint.maxSeqNo);
-            this.readers.addAll(recoverFromFiles(checkpoint));
-            if (readers.isEmpty()) {
-                String errorMsg = String.format(Locale.ROOT, "%s at least one reader must be recovered", shardId);
-                logger.error(errorMsg);
-                throw new IllegalStateException(errorMsg);
-            }
-            boolean success = false;
-            current = null;
-            try {
-                current = createWriter(
-                    checkpoint.generation + 1,
-                    getMinFileGeneration(),
-                    checkpoint.globalCheckpoint,
-                    persistedSequenceNumberConsumer
-                );
-                success = true;
-            } finally {
-                // we have to close all the recovered ones otherwise we leak file handles here
-                // for instance if we have a lot of tlog and we can't create the writer we keep
-                // on holding
-                // on to all the uncommitted tlog files if we don't close
-                if (success == false) {
-                    IOUtils.closeWhileHandlingException(readers);
+            if (shouldSeedRemote) {
+                sync();
+            } else {
+                download(translogTransferManager, location, logger);
+                Checkpoint checkpoint = readCheckpoint(location);
+                logger.info("Downloaded data from remote translog till maxSeqNo = {}", checkpoint.maxSeqNo);
+                this.readers.addAll(recoverFromFiles(checkpoint));
+                if (readers.isEmpty()) {
+                    String errorMsg = String.format(Locale.ROOT, "%s at least one reader must be recovered", shardId);
+                    logger.error(errorMsg);
+                    throw new IllegalStateException(errorMsg);
+                }
+                boolean success = false;
+                current = null;
+                try {
+                    current = createWriter(
+                        checkpoint.generation + 1,
+                        getMinFileGeneration(),
+                        checkpoint.globalCheckpoint,
+                        persistedSequenceNumberConsumer
+                    );
+                    success = true;
+                } finally {
+                    // we have to close all the recovered ones otherwise we leak file handles here
+                    // for instance if we have a lot of tlog and we can't create the writer we keep
+                    // on holding
+                    // on to all the uncommitted tlog files if we don't close
+                    if (success == false) {
+                        IOUtils.closeWhileHandlingException(readers);
+                    }
                 }
             }
         } catch (Exception e) {
@@ -386,7 +394,7 @@ public class RemoteFsTranslog extends Translog {
 
     @Override
     public void sync() throws IOException {
-        if (syncToDisk() || syncNeeded()) {
+        if (syncToDisk() || syncNeeded() || shouldSeedRemote) {
             prepareAndUpload(primaryTermSupplier.getAsLong(), null);
         }
     }
