@@ -109,7 +109,7 @@ class DefaultTracer implements Tracer {
     }
 
     private void addRequestAttributeToContext(SpanCreationContext spanCreationContext, Map<String, Collection<String>> headers) {
-        if (headers.containsKey(TracerContextStorage.INFERRED_SAMPLER)) {
+        if (headers !=null && headers.containsKey(TracerContextStorage.INFERRED_SAMPLER)) {
             spanCreationContext.getAttributes().addAttribute(TracerContextStorage.INFERRED_SAMPLER, true);
         }
     }
