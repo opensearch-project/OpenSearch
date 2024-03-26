@@ -49,9 +49,13 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryModule;
+import org.opensearch.indices.recovery.PeerRecoveryStats;
+import org.opensearch.ingest.IngestStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.os.OsInfo;
+import org.opensearch.monitor.os.OsStats;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.transport.TransportInfo;
 
@@ -88,6 +92,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
     private final DiscoveryTypes discoveryTypes;
     private final PackagingTypes packagingTypes;
     private final IngestStats ingestStats;
+    private final PeerRecoveryStats peerRecoveryStats;
 
     ClusterStatsNodes(List<ClusterStatsNodeResponse> nodeResponses) {
         this.versions = new HashSet<>();
@@ -121,6 +126,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         this.discoveryTypes = new DiscoveryTypes(nodeInfos);
         this.packagingTypes = new PackagingTypes(nodeInfos);
         this.ingestStats = new IngestStats(nodeStats);
+        this.peerRecoveryStats = new PeerRecoveryStats(nodeStats);
     }
 
     public Counts getCounts() {
@@ -209,6 +215,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
         packagingTypes.toXContent(builder, params);
 
         ingestStats.toXContent(builder, params);
+
+        peerRecoveryStats.toXContent(builder, params);
 
         return builder;
     }
@@ -852,6 +860,23 @@ public class ClusterStatsNodes implements ToXContentFragment {
             return builder;
         }
 
+    }
+
+    static class PeerRecoveryStats implements ToXContentFragment {
+
+        org.opensearch.indices.recovery.PeerRecoveryStats peerRecoveryStats;
+
+        PeerRecoveryStats(List<NodeStats> nodeStats) {
+            this.peerRecoveryStats = new org.opensearch.indices.recovery.PeerRecoveryStats(0, 0, 0, 0, 0);
+            for (NodeStats nodeStat : nodeStats) {
+                peerRecoveryStats.add(nodeStat.getPeerRecoveryStats());
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+            return peerRecoveryStats.toXContent(builder, params);
+        }
     }
 
 }
