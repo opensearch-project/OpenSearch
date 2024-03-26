@@ -210,12 +210,14 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             ShardRoutingState.STARTED,
             primaryId
         );
-        initializingIds.forEach(aId -> {
-            builder.addShard(newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId));
-        });
-        activeIds.stream().filter(aId -> !aId.equals(primaryId)).forEach(aId -> {
-            builder.addShard(newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId));
-        });
+        initializingIds.forEach(
+            aId -> builder.addShard(newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId))
+        );
+        activeIds.stream()
+            .filter(aId -> !aId.equals(primaryId))
+            .forEach(
+                aId -> builder.addShard(newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId))
+            );
         builder.addShard(primaryShard);
         IndexShardRoutingTable routingTable = builder.build();
 
@@ -276,12 +278,12 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             ShardRoutingState.RELOCATING,
             primaryId
         );
-        initializingIds.forEach(aId -> {
-            builder.addShard(newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId));
-        });
-        activeIds.forEach(aId -> {
-            builder.addShard(newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId));
-        });
+        initializingIds.forEach(
+            aId -> builder.addShard(newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId))
+        );
+        activeIds.forEach(
+            aId -> builder.addShard(newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId))
+        );
         builder.addShard(primaryShard);
         IndexShardRoutingTable routingTable = builder.build();
 
