@@ -31,8 +31,8 @@ public interface ICache<K, V> extends Closeable {
     V computeIfAbsent(ICacheKey<K> key, LoadAwareCacheLoader<ICacheKey<K>, V> loader) throws Exception;
 
     /**
-     * Invalidates the key. If key.dropStatsForDimensions is true, the cache also resets stats for the combination
-     * of dimensions this key holds. It's the caller's responsibility to make sure all keys with that combination are
+     * Invalidates the key. If a dimension in the key has dropStatsOnInvalidation set to true, the cache also completely
+     * resets stats for that dimension value. It's the caller's responsibility to make sure all keys with that dimension value are
      * actually invalidated.
      */
     void invalidate(ICacheKey<K> key);

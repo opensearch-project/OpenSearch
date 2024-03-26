@@ -45,16 +45,12 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.module.CacheModule;
 import org.opensearch.common.cache.service.CacheService;
-import org.opensearch.common.cache.stats.CacheStatsCounter;
-import org.opensearch.common.cache.stats.MultiDimensionCacheStats;
-import org.opensearch.common.cache.stats.StatsHolder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
@@ -74,7 +70,6 @@ import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
-import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.node.Node;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -82,15 +77,11 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
-import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.opensearch.indices.IndicesRequestCache.INDEX_DIMENSION_NAME;
 import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING;
-import static org.opensearch.indices.IndicesRequestCache.SHARD_ID_DIMENSION_NAME;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -758,117 +749,6 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         // cleanup should have been ignored
         assertEquals(2, cache.count());
 
-        IOUtils.close(secondReader, writer, dir, cache);
-        terminate(threadPool);
-    }
-
-    public void testClosingIndexWipesStats() throws Exception {
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        // Create two indices each with multiple shards
-        int numShards = 3;
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
-        String indexToKeepName = "test";
-        String indexToCloseName = "test2";
-        IndexService indexToKeep = createIndex(indexToKeepName, indexSettings);
-        IndexService indexToClose = createIndex(indexToCloseName, indexSettings);
-        for (int i = 0; i < numShards; i++) {
-            // Check we can get all the shards we expect
-            assertNotNull(indexToKeep.getShard(i));
-            assertNotNull(indexToClose.getShard(i));
-        }
-        ThreadPool threadPool = getThreadPool();
-        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.001%").build();
-        IndicesRequestCache cache = new IndicesRequestCache(settings, (shardId -> {
-            IndexService indexService = null;
-            try {
-                indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            } catch (IndexNotFoundException ex) {
-                return Optional.empty();
-            }
-            try {
-                return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-            } catch (ShardNotFoundException ex) {
-                return Optional.empty();
-            }
-        }), new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(), threadPool);
-        Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
-        // IndexWriter indexToCloseWriter = new IndexWriter(indexToClose.getDirectoryFactory())
-
-        writer.addDocument(newDoc(0, "foo"));
-        // DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
-        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
-        BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
-        if (randomBoolean()) {
-            writer.flush();
-            IOUtils.close(writer);
-            writer = new IndexWriter(dir, newIndexWriterConfig());
-        }
-        writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
-        DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
-
-        List<DirectoryReader> readersToClose = new ArrayList<>();
-        List<DirectoryReader> readersToKeep = new ArrayList<>();
-        // Put entries into the cache for each shard
-        for (IndexService indexService : new IndexService[] { indexToKeep, indexToClose }) {
-            for (int i = 0; i < numShards; i++) {
-                IndexShard indexShard = indexService.getShard(i);
-                IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
-                DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), indexShard.shardId());
-                if (indexService == indexToClose) {
-                    readersToClose.add(reader);
-                } else {
-                    readersToKeep.add(reader);
-                }
-                Loader loader = new Loader(reader, 0);
-                cache.getOrCompute(entity, loader, reader, termBytes);
-            }
-        }
-
-        // Check resulting stats
-        MultiDimensionCacheStats stats = (MultiDimensionCacheStats) cache.getCacheStats();
-        TreeMap<StatsHolder.Key, CacheStatsCounter.Snapshot> contents = stats.aggregateByLevels(
-            List.of(INDEX_DIMENSION_NAME, SHARD_ID_DIMENSION_NAME)
-        );
-        List<StatsHolder.Key> initialKeys = new ArrayList<>();
-        for (IndexService indexService : new IndexService[] { indexToKeep, indexToClose }) {
-            for (int i = 0; i < numShards; i++) {
-                ShardId shardId = indexService.getShard(i).shardId();
-                StatsHolder.Key key = new StatsHolder.Key(List.of(shardId.getIndexName(), shardId.toString()));
-                initialKeys.add(key);
-                CacheStatsCounter.Snapshot statsForKey = contents.get(key);
-                assertNotNull(statsForKey);
-                assertNotEquals(new CacheStatsCounter().snapshot(), statsForKey);
-            }
-        }
-
-        // Delete an index
-        indexToClose.close("test_deletion", true);
-        // This actually closes the shards associated with the readers, which is necessary for cache cleanup logic
-        // In this UT, manually close the readers as well; could not figure out how to connect all this up in a UT so that
-        // we could get readers that were properly connected to an index's directory
-        for (DirectoryReader reader : readersToClose) {
-            IOUtils.close(reader);
-        }
-        // Trigger cache cleanup
-        cache.cacheCleanupManager.cleanCache();
-
-        // Now stats for the closed index should be gone
-        stats = (MultiDimensionCacheStats) cache.getCacheStats();
-        contents = stats.aggregateByLevels(List.of(INDEX_DIMENSION_NAME, SHARD_ID_DIMENSION_NAME));
-        for (StatsHolder.Key key : initialKeys) {
-            if (key.getDimensionValues().get(0).equals(indexToCloseName)) {
-                CacheStatsCounter.Snapshot snapshot = contents.get(key);
-                assertNull(contents.get(key));
-            } else {
-                assertNotNull(contents.get(key));
-                assertNotEquals(new CacheStatsCounter().snapshot(), contents.get(key));
-            }
-        }
-
-        for (DirectoryReader reader : readersToKeep) {
-            IOUtils.close(reader);
-        }
         IOUtils.close(secondReader, writer, dir, cache);
         terminate(threadPool);
     }

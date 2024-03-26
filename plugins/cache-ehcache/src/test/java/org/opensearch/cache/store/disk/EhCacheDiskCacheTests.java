@@ -20,10 +20,7 @@ import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.serializer.BytesReferenceSerializer;
 import org.opensearch.common.cache.serializer.Serializer;
-import org.opensearch.common.cache.stats.CacheStatsCounter;
 import org.opensearch.common.cache.stats.CacheStatsDimension;
-import org.opensearch.common.cache.stats.MultiDimensionCacheStats;
-import org.opensearch.common.cache.stats.StatsHolder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Settings;
@@ -43,7 +40,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -802,63 +798,6 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
-    // Modified from OpenSearchOnHeapCacheTests.java
-    public void testInvalidateWithDropDimensions() throws Exception {
-        Settings settings = Settings.builder().build();
-        List<String> dimensionNames = List.of("dim1", "dim2");
-        try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            ICache<String, String> ehCacheDiskCachingTier = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
-                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
-                .setKeySerializer(new StringSerializer())
-                .setValueSerializer(new StringSerializer())
-                .setDimensionNames(dimensionNames)
-                .setKeyType(String.class)
-                .setValueType(String.class)
-                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
-                .setSettings(settings)
-                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES * 20) // bigger so no evictions happen
-                .setExpireAfterAccess(TimeValue.MAX_VALUE)
-                .setRemovalListener(new MockRemovalListener<>())
-                .setWeigher((key, value) -> 1)
-                .build();
-
-            List<ICacheKey<String>> keysAdded = new ArrayList<>();
-
-            for (int i = 0; i < 20; i++) {
-                ICacheKey<String> key = new ICacheKey<>(UUID.randomUUID().toString(), getRandomDimensions(dimensionNames));
-                keysAdded.add(key);
-                ehCacheDiskCachingTier.put(key, UUID.randomUUID().toString());
-            }
-
-            ICacheKey<String> keyToDrop = keysAdded.get(0);
-            TreeMap<StatsHolder.Key, CacheStatsCounter.Snapshot> contents = ((MultiDimensionCacheStats) ehCacheDiskCachingTier.stats())
-                .aggregateByLevels(dimensionNames);
-            int originalStatsSize = contents.size();
-            StatsHolder.Key statsKey = new StatsHolder.Key(StatsHolder.getOrderedDimensionValues(keyToDrop.dimensions, dimensionNames));
-            assertNotNull(contents.get(statsKey));
-
-            // invalidate the first key and drop its dimensions
-            keyToDrop.setDropStatsForDimensions(true);
-            ehCacheDiskCachingTier.invalidate(keyToDrop);
-
-            // assert there aren't stats for this combination of dimensions anymore
-            contents = ((MultiDimensionCacheStats) ehCacheDiskCachingTier.stats()).aggregateByLevels(dimensionNames);
-            assertNull(contents.get(statsKey));
-            assertEquals(originalStatsSize - 1, contents.size());
-
-            ehCacheDiskCachingTier.close();
-        }
-    }
-
-    private List<CacheStatsDimension> getRandomDimensions(List<String> dimensionNames) {
-        Random rand = Randomness.get();
-        int bound = 3;
-        List<CacheStatsDimension> result = new ArrayList<>();
-        for (String dimName : dimensionNames) {
-            result.add(new CacheStatsDimension(dimName, String.valueOf(rand.nextInt(bound))));
-        }
-        return result;
-    }
     private static String generateRandomString(int length) {
         String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         StringBuilder randomString = new StringBuilder(length);

@@ -17,30 +17,30 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A CacheStats object supporting aggregation over multiple different dimensions.
  * Stores a fixed snapshot of a cache's stats; does not allow changes.
+ *
+ * @opensearch.experimental
  */
 public class MultiDimensionCacheStats implements CacheStats {
     // A snapshot of a StatsHolder containing stats maintained by the cache.
     // Pkg-private for testing.
-    final Map<StatsHolder.Key, CacheStatsCounter.Snapshot> snapshot;
+    final Map<StatsHolder.Key, CounterSnapshot> snapshot;
     final List<String> dimensionNames;
 
-    public MultiDimensionCacheStats(Map<StatsHolder.Key, CacheStatsCounter.Snapshot> snapshot, List<String> dimensionNames) {
+    public MultiDimensionCacheStats(Map<StatsHolder.Key, CounterSnapshot> snapshot, List<String> dimensionNames) {
         this.snapshot = snapshot;
         this.dimensionNames = dimensionNames;
     }
 
     public MultiDimensionCacheStats(StreamInput in) throws IOException {
         this.dimensionNames = List.of(in.readStringArray());
-        Map<StatsHolder.Key, CacheStatsCounter.Snapshot> readMap = in.readMap(
+        this.snapshot = in.readMap(
             i -> new StatsHolder.Key(List.of(i.readArray(StreamInput::readString, String[]::new))),
-            CacheStatsCounter.Snapshot::new
+            CounterSnapshot::new
         );
-        this.snapshot = new ConcurrentHashMap<StatsHolder.Key, CacheStatsCounter.Snapshot>(readMap);
     }
 
     @Override
@@ -54,12 +54,12 @@ public class MultiDimensionCacheStats implements CacheStats {
     }
 
     @Override
-    public CacheStatsCounter.Snapshot getTotalStats() {
+    public CounterSnapshot getTotalStats() {
         CacheStatsCounter counter = new CacheStatsCounter();
         // To avoid making many Snapshot objects for the incremental sums, add to a mutable CacheStatsCounter and finally convert to
         // Snapshot
-        for (Map.Entry<StatsHolder.Key, CacheStatsCounter.Snapshot> entry : snapshot.entrySet()) {
-            counter.add(entry.getValue());
+        for (CounterSnapshot snapshotValue : snapshot.values()) {
+            counter.add(snapshotValue);
         }
         return counter.snapshot();
     }
@@ -91,31 +91,38 @@ public class MultiDimensionCacheStats implements CacheStats {
 
     /**
      * Return a TreeMap containing stats values aggregated by the levels passed in. Results are ordered so that
-     * values are grouped by their dimension values.
+     * values are grouped by their dimension values, which matches the order they should be outputted in an API response.
+     * Example: if the dimension names are "indices", "shards", and "tier", and levels are "indices" and "shards", it
+     * groups the stats by indices and shard values and returns them in order.
+     * Pkg-private for testing.
      * @param levels The levels to aggregate by
      * @return The resulting stats
      */
-    public TreeMap<StatsHolder.Key, CacheStatsCounter.Snapshot> aggregateByLevels(List<String> levels) {
-        if (levels.size() == 0) {
-            throw new IllegalArgumentException("Levels cannot have size 0");
-        }
-        int[] levelIndices = getLevelIndices(levels);
-        TreeMap<StatsHolder.Key, CacheStatsCounter.Snapshot> result = new TreeMap<>(new KeyComparator());
+    TreeMap<StatsHolder.Key, CounterSnapshot> aggregateByLevels(List<String> levels) {
+        int[] levelPositions = getLevelsInSortedOrder(levels); // Check validity of levels and get their indices in dimensionNames
+        TreeMap<StatsHolder.Key, CounterSnapshot> result = new TreeMap<>(new KeyComparator());
 
-        for (Map.Entry<StatsHolder.Key, CacheStatsCounter.Snapshot> entry : snapshot.entrySet()) {
-            List<String> levelValues = new ArrayList<>(); // The values for the dimensions we're aggregating over for this key
-            for (int levelIndex : levelIndices) {
-                levelValues.add(entry.getKey().dimensionValues.get(levelIndex));
+        for (Map.Entry<StatsHolder.Key, CounterSnapshot> entry : snapshot.entrySet()) {
+            List<String> levelValues = new ArrayList<>(); // This key's relevant dimension values, which match the levels
+            List<String> keyDimensionValues = entry.getKey().dimensionValues;
+            for (int levelPosition : levelPositions) {
+                levelValues.add(keyDimensionValues.get(levelPosition));
             }
-            // The new key for the aggregated stats contains only the dimensions specified in levels
+            // The new keys, for the aggregated stats, contain only the dimensions specified in levels
             StatsHolder.Key levelsKey = new StatsHolder.Key(levelValues);
-            CacheStatsCounter.Snapshot originalCounter = entry.getValue();
-            if (result.containsKey(levelsKey)) {
-                result.put(levelsKey, result.get(levelsKey).add(originalCounter));
-            } else {
-                result.put(levelsKey, originalCounter);
-            }
+            CounterSnapshot originalCounter = entry.getValue();
+            // Increment existing key in aggregation with this value, or create a new one if it's not present.
+            result.compute(
+                levelsKey,
+                (k, v) -> (v == null) ? originalCounter : CounterSnapshot.addSnapshots(result.get(levelsKey), originalCounter)
+            );
         }
+        return result;
+    }
+
+    public TreeMap<StatsHolder.Key, CounterSnapshot> getSortedMap() {
+        TreeMap<StatsHolder.Key, CounterSnapshot> result = new TreeMap<>(new KeyComparator());
+        result.putAll(snapshot);
         return result;
     }
 
@@ -126,32 +133,38 @@ public class MultiDimensionCacheStats implements CacheStats {
         public int compare(StatsHolder.Key k1, StatsHolder.Key k2) {
             assert k1.dimensionValues.size() == k2.dimensionValues.size();
             for (int i = 0; i < k1.dimensionValues.size(); i++) {
-                int compareValue = k1.dimensionValues.get(i).compareTo(k2.dimensionValues.get(i));
+                String value1 = k1.dimensionValues.get(i);
+                String value2 = k2.dimensionValues.get(i);
+                int compareValue = value1.compareTo(value2);
                 if (compareValue != 0) {
+                    // If the values aren't equal for this dimension, return
                     return compareValue;
                 }
             }
+            // If all dimension values have been equal, the keys overall are equal
             return 0;
         }
     }
 
-    private int[] getLevelIndices(List<String> levels) {
-        // Levels must all be present in dimensionNames and also be in matching order
-        // Return a list of indices in dimensionNames corresponding to each level
-        int[] result = new int[levels.size()];
-        int levelsIndex = 0;
-
-        for (int namesIndex = 0; namesIndex < dimensionNames.size(); namesIndex++) {
-            if (dimensionNames.get(namesIndex).equals(levels.get(levelsIndex))) {
-                result[levelsIndex] = namesIndex;
-                levelsIndex++;
-            }
-            if (levelsIndex >= levels.size()) {
-                break;
-            }
+    private int[] getLevelsInSortedOrder(List<String> levels) {
+        // Levels must all be present in dimensionNames and also be in matching order, or they are invalid
+        // Return an array of each level's position within the list dimensionNames
+        if (levels.isEmpty()) {
+            throw new IllegalArgumentException("Levels cannot have size 0");
         }
-        if (levelsIndex != levels.size()) {
-            throw new IllegalArgumentException("Invalid levels: " + levels);
+        int[] result = new int[levels.size()];
+        for (int i = 0; i < levels.size(); i++) {
+            String level = levels.get(i);
+            int levelIndex = dimensionNames.indexOf(level);
+            if (levelIndex != -1) {
+                result[i] = levelIndex;
+            } else {
+                throw new IllegalArgumentException("Unrecognized level: " + level);
+            }
+            if (i > 0 && result[i] < result[i - 1]) {
+                // If the levels passed in are out of order, they are invalid
+                throw new IllegalArgumentException("Invalid ordering for levels: " + levels);
+            }
         }
         return result;
     }

@@ -9,15 +9,11 @@
 package org.opensearch.common.cache.stats;
 
 import org.opensearch.common.metrics.CounterMetric;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 
-import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A class containing the 5 live metrics tracked by a CacheStats object. Mutable.
+ * A class containing the 5 live metrics tracked by a StatsHolder object. Mutable.
  */
 public class CacheStatsCounter {
     public CounterMetric hits;
@@ -55,14 +51,14 @@ public class CacheStatsCounter {
         if (other == null) {
             return;
         }
-        internalAdd(other.hits.count(), other.misses.count(), other.evictions.count(), other.sizeInBytes.count(), other.entries.count());
+        internalAdd(other.getHits(), other.getMisses(), other.getEvictions(), other.getSizeInBytes(), other.getEntries());
     }
 
-    public void add(CacheStatsCounter.Snapshot snapshot) {
+    public void add(CounterSnapshot snapshot) {
         if (snapshot == null) {
             return;
         }
-        internalAdd(snapshot.hits, snapshot.misses, snapshot.evictions, snapshot.sizeInBytes, snapshot.entries);
+        internalAdd(snapshot.getHits(), snapshot.getMisses(), snapshot.getEvictions(), snapshot.getSizeInBytes(), snapshot.getEntries());
     }
 
     @Override
@@ -106,90 +102,8 @@ public class CacheStatsCounter {
         return entries.count();
     }
 
-    public Snapshot snapshot() {
-        return new Snapshot(hits.count(), misses.count(), evictions.count(), sizeInBytes.count(), entries.count());
+    public CounterSnapshot snapshot() {
+        return new CounterSnapshot(hits.count(), misses.count(), evictions.count(), sizeInBytes.count(), entries.count());
     }
 
-    /**
-     * An immutable snapshot of CacheStatsCounter.
-     */
-    public static class Snapshot implements Writeable { // TODO: Make this extend ToXContent (in API PR)
-        private final long hits;
-        private final long misses;
-        private final long evictions;
-        private final long sizeInBytes;
-        private final long entries;
-
-        public Snapshot(long hits, long misses, long evictions, long sizeInBytes, long entries) {
-            this.hits = hits;
-            this.misses = misses;
-            this.evictions = evictions;
-            this.sizeInBytes = sizeInBytes;
-            this.entries = entries;
-        }
-
-        public Snapshot(StreamInput in) throws IOException {
-            this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
-        }
-
-        public long getHits() {
-            return hits;
-        }
-
-        public long getMisses() {
-            return misses;
-        }
-
-        public long getEvictions() {
-            return evictions;
-        }
-
-        public long getSizeInBytes() {
-            return sizeInBytes;
-        }
-
-        public long getEntries() {
-            return entries;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(hits);
-            out.writeVLong(misses);
-            out.writeVLong(evictions);
-            out.writeVLong(sizeInBytes);
-            out.writeVLong(entries);
-        }
-
-        public Snapshot add(Snapshot other) {
-            return new Snapshot(
-                hits + other.hits,
-                misses + other.misses,
-                evictions + other.evictions,
-                sizeInBytes + other.sizeInBytes,
-                entries + other.entries
-            );
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (o == null) {
-                return false;
-            }
-            if (o.getClass() != CacheStatsCounter.Snapshot.class) {
-                return false;
-            }
-            CacheStatsCounter.Snapshot other = (CacheStatsCounter.Snapshot) o;
-            return (hits == other.hits)
-                && (misses == other.misses)
-                && (evictions == other.evictions)
-                && (sizeInBytes == other.sizeInBytes)
-                && (entries == other.entries);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(hits, misses, evictions, sizeInBytes, entries);
-        }
-    }
 }

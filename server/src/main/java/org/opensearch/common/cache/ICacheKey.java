@@ -27,7 +27,6 @@ public class ICacheKey<K> {
     public ICacheKey(K key, List<CacheStatsDimension> dimensions) {
         this.key = key;
         this.dimensions = dimensions;
-        this.dropStatsForDimensions = false;
     }
 
     /**
@@ -36,15 +35,6 @@ public class ICacheKey<K> {
     public ICacheKey(K key) {
         this.key = key;
         this.dimensions = List.of();
-        this.dropStatsForDimensions = false;
-    }
-
-    public void setDropStatsForDimensions(boolean newValue) {
-        this.dropStatsForDimensions = newValue;
-    }
-
-    public boolean getDropStatsForDimensions() {
-        return dropStatsForDimensions;
     }
 
     @Override
@@ -60,7 +50,6 @@ public class ICacheKey<K> {
         }
         ICacheKey other = (ICacheKey) o;
         return key.equals(other.key) && dimensions.equals(other.dimensions);
-        // equals() should not include dropDimensions, as it shouldn't affect finding the key in ICache implementations
     }
 
     @Override

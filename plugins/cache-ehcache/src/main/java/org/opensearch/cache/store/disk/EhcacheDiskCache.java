@@ -25,6 +25,7 @@ import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.serializer.ICacheKeySerializer;
 import org.opensearch.common.cache.serializer.Serializer;
 import org.opensearch.common.cache.stats.CacheStats;
+import org.opensearch.common.cache.stats.CacheStatsDimension;
 import org.opensearch.common.cache.stats.StatsHolder;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
@@ -41,6 +42,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -382,10 +384,18 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     @Override
     public void invalidate(ICacheKey<K> key) {
         try {
-            if (key.getDropStatsForDimensions()) {
-                statsHolder.dropStatsForDimensions(key.dimensions);
+            List<CacheStatsDimension> dimensionCombinationToDrop = new ArrayList<>();
+            for (CacheStatsDimension dim : key.dimensions) {
+                if (dim.getDropStatsOnInvalidation()) {
+                    dimensionCombinationToDrop.add(dim);
+                }
             }
-            cache.remove(key);
+            if (!dimensionCombinationToDrop.isEmpty()) {
+                statsHolder.removeDimensions(dimensionCombinationToDrop);
+            }
+            if (key.key != null) {
+                cache.remove(key);
+            }
         } catch (CacheWritingException ex) {
             // Handle
             throw new RuntimeException(ex);

@@ -13,14 +13,20 @@ import org.opensearch.common.cache.ICacheKey;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiConsumer;
 
 /**
- * A class caches use to internally keep track of their stats across multiple dimensions. Not intended to be exposed outside the cache.
+ * A class caches use to internally keep track of their stats across multiple dimensions.
+ * Not intended to be exposed outside the cache; for this, use statsHolder.getCacheStats() to create an immutable
+ * copy of the current state of the stats.
+ *
+ * @opensearch.experimental
  */
 public class StatsHolder {
 
@@ -40,7 +46,7 @@ public class StatsHolder {
         return dimensionNames;
     }
 
-    public ConcurrentMap<Key, CacheStatsCounter> getStatsMap() {
+    ConcurrentMap<Key, CacheStatsCounter> getStatsMap() {
         return statsMap;
     }
 
@@ -75,7 +81,8 @@ public class StatsHolder {
     }
 
     /**
-     * Reset number of entries and memory size when all keys leave the cache, but don't reset hit/miss/eviction numbers
+     * Reset number of entries and memory size when all keys leave the cache, but don't reset hit/miss/eviction numbers.
+     * This is in line with the behavior of the existing API when caches are cleared.
      */
     public void reset() {
         for (Key key : statsMap.keySet()) {
@@ -94,6 +101,10 @@ public class StatsHolder {
         return count;
     }
 
+    /**
+     * Use the incrementer function to increment a value in the stats for a set of dimensions. If there is no stats
+     * for this set of dimensions, create one.
+     */
     private void internalIncrement(List<CacheStatsDimension> dimensions, BiConsumer<CacheStatsCounter, Long> incrementer, long amount) {
         assert dimensions.size() == dimensionNames.size();
         CacheStatsCounter stats = internalGetOrCreateStats(dimensions);
@@ -122,6 +133,9 @@ public class StatsHolder {
         return statsMap.get(key);
     }
 
+    /**
+     * Get a valid key from an unordered list of dimensions.
+     */
     private Key getKey(List<CacheStatsDimension> dims) {
         return new Key(getOrderedDimensionValues(dims, dimensionNames));
     }
@@ -140,21 +154,46 @@ public class StatsHolder {
         return result;
     }
 
-    public Map<Key, CacheStatsCounter.Snapshot> createSnapshot() {
-        Map<Key, CacheStatsCounter.Snapshot> snapshot = new HashMap<>();
+    /**
+     * Produce an immutable CacheStats representation of these stats.
+     */
+    public CacheStats getCacheStats() {
+        Map<Key, CounterSnapshot> snapshot = new HashMap<>();
         for (Map.Entry<Key, CacheStatsCounter> entry : statsMap.entrySet()) {
             snapshot.put(entry.getKey(), entry.getValue().snapshot());
         }
         // The resulting map is immutable as well as unmodifiable since the backing map is new, not related to statsMap
-        return Collections.unmodifiableMap(snapshot);
+        Map<Key, CounterSnapshot> immutableSnapshot = Collections.unmodifiableMap(snapshot);
+        return new MultiDimensionCacheStats(immutableSnapshot, dimensionNames);
     }
 
-    public MultiDimensionCacheStats getCacheStats() {
-        return new MultiDimensionCacheStats(createSnapshot(), dimensionNames);
+    /**
+     * Remove the stats for all keys containing these dimension values.
+     */
+    public void removeDimensions(List<CacheStatsDimension> dims) {
+        Set<Key> keysToRemove = new HashSet<>();
+        for (Map.Entry<Key, CacheStatsCounter> entry : statsMap.entrySet()) {
+            Key key = entry.getKey();
+            if (keyContainsAllDimensions(key, dims)) {
+                keysToRemove.add(key);
+            }
+        }
+        for (Key key : keysToRemove) {
+            statsMap.remove(key);
+        }
     }
 
-    public void dropStatsForDimensions(List<CacheStatsDimension> dims) {
-        statsMap.remove(getKey(dims));
+    boolean keyContainsAllDimensions(Key key, List<CacheStatsDimension> dims) {
+        for (CacheStatsDimension dim : dims) {
+            int dimensionPosition = dimensionNames.indexOf(dim.dimensionName);
+            if (dimensionPosition == -1) {
+                throw new IllegalArgumentException("Unrecognized dimension: " + dim.dimensionName + " = " + dim.dimensionValue);
+            }
+            if (!key.dimensionValues.get(dimensionPosition).equals(dim.dimensionValue)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

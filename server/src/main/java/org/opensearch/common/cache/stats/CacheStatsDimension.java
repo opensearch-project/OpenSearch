@@ -19,10 +19,12 @@ import java.util.Objects;
 public class CacheStatsDimension implements Writeable, Accountable {
     public final String dimensionName;
     public final String dimensionValue;
+    private boolean dropStatsOnInvalidation;
 
     public CacheStatsDimension(String dimensionName, String dimensionValue) {
         this.dimensionName = dimensionName;
         this.dimensionValue = dimensionValue;
+        this.dropStatsOnInvalidation = false;
     }
 
     public CacheStatsDimension(StreamInput in) throws IOException {
@@ -34,6 +36,14 @@ public class CacheStatsDimension implements Writeable, Accountable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(dimensionName);
         out.writeString(dimensionValue);
+    }
+
+    public void setDropStatsOnInvalidation(boolean newValue) {
+        dropStatsOnInvalidation = newValue;
+    }
+
+    public boolean getDropStatsOnInvalidation() {
+        return dropStatsOnInvalidation;
     }
 
     @Override
