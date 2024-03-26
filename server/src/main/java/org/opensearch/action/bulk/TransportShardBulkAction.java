@@ -363,10 +363,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     /**
      * This {@link org.opensearch.action.support.replication.TransportReplicationAction.ReplicasProxy} implementation is
      * used for primary term validation and is only relevant for TransportShardBulkAction replication action.
-     *
+     * <p>
+     * Visible for tests
      * @opensearch.internal
      */
-    private final class PrimaryTermValidationProxy extends WriteActionReplicasProxy {
+    public final class PrimaryTermValidationProxy extends WriteActionReplicasProxy {
 
         @Override
         public void performOn(
@@ -442,7 +443,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     public ReplicationMode getReplicationMode(IndexShard indexShard) {
-        if (indexShard.routingEntry().isAssignedToRemoteStoreNode()) {
+        if (indexShard.indexSettings().isRemoteNode()) {
             return ReplicationMode.PRIMARY_TERM_VALIDATION;
         }
         return super.getReplicationMode(indexShard);

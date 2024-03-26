@@ -59,6 +59,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShardNotStartedException;
 import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.index.shard.IndexShardTestUtils;
 import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.test.OpenSearchTestCase;
@@ -209,16 +210,11 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             ShardRoutingState.STARTED,
             primaryId
         );
-        primaryShard.setAssignedToRemoteStoreNode(true);
         initializingIds.forEach(aId -> {
-            ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId);
-            routing.setAssignedToRemoteStoreNode(true);
-            builder.addShard(routing);
+            builder.addShard(newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId));
         });
         activeIds.stream().filter(aId -> !aId.equals(primaryId)).forEach(aId -> {
-            ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId);
-            routing.setAssignedToRemoteStoreNode(true);
-            builder.addShard(routing);
+            builder.addShard(newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId));
         });
         builder.addShard(primaryShard);
         IndexShardRoutingTable routingTable = builder.build();
@@ -242,7 +238,12 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             listener,
             replicasProxy,
             0,
-            new ReplicationModeAwareProxy<>(ReplicationMode.NO_REPLICATION, replicasProxy, replicasProxy)
+            new ReplicationModeAwareProxy<>(
+                ReplicationMode.NO_REPLICATION,
+                buildRemoteStoreEnabledDiscoveryNodes(routingTable),
+                replicasProxy,
+                replicasProxy
+            )
         );
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());
@@ -275,23 +276,11 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             ShardRoutingState.RELOCATING,
             primaryId
         );
-        primaryShard.setAssignedToRemoteStoreNode(true);
         initializingIds.forEach(aId -> {
-            ShardRouting shardRouting = newShardRouting(
-                shardId,
-                nodeIdFromAllocationId(aId),
-                null,
-                false,
-                ShardRoutingState.INITIALIZING,
-                aId
-            );
-            shardRouting.setAssignedToRemoteStoreNode(true);
-            builder.addShard(shardRouting);
+            builder.addShard(newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId));
         });
         activeIds.forEach(aId -> {
-            ShardRouting shardRouting = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId);
-            shardRouting.setAssignedToRemoteStoreNode(true);
-            builder.addShard(shardRouting);
+            builder.addShard(newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId));
         });
         builder.addShard(primaryShard);
         IndexShardRoutingTable routingTable = builder.build();
@@ -319,7 +308,12 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             listener,
             replicasProxy,
             0,
-            new ReplicationModeAwareProxy<>(ReplicationMode.NO_REPLICATION, replicasProxy, replicasProxy)
+            new ReplicationModeAwareProxy<>(
+                ReplicationMode.NO_REPLICATION,
+                buildRemoteStoreEnabledDiscoveryNodes(routingTable),
+                replicasProxy,
+                replicasProxy
+            )
         );
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());
@@ -413,18 +407,12 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             ShardRoutingState.STARTED,
             primaryId
         );
-        // Marking primary as assigned to remote
-        primaryShard.setAssignedToRemoteStoreNode(true);
         initializingIds.forEach(aId -> {
             ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId);
-            // Ensuring all other shard copies are docrep
-            routing.setAssignedToRemoteStoreNode(false);
             builder.addShard(routing);
         });
         activeIds.stream().filter(aId -> !aId.equals(primaryId)).forEach(aId -> {
             ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId);
-            // Ensuring all other shard copies are docrep
-            routing.setAssignedToRemoteStoreNode(false);
             builder.addShard(routing);
         });
         builder.addShard(primaryShard);
@@ -449,7 +437,12 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             listener,
             replicasProxy,
             0,
-            new ReplicationModeAwareProxy<>(ReplicationMode.NO_REPLICATION, replicasProxy, replicasProxy)
+            new ReplicationModeAwareProxy<>(
+                ReplicationMode.NO_REPLICATION,
+                buildMixedModeEnabledDiscoveryNodes(routingTable),
+                replicasProxy,
+                replicasProxy
+            )
         );
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());
@@ -899,6 +892,26 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             }
         }
         return expectedReplicas;
+    }
+
+    private DiscoveryNodes buildRemoteStoreEnabledDiscoveryNodes(IndexShardRoutingTable routingTable) {
+        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+        for (ShardRouting shardRouting : routingTable) {
+            builder.add(IndexShardTestUtils.getFakeRemoteEnabledNode(shardRouting.currentNodeId()));
+        }
+        return builder.build();
+    }
+
+    private DiscoveryNodes buildMixedModeEnabledDiscoveryNodes(IndexShardRoutingTable routingTable) {
+        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+        for (ShardRouting shardRouting : routingTable) {
+            if (shardRouting.primary()) {
+                builder.add(IndexShardTestUtils.getFakeRemoteEnabledNode(shardRouting.currentNodeId()));
+            } else {
+                builder.add(IndexShardTestUtils.getFakeDiscoNode(shardRouting.currentNodeId()));
+            }
+        }
+        return builder.build();
     }
 
     public static class Request extends ReplicationRequest<Request> {

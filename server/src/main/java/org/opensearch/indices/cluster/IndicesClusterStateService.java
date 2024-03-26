@@ -669,11 +669,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         try {
             final long primaryTerm = state.metadata().index(shardRouting.index()).primaryTerm(shardRouting.id());
             logger.debug("{} creating shard with primary term [{}]", shardRouting.shardId(), primaryTerm);
-            DiscoveryNode targetNode = nodes.getLocalNode();
-            // Set remote attributes on Shard routing if the target node for the shards has remote attributes
-            if (targetNode.isRemoteStoreNode()) {
-                shardRouting.setAssignedToRemoteStoreNode(true);
-            }
+            DiscoveryNode localNode = nodes.getLocalNode();
             indicesService.createShard(
                 shardRouting,
                 checkpointPublisher,
@@ -683,9 +679,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 failedShardHandler,
                 globalCheckpointSyncer,
                 retentionLeaseSyncer,
-                targetNode,
+                localNode,
                 sourceNode,
-                remoteStoreStatsTrackerFactory
+                remoteStoreStatsTrackerFactory,
+                nodes
             );
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
@@ -713,14 +710,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             primaryTerm = indexMetadata.primaryTerm(shard.shardId().id());
             final Set<String> inSyncIds = indexMetadata.inSyncAllocationIds(shard.shardId().id());
             final IndexShardRoutingTable indexShardRoutingTable = routingTable.shardRoutingTable(shardRouting.shardId());
-            updateShardRoutingWithNode(indexShardRoutingTable, nodes);
             shard.updateShardState(
                 shardRouting,
                 primaryTerm,
                 primaryReplicaSyncer::resync,
                 clusterState.version(),
                 inSyncIds,
-                indexShardRoutingTable
+                indexShardRoutingTable,
+                nodes
             );
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e, clusterState);
@@ -928,7 +925,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
             long applyingClusterStateVersion,
             Set<String> inSyncAllocationIds,
-            IndexShardRoutingTable routingTable
+            IndexShardRoutingTable routingTable,
+            DiscoveryNodes discoveryNodes
         ) throws IOException;
     }
 
@@ -1046,7 +1044,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             RetentionLeaseSyncer retentionLeaseSyncer,
             DiscoveryNode targetNode,
             @Nullable DiscoveryNode sourceNode,
-            RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
+            RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+            DiscoveryNodes discoveryNodes
         ) throws IOException;
 
         /**
@@ -1100,16 +1099,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
              * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
              */
             REOPENED,
-        }
-    }
-
-    private void updateShardRoutingWithNode(IndexShardRoutingTable indexShardRoutingTable, DiscoveryNodes nodes) {
-        for (ShardRouting routing : indexShardRoutingTable.assignedShards()) {
-            if (routing.relocating()) {
-                final ShardRouting targetRouting = routing.getTargetRelocatingShard();
-                targetRouting.setAssignedToRemoteStoreNode(nodes.get(targetRouting.currentNodeId()).isRemoteStoreNode());
-            }
-            routing.setAssignedToRemoteStoreNode(nodes.get(routing.currentNodeId()).isRemoteStoreNode());
         }
     }
 }

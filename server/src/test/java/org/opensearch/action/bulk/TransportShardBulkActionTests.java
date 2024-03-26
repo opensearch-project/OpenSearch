@@ -107,6 +107,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
+import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
@@ -1237,38 +1238,14 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     public void testGetReplicationModeWithRemoteTranslog() {
         TransportShardBulkAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
-        ShardRouting mockShardRouting = mock(ShardRouting.class);
-        when(indexShard.routingEntry()).thenReturn(mockShardRouting);
-        when(mockShardRouting.isAssignedToRemoteStoreNode()).thenReturn(true);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
         assertEquals(ReplicationMode.PRIMARY_TERM_VALIDATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
         TransportShardBulkAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
-        ShardRouting mockShardRouting = mock(ShardRouting.class);
-        when(indexShard.routingEntry()).thenReturn(mockShardRouting);
-        when(mockShardRouting.isAssignedToRemoteStoreNode()).thenReturn(false);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
-        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
-    }
-
-    public void testGetReplicationModeDuringDualReplicationRemoteStore() {
-        TransportShardBulkAction action = createAction();
-        final IndexShard indexShard = mock(IndexShard.class);
-        ShardRouting mockShardRouting = mock(ShardRouting.class);
-        when(indexShard.routingEntry()).thenReturn(mockShardRouting);
-        when(mockShardRouting.isAssignedToRemoteStoreNode()).thenReturn(true);
-        assertEquals(ReplicationMode.PRIMARY_TERM_VALIDATION, action.getReplicationMode(indexShard));
-    }
-
-    public void testGetReplicationModeDuringDualReplicationDocrep() {
-        TransportShardBulkAction action = createAction();
-        final IndexShard indexShard = mock(IndexShard.class);
-        ShardRouting mockShardRouting = mock(ShardRouting.class);
-        when(indexShard.routingEntry()).thenReturn(mockShardRouting);
-        when(mockShardRouting.isAssignedToRemoteStoreNode()).thenReturn(false);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
         assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 
