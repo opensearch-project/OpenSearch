@@ -49,6 +49,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.remote.RemoteStorePathType;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
@@ -60,6 +61,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -1902,5 +1904,12 @@ public final class IndexSettings {
 
     public void setDocIdFuzzySetFalsePositiveProbability(double docIdFuzzySetFalsePositiveProbability) {
         this.docIdFuzzySetFalsePositiveProbability = docIdFuzzySetFalsePositiveProbability;
+    }
+
+    public RemoteStorePathType getRemoteStorePathType() {
+        Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        return remoteCustomData != null && remoteCustomData.containsKey(RemoteStorePathType.NAME)
+            ? RemoteStorePathType.parseString(remoteCustomData.get(RemoteStorePathType.NAME))
+            : RemoteStorePathType.FIXED;
     }
 }
