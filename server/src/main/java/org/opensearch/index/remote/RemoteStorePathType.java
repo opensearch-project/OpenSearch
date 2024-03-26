@@ -8,6 +8,7 @@
 
 package org.opensearch.index.remote;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.index.remote.RemoteStoreDataEnums.DataCategory;
 import org.opensearch.index.remote.RemoteStoreDataEnums.DataType;
@@ -20,6 +21,7 @@ import java.util.Locale;
  *
  * @opensearch.internal
  */
+@PublicApi(since = "2.14.0")
 public enum RemoteStorePathType {
 
     FIXED {
