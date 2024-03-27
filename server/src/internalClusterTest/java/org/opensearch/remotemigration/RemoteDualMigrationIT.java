@@ -24,7 +24,6 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.junit.annotations.TestLogging;
 
 import java.util.Collection;
 import java.util.List;
@@ -374,7 +373,6 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
     - Move primary copy from docrep to remote through _cluster/reroute
     - Ensure that remote store is seeded in the new remote node by asserting remote uploads from that node > 0
      */
-    @TestLogging(reason = "troubleshooting", value = "org.opensearch.index.translog:TRACE")
     public void testFailoverRemotePrimaryToDocrepReplicaReseedToRemotePrimary() throws Exception {
         testFailoverRemotePrimaryToDocrepReplica();
 
