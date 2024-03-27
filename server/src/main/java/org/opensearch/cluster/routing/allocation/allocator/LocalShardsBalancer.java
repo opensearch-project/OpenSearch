@@ -28,7 +28,6 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
-import org.opensearch.common.Randomness;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.gateway.PriorityComparator;
 
@@ -71,7 +70,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final float avgPrimaryShardsPerNode;
     private final BalancedShardsAllocator.NodeSorter sorter;
     private final Set<RoutingNode> inEligibleTargetNode;
-    private final boolean preferRandomShardAllocation;
 
     public LocalShardsBalancer(
         Logger logger,
@@ -80,8 +78,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         BalancedShardsAllocator.WeightFunction weight,
         float threshold,
         boolean preferPrimaryBalance,
-        boolean preferPrimaryRebalance,
-        boolean preferRandomShardAllocation
+        boolean preferPrimaryRebalance
     ) {
         this.logger = logger;
         this.allocation = allocation;
@@ -98,7 +95,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
         this.preferPrimaryBalance = preferPrimaryBalance;
         this.preferPrimaryRebalance = preferPrimaryRebalance;
         this.shardMovementStrategy = shardMovementStrategy;
-        this.preferRandomShardAllocation = preferRandomShardAllocation;
     }
 
     /**
@@ -872,134 +868,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
         // clear everything we have either added it or moved to ignoreUnassigned
     }
 
-    private class MinWeightedNodeDecision {
-        public float minWeight;
-        public Decision decision;
-        public List<BalancedShardsAllocator.ModelNode> nodes;
-
-        public MinWeightedNodeDecision(List<BalancedShardsAllocator.ModelNode> nodes, float minWeight, Decision decision) {
-            this.minWeight = minWeight;
-            this.decision = decision;
-            this.nodes = nodes;
-        }
-
-        public void updateMinNode(BalancedShardsAllocator.ModelNode node, boolean allowRandomAllocation) {
-            if (allowRandomAllocation) {
-                nodes.add(node);
-            } else {
-                if (nodes.isEmpty()) {
-                    nodes.add(node);
-                } else {
-                    nodes.set(0, node);
-                }
-            }
-        }
-
-        public void updateMinNode(BalancedShardsAllocator.ModelNode node, float weight, Decision decision, boolean allowRandomAllocation) {
-            if (allowRandomAllocation) {
-                nodes.add(node);
-            } else {
-                if (nodes.isEmpty()) {
-                    nodes.add(node);
-                } else {
-                    nodes.set(0, node);
-                }
-            }
-            minWeight = weight;
-            this.decision = decision;
-        }
-
-        public void clearAndUpdateMinNode(BalancedShardsAllocator.ModelNode node, float weight, Decision decision) {
-            nodes.clear();
-            nodes.add(node);
-            minWeight = weight;
-            this.decision = decision;
-        }
-
-        public BalancedShardsAllocator.ModelNode getMinNode(boolean allowRandomAllocation) {
-            if (allowRandomAllocation) {
-                return nodes.isEmpty() ? null : nodes.get(Randomness.get().nextInt(nodes.size()));
-            } else {
-                return nodes.isEmpty() ? null : nodes.get(0);
-            }
-        }
-    }
-
-    MinWeightedNodeDecision updateEligibleNodes(
-        MinWeightedNodeDecision minWeightedNodeDecision,
-        Decision currentDecision,
-        float currentWeight,
-        boolean allowRandomAllocation,
-        ShardRouting shard,
-        BalancedShardsAllocator.ModelNode node
-    ) {
-        if (currentDecision.type() == Decision.Type.YES || currentDecision.type() == Decision.Type.THROTTLE) {
-            if (allowRandomAllocation) {
-                /* General Algorithm
-                 * 1. If weights are not equal:
-                 *  1.a Update the list if the new weight is less than minWeight regardless of decision(THROTTLE|YES)
-                 * 2. If weights are equal:
-                 *  2.a If current weight is YES:
-                 *      2.a.1 Append to list if new decision is YES
-                 *      2.a.2 No op in case the new decision is THROTTLE
-                 *  2.b If current decision is THROTTLE:
-                 *      2.b.1 Update the list if new decision is YES
-                 *      2.b.2 Append to list if new decision is THROTTLE
-                 */
-                if (currentWeight == minWeightedNodeDecision.minWeight) {
-                    if (currentDecision.type() == minWeightedNodeDecision.decision.type()) {
-                        minWeightedNodeDecision.updateMinNode(node, allowRandomAllocation);
-                    } else {
-                        if (currentDecision.type() == Decision.Type.YES) {
-                            // The decision is throttle in this case, since we prefer YES decision, we will clear the old nodes
-                            minWeightedNodeDecision.clearAndUpdateMinNode(node, currentWeight, currentDecision);
-                        }
-                    }
-                } else {
-                    if (currentWeight < minWeightedNodeDecision.minWeight) {
-                        minWeightedNodeDecision.clearAndUpdateMinNode(node, currentWeight, currentDecision);
-                    }
-                }
-            } else {
-                final boolean updateMinNode;
-                BalancedShardsAllocator.ModelNode minNode = null;
-                if (!minWeightedNodeDecision.nodes.isEmpty()) {
-                    minNode = minWeightedNodeDecision.nodes.get(0);
-                }
-                if (currentWeight == minWeightedNodeDecision.minWeight) {
-                    /*  we have an equal weight tie breaking:
-                     *  1. if one decision is YES prefer it
-                     *  2. prefer the node that holds the primary for this index with the next id in the ring ie.
-                     *  for the 3 shards 2 replica case we try to build up:
-                     *    1 2 0
-                     *    2 0 1
-                     *    0 1 2
-                     *  such that if we need to tie-break we try to prefer the node holding a shard with the minimal id greater
-                     *  than the id of the shard we need to assign. This works find when new indices are created since
-                     *  primaries are added first and we only add one shard set a time in this algorithm.
-                     */
-                    if (currentDecision.type() == minWeightedNodeDecision.decision.type()) {
-                        final int repId = shard.id();
-                        final int nodeHigh = node.highestPrimary(shard.index().getName());
-                        final int minNodeHigh = minNode.highestPrimary(shard.getIndexName());
-                        updateMinNode = ((((nodeHigh > repId && minNodeHigh > repId) || (nodeHigh < repId && minNodeHigh < repId))
-                            && (nodeHigh < minNodeHigh)) || (nodeHigh > repId && minNodeHigh < repId));
-                    } else {
-                        updateMinNode = currentDecision.type() == Decision.Type.YES;
-                    }
-                } else {
-                    updateMinNode = currentWeight < minWeightedNodeDecision.minWeight;
-                }
-                if (updateMinNode) {
-                    minWeightedNodeDecision.updateMinNode(node, currentWeight, currentDecision, allowRandomAllocation);
-                }
-            }
-
-        }
-
-        return minWeightedNodeDecision;
-    }
-
     /**
      * Make a decision for allocating an unassigned shard.  This method returns a two values in a tuple: the
      * first value is the {@link Decision} taken to allocate the unassigned shard, the second value is the
@@ -1021,8 +889,9 @@ public class LocalShardsBalancer extends ShardsBalancer {
         }
 
         /* find an node with minimal weight we can allocate on*/
-        MinWeightedNodeDecision minWeightedNodeDecision = new MinWeightedNodeDecision(new ArrayList<>(), Float.POSITIVE_INFINITY, null);
-
+        float minWeight = Float.POSITIVE_INFINITY;
+        BalancedShardsAllocator.ModelNode minNode = null;
+        Decision decision = null;
         /* Don't iterate over an identity hashset here the
          * iteration order is different for each run and makes testing hard */
         Map<String, NodeAllocationResult> nodeExplanationMap = explain ? new HashMap<>() : null;
@@ -1036,7 +905,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
             // weight of this index currently on the node
             float currentWeight = weight.weightWithAllocationConstraints(this, node, shard.getIndexName());
             // moving the shard would not improve the balance, and we are not in explain mode, so short circuit
-            if (currentWeight > minWeightedNodeDecision.minWeight && explain == false) {
+            if (currentWeight > minWeight && explain == false) {
                 continue;
             }
 
@@ -1045,19 +914,42 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 nodeExplanationMap.put(node.getNodeId(), new NodeAllocationResult(node.getRoutingNode().node(), currentDecision, 0));
                 nodeWeights.add(Tuple.tuple(node.getNodeId(), currentWeight));
             }
-            minWeightedNodeDecision = updateEligibleNodes(
-                minWeightedNodeDecision,
-                currentDecision,
-                currentWeight,
-                preferRandomShardAllocation,
-                shard,
-                node
-            );
+            if (currentDecision.type() == Decision.Type.YES || currentDecision.type() == Decision.Type.THROTTLE) {
+                final boolean updateMinNode;
+                if (currentWeight == minWeight) {
+                    /*  we have an equal weight tie breaking:
+                     *  1. if one decision is YES prefer it
+                     *  2. prefer the node that holds the primary for this index with the next id in the ring ie.
+                     *  for the 3 shards 2 replica case we try to build up:
+                     *    1 2 0
+                     *    2 0 1
+                     *    0 1 2
+                     *  such that if we need to tie-break we try to prefer the node holding a shard with the minimal id greater
+                     *  than the id of the shard we need to assign. This works find when new indices are created since
+                     *  primaries are added first and we only add one shard set a time in this algorithm.
+                     */
+                    if (currentDecision.type() == decision.type()) {
+                        final int repId = shard.id();
+                        final int nodeHigh = node.highestPrimary(shard.index().getName());
+                        final int minNodeHigh = minNode.highestPrimary(shard.getIndexName());
+                        updateMinNode = ((((nodeHigh > repId && minNodeHigh > repId) || (nodeHigh < repId && minNodeHigh < repId))
+                            && (nodeHigh < minNodeHigh)) || (nodeHigh > repId && minNodeHigh < repId));
+                    } else {
+                        updateMinNode = currentDecision.type() == Decision.Type.YES;
+                    }
+                } else {
+                    updateMinNode = currentWeight < minWeight;
+                }
+                if (updateMinNode) {
+                    minNode = node;
+                    minWeight = currentWeight;
+                    decision = currentDecision;
+                }
+            }
         }
-
-        if (minWeightedNodeDecision.decision == null) {
+        if (decision == null) {
             // decision was not set and a node was not assigned, so treat it as a NO decision
-            minWeightedNodeDecision.decision = Decision.NO;
+            decision = Decision.NO;
         }
         List<NodeAllocationResult> nodeDecisions = null;
         if (explain) {
@@ -1070,13 +962,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 nodeDecisions.add(new NodeAllocationResult(current.getNode(), current.getCanAllocateDecision(), ++weightRanking));
             }
         }
-
-        BalancedShardsAllocator.ModelNode minNode = minWeightedNodeDecision.getMinNode(preferRandomShardAllocation);
-        return AllocateUnassignedDecision.fromDecision(
-            minWeightedNodeDecision.decision,
-            minNode != null ? minNode.getRoutingNode().node() : null,
-            nodeDecisions
-        );
+        return AllocateUnassignedDecision.fromDecision(decision, minNode != null ? minNode.getRoutingNode().node() : null, nodeDecisions);
     }
 
     private static final Comparator<ShardRouting> BY_DESCENDING_SHARD_ID = Comparator.comparing(ShardRouting::shardId).reversed();
@@ -1112,11 +998,18 @@ public class LocalShardsBalancer extends ShardsBalancer {
                     continue;
                 }
                 // This is a safety net which prevents un-necessary primary shard relocations from maxNode to minNode when
-                // doing such relocation wouldn't help in primary balance.
-                if (preferPrimaryBalance == true && shard.primary() && maxNode.numPrimaryShards() - minNode.numPrimaryShards() < 2) {
+                // doing such relocation wouldn't help in primary balance. The condition won't be applicable when we enable node level
+                // primary rebalance
+                if (preferPrimaryBalance == true
+                    && preferPrimaryRebalance == false
+                    && shard.primary()
+                    && maxNode.numPrimaryShards(shard.getIndexName()) - minNode.numPrimaryShards(shard.getIndexName()) < 2) {
                     continue;
                 }
-
+                // Relax the above condition to per node to allow rebalancing to attain global balance
+                if (preferPrimaryRebalance == true && shard.primary() && maxNode.numPrimaryShards() - minNode.numPrimaryShards() < 2) {
+                    continue;
+                }
                 final Decision decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
                 maxNode.removeShard(shard);
                 long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
