@@ -62,7 +62,7 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
         internalCluster().validateClusterFormed();
         assertEquals(internalCluster().client().admin().cluster().prepareGetRepositories().get().repositories().size(), 0);
 
-        logger.info("---> Creating index with 0 replica");
+        logger.info("---> Creating index with 1 replica");
         Settings oneReplica = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
         createIndex(REMOTE_PRI_DOCREP_REP, oneReplica);
         ensureGreen(REMOTE_PRI_DOCREP_REP);
