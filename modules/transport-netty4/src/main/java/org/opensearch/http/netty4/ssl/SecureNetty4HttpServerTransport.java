@@ -67,7 +67,7 @@ import io.netty.handler.ssl.SslHandler;
  * @see <a href="https://github.com/opensearch-project/security/blob/d526c9f6c2a438c14db8b413148204510b9fe2e2/src/main/java/org/opensearch/security/ssl/http/netty/SecuritySSLNettyHttpServerTransport.java">SecuritySSLNettyHttpServerTransport</a>
  */
 public class SecureNetty4HttpServerTransport extends Netty4HttpServerTransport {
-    public static final String HEADER_VERIFIER = "HeaderVerifier";
+    public static final String REQUEST_HEADER_VERIFIER = "HeaderVerifier";
     public static final String REQUEST_DECOMPRESSOR = "RequestDecompressor";
 
     private static final Logger logger = LogManager.getLogger(SecureNetty4HttpServerTransport.class);
@@ -108,7 +108,7 @@ public class SecureNetty4HttpServerTransport extends Netty4HttpServerTransport {
             settings
         )
             .stream()
-            .filter(p -> HEADER_VERIFIER.equalsIgnoreCase(p.name()))
+            .filter(p -> REQUEST_HEADER_VERIFIER.equalsIgnoreCase(p.name()))
             .map(p -> p.create(settings, this, ChannelInboundHandlerAdapter.class))
             .filter(Optional::isPresent)
             .map(Optional::get)
