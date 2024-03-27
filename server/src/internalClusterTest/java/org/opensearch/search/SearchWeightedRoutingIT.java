@@ -39,6 +39,7 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.TransportConnectionFailureStats;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -244,7 +245,13 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         nodeMap.put("c", nodes_in_zone_c);
 
         logger.info("--> waiting for nodes to form a cluster");
-        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
+        int totalNodes = nodeCountPerAZ * 3 + 1;
+        ClusterHealthResponse health = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForNodes(Integer.toString(totalNodes))
+            .execute()
+            .actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         ensureGreen();

@@ -112,7 +112,7 @@ public class ClusterConnectionManager implements ConnectionManager {
 
     /**
      * Connects to a node with the given connection profile. If the node is already connected this method has no effect.
-     * Once a successful is established, it can be validated before being exposed.
+     * Once a successgul is established, it can be validated before being exposed.
      * The ActionListener will be called on the calling thread or the generic thread pool.
      */
     @Override
@@ -203,6 +203,8 @@ public class ClusterConnectionManager implements ConnectionManager {
     public Transport.Connection getConnection(DiscoveryNode node) {
         Transport.Connection connection = connectedNodes.get(node);
         if (connection == null) {
+            // capture stats here
+            TransportConnectionFailureStats.getInstance().updateConnectionFailureCount(node.getName());
             throw new NodeNotConnectedException(node, "Node not connected");
         }
         return connection;
