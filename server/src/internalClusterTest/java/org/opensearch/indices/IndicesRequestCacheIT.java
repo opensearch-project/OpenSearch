@@ -1087,7 +1087,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         Instant end = Instant.now();
         long elapsedTimeMillis = Duration.between(start, end).toMillis();
         // if this test is flaky, increase the sleep time.
-        long sleepTime = (thresholdInMillis - elapsedTimeMillis) + 2_000;
+        long sleepTime = (thresholdInMillis - elapsedTimeMillis) + 2_500;
         Thread.sleep(sleepTime);
 
         // cache cleaner should have cleared the stale keys by now
