@@ -38,7 +38,6 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -46,7 +45,6 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.action.search.RestSearchAction;
-import org.opensearch.search.serializer.SearchHitsProtobufSerializer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -84,8 +82,6 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
     @Nullable
     private final Object[] collapseValues;
 
-    private org.opensearch.server.proto.FetchSearchResultProto.SearchHits searchHitsProto;
-
     public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
         this(hits, totalHits, maxScore, null, null, null);
     }
@@ -104,9 +100,6 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         this.sortFields = sortFields;
         this.collapseField = collapseField;
         this.collapseValues = collapseValues;
-        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
-            this.searchHitsProto = SearchHitsProtobufSerializer.convertHitsToProto(this);
-        }
     }
 
     public SearchHits(StreamInput in) throws IOException {

@@ -103,6 +103,8 @@ public class FeatureFlags {
 
     public static final Setting<Boolean> PLUGGABLE_CACHE_SETTING = Setting.boolSetting(PLUGGABLE_CACHE, false, Property.NodeScope);
 
+    public static final Setting<Boolean> PROTOBUF_SETTING = Setting.boolSetting(PROTOBUF, false, Property.NodeScope, Property.Dynamic);
+
     private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
         EXTENSIONS_SETTING,
@@ -110,7 +112,8 @@ public class FeatureFlags {
         TELEMETRY_SETTING,
         DATETIME_FORMATTER_CACHING_SETTING,
         WRITEABLE_REMOTE_INDEX_SETTING,
-        PLUGGABLE_CACHE_SETTING
+        PLUGGABLE_CACHE_SETTING,
+        PROTOBUF_SETTING
     );
     /**
      * Should store the settings from opensearch.yml.
@@ -166,5 +169,4 @@ public class FeatureFlags {
         }
     }
 
-    public static final Setting<Boolean> PROTOBUF_SETTING = Setting.boolSetting(PROTOBUF, false, Property.NodeScope, Property.Dynamic);
 }

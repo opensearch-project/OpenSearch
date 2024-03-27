@@ -39,7 +39,6 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.document.DocumentField;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
@@ -68,8 +67,6 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 import org.opensearch.search.lookup.SourceLookup;
-import org.opensearch.search.serializer.SearchHitProtobufSerializer;
-import org.opensearch.server.proto.FetchSearchResultProto;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
@@ -142,8 +139,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private Map<String, SearchHits> innerHits;
 
-    private FetchSearchResultProto.SearchHit searchHitProto;
-
     // used only in tests
     public SearchHit(int docId) {
         this(docId, null, null, null);
@@ -169,9 +164,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.nestedIdentity = nestedIdentity;
         this.documentFields = documentFields == null ? emptyMap() : documentFields;
         this.metaFields = metaFields == null ? emptyMap() : metaFields;
-        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF)) {
-            this.searchHitProto = SearchHitProtobufSerializer.convertHitToProto(this);
-        }
     }
 
     public SearchHit(StreamInput in) throws IOException {
@@ -456,9 +448,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (fieldName == null || field == null) return;
         if (documentFields.isEmpty()) this.documentFields = new HashMap<>();
         this.documentFields.put(fieldName, field);
-        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF)) {
-            this.searchHitProto = SearchHitProtobufSerializer.convertHitToProto(this);
-        }
     }
 
     public DocumentField removeDocumentField(String fieldName) {

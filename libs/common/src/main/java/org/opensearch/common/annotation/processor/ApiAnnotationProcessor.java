@@ -179,11 +179,6 @@ public class ApiAnnotationProcessor extends AbstractProcessor {
             return;
         }
 
-        // Skip protobuf generated classes used in public apis
-        if (ref.toString().contains("Proto")) {
-            return;
-        }
-
         if (ref instanceof DeclaredType) {
             final DeclaredType declaredType = (DeclaredType) ref;
 
@@ -243,7 +238,15 @@ public class ApiAnnotationProcessor extends AbstractProcessor {
      */
     private boolean inspectable(Element element) {
         final PackageElement pckg = processingEnv.getElementUtils().getPackageOf(element);
-        return pckg.getQualifiedName().toString().startsWith(OPENSEARCH_PACKAGE);
+        return pckg.getQualifiedName().toString().startsWith(OPENSEARCH_PACKAGE)
+            && !element.getEnclosingElement()
+                .getAnnotationMirrors()
+                .stream()
+                .anyMatch(
+                    m -> m.getAnnotationType()
+                        .toString() /* ClassSymbol.toString() returns class name */
+                        .equalsIgnoreCase("javax.annotation.Generated")
+                );
     }
 
     /**
