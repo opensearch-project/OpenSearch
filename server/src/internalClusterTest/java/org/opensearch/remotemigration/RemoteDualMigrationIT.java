@@ -24,11 +24,13 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.junit.annotations.TestLogging;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.opensearch.indices.stats.IndexStatsIT.persistGlobalCheckpoint;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -210,6 +212,8 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
      */
     public void testRetentionLeasePresentOnDocrepReplicaButNotRemote() throws Exception {
         testRemotePrimaryDocRepAndRemoteReplica();
+        // Ensuring global checkpoint is synced across all the shard copies
+        persistGlobalCheckpoint(REMOTE_PRI_DOCREP_REMOTE_REP);
         DiscoveryNodes nodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
         assertBusy(() -> {
             for (ShardStats shardStats : internalCluster().client()
@@ -225,12 +229,14 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
                     // Primary copy should be on remote node and should have retention leases
                     assertTrue(discoveryNode.isRemoteStoreNode());
                     assertRetentionLeaseConsistency(shardStats, retentionLeases);
-                } else if (discoveryNode.isRemoteStoreNode()) {
-                    // Replica copy on remote node should not have retention leases
-                    assertTrue(shardStats.getRetentionLeaseStats().retentionLeases().leases().isEmpty());
                 } else {
-                    // Replica copy on docrep node should have retention leases
-                    assertRetentionLeaseConsistency(shardStats, retentionLeases);
+                    if (discoveryNode.isRemoteStoreNode()) {
+                        // Replica copy on remote node should not have retention leases
+                        assertTrue(shardStats.getRetentionLeaseStats().retentionLeases().leases().isEmpty());
+                    } else {
+                        // Replica copy on docrep node should have retention leases
+                        assertRetentionLeaseConsistency(shardStats, retentionLeases);
+                    }
                 }
             }
         });
@@ -368,6 +374,7 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
     - Move primary copy from docrep to remote through _cluster/reroute
     - Ensure that remote store is seeded in the new remote node by asserting remote uploads from that node > 0
      */
+    @TestLogging(reason = "troubleshooting", value = "org.opensearch.index.translog:TRACE")
     public void testFailoverRemotePrimaryToDocrepReplicaReseedToRemotePrimary() throws Exception {
         testFailoverRemotePrimaryToDocrepReplica();
 
