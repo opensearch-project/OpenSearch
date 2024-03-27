@@ -84,10 +84,10 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     @ParametersFactory
     public static Collection<Object[]> parameters() {
         return Arrays.asList(
-            new Object[]{Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build()},
-            new Object[]{Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build()},
-            new Object[]{Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE, "true").build()},
-            new Object[]{Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE, "false").build()}
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() },
+            new Object[] { Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE, "true").build() },
+            new Object[] { Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE, "false").build() }
         );
     }
 
@@ -109,7 +109,8 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
                         .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
                         .put(SETTING_NUMBER_OF_SHARDS, 1)
                         .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                ).get()
+                )
+                .get()
         );
         indexRandom(
             true,
@@ -1107,12 +1108,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     private static RequestCacheStats getRequestCacheStats(Client client, String index) {
-        return client.admin()
-            .indices()
-            .prepareStats(index)
-            .setRequestCache(true)
-            .get()
-            .getTotal()
-            .getRequestCache();
+        return client.admin().indices().prepareStats(index).setRequestCache(true).get().getTotal().getRequestCache();
     }
 }
