@@ -67,6 +67,7 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.dfs.AggregatedDfs;
@@ -270,6 +271,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+
+        if (searchContext.isCircuitBreakerTripped()) {
+            return;
+        }
+
         // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
         // This is actually beneficial for search queries to start search on latest segments first for time series workload.
         // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
@@ -298,6 +304,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (canMatch(ctx) == false) {
             return;
         }
+        if (searchContext.isCircuitBreakerTripped()) {
+            return;
+        }
 
         final LeafCollector leafCollector;
         try {
@@ -316,6 +325,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } catch (QueryPhase.TimeExceededException e) {
             searchContext.setSearchTimedOut(true);
             return;
+        } catch (CircuitBreakingException e) {
+            searchContext.setCircuitBreakerTripped(true);
+            return;
         }
         // catch early terminated exception and rethrow?
         Bits liveDocs = ctx.reader().getLiveDocs();
@@ -330,6 +342,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     // continue with the following leaf
                 } catch (QueryPhase.TimeExceededException e) {
                     searchContext.setSearchTimedOut(true);
+                    return;
+                } catch (CircuitBreakingException e) {
+                    searchContext.setCircuitBreakerTripped(true);
                     return;
                 }
             }
@@ -349,6 +364,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     // continue with the following leaf
                 } catch (QueryPhase.TimeExceededException e) {
                     searchContext.setSearchTimedOut(true);
+                    return;
+                } catch (CircuitBreakingException e) {
+                    searchContext.setCircuitBreakerTripped(true);
                     return;
                 }
             }
