@@ -45,13 +45,12 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
         StatsHolder statsHolder = new StatsHolder(dimensionNames);
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
-        Map<Set<CacheStatsDimension>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
+        Map<List<CacheStatsDimension>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
         MultiDimensionCacheStats stats = (MultiDimensionCacheStats) statsHolder.getCacheStats();
 
         // test the value in the map is as expected for each distinct combination of values
-        for (Set<CacheStatsDimension> dimSet : expected.keySet()) {
-            CacheStatsCounter expectedCounter = expected.get(dimSet);
-            List<CacheStatsDimension> dims = new ArrayList<>(dimSet);
+        for (List<CacheStatsDimension> dims : expected.keySet()) {
+            CacheStatsCounter expectedCounter = expected.get(dims);
             StatsHolder.Key key = new StatsHolder.Key(StatsHolder.getOrderedDimensionValues(dims, dimensionNames));
             CounterSnapshot actual = stats.snapshot.get(key);
 
@@ -60,8 +59,8 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
 
         // test gets for total
         CacheStatsCounter expectedTotal = new CacheStatsCounter();
-        for (Set<CacheStatsDimension> dimSet : expected.keySet()) {
-            expectedTotal.add(expected.get(dimSet));
+        for (List<CacheStatsDimension> dims : expected.keySet()) {
+            expectedTotal.add(expected.get(dims));
         }
         assertEquals(expectedTotal.snapshot(), stats.getTotalStats());
 
@@ -83,49 +82,29 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         assertEquals(stats.getTotalStats(), stats.snapshot.get(new StatsHolder.Key(List.of())));
     }
 
-    public void testKeyComparator() throws Exception {
-        MultiDimensionCacheStats.KeyComparator comp = new MultiDimensionCacheStats.KeyComparator();
-        StatsHolder.Key k1 = new StatsHolder.Key(List.of("a", "b", "c"));
-        StatsHolder.Key k2 = new StatsHolder.Key(List.of("a", "b", "d"));
-        StatsHolder.Key k3 = new StatsHolder.Key(List.of("b", "a", "a"));
-        StatsHolder.Key k4 = new StatsHolder.Key(List.of("a", "a", "e"));
-        StatsHolder.Key k5 = new StatsHolder.Key(List.of("a", "b", "c"));
-
-        // expected order: k4 < k1 = k5 < k2 < k3
-        assertTrue(comp.compare(k4, k1) < 0);
-        assertTrue(comp.compare(k1, k5) == 0);
-        assertTrue(comp.compare(k1, k2) < 0);
-        assertTrue(comp.compare(k5, k2) < 0);
-        assertTrue(comp.compare(k2, k3) < 0);
-    }
-
     public void testAggregateByAllDimensions() throws Exception {
         // Aggregating with all dimensions as levels should just give us the same values that were in the original map
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
         StatsHolder statsHolder = new StatsHolder(dimensionNames);
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
-        Map<Set<CacheStatsDimension>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
+        Map<List<CacheStatsDimension>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
         MultiDimensionCacheStats stats = (MultiDimensionCacheStats) statsHolder.getCacheStats();
 
-        Map<StatsHolder.Key, CounterSnapshot> aggregated = stats.aggregateByLevels(dimensionNames);
-        for (Map.Entry<StatsHolder.Key, CounterSnapshot> aggregatedEntry : aggregated.entrySet()) {
-            StatsHolder.Key aggregatedKey = aggregatedEntry.getKey();
-
-            Set<CacheStatsDimension> expectedKey = new HashSet<>();
-            for (int i = 0; i < dimensionNames.size(); i++) {
-                expectedKey.add(new CacheStatsDimension(dimensionNames.get(i), aggregatedKey.dimensionValues.get(i)));
+        MultiDimensionCacheStats.DimensionNode aggregated = stats.aggregateByLevels(dimensionNames);
+        for (Map.Entry<List<CacheStatsDimension>, CacheStatsCounter> expectedEntry : expected.entrySet()) {
+            List<String> dimensionValues = new ArrayList<>();
+            for (CacheStatsDimension dim : expectedEntry.getKey()) {
+                dimensionValues.add(dim.dimensionValue);
             }
-            CacheStatsCounter expectedCounter = expected.get(expectedKey);
-            assertEquals(expectedCounter.snapshot(), aggregatedEntry.getValue());
+            assertEquals(expectedEntry.getValue().snapshot(), aggregated.getNode(dimensionValues).getSnapshot());
         }
-        assertEquals(expected.size(), aggregated.size());
     }
 
     public void testAggregateBySomeDimensions() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
         StatsHolder statsHolder = new StatsHolder(dimensionNames);
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
-        Map<Set<CacheStatsDimension>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
+        Map<List<CacheStatsDimension>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
         MultiDimensionCacheStats stats = (MultiDimensionCacheStats) statsHolder.getCacheStats();
 
         for (int i = 0; i < (1 << dimensionNames.size()); i++) {
@@ -139,21 +118,41 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
             if (levels.size() == 0) {
                 assertThrows(IllegalArgumentException.class, () -> stats.aggregateByLevels(levels));
             } else {
-                Map<StatsHolder.Key, CounterSnapshot> aggregated = stats.aggregateByLevels(levels);
-                for (Map.Entry<StatsHolder.Key, CounterSnapshot> aggregatedEntry : aggregated.entrySet()) {
-                    StatsHolder.Key aggregatedKey = aggregatedEntry.getKey();
+                MultiDimensionCacheStats.DimensionNode aggregated = stats.aggregateByLevels(levels);
+                Map<List<String>, MultiDimensionCacheStats.DimensionNode> aggregatedLeafNodes = getAllLeafNodes(aggregated);
+
+                for (Map.Entry<List<String>, MultiDimensionCacheStats.DimensionNode> aggEntry : aggregatedLeafNodes.entrySet()) {
                     CacheStatsCounter expectedCounter = new CacheStatsCounter();
-                    for (Set<CacheStatsDimension> expectedDims : expected.keySet()) {
+                    for (List<CacheStatsDimension> expectedDims : expected.keySet()) {
                         List<String> orderedDimValues = StatsHolder.getOrderedDimensionValues(
                             new ArrayList<>(expectedDims),
                             dimensionNames
                         );
-                        if (orderedDimValues.containsAll(aggregatedKey.dimensionValues)) {
+                        if (orderedDimValues.containsAll(aggEntry.getKey())) {
                             expectedCounter.add(expected.get(expectedDims));
                         }
                     }
-                    assertEquals(expectedCounter.snapshot(), aggregatedEntry.getValue());
+                    assertEquals(expectedCounter.snapshot(), aggEntry.getValue().getSnapshot());
                 }
+            }
+        }
+    }
+
+    // Get a map from the list of dimension values to the corresponding leaf node.
+    private Map<List<String>, MultiDimensionCacheStats.DimensionNode> getAllLeafNodes(MultiDimensionCacheStats.DimensionNode root) {
+        Map<List<String>, MultiDimensionCacheStats.DimensionNode> result = new HashMap<>();
+        getAllLeafNodesHelper(result, root, new ArrayList<>());
+        return result;
+    }
+
+    private void getAllLeafNodesHelper(Map<List<String>, MultiDimensionCacheStats.DimensionNode> result, MultiDimensionCacheStats.DimensionNode current, List<String> pathToCurrent) {
+        if (current.children.isEmpty()) {
+            result.put(pathToCurrent, current);
+        } else {
+            for (Map.Entry<String, MultiDimensionCacheStats.DimensionNode> entry : current.children.entrySet()) {
+                List<String> newPath = new ArrayList<>(pathToCurrent);
+                newPath.add(entry.getKey());
+                getAllLeafNodesHelper(result, entry.getValue(), newPath);
             }
         }
     }
@@ -170,20 +169,19 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         return usedDimensionValues;
     }
 
-    static Map<Set<CacheStatsDimension>, CacheStatsCounter> populateStats(
+    static Map<List<CacheStatsDimension>, CacheStatsCounter> populateStats(
         StatsHolder statsHolder,
         Map<String, List<String>> usedDimensionValues,
         int numDistinctValuePairs,
         int numRepetitionsPerValue
     ) {
-        Map<Set<CacheStatsDimension>, CacheStatsCounter> expected = new HashMap<>();
+        Map<List<CacheStatsDimension>, CacheStatsCounter> expected = new HashMap<>();
 
         Random rand = Randomness.get();
         for (int i = 0; i < numDistinctValuePairs; i++) {
             List<CacheStatsDimension> dimensions = getRandomDimList(statsHolder.getDimensionNames(), usedDimensionValues, true, rand);
-            Set<CacheStatsDimension> dimSet = new HashSet<>(dimensions);
-            if (expected.get(dimSet) == null) {
-                expected.put(dimSet, new CacheStatsCounter());
+            if (expected.get(dimensions) == null) {
+                expected.put(dimensions, new CacheStatsCounter());
             }
             ICacheKey<String> dummyKey = getDummyKey(dimensions);
 
@@ -192,38 +190,38 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
                 int numHitIncrements = rand.nextInt(10);
                 for (int k = 0; k < numHitIncrements; k++) {
                     statsHolder.incrementHits(dummyKey);
-                    expected.get(new HashSet<>(dimensions)).hits.inc();
+                    expected.get(dimensions).hits.inc();
                 }
 
                 int numMissIncrements = rand.nextInt(10);
                 for (int k = 0; k < numMissIncrements; k++) {
                     statsHolder.incrementMisses(dummyKey);
-                    expected.get(new HashSet<>(dimensions)).misses.inc();
+                    expected.get(dimensions).misses.inc();
                 }
 
                 int numEvictionIncrements = rand.nextInt(10);
                 for (int k = 0; k < numEvictionIncrements; k++) {
                     statsHolder.incrementEvictions(dummyKey);
-                    expected.get(new HashSet<>(dimensions)).evictions.inc();
+                    expected.get(dimensions).evictions.inc();
                 }
 
                 int numMemorySizeIncrements = rand.nextInt(10);
                 for (int k = 0; k < numMemorySizeIncrements; k++) {
                     long memIncrementAmount = rand.nextInt(5000);
                     statsHolder.incrementSizeInBytes(dummyKey, memIncrementAmount);
-                    expected.get(new HashSet<>(dimensions)).sizeInBytes.inc(memIncrementAmount);
+                    expected.get(dimensions).sizeInBytes.inc(memIncrementAmount);
                 }
 
                 int numEntryIncrements = rand.nextInt(9) + 1;
                 for (int k = 0; k < numEntryIncrements; k++) {
                     statsHolder.incrementEntries(dummyKey);
-                    expected.get(new HashSet<>(dimensions)).entries.inc();
+                    expected.get(dimensions).entries.inc();
                 }
 
                 int numEntryDecrements = rand.nextInt(numEntryIncrements);
                 for (int k = 0; k < numEntryDecrements; k++) {
                     statsHolder.decrementEntries(dummyKey);
-                    expected.get(new HashSet<>(dimensions)).entries.dec();
+                    expected.get(dimensions).entries.dec();
                 }
             }
         }

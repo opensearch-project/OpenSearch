@@ -41,23 +41,23 @@ public class StatsHolderTests extends OpenSearchTestCase {
         List<String> dimensionNames = List.of("dim1", "dim2");
         StatsHolder statsHolder = new StatsHolder(dimensionNames);
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
-        Map<Set<CacheStatsDimension>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 100, 10);
+        Map<List<CacheStatsDimension>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 100, 10);
 
         statsHolder.reset();
 
-        for (Set<CacheStatsDimension> dimSet : expected.keySet()) {
-            CacheStatsCounter originalCounter = expected.get(dimSet);
+        for (List<CacheStatsDimension> dims : expected.keySet()) {
+            CacheStatsCounter originalCounter = expected.get(dims);
             originalCounter.sizeInBytes = new CounterMetric();
             originalCounter.entries = new CounterMetric();
 
-            StatsHolder.Key key = new StatsHolder.Key(StatsHolder.getOrderedDimensionValues(new ArrayList<>(dimSet), dimensionNames));
+            StatsHolder.Key key = new StatsHolder.Key(StatsHolder.getOrderedDimensionValues(dims, dimensionNames));
             CacheStatsCounter actual = statsHolder.getStatsMap().get(key);
             assertEquals(originalCounter, actual);
         }
 
         CacheStatsCounter expectedTotal = new CacheStatsCounter();
-        for (Set<CacheStatsDimension> dimSet : expected.keySet()) {
-            expectedTotal.add(expected.get(dimSet));
+        for (List<CacheStatsDimension> dims : expected.keySet()) {
+            expectedTotal.add(expected.get(dims));
         }
         expectedTotal.sizeInBytes = new CounterMetric();
         expectedTotal.entries = new CounterMetric();

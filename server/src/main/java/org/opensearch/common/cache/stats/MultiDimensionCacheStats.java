@@ -13,7 +13,6 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -89,61 +88,66 @@ public class MultiDimensionCacheStats implements CacheStats {
         return getTotalStats().getEntries();
     }
 
-    /**
-     * Return a TreeMap containing stats values aggregated by the levels passed in. Results are ordered so that
-     * values are grouped by their dimension values, which matches the order they should be outputted in an API response.
-     * Example: if the dimension names are "indices", "shards", and "tier", and levels are "indices" and "shards", it
-     * groups the stats by indices and shard values and returns them in order.
-     * Pkg-private for testing.
-     * @param levels The levels to aggregate by
-     * @return The resulting stats
-     */
-    TreeMap<StatsHolder.Key, CounterSnapshot> aggregateByLevels(List<String> levels) {
-        int[] levelPositions = getLevelsInSortedOrder(levels); // Check validity of levels and get their indices in dimensionNames
-        TreeMap<StatsHolder.Key, CounterSnapshot> result = new TreeMap<>(new KeyComparator());
+    static class DimensionNode {
+        private final String dimensionValue;
+        // Storing dimensionValue is useful for producing XContent
+        final TreeMap<String, DimensionNode> children; // Map from dimensionValue to the DimensionNode for that dimension value
+        private CounterSnapshot snapshot;
 
+        DimensionNode(String dimensionValue) {
+            this.dimensionValue = dimensionValue;
+            this.children = new TreeMap<>();
+            this.snapshot = null;
+            // Only leaf nodes have non-null snapshots. Might make it be sum-of-children in future.
+        }
+
+        /**
+         * Increments the snapshot in this node.
+         */
+        void addSnapshot(CounterSnapshot newSnapshot) {
+            if (snapshot == null) {
+                snapshot = newSnapshot;
+            } else {
+                snapshot = CounterSnapshot.addSnapshots(snapshot, newSnapshot);
+            }
+        }
+
+        /**
+         * Returns the node found by following these dimension values down from the current node.
+         * If such a node does not exist, creates it.
+         */
+        DimensionNode getNode(List<String> dimensionValues) {
+            DimensionNode current = this;
+            for (String dimensionValue : dimensionValues) {
+                current.children.putIfAbsent(dimensionValue, new DimensionNode(dimensionValue));
+                current = current.children.get(dimensionValue);
+            }
+            return current;
+        }
+
+        CounterSnapshot getSnapshot() {
+            return snapshot;
+        }
+    }
+
+    /**
+     * Returns a tree containing the stats aggregated by the levels passed in. The root node is a dummy node,
+     * whose name and value are null.
+     */
+    DimensionNode aggregateByLevels(List<String> levels) {
+        int[] levelPositions = getLevelsInSortedOrder(levels); // Check validity of levels and get their indices in dimensionNames
+
+        DimensionNode root = new DimensionNode(null);
         for (Map.Entry<StatsHolder.Key, CounterSnapshot> entry : snapshot.entrySet()) {
             List<String> levelValues = new ArrayList<>(); // This key's relevant dimension values, which match the levels
             List<String> keyDimensionValues = entry.getKey().dimensionValues;
             for (int levelPosition : levelPositions) {
                 levelValues.add(keyDimensionValues.get(levelPosition));
             }
-            // The new keys, for the aggregated stats, contain only the dimensions specified in levels
-            StatsHolder.Key levelsKey = new StatsHolder.Key(levelValues);
-            CounterSnapshot originalCounter = entry.getValue();
-            // Increment existing key in aggregation with this value, or create a new one if it's not present.
-            result.compute(
-                levelsKey,
-                (k, v) -> (v == null) ? originalCounter : CounterSnapshot.addSnapshots(result.get(levelsKey), originalCounter)
-            );
+            DimensionNode leafNode = root.getNode(levelValues);
+            leafNode.addSnapshot(entry.getValue());
         }
-        return result;
-    }
-
-    public TreeMap<StatsHolder.Key, CounterSnapshot> getSortedMap() {
-        TreeMap<StatsHolder.Key, CounterSnapshot> result = new TreeMap<>(new KeyComparator());
-        result.putAll(snapshot);
-        return result;
-    }
-
-    // First compare outermost dimension, then second outermost, etc.
-    // Pkg-private for testing
-    static class KeyComparator implements Comparator<StatsHolder.Key> {
-        @Override
-        public int compare(StatsHolder.Key k1, StatsHolder.Key k2) {
-            assert k1.dimensionValues.size() == k2.dimensionValues.size();
-            for (int i = 0; i < k1.dimensionValues.size(); i++) {
-                String value1 = k1.dimensionValues.get(i);
-                String value2 = k2.dimensionValues.get(i);
-                int compareValue = value1.compareTo(value2);
-                if (compareValue != 0) {
-                    // If the values aren't equal for this dimension, return
-                    return compareValue;
-                }
-            }
-            // If all dimension values have been equal, the keys overall are equal
-            return 0;
-        }
+        return root;
     }
 
     private int[] getLevelsInSortedOrder(List<String> levels) {
