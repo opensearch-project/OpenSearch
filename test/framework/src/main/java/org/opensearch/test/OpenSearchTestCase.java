@@ -211,7 +211,12 @@ import static org.hamcrest.Matchers.hasItem;
     "LuceneFixedGap",
     "LuceneVarGapFixedInterval",
     "LuceneVarGapDocFreqInterval",
-    "Lucene50" })
+    "Lucene50",
+    "Lucene90",
+    "Lucene94",
+    "Lucene90",
+    "Lucene95",
+    "Lucene99" })
 @LuceneTestCase.SuppressReproduceLine
 public abstract class OpenSearchTestCase extends LuceneTestCase {
 
