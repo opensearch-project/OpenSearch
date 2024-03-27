@@ -187,10 +187,16 @@ public class AggregationProcessorTests extends AggregationSetupTests {
         AggregationCollectorManager collectorManager;
         if (expectedNonGlobalAggsPerSlice > 0) {
             collectorManager = (AggregationCollectorManager) context.queryCollectorManagers().get(NonGlobalAggCollectorManager.class);
+            for (Collector c : nonGlobalCollectors) {
+                context.bucketCollectorProcessor().processPostCollection(c);
+            }
             collectorManager.reduce(nonGlobalCollectors).reduce(context.queryResult());
         }
         if (expectedGlobalAggs > 0) {
             collectorManager = (AggregationCollectorManager) context.queryCollectorManagers().get(GlobalAggCollectorManager.class);
+            for (Collector c : globalCollectors) {
+                context.bucketCollectorProcessor().processPostCollection(c);
+            }
             ReduceableSearchResult result = collectorManager.reduce(globalCollectors);
             doReturn(result).when(testSearcher)
                 .search(nullable(Query.class), ArgumentMatchers.<CollectorManager<?, ReduceableSearchResult>>any());
