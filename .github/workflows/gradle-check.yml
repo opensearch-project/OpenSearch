@@ -36,7 +36,7 @@ jobs:
           echo "pr_to_clone_url=$(jq --raw-output .pull_request.base.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "pr_title=$(jq --raw-output .pull_request.title $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "pr_number=$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
-          echo "pr_owner=$(jq --raw-output .pull_request.head.user.login $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "pr_owner=$(jq --raw-output .pull_request.user.login $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "commit_details=Null" >> $GITHUB_ENV
 
       - name: Setup environment variables (Push)
