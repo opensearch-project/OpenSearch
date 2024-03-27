@@ -135,6 +135,8 @@ public abstract class BaseGatewayShardAllocator {
         }
     }
 
+    public void allocateUnassignedBatch(String batchId, RoutingAllocation allocation) {}
+
     protected long getExpectedShardSize(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
             if (shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {

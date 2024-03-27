@@ -64,6 +64,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
@@ -101,6 +102,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.gateway.DanglingIndicesState;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.gateway.PersistedClusterStateService;
+import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.index.IndexModule;
@@ -264,6 +266,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING,
                 EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING,
                 EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING,
+                ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE,
                 FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING,
                 FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING,
                 FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING,
@@ -326,6 +329,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING,
                 GatewayService.RECOVER_AFTER_NODES_SETTING,
                 GatewayService.RECOVER_AFTER_TIME_SETTING,
+                ShardsBatchGatewayAllocator.GATEWAY_ALLOCATOR_BATCH_SIZE,
                 PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD,
                 NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
                 NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
