@@ -218,7 +218,8 @@ public class TaskBatcherTests extends TaskExecutorTests {
             executors[i] = new TaskExecutor();
         }
 
-        int tasksSubmittedPerThread = randomIntBetween(2, 1024);
+        // it will create at most 8192 threads, which will cause native memory oom. so we limit the number of created threads.
+        int tasksSubmittedPerThread = randomIntBetween(2, 128);
 
         CopyOnWriteArrayList<Tuple<String, Throwable>> failures = new CopyOnWriteArrayList<>();
         CountDownLatch updateLatch = new CountDownLatch(numberOfThreads * tasksSubmittedPerThread);
@@ -286,7 +287,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
             executors[i] = new TaskExecutor();
         }
 
-        int tasksSubmittedPerThread = randomIntBetween(2, 1024);
+        int tasksSubmittedPerThread = randomIntBetween(2, 128);
 
         CopyOnWriteArrayList<Tuple<String, Throwable>> failures = new CopyOnWriteArrayList<>();
         CountDownLatch updateLatch = new CountDownLatch(numberOfThreads * tasksSubmittedPerThread);
