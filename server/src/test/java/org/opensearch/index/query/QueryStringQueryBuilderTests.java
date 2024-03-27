@@ -32,6 +32,7 @@
 
 package org.opensearch.index.query;
 
+import java.util.Set;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
@@ -424,6 +425,71 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         builder1.timeZone("Europe/London");
         builder2.timeZone("Europe/London");
         assertNotEquals(builder1, builder2);
+    }
+
+    public void testExtractAllUsedFields() {
+        // fuzzy query
+        Set<String> allUsedFields = queryStringQuery(TEXT_FIELD_NAME + "\\*:test~2").extractAllUsedFields(createShardContext());
+        assertTrue(allUsedFields.contains(TEXT_FIELD_NAME));
+        assertTrue(allUsedFields.contains(KEYWORD_FIELD_NAME));
+
+        // Regex query
+        allUsedFields = queryStringQuery(TEXT_FIELD_NAME + "\\*:/[A-Z]T/").extractAllUsedFields(createShardContext());
+        assertTrue(allUsedFields.contains(TEXT_FIELD_NAME));
+        assertTrue(allUsedFields.contains(KEYWORD_FIELD_NAME));
+
+        // Wildcard query
+        allUsedFields = queryStringQuery(TEXT_FIELD_NAME + "\\*:test*").extractAllUsedFields(createShardContext());
+        assertTrue(allUsedFields.contains(TEXT_FIELD_NAME));
+        assertTrue(allUsedFields.contains(KEYWORD_FIELD_NAME));
+
+        // default_field with field prefix
+        allUsedFields = queryStringQuery("test").defaultField(TEXT_FIELD_NAME + "*").extractAllUsedFields(createShardContext());
+        assertTrue(allUsedFields.contains(TEXT_FIELD_NAME));
+        assertTrue(allUsedFields.contains(KEYWORD_FIELD_NAME));
+
+        // field prefix in query_string
+        allUsedFields = queryStringQuery(TEXT_FIELD_NAME + "\\*:test").extractAllUsedFields(createShardContext());
+        assertTrue(allUsedFields.contains(TEXT_FIELD_NAME));
+        assertTrue(allUsedFields.contains(KEYWORD_FIELD_NAME));
+
+        // field prefix with nested fields in query_string
+        allUsedFields = queryStringQuery(OBJECT_FIELD_NAME + ".\\*:test").extractAllUsedFields(createShardContext());
+        assertTrue(allUsedFields.contains(OBJECT_FIELD_NAME + "." + DATE_FIELD_NAME));
+        assertTrue(allUsedFields.contains(OBJECT_FIELD_NAME + "." + INT_FIELD_NAME));
+
+        // fields basic
+        allUsedFields = queryStringQuery("test").fields(Map.of(TEXT_FIELD_NAME, 1.0f, KEYWORD_FIELD_NAME, 1.0f))
+            .extractAllUsedFields(createShardContext());
+        assertTrue(allUsedFields.contains(TEXT_FIELD_NAME));
+        assertTrue(allUsedFields.contains(KEYWORD_FIELD_NAME));
+
+        // fields with field prefix
+        allUsedFields = queryStringQuery("654654356").fields(Map.of(TEXT_FIELD_NAME, 1.0f, OBJECT_FIELD_NAME + ".*", 1.0f))
+            .extractAllUsedFields(createShardContext());
+        assertTrue(allUsedFields.contains(TEXT_FIELD_NAME));
+        assertTrue(allUsedFields.contains(OBJECT_FIELD_NAME + "." + DATE_FIELD_NAME));
+        assertTrue(allUsedFields.contains(OBJECT_FIELD_NAME + "." + INT_FIELD_NAME));
+
+        // field prefix in query_string with bear token and fields combo
+        allUsedFields = queryStringQuery(TEXT_FIELD_NAME + "\\*:test 12345").fields(
+            Map.of(INT_FIELD_NAME, 1.0f, OBJECT_FIELD_NAME + ".*", 1.0f)
+        ).extractAllUsedFields(createShardContext());
+        assertTrue(allUsedFields.contains(TEXT_FIELD_NAME));
+        assertTrue(allUsedFields.contains(KEYWORD_FIELD_NAME));
+        assertTrue(allUsedFields.contains(OBJECT_FIELD_NAME + "." + DATE_FIELD_NAME));
+        assertTrue(allUsedFields.contains(OBJECT_FIELD_NAME + "." + INT_FIELD_NAME));
+        assertTrue(allUsedFields.contains(INT_FIELD_NAME));
+
+        // no fields or default_field present; expect fallback on index setting
+        indexSettings().getDefaultFields().clear();
+        indexSettings().getDefaultFields().add(KEYWORD_FIELD_NAME);
+        allUsedFields = queryStringQuery(TEXT_FIELD_NAME + ":test 12345").extractAllUsedFields(createShardContext());
+        assertTrue(allUsedFields.contains(TEXT_FIELD_NAME));
+        assertTrue(allUsedFields.contains(KEYWORD_FIELD_NAME));
+        // restore default fields
+        indexSettings().getDefaultFields().clear();
+        indexSettings().getDefaultFields().add("*");
     }
 
     public void testIllegalArguments() {

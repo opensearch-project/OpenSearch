@@ -32,6 +32,7 @@
 
 package org.opensearch.index.query;
 
+import java.util.Set;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
@@ -872,13 +873,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         );
     }
 
-    @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
-        String rewrittenQueryString = escape ? org.apache.lucene.queryparser.classic.QueryParser.escape(this.queryString) : queryString;
-        if (fieldsAndWeights.size() > 0 && this.defaultField != null) {
-            throw addValidationError("cannot use [fields] parameter in conjunction with [default_field]", null);
-        }
-
+    private QueryStringQueryParser newQueryParser(QueryShardContext context) {
         QueryStringQueryParser queryParser;
         boolean isLenient = lenient == null ? context.queryStringLenient() : lenient;
         if (defaultField != null) {
@@ -946,6 +941,39 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryParser.setDeterminizeWorkLimit(maxDeterminizedStates);
         queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
         queryParser.setFuzzyTranspositions(fuzzyTranspositions);
+        return queryParser;
+    }
+
+    public Set<String> extractAllUsedFields(QueryShardContext context) {
+        String rewrittenQueryString = escape ? org.apache.lucene.queryparser.classic.QueryParser.escape(this.queryString) : queryString;
+        if (fieldsAndWeights.size() > 0 && this.defaultField != null) {
+            throw addValidationError("cannot use [fields] parameter in conjunction with [default_field]", null);
+        }
+
+        QueryStringQueryParser queryParser = newQueryParser(context);
+
+        Query query;
+        try {
+            query = queryParser.parse(rewrittenQueryString);
+        } catch (org.apache.lucene.queryparser.classic.ParseException e) {
+            throw new QueryShardException(context, "Failed to parse query [" + this.queryString + "]", e);
+        }
+
+        if (query == null) {
+            return null;
+        }
+
+        return queryParser.getDiscoveredQueryFields();
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        String rewrittenQueryString = escape ? org.apache.lucene.queryparser.classic.QueryParser.escape(this.queryString) : queryString;
+        if (fieldsAndWeights.size() > 0 && this.defaultField != null) {
+            throw addValidationError("cannot use [fields] parameter in conjunction with [default_field]", null);
+        }
+
+        QueryStringQueryParser queryParser = newQueryParser(context);
 
         Query query;
         try {
