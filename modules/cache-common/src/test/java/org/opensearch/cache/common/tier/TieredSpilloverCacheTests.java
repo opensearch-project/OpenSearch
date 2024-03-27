@@ -119,6 +119,11 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                     .getKey(),
                 onHeapCacheSize * keyValueSize + "b"
             )
+            .put(
+                CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
+            )
+            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
             .build();
 
         ICache<String, String> tieredSpilloverICache = new TieredSpilloverCache.TieredSpilloverCacheFactory().create(
@@ -127,12 +132,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setWeigher((k, v) -> keyValueSize)
                 .setRemovalListener(removalListener)
                 .setSettings(settings)
-                .setCachedResultParser(new Function<String, CachedQueryResult.PolicyValues>() {
-                    @Override
-                    public CachedQueryResult.PolicyValues apply(String s) {
-                        return new CachedQueryResult.PolicyValues(20_000_000L);
-                    }
-                }) // Values will always appear to have taken 20_000_000 ns = 20 ms to compute
+                .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(20_000_000L)) // Values will always appear to have taken
+                                                                                             // 20_000_000 ns = 20 ms to compute
                 .build(),
             CacheType.INDICES_REQUEST_CACHE,
             Map.of(
@@ -145,20 +146,16 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         TieredSpilloverCache<String, String> tieredSpilloverCache = (TieredSpilloverCache<String, String>) tieredSpilloverICache;
 
-        // Put values in cache more than it's size and cause evictions from onHeap.
         int numOfItems1 = randomIntBetween(onHeapCacheSize + 1, totalSize);
-        List<String> onHeapKeys = new ArrayList<>();
-        List<String> diskTierKeys = new ArrayList<>();
         for (int iter = 0; iter < numOfItems1; iter++) {
             String key = UUID.randomUUID().toString();
             LoadAwareCacheLoader<String, String> tieredCacheLoader = getLoadAwareCacheLoader();
             tieredSpilloverCache.computeIfAbsent(key, tieredCacheLoader);
         }
-        tieredSpilloverCache.getOnHeapCache().keys().forEach(onHeapKeys::add);
-        tieredSpilloverCache.getDiskCache().keys().forEach(diskTierKeys::add);
-
-        assertEquals(tieredSpilloverCache.getOnHeapCache().count(), onHeapKeys.size());
-        assertEquals(tieredSpilloverCache.getDiskCache().count(), diskTierKeys.size());
+        // Verify on heap cache size.
+        assertEquals(onHeapCacheSize, tieredSpilloverCache.getOnHeapCache().count());
+        // Verify disk cache size.
+        assertEquals(numOfItems1 - onHeapCacheSize, tieredSpilloverCache.getDiskCache().count());
     }
 
     public void testWithFactoryCreationWithOnHeapCacheNotPresent() {
@@ -180,6 +177,11 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                     .getKey(),
                 onHeapCacheSize * keyValueSize + "b"
             )
+            .put(
+                CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
+            )
+            .put(FeatureFlags.PLUGGABLE_CACHE, "true")
             .build();
 
         IllegalArgumentException ex = assertThrows(

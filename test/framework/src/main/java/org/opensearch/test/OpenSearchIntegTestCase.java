@@ -669,8 +669,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         // Enabling Telemetry setting by default
         featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
 
-        // Enabling fuzzy set for tests by default
-        featureSettings.put(FeatureFlags.DOC_ID_FUZZY_SET_SETTING.getKey(), true);
         return featureSettings.build();
     }
 
@@ -2072,7 +2070,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * @return boolean.
      */
     protected boolean addMockTelemetryPlugin() {
-        return true;
+        // setting to false until https://github.com/opensearch-project/OpenSearch/issues/12615 is resolved
+        return false;
     }
 
     /**

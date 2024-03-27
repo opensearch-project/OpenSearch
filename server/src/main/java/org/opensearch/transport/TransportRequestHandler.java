@@ -32,13 +32,15 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.tasks.Task;
 
 /**
  * Handles transport requests
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface TransportRequestHandler<T extends TransportRequest> {
 
     void messageReceived(T request, TransportChannel channel, Task task) throws Exception;

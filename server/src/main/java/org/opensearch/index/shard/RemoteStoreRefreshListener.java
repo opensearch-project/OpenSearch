@@ -528,7 +528,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      * @return true iff the shard is a started with primary mode true or it is local or snapshot recovery.
      */
     private boolean isReadyForUpload() {
-        boolean isReady = indexShard.isStartedPrimary() || isLocalOrSnapshotRecovery();
+        boolean isReady = indexShard.isStartedPrimary() || isLocalOrSnapshotRecovery() || indexShard.shouldSeedRemoteStore();
 
         if (isReady == false) {
             StringBuilder sb = new StringBuilder("Skipped syncing segments with");
