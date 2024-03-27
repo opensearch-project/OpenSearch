@@ -1,23 +1,68 @@
-name: Build packages
+name: Build packages (on demand)
 
 # This workflow runs when any of the following occur:
 # - Run manually
+# - Invoked from another workflow
 on:
-  push:
-    # Sequence of patterns matched against refs/heads
-    branches:
-      - "ci/*"
   workflow_dispatch:
     inputs:
       revision:
         description: "Revision"
         type: string
-        required: true
-        default: "1"
+        default: "0"
       upload:
         description: "Upload ?"
-        type: bool
+        type: boolean
         default: false
+      is_stage:
+        description: "Is stage ?"
+        type: boolean
+        default: false
+      distribution:
+        description: '[ "tar", "rpm", "deb" ]'
+        type: string
+        default: '[ "rpm", "deb" ]'
+      architecture:
+        description: '[ "x64", "arm64" ]'
+        type: string
+        default: '[ "x64" ]'
+      checksum:
+        description: "Checksum ?"
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      revision:
+        description: "Revision"
+        type: string
+        default: "0"
+      upload:
+        description: "Upload ?"
+        type: boolean
+        default: false
+      is_stage:
+        description: "Is stage ?"
+        type: boolean
+        default: false
+      distribution:
+        description: '[ "tar", "rpm", "deb" ]'
+        type: string
+        default: '[ "rpm", "deb" ]'
+      architecture:
+        description: '[ "x64", "arm64" ]'
+        type: string
+        default: '[ "x64" ]'
+      checksum:
+        description: "Checksum ?"
+        type: boolean
+        default: false
+    secrets:
+      CI_INTERNAL_DEVELOPMENT_BUCKET_USER_ACCESS_KEY:
+        required: true
+        description: "AWS user access key"
+      CI_INTERNAL_DEVELOPMENT_BUCKET_USER_SECRET_KEY:
+        required: true
+        description: "AWS user secret key"
 
 # ==========================
 # Bibliography
@@ -33,57 +78,117 @@ on:
 #   | https://docs.github.com/en/actions/learn-github-actions/expressions#example
 
 jobs:
-  version:
-    uses: ./.github/workflows/r_version.yml
-
-  commit_sha:
-    uses: ./.github/workflows/r_commit_sha.yml
+  matrix:
+    name: Set up matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.setup.outputs.matrix }}
+    steps:
+      - id: setup
+        run: |
+          matrix=$(jq -cn \
+              --argjson distribution '${{ inputs.distribution }}' \
+              --argjson architecture '${{ inputs.architecture }}' \
+              '{distribution: $distribution, architecture: $architecture}'
+          )
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
 
   build:
-    needs: [version, commit_sha]
-    strategy:
-      matrix:
-        distribution: [tar, rpm, deb]
-        architecture: [x64, arm64]
-    uses: ./.github/workflows/r_build.yml
-    with:
-      architecture: ${{ matrix.architecture }}
-      distribution: ${{ matrix.distribution }}
-      revision: ${{ github.event_name == 'push' && '1' || inputs.revision }}
-      name: wazuh-indexer-min_${{ needs.version.outputs.version }}-${{ github.event_name == 'push' && '1' || inputs.revision }}-${{ matrix.architecture }}_${{ needs.commit_sha.outputs.commit_sha }}.${{ matrix.distribution }}
-
-  assemble:
-    needs: [version, commit_sha, build]
-    strategy:
-      matrix:
-        distribution: [tar, rpm, deb]
-        architecture: [x64, arm64]
-        exclude:
-          # skip arm64 until we have arm runners
-          - architecture: arm64
-          - distribution: tar
-
-    uses: ./.github/workflows/r_assemble.yml
-    with:
-      architecture: ${{ matrix.architecture }}
-      distribution: ${{ matrix.distribution }}
-      min: wazuh-indexer-min_${{ needs.version.outputs.version }}-${{ github.event_name == 'push' && '1' || inputs.revision }}-${{ matrix.architecture }}_${{ needs.commit_sha.outputs.commit_sha }}.${{ matrix.distribution }}
-
-  test:
-    needs: [version, commit_sha, assemble]
+    needs: [matrix]
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        os: [{ suffix: "amd64", ext: "deb" }, { suffix: "x86_64", ext: "rpm" }]
-    uses: ./.github/workflows/r_test.yml
-    with:
-      package: wazuh-indexer-${{ needs.version.outputs.version }}-${{ github.event_name == 'push' && '1' || inputs.revision }}_${{ matrix.os.suffix }}_${{ needs.commit_sha.outputs.commit_sha }}.${{ matrix.os.ext }}
-  
-  upload:
-    needs: [version, commit_sha, test]
-    # Upload only on 'workflow_dispatch' event and if 'upload=true'
-    if: ${{ github.event_name == 'push' && inputs.upload }}
-    uses: ./.github/workflows/r_upload.yml
-    with:
-      package: wazuh-indexer-${{ needs.version.outputs.version }}-${{ github.event_name == 'push' && '1' || inputs.revision }}_${{ matrix.os.suffix }}_${{ needs.commit_sha.outputs.commit_sha }}.${{ matrix.os.ext }}
-    secrets: inherit
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 11
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Provision
+        if: ${{ matrix.distribution == 'deb' }}
+        run: |
+          sudo bash packaging_scripts/provision.sh
+
+      - name: Run `baptizer.sh` (min)
+        run: |
+          name=$(bash packaging_scripts/baptizer.sh -m \
+            -a ${{ matrix.architecture }} \
+            -d ${{ matrix.distribution }}  \
+            -r ${{ inputs.revision }} \
+            ${{ inputs.is_stage && '-x' || '' }} \
+          )
+          echo "name=$name" >> $GITHUB_OUTPUT
+        id: min_package
+
+      - name: Run `baptizer.sh`
+        run: |
+          name=$(bash packaging_scripts/baptizer.sh \
+            -a ${{ matrix.architecture }} \
+            -d ${{ matrix.distribution }}  \
+            -r ${{ inputs.revision }} \
+            ${{ inputs.is_stage && '-x' || '' }} \
+          )
+          echo "name=$name" >> $GITHUB_OUTPUT
+        id: package
+
+      - name: Run `build.sh`
+        run: |
+          bash packaging_scripts/build.sh \
+            -a ${{ matrix.architecture }} \
+            -d ${{ matrix.distribution }} \
+            -n ${{ steps.min_package.outputs.name }}
+
+      - name: Run `assemble.sh`
+        run: |
+          bash packaging_scripts/assemble.sh \
+            -a ${{ matrix.architecture }} \
+            -d ${{ matrix.distribution }} \
+            -r ${{ inputs.revision }}
+
+      - name: Test RPM package
+        if: ${{ matrix.distribution == 'rpm' }}
+        uses: addnab/docker-run-action@v3
+        with:
+          image: redhat/ubi9:latest
+          options: -v ${{ github.workspace }}/artifacts/dist:/artifacts/dist
+          run: |
+            yum localinstall "/artifacts/dist/${{ steps.package.outputs.name }}" -y
+
+      - name: Test DEB package
+        if: ${{ matrix.distribution == 'deb' }}
+        run: |
+          sudo dpkg -i "artifacts/dist/${{ steps.package.outputs.name }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: artifacts/dist/${{ steps.package.outputs.name }}
+          if-no-files-found: error
+
+      - name: Set up AWS CLI
+        if: ${{ inputs.upload }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.CI_INTERNAL_DEVELOPMENT_BUCKET_USER_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.CI_INTERNAL_DEVELOPMENT_BUCKET_USER_SECRET_KEY }}
+          aws-region: us-east-1
+
+      - name: Upload package to S3
+        if: ${{ inputs.upload }}
+        run: |
+          src="artifacts/dist/${{ steps.package.outputs.name }}"
+          dest="s3://packages-dev.internal.wazuh.com/development/wazuh/4.x/main/packages/"
+          aws s3 cp "$src" "$dest"
+
+      - name: Upload checksum to S3
+        if: ${{ inputs.upload && inputs.checksum }}
+        run: |
+          src="artifacts/dist/${{ steps.package.outputs.name }}.sha512"
+          dest="s3://packages-dev.internal.wazuh.com/development/wazuh/4.x/main/packages/"
+          aws s3 cp "$src" "$dest"

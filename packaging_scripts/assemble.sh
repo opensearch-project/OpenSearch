@@ -49,10 +49,10 @@ function usage() {
     echo "Usage: $0 [args]"
     echo ""
     echo "Arguments:"
-    echo -e "-v VERSION\t[Required] OpenSearch version."
     echo -e "-p PLATFORM\t[Optional] Platform, default is 'uname -s'."
     echo -e "-a ARCHITECTURE\t[Optional] Build architecture, default is 'uname -m'."
     echo -e "-d DISTRIBUTION\t[Optional] Distribution, default is 'tar'."
+    echo -e "-r REVISION\t[Optional] Package revision, default is '0'."
     echo -e "-o OUTPUT\t[Optional] Output path, default is 'artifacts'."
     echo -e "-h help"
 }
@@ -62,14 +62,11 @@ function usage() {
 # ====
 function parse_args() {
 
-    while getopts ":h:v:o:p:a:d:" arg; do
+    while getopts ":h:o:p:a:d:r:" arg; do
         case $arg in
         h)
             usage
             exit 1
-            ;;
-        v)
-            VERSION=$OPTARG
             ;;
         o)
             OUTPUT=$OPTARG
@@ -83,6 +80,9 @@ function parse_args() {
         d)
             DISTRIBUTION=$OPTARG
             ;;
+        r)
+            REVISION=$OPTARG
+            ;;
         :)
             echo "Error: -${OPTARG} requires an argument"
             usage
@@ -95,12 +95,6 @@ function parse_args() {
         esac
     done
 
-    if [ -z "$VERSION" ]; then
-        echo "Error: You must specify the OpenSearch version"
-        usage
-        exit 1
-    fi
-
     [ -z "$OUTPUT" ] && OUTPUT=artifacts
 
     # Assemble distribution artifact
@@ -109,6 +103,7 @@ function parse_args() {
     [ -z "$PLATFORM" ] && PLATFORM=$(uname -s | awk '{print tolower($0)}')
     [ -z "$ARCHITECTURE" ] && ARCHITECTURE=$(uname -m)
     [ -z "$DISTRIBUTION" ] && DISTRIBUTION="tar"
+    [ -z "$REVISION" ] && REVISION="0"
 
     case $PLATFORM-$DISTRIBUTION-$ARCHITECTURE in
     linux-tar-x64 | darwin-tar-x64)
@@ -216,9 +211,9 @@ function install_plugins() {
     echo "Install plugins"
     maven_repo_local="$HOME/maven"
     for plugin in "${plugins[@]}"; do
-        plugin_from_maven="org.opensearch.plugin:${plugin}:$VERSION.0"
-        mvn -Dmaven.repo.local=$maven_repo_local org.apache.maven.plugins:maven-dependency-plugin:2.1:get -DrepoUrl=https://repo1.maven.org/maven2 -Dartifact=$plugin_from_maven:zip
-        OPENSEARCH_PATH_CONF=$PATH_CONF "${PATH_BIN}/opensearch-plugin" install --batch --verbose "file:${maven_repo_local}/org/opensearch/plugin/${plugin}/$VERSION.0/${plugin}-$VERSION.0.zip"
+        plugin_from_maven="org.opensearch.plugin:${plugin}:${VERSION}.0"
+        mvn -Dmaven.repo.local="${maven_repo_local}" org.apache.maven.plugins:maven-dependency-plugin:2.1:get -DrepoUrl=https://repo1.maven.org/maven2 -Dartifact="${plugin_from_maven}:zip"
+        OPENSEARCH_PATH_CONF=$PATH_CONF "${PATH_BIN}/opensearch-plugin" install --batch --verbose "file:${maven_repo_local}/org/opensearch/plugin/${plugin}/${VERSION}.0/${plugin}-${VERSION}.0.zip"
     done
 }
 
@@ -229,8 +224,6 @@ function clean() {
     echo "Cleaning temporary ${TMP_DIR} folder"
     rm -r "${OUTPUT}/tmp"
     echo "After execution, shell path is $(pwd)"
-    # Store package's name to file. Used by GH Action.
-    echo "${ARTIFACT_PACKAGE_NAME}" >"${OUTPUT}/artifact_name.txt"
 }
 
 # ====
@@ -305,11 +298,12 @@ function assemble_rpm() {
         --define "_topdir ${topdir}" \
         --define "_version ${version}" \
         --define "_architecture ${SUFFIX}" \
+        --define "_release ${REVISION}" \
         ${spec_file}
 
     # Move to the root folder, copy the package and clean.
     cd ../../..
-    package_name="wazuh-indexer-${version}-1.${SUFFIX}.${EXT}"
+    package_name="wazuh-indexer-${version}-${REVISION}.${SUFFIX}.${EXT}"
     cp "${TMP_DIR}/RPMS/${SUFFIX}/${package_name}" "${OUTPUT}/dist/$ARTIFACT_PACKAGE_NAME"
 
     clean
@@ -359,7 +353,7 @@ function assemble_deb() {
         --invoke debuild \
         --package wazuh-indexer \
         --native \
-        --revision 1 \
+        --revision "${REVISION}" \
         --upstreamversion "${version}"
 
     # Move to the root folder, copy the package and clean.
@@ -379,9 +373,9 @@ function main() {
 
     echo "Assembling wazuh-indexer for $PLATFORM-$DISTRIBUTION-$ARCHITECTURE"
 
-    ARTIFACT_BUILD_NAME=$(ls "${OUTPUT}/dist/" | grep "wazuh-indexer-min_.*$SUFFIX.*\.$EXT")
-
-    ARTIFACT_PACKAGE_NAME=${ARTIFACT_BUILD_NAME/min_/}
+    VERSION=$(bash packaging_scripts/upstream_version.sh)
+    ARTIFACT_BUILD_NAME=$(ls "${OUTPUT}/dist/" | grep "wazuh-indexer-min.*$SUFFIX.*\.$EXT")
+    ARTIFACT_PACKAGE_NAME=${ARTIFACT_BUILD_NAME/-min/}
 
     # Create temporal directory and copy the min package there for extraction
     TMP_DIR="${OUTPUT}/tmp/${TARGET}"
@@ -399,6 +393,9 @@ function main() {
         assemble_deb
         ;;
     esac
+
+    # Create checksum
+    sha512sum "${OUTPUT}/dist/$ARTIFACT_PACKAGE_NAME" > "${OUTPUT}/dist/$ARTIFACT_PACKAGE_NAME".sha512
 }
 
 main "${@}"

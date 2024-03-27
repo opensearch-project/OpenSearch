@@ -32,7 +32,7 @@
 
 Name: wazuh-indexer
 Version: %{_version}
-Release: 1
+Release: %{_release}
 License: Apache-2.0
 Summary: An open source distributed and RESTful search engine
 URL: https://www.wazuh.com/

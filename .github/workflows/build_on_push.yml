@@ -1,0 +1,14 @@
+name: Build packages (on push)
+
+# This workflow runs when any of the following occur:
+# - On push to branches named after ci/*
+on:
+  push:
+    # Sequence of patterns matched against refs/heads
+    branches:
+      - "ci/*"
+
+jobs:
+  call-build-workflow:
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
