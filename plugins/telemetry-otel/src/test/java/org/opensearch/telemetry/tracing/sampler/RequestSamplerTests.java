@@ -25,6 +25,7 @@ import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
+import static org.opensearch.telemetry.TelemetrySettings.TRACER_INFERRED_SAMPLER_ALLOWLISTED;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_PROBABILITY;
 import static org.opensearch.telemetry.tracing.AttributeNames.TRANSPORT_ACTION;
 import static org.mockito.Mockito.mock;
@@ -37,7 +38,10 @@ public class RequestSamplerTests extends OpenSearchTestCase {
 
     @Before
     public void init() {
-        clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING));
+        clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_INFERRED_SAMPLER_ALLOWLISTED)
+        );
         telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
         Sampler fallbackSampler = OTelSamplerFactory.create(telemetrySettings, Settings.EMPTY);
         requestSampler = new RequestSampler(fallbackSampler);
