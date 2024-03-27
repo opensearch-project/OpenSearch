@@ -74,7 +74,8 @@ public class OTelTracingTelemetry<T extends TracerProvider & Closeable> implemen
     private void addInferredAttribute(Span newSpan, SpanCreationContext spanCreationContext) {
         // If the current context has this attribute we need to add the same to the span as well.
         if (Baggage.current().getEntryValue(TracerContextStorage.INFERRED_SAMPLER) != null
-            || spanCreationContext.getAttributes().getAttributesMap().containsKey(TracerContextStorage.INFERRED_SAMPLER)) {
+            || (spanCreationContext.getAttributes() != null
+                && spanCreationContext.getAttributes().getAttributesMap().containsKey(TracerContextStorage.INFERRED_SAMPLER))) {
             newSpan.addAttribute(TracerContextStorage.INFERRED_SAMPLER, true);
         }
     }
