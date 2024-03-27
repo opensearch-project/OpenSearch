@@ -113,6 +113,12 @@ public abstract class SearchContext implements Releasable {
             // should not be called when there is no aggregation collector
             throw new IllegalStateException("Unexpected toAggregators call on NO_OP_BUCKET_COLLECTOR_PROCESSOR");
         }
+
+        @Override
+        public List<InternalAggregation> toInternalAggregations(Collection<Collector> collectors) {
+            // should not be called when there is no aggregation collector
+            throw new IllegalStateException("Unexpected toInternalAggregations call on NO_OP_BUCKET_COLLECTOR_PROCESSOR");
+        }
     };
 
     private final List<Releasable> releasables = new CopyOnWriteArrayList<>();
