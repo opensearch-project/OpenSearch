@@ -50,7 +50,9 @@ import org.opensearch.transport.netty4.ssl.SslUtils;
 
 import javax.net.ssl.SSLEngine;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
@@ -102,28 +104,40 @@ public class SecureNetty4HttpServerTransport extends Netty4HttpServerTransport {
         this.exceptionHandler = secureHttpTransportSettingsProvider.buildHttpServerExceptionHandler(settings, this)
             .orElse(TransportExceptionHandler.NOOP);
 
-        this.headerVerifier = secureHttpTransportSettingsProvider.getHttpTransportAdapterProviders(settings)
+        final List<ChannelInboundHandlerAdapter> headerVerifiers = secureHttpTransportSettingsProvider.getHttpTransportAdapterProviders(
+            settings
+        )
             .stream()
             .filter(p -> HEADER_VERIFIER.equalsIgnoreCase(p.name()))
-            .findFirst()
-            .flatMap(p -> p.create(settings, this, ChannelInboundHandlerAdapter.class))
-            .orElse(null);
+            .map(p -> p.create(settings, this, ChannelInboundHandlerAdapter.class))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
 
-        this.decompressorProvider = secureHttpTransportSettingsProvider.getHttpTransportAdapterProviders(settings)
+        if (headerVerifiers.size() > 1) {
+            throw new IllegalArgumentException("Cannot have more than one header verifier configured, supplied " + headerVerifiers.size());
+        }
+
+        final Optional<TransportAdapterProvider<HttpServerTransport>> decompressorProviderOpt = secureHttpTransportSettingsProvider
+            .getHttpTransportAdapterProviders(settings)
             .stream()
             .filter(p -> REQUEST_DECOMPRESSOR.equalsIgnoreCase(p.name()))
-            .findFirst()
-            .orElseGet(() -> new TransportAdapterProvider<HttpServerTransport>() {
-                @Override
-                public String name() {
-                    return REQUEST_DECOMPRESSOR;
-                }
+            .findFirst();
+        // There could be multiple request decompressor providers configured, using the first one
+        decompressorProviderOpt.ifPresent(p -> logger.debug("Using request decompressor provider: {}", p));
 
-                @Override
-                public <C> Optional<C> create(Settings settings, HttpServerTransport transport, Class<C> adapterClass) {
-                    return Optional.empty();
-                }
-            });
+        this.headerVerifier = headerVerifiers.isEmpty() ? null : headerVerifiers.get(0);
+        this.decompressorProvider = decompressorProviderOpt.orElseGet(() -> new TransportAdapterProvider<HttpServerTransport>() {
+            @Override
+            public String name() {
+                return REQUEST_DECOMPRESSOR;
+            }
+
+            @Override
+            public <C> Optional<C> create(Settings settings, HttpServerTransport transport, Class<C> adapterClass) {
+                return Optional.empty();
+            }
+        });
     }
 
     @Override
