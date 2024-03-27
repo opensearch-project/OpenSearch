@@ -108,7 +108,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
      * since we are checking on the cluster state IndexMetadata always.
      */
 
-    public static final String SETTING_INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING = "indices.requests.cache.cleanup.staleness_threshold";
+    public static final String SETTING_INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING =
+        "indices.requests.cache.cleanup.staleness_threshold";
     public static final String SETTING_INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING = "indices.requests.cache.cleanup.interval";
 
     public static final Setting<Boolean> INDEX_CACHE_REQUEST_ENABLED_SETTING = Setting.boolSetting(
