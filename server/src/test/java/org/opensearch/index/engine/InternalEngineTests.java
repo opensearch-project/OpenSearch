@@ -1824,8 +1824,8 @@ public class InternalEngineTests extends EngineTestCase {
             )
         ) {
             int numDocs = scaledRandomIntBetween(10, 100);
+            boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
             for (int i = 0; i < numDocs; i++) {
-                boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
                 ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null, useRecoverySource);
                 engine.index(indexForDoc(doc));
                 liveDocs.add(doc.id());
@@ -1834,14 +1834,14 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
             for (int i = 0; i < numDocs; i++) {
-                boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
                 ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null, useRecoverySource);
-                if (randomBoolean()) {
+                boolean isDeleted = randomBoolean();
+                if (isDeleted) {
                     engine.delete(new Engine.Delete(doc.id(), newUid(doc.id()), primaryTerm.get()));
                     liveDocs.remove(doc.id());
                     liveDocsWithSource.remove(doc.id());
                 }
-                if (randomBoolean()) {
+                if (isDeleted) {
                     engine.index(indexForDoc(doc));
                     liveDocs.add(doc.id());
                     if (useRecoverySource == false) {
@@ -1850,9 +1850,8 @@ public class InternalEngineTests extends EngineTestCase {
                         liveDocsWithSource.remove(doc.id());
                     }
                 }
-                if (randomBoolean()) {
-                    engine.flush(randomBoolean(), true);
-                }
+                engine.flush(randomBoolean(), true);
+
             }
             engine.flush();
             globalCheckpoint.set(randomLongBetween(0, engine.getPersistedLocalCheckpoint()));
@@ -1898,7 +1897,6 @@ public class InternalEngineTests extends EngineTestCase {
                 numSegments = searcher.getDirectoryReader().leaves().size();
             }
             if (numSegments == 1) {
-                boolean useRecoverySource = randomBoolean() || omitSourceAllTheTime;
                 ParsedDocument doc = testParsedDocument("dummy", null, testDocument(), B_1, null, useRecoverySource);
                 engine.index(indexForDoc(doc));
                 if (useRecoverySource == false) {
