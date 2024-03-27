@@ -112,6 +112,10 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
      * A setting to enable or disable request caching on an index level. Its dynamic by default
      * since we are checking on the cluster state IndexMetadata always.
      */
+
+    public static final String SETTING_INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING = "indices.requests.cache.cleanup.staleness_threshold";
+    public static final String SETTING_INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING = "indices.requests.cache.cleanup.interval";
+
     public static final Setting<Boolean> INDEX_CACHE_REQUEST_ENABLED_SETTING = Setting.boolSetting(
         "index.requests.cache.enable",
         true,
@@ -129,12 +133,12 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         Property.NodeScope
     );
     public static final Setting<TimeValue> INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING = Setting.positiveTimeSetting(
-        "indices.requests.cache.cleanup.interval",
+        SETTING_INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING,
         INDICES_CACHE_CLEAN_INTERVAL_SETTING,
         Property.NodeScope
     );
     public static final Setting<String> INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING = new Setting<>(
-        "indices.requests.cache.cleanup.staleness_threshold",
+        SETTING_INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING,
         "0%",
         IndicesRequestCache::validateStalenessSetting,
         Property.NodeScope
