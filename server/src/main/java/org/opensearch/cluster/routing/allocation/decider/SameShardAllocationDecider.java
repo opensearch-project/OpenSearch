@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.routing.allocation.decider;
 
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
@@ -94,6 +95,8 @@ public class SameShardAllocationDecider extends AllocationDecider {
             return decision;
         }
         if (node.node() != null) {
+            DiscoveryNode sourceShardNode = allocation.nodes().get(shardRouting.currentNodeId());
+
             for (RoutingNode checkNode : allocation.routingNodes()) {
                 if (checkNode.node() == null) {
                     continue;
@@ -112,6 +115,9 @@ public class SameShardAllocationDecider extends AllocationDecider {
                 }
                 if (checkNodeOnSameHostAddress || checkNodeOnSameHostName) {
                     for (ShardRouting assignedShard : assignedShards) {
+                        if (sourceShardNode != null && sourceShardNode.equals(checkNode.node())) {
+                            continue;
+                        }
                         if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {
                             String hostType = checkNodeOnSameHostAddress ? "address" : "name";
                             String host = checkNodeOnSameHostAddress ? node.node().getHostAddress() : node.node().getHostName();
