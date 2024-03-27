@@ -235,13 +235,14 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.query(queryBuilder);
         }
 
-        int from = request.paramAsInt("from", -1);
-        if (from != -1) {
-            searchSourceBuilder.from(from);
+        String from = request.param("from");
+        if (from != null) {
+            searchSourceBuilder.from(Integer.parseInt(from));
         }
-        int size = request.paramAsInt("size", -1);
-        if (size != -1) {
-            setSize.accept(size);
+
+        String size = request.param("size");
+        if (size != null) {
+            setSize.accept(Integer.parseInt(size));
         }
 
         if (request.hasParam("explain")) {
