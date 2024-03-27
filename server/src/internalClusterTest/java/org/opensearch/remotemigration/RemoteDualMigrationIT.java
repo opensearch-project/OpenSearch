@@ -10,6 +10,7 @@ package org.opensearch.remotemigration;
 
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -96,17 +97,13 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
                 .get()
         );
         ensureGreen(REMOTE_PRI_DOCREP_REP);
-        assertTrue(
-            internalCluster().client()
-                .admin()
-                .cluster()
-                .prepareState()
-                .get()
-                .getState()
-                .getNodes()
-                .get(primaryNodeName(REMOTE_PRI_DOCREP_REP))
-                .isRemoteStoreNode()
-        );
+        ClusterState clusterState = internalCluster().client().admin().cluster().prepareState().get().getState();
+        String primaryShardHostingNodeId = clusterState.getRoutingTable()
+            .index(REMOTE_PRI_DOCREP_REP)
+            .shard(0)
+            .primaryShard()
+            .currentNodeId();
+        assertTrue(clusterState.getNodes().get(primaryShardHostingNodeId).isRemoteStoreNode());
 
         int secondBatch = randomIntBetween(1, 10);
         logger.info("---> Indexing another {} docs", secondBatch);
@@ -175,17 +172,13 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
                 .get()
         );
         ensureGreen(REMOTE_PRI_DOCREP_REMOTE_REP);
-        assertTrue(
-            internalCluster().client()
-                .admin()
-                .cluster()
-                .prepareState()
-                .get()
-                .getState()
-                .getNodes()
-                .get(primaryNodeName(REMOTE_PRI_DOCREP_REMOTE_REP))
-                .isRemoteStoreNode()
-        );
+        ClusterState clusterState = internalCluster().client().admin().cluster().prepareState().get().getState();
+        String primaryShardHostingNodeId = clusterState.getRoutingTable()
+            .index(REMOTE_PRI_DOCREP_REMOTE_REP)
+            .shard(0)
+            .primaryShard()
+            .currentNodeId();
+        assertTrue(clusterState.getNodes().get(primaryShardHostingNodeId).isRemoteStoreNode());
 
         logger.info("---> Starting another remote enabled node");
         internalCluster().startDataOnlyNode();
