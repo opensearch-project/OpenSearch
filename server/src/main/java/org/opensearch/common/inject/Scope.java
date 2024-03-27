@@ -29,6 +29,8 @@
 
 package org.opensearch.common.inject;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * A scope is a level of visibility that instances provided by Guice may have.
  * By default, an instance created by the {@link Injector} has <i>no scope</i>,
@@ -42,8 +44,9 @@ package org.opensearch.common.inject;
  *
  * @author crazybob@google.com (Bob Lee)
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface Scope {
 
     /**
