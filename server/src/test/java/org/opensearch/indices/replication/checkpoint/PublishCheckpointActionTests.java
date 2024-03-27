@@ -35,6 +35,7 @@ import org.opensearch.transport.TransportService;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
@@ -128,7 +129,7 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
 
         final ShardId shardId = new ShardId(index, id);
         when(indexShard.shardId()).thenReturn(shardId);
-
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
         final SegmentReplicationTargetService mockTargetService = mock(SegmentReplicationTargetService.class);
 
         final PublishCheckpointAction action = new PublishCheckpointAction(
@@ -163,14 +164,14 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
     public void testGetReplicationModeWithRemoteTranslog() {
         final PublishCheckpointAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
         assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
         final PublishCheckpointAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
         assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 

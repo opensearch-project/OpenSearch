@@ -213,10 +213,13 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
         ActionListener.completeWith(listener, () -> {
             state().getIndex().setFileDetailsComplete(); // ops-based recoveries don't send the file details
             state().getTranslog().totalOperations(totalTranslogOps);
+            boolean shouldPerformMigrationBasedTasks = indexShard.shouldSeedRemoteStore() && indexShard.routingEntry().primary();
+            if (shouldPerformMigrationBasedTasks) {
+                indexShard.deleteRemoteStoreContents();
+            }
             indexShard().openEngineAndSkipTranslogRecovery();
             // upload to remote store in migration for primary shard
-            if (indexShard.shouldSeedRemoteStore() && indexShard.routingEntry().primary()) {
-                indexShard.deleteRemoteStoreContents();
+            if (shouldPerformMigrationBasedTasks) {
                 // This cleans up remote translog's 0 generation, as we don't want to get that uploaded
                 indexShard.sync();
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> { indexShard.refresh("remote store migration"); });

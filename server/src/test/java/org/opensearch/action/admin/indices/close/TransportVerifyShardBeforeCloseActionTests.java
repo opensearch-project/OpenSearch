@@ -82,6 +82,7 @@ import java.util.concurrent.TimeUnit;
 import org.mockito.ArgumentCaptor;
 
 import static org.opensearch.action.support.replication.ClusterStateCreationUtils.state;
+import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -332,15 +333,15 @@ public class TransportVerifyShardBeforeCloseActionTests extends OpenSearchTestCa
     public void testGetReplicationModeWithRemoteTranslog() {
         TransportVerifyShardBeforeCloseAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
         assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
         TransportVerifyShardBeforeCloseAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
-        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     private TransportVerifyShardBeforeCloseAction createAction() {

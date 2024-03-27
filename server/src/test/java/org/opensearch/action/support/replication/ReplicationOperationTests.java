@@ -59,6 +59,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShardNotStartedException;
 import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.index.shard.IndexShardTestUtils;
 import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.test.OpenSearchTestCase;
@@ -239,7 +240,12 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             listener,
             replicasProxy,
             0,
-            new ReplicationModeAwareProxy<>(ReplicationMode.NO_REPLICATION, replicasProxy, replicasProxy)
+            new ReplicationModeAwareProxy<>(
+                ReplicationMode.NO_REPLICATION,
+                buildRemoteStoreEnabledDiscoveryNodes(routingTable),
+                replicasProxy,
+                replicasProxy
+            )
         );
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());
@@ -304,7 +310,12 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             listener,
             replicasProxy,
             0,
-            new ReplicationModeAwareProxy<>(ReplicationMode.NO_REPLICATION, replicasProxy, replicasProxy)
+            new ReplicationModeAwareProxy<>(
+                ReplicationMode.NO_REPLICATION,
+                buildRemoteStoreEnabledDiscoveryNodes(routingTable),
+                replicasProxy,
+                replicasProxy
+            )
         );
         op.execute();
         assertTrue("request was not processed on primary", request.processedOnPrimary.get());
@@ -378,6 +389,75 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
 
         ShardInfo shardInfo = listener.actionGet().getShardInfo();
         assertEquals(activeIds.size() + initializingIds.size(), shardInfo.getTotal());
+    }
+
+    public void testReplicationInDualModeWithDocrepReplica() throws Exception {
+        Set<AllocationId> initializingIds = new HashSet<>();
+        IntStream.range(0, randomIntBetween(2, 5)).forEach(x -> initializingIds.add(AllocationId.newInitializing()));
+        Set<AllocationId> activeIds = new HashSet<>();
+        IntStream.range(0, randomIntBetween(2, 5)).forEach(x -> activeIds.add(AllocationId.newInitializing()));
+
+        AllocationId primaryId = activeIds.iterator().next();
+
+        ShardId shardId = new ShardId("test", "_na_", 0);
+        IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(shardId);
+        final ShardRouting primaryShard = newShardRouting(
+            shardId,
+            nodeIdFromAllocationId(primaryId),
+            null,
+            true,
+            ShardRoutingState.STARTED,
+            primaryId
+        );
+        initializingIds.forEach(aId -> {
+            ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.INITIALIZING, aId);
+            builder.addShard(routing);
+        });
+        activeIds.stream().filter(aId -> !aId.equals(primaryId)).forEach(aId -> {
+            ShardRouting routing = newShardRouting(shardId, nodeIdFromAllocationId(aId), null, false, ShardRoutingState.STARTED, aId);
+            builder.addShard(routing);
+        });
+        builder.addShard(primaryShard);
+        IndexShardRoutingTable routingTable = builder.build();
+
+        Set<String> inSyncAllocationIds = activeIds.stream().map(AllocationId::getId).collect(Collectors.toSet());
+        ReplicationGroup replicationGroup = new ReplicationGroup(routingTable, inSyncAllocationIds, inSyncAllocationIds, 0);
+        List<ShardRouting> replicationTargets = replicationGroup.getReplicationTargets();
+        assertEquals(inSyncAllocationIds.size(), replicationTargets.size());
+        assertTrue(
+            replicationTargets.stream().map(sh -> sh.allocationId().getId()).collect(Collectors.toSet()).containsAll(inSyncAllocationIds)
+        );
+
+        Request request = new Request(shardId);
+        PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
+        Map<ShardRouting, Exception> simulatedFailures = new HashMap<>();
+        TestReplicaProxy replicasProxy = new TestReplicaProxy(simulatedFailures);
+        TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup, threadPool);
+        final TestReplicationOperation op = new TestReplicationOperation(
+            request,
+            primary,
+            listener,
+            replicasProxy,
+            0,
+            new ReplicationModeAwareProxy<>(
+                ReplicationMode.NO_REPLICATION,
+                buildMixedModeEnabledDiscoveryNodes(routingTable),
+                replicasProxy,
+                replicasProxy
+            )
+        );
+        op.execute();
+        assertTrue("request was not processed on primary", request.processedOnPrimary.get());
+        // During dual replication, except for primary, replication action should be executed on all the replicas
+        assertEquals(activeIds.size() - 1, request.processedOnReplicas.size());
+        assertEquals(0, replicasProxy.failedReplicas.size());
+        assertEquals(0, replicasProxy.markedAsStaleCopies.size());
+        assertTrue("post replication operations not run on primary", request.runPostReplicationActionsOnPrimary.get());
+        assertTrue("listener is not marked as done", listener.isDone());
+
+        ShardInfo shardInfo = listener.actionGet().getShardInfo();
+        // All initializing and active shards are set to docrep
+        assertEquals(initializingIds.size() + activeIds.size(), shardInfo.getTotal());
     }
 
     static String nodeIdFromAllocationId(final AllocationId allocationId) {
@@ -814,6 +894,26 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             }
         }
         return expectedReplicas;
+    }
+
+    private DiscoveryNodes buildRemoteStoreEnabledDiscoveryNodes(IndexShardRoutingTable routingTable) {
+        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+        for (ShardRouting shardRouting : routingTable) {
+            builder.add(IndexShardTestUtils.getFakeRemoteEnabledNode(shardRouting.currentNodeId()));
+        }
+        return builder.build();
+    }
+
+    private DiscoveryNodes buildMixedModeEnabledDiscoveryNodes(IndexShardRoutingTable routingTable) {
+        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+        for (ShardRouting shardRouting : routingTable) {
+            if (shardRouting.primary()) {
+                builder.add(IndexShardTestUtils.getFakeRemoteEnabledNode(shardRouting.currentNodeId()));
+            } else {
+                builder.add(IndexShardTestUtils.getFakeDiscoNode(shardRouting.currentNodeId()));
+            }
+        }
+        return builder.build();
     }
 
     public static class Request extends ReplicationRequest<Request> {

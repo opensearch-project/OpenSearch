@@ -93,7 +93,8 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
             value -> {},
             currentTimeMillis::get,
             (leases, listener) -> {},
-            () -> safeCommitInfo
+            () -> safeCommitInfo,
+            sId -> false
         );
         replicationTracker.updateFromClusterManager(
             1L,

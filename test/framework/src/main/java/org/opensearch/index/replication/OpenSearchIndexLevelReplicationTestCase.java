@@ -64,6 +64,7 @@ import org.opensearch.action.support.replication.TransportWriteActionTestHelper;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
@@ -96,6 +97,7 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
+import org.opensearch.index.shard.IndexShardTestUtils;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
@@ -340,6 +342,30 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             startReplicas(replicas.size());
         }
 
+        public synchronized DiscoveryNodes generateFakeDiscoveryNodes() {
+            DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder();
+            if (primary.indexSettings() != null && primary.indexSettings().isRemoteNode()) {
+                builder.add(IndexShardTestUtils.getFakeRemoteEnabledNode(primary.routingEntry().currentNodeId()));
+            } else {
+                builder.add(IndexShardTestUtils.getFakeDiscoNode(primary.routingEntry().currentNodeId()));
+            }
+            for (IndexShard replica : replicas) {
+                if (replica.indexSettings() != null && replica.indexSettings().isRemoteNode()) {
+                    builder.add(IndexShardTestUtils.getFakeRemoteEnabledNode(replica.routingEntry().currentNodeId()));
+                } else {
+                    builder.add(IndexShardTestUtils.getFakeDiscoNode(replica.routingEntry().currentNodeId()));
+                }
+            }
+            return builder.build();
+        }
+
+        public synchronized void updateDiscoveryNodesOnShards(DiscoveryNodes discoveryNodes) {
+            primary.setDiscoveryNodes(discoveryNodes);
+            for (IndexShard replica : replicas) {
+                replica.setDiscoveryNodes(discoveryNodes);
+            }
+        }
+
         public synchronized int startReplicas(int numOfReplicasToStart) throws IOException {
             if (primary.routingEntry().initializing()) {
                 startPrimary();
@@ -358,6 +384,10 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         }
 
         public void startPrimary() throws IOException {
+            startPrimary(false);
+        }
+
+        public void startPrimary(boolean remote) throws IOException {
             recoverPrimary(primary);
             computeReplicationTargets();
             HashSet<String> activeIds = new HashSet<>();
@@ -371,7 +401,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 null,
                 currentClusterStateVersion.incrementAndGet(),
                 activeIds,
-                routingTable
+                routingTable,
+                generateFakeDiscoveryNodes()
             );
             for (final IndexShard replica : replicas) {
                 recoverReplica(replica);
@@ -405,6 +436,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             if (replicationTargets != null) {
                 replicationTargets.addReplica(replica);
             }
+            updateDiscoveryNodesOnShards(generateFakeDiscoveryNodes());
             updateAllocationIDsOnPrimary();
         }
 
@@ -492,7 +524,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 primaryReplicaSyncer,
                 currentClusterStateVersion.incrementAndGet(),
                 activeIds(),
-                routingTable
+                routingTable,
+                generateFakeDiscoveryNodes()
             );
         }
 
@@ -638,14 +671,16 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         }
 
         private void updateAllocationIDsOnPrimary() throws IOException {
-
             primary.updateShardState(
                 primary.routingEntry(),
                 primary.getPendingPrimaryTerm(),
                 null,
                 currentClusterStateVersion.incrementAndGet(),
                 activeIds(),
-                routingTable(Function.identity())
+                routingTable(Function.identity()),
+                primary.indexSettings().isRemoteTranslogStoreEnabled()
+                    ? IndexShardTestUtils.getFakeRemoteEnabledDiscoveryNodes(routingTable(Function.identity()).getShards())
+                    : IndexShardTestUtils.getFakeDiscoveryNodes(routingTable(Function.identity()).getShards())
             );
         }
 
