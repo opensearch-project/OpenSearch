@@ -131,12 +131,10 @@ public class MultiBucketConsumerService {
         private final int limit;
         private final CircuitBreaker breaker;
 
-        // aggregations execute in a single thread for both sequential
-        // and concurrent search, so no atomic here
+        // count is currently only updated in final reduce phase which is executed in single thread for both concurrent and non-concurrent
+        // search
         private int count;
-
-        // will be updated by multiple threads in concurrent search
-        // hence making it as LongAdder
+        // will be updated by multiple threads in concurrent search hence making it as LongAdder
         private final LongAdder callCount;
         private volatile boolean circuitBreakerTripped;
         private final int availProcessors;
