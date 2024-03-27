@@ -13,6 +13,7 @@ import org.opensearch.telemetry.tracing.TracerContextStorage;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Context;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.trace.ReadWriteSpan;
 import io.opentelemetry.sdk.trace.ReadableSpan;
 import io.opentelemetry.sdk.trace.SpanProcessor;
@@ -87,5 +88,26 @@ public class OtelSpanProcessor implements SpanProcessor {
     @Override
     public boolean isEndRequired() {
         return this.delegateProcessor.isEndRequired();
+    }
+
+    /**
+     * Processes all span events that have not yet been processed and closes used resources.
+     *
+     * @return a {@link CompletableResultCode} which completes when shutdown is finished.
+     */
+    @Override
+    public CompletableResultCode shutdown() {
+        return this.delegateProcessor.shutdown();
+    }
+
+    /**
+     * Processes all span events that have not yet been processed.
+     *
+     * @return a {@link CompletableResultCode} which completes when currently queued spans are
+     *     finished processing.
+     */
+    @Override
+    public CompletableResultCode forceFlush() {
+        return this.delegateProcessor.forceFlush();
     }
 }
