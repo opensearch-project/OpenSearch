@@ -218,7 +218,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             );
         }
 
-        private KeywordFieldType buildFieldType(BuilderContext context, FieldType fieldType) {
+        protected KeywordFieldType buildFieldType(BuilderContext context, FieldType fieldType) {
             NamedAnalyzer normalizer = Lucene.KEYWORD_ANALYZER;
             NamedAnalyzer searchAnalyzer = Lucene.KEYWORD_ANALYZER;
             String normalizerName = this.normalizer.getValue();
