@@ -904,6 +904,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         try {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
                 remoteStoreRepoForIndex,
+                remoteStoreRepoForIndex,
                 indexUUID,
                 shardId,
                 pathStrategy

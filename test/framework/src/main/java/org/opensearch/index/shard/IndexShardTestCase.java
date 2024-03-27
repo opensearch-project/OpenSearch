@@ -658,7 +658,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             RepositoriesService mockRepoSvc = mock(RepositoriesService.class);
 
             if (indexSettings.isRemoteStoreEnabled() || indexSettings.isAssignedOnRemoteNode()) {
-                String remoteStoreRepository = indexSettings.getRemoteStoreRepository();
+                String remoteStoreRepository = indexSettings.getRemoteSegmentStoreDataRepository();
                 // remote path via setting a repository . This is a hack used for shards are created using reset .
                 // since we can't get remote path from IndexShard directly, we are using repository to store it .
                 if (remoteStoreRepository != null && remoteStoreRepository.endsWith("__test")) {
@@ -681,7 +681,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                     return new RemoteBlobStoreInternalTranslogFactory(
                         () -> mockRepoSvc,
                         threadPool,
-                        settings.getRemoteStoreTranslogRepository(),
+                        settings.getRemoteStoreTranslogDataRepository(),
                         new RemoteTranslogTransferTracker(shardRouting.shardId(), 20),
                         DefaultRemoteStoreSettings.INSTANCE
                     );

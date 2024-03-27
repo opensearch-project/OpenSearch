@@ -228,8 +228,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
                 // Settings for remote store enablement
                 IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING,
-                IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
-                IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
+                IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_DATA_REPOSITORY_SETTING,
+                IndexMetadata.INDEX_REMOTE_TRANSLOG_DATA_REPOSITORY_SETTING,
 
                 IndexSettings.INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING,
                 IndexSettings.INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,

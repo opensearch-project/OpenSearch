@@ -54,6 +54,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
@@ -710,7 +711,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // try index restore with remote store repository modified
         Settings remoteStoreIndexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, newRemoteStoreRepo)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY, newRemoteStoreRepo)
             .build();
 
         exception = expectThrows(
@@ -735,8 +736,8 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
                 .setWaitForCompletion(false)
                 .setIgnoreIndexSettings(
-                    IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
-                    IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY
+                    IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY,
+                    IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY
                 )
                 .setIndices(index)
                 .setRenamePattern(index)

@@ -146,6 +146,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         remoteDataDirectory = mock(RemoteDirectory.class);
         remoteMetadataDirectory = mock(RemoteDirectory.class);
         mdLockManager = mock(RemoteStoreMetadataLockManager.class);
+
         threadPool = mock(ThreadPool.class);
         testUploadTracker = new TestUploadListener();
 
@@ -700,7 +701,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             threadPool,
             indexShard.shardId()
         );
-        when(remoteSegmentStoreDirectoryFactory.newDirectory(any(), any(), any(), any())).thenReturn(remoteSegmentDirectory);
+        when(remoteSegmentStoreDirectoryFactory.newDirectory(any(), any(), any(), any(), any())).thenReturn(remoteSegmentDirectory);
         String repositoryName = "test-repository";
         String indexUUID = "test-idx-uuid";
         ShardId shardId = new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt("0"));
@@ -716,7 +717,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             shardId,
             pathStrategy
         );
-        verify(remoteSegmentStoreDirectoryFactory).newDirectory(repositoryName, indexUUID, shardId, pathStrategy);
+        verify(remoteSegmentStoreDirectoryFactory).newDirectory(repositoryName, repositoryName, indexUUID, shardId, pathStrategy);
         verify(threadPool, times(0)).executor(ThreadPool.Names.REMOTE_PURGE);
         verify(remoteMetadataDirectory).delete();
         verify(remoteDataDirectory).delete();

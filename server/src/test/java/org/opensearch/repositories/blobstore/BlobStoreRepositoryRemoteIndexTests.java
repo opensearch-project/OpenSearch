@@ -62,8 +62,8 @@ import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SET
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -97,10 +97,10 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
         );
 
         return Settings.builder()
-            .put("node.attr." + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, repoName)
+            .put("node.attr." + REMOTE_STORE_SEGMENT_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY, repoName)
             .put(repoTypeAttributeKey, FsRepository.TYPE)
             .put(repoSettingsAttributeKeyPrefix + "location", repoPath)
-            .put("node.attr." + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, repoName)
+            .put("node.attr." + REMOTE_STORE_TRANSLOG_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY, repoName)
             .put(repoTypeAttributeKey, FsRepository.TYPE)
             .put(repoSettingsAttributeKeyPrefix + "location", repoPath)
             .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, repoName)

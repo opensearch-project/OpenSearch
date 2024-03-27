@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
 import org.mockito.Mockito;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.mockito.ArgumentMatchers.any;
@@ -74,7 +74,7 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
                 settings(Version.CURRENT).put(SETTING_INDEX_UUID, INDEX.getUUID())
                     .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                     .put(SETTING_REMOTE_STORE_ENABLED, true)
-                    .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "my-test-repo")
+                    .put(SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY, "my-test-repo")
                     .build()
             )
             .numberOfShards(2)

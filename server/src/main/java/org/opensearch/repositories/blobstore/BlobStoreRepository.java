@@ -2702,7 +2702,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         indexTotalNumberOfFiles,
                         indexTotalFileSize,
                         store.indexSettings().getUUID(),
-                        store.indexSettings().getRemoteStoreRepository(),
+                        store.indexSettings().getRemoteSegmentStoreDataRepository(),
                         this.basePath().toString(),
                         fileNames,
                         pathStrategy.getType(),

@@ -87,7 +87,7 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
     public void testRemoteStoreRedactionInToString() {
         final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
         Map<String, String> attributes = new HashMap<>();
-        attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "test-repo");
+        attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY, "test-repo");
         attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "test-repo");
         final DiscoveryNode node = new DiscoveryNode(
             "name",

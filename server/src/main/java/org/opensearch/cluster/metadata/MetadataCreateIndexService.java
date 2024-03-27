@@ -136,9 +136,10 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DAT
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_METADATA_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
@@ -1027,19 +1028,26 @@ public class MetadataCreateIndexService {
      */
     public static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings nodeSettings) {
         if (RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(nodeSettings)) {
+            String segmentDataRepository = nodeSettings.get(
+                Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY
+            );
             settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
+                .put(SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY, segmentDataRepository)
                 .put(
-                    SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
+
+                    SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY,
                     nodeSettings.get(
-                        Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
-                    )
-                )
-                .put(
-                    SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
-                    nodeSettings.get(
-                        Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
+                        Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY
                     )
                 );
+            String segmentMetadataRepository = nodeSettings.get(
+                Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_METADATA_REPOSITORY_NAME_ATTRIBUTE_KEY
+            );
+            if (segmentMetadataRepository != null) {
+                settingsBuilder.put(SETTING_REMOTE_SEGMENT_STORE_METADATA_REPOSITORY, segmentMetadataRepository);
+            } else {
+                settingsBuilder.put(SETTING_REMOTE_SEGMENT_STORE_METADATA_REPOSITORY, segmentDataRepository);
+            }
         }
     }
 
