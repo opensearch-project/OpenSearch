@@ -490,17 +490,28 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     /**
      * Releases a lock which was acquired on given segment commit.
+     * it will be no-op if corresponding metadata file or lock file is not present.
      *
      * @param primaryTerm Primary Term of index at the time of commit.
      * @param generation  Commit Generation
      * @param acquirerId  Acquirer ID for which lock needs to be released.
-     * @throws IOException         will be thrown in case i) listing lock files failed or ii) deleting the lock file failed.
-     * @throws NoSuchFileException when metadata file is not present for given commit point.
+     * @throws IOException  will be thrown in case i) listing lock files failed or ii) deleting the lock file failed.
      */
     @Override
     public void releaseLock(long primaryTerm, long generation, String acquirerId) throws IOException {
-        String metadataFile = getMetadataFileForCommit(primaryTerm, generation);
-        mdLockManager.release(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).withAcquirerId(acquirerId).build());
+        String metadataFilePrefix = MetadataFilenameUtils.getMetadataFilePrefixForCommit(primaryTerm, generation);
+        try {
+            String metadataFile = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLockedMetadataFile(metadataFilePrefix, acquirerId);
+            mdLockManager.release(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).withAcquirerId(acquirerId).build());
+        } catch (FileNotFoundException e) {
+            // Ignoring if the metadata file or the lock to be released is not present.
+            logger.info(
+                "No lock file found for acquirerId: {} during release lock operation for primaryTerm: {} and generation: {}",
+                primaryTerm,
+                generation,
+                acquirerId
+            );
+        }
     }
 
     /**
