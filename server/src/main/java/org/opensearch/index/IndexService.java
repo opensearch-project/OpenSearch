@@ -94,6 +94,7 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
@@ -183,8 +184,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private final Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier;
-    private final Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier;
     private final RecoverySettings recoverySettings;
+    private final RemoteStoreSettings remoteStoreSettings;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -219,8 +220,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
-        Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -296,8 +297,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         this.translogFactorySupplier = translogFactorySupplier;
-        this.clusterRemoteTranslogBufferIntervalSupplier = clusterRemoteTranslogBufferIntervalSupplier;
         this.recoverySettings = recoverySettings;
+        this.remoteStoreSettings = remoteStoreSettings;
         updateFsyncTaskIfNecessary();
     }
 
@@ -549,9 +550,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSettings.isSegRepEnabledOrRemoteNode() ? checkpointPublisher : null,
                 remoteStore,
                 remoteStoreStatsTrackerFactory,
-                clusterRemoteTranslogBufferIntervalSupplier,
                 nodeEnv.nodeId(),
                 recoverySettings,
+                remoteStoreSettings,
                 seedRemote
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
