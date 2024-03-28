@@ -60,9 +60,8 @@ public class RemoteStoreMigrationAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "remote_store_migration";
 
-    private Direction migrationDirection;
-    private CompatibilityMode compatibilityMode;
-    private boolean remoteStoreBackedIndex;
+    volatile private Direction migrationDirection;
+    volatile private CompatibilityMode compatibilityMode;
 
     public RemoteStoreMigrationAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.migrationDirection = RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING.get(settings);
@@ -106,9 +105,7 @@ public class RemoteStoreMigrationAllocationDecider extends AllocationDecider {
 
         // check for remote store backed indices
         IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-        if (IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.exists(indexMetadata.getSettings())) {
-            remoteStoreBackedIndex = IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexMetadata.getSettings());
-        }
+        boolean remoteStoreBackedIndex = IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexMetadata.getSettings());
         if (remoteStoreBackedIndex && targetNode.isRemoteStoreNode() == false) {
             // allocations and relocations must be to a remote node
             String reason = String.format(
