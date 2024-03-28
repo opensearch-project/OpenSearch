@@ -249,7 +249,21 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             ClusterService clusterService,
             RecoverySettings recoverySettings
         ) {
-            return new S3Repository(metadata, registry, service, clusterService, recoverySettings, null, null, null, null, null, false) {
+            return new S3Repository(
+                metadata,
+                registry,
+                service,
+                clusterService,
+                recoverySettings,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                null,
+                null
+            ) {
 
                 @Override
                 public BlobStore blobStore() {

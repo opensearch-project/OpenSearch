@@ -637,7 +637,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {}
         };
-        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener);
+        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener, false);
         assertTrue(latch.await(5000, TimeUnit.SECONDS));
         assertTrue(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
         storeDirectory.close();
@@ -681,7 +681,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
                 latch.countDown();
             }
         };
-        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener);
+        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener, false);
         assertTrue(latch.await(5000, TimeUnit.SECONDS));
         assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
 

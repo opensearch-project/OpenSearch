@@ -45,6 +45,7 @@ import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
+import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -94,6 +95,8 @@ class S3BlobStore implements BlobStore {
     private final AsyncExecutorContainer priorityExecutorBuilder;
     private final AsyncExecutorContainer normalExecutorBuilder;
     private final boolean multipartUploadEnabled;
+    private final SizeBasedBlockingQ otherPrioritySizeBasedBlockingQ;
+    private final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
 
     S3BlobStore(
         S3Service service,
@@ -109,7 +112,9 @@ class S3BlobStore implements BlobStore {
         AsyncTransferManager asyncTransferManager,
         AsyncExecutorContainer urgentExecutorBuilder,
         AsyncExecutorContainer priorityExecutorBuilder,
-        AsyncExecutorContainer normalExecutorBuilder
+        AsyncExecutorContainer normalExecutorBuilder,
+        SizeBasedBlockingQ otherPrioritySizeBasedBlockingQ,
+        SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ
     ) {
         this.service = service;
         this.s3AsyncService = s3AsyncService;
@@ -128,6 +133,8 @@ class S3BlobStore implements BlobStore {
         // Settings to initialize blobstore with.
         this.redirectLargeUploads = REDIRECT_LARGE_S3_UPLOAD.get(repositoryMetadata.settings());
         this.uploadRetryEnabled = UPLOAD_RETRY_ENABLED.get(repositoryMetadata.settings());
+        this.otherPrioritySizeBasedBlockingQ = otherPrioritySizeBasedBlockingQ;
+        this.lowPrioritySizeBasedBlockingQ = lowPrioritySizeBasedBlockingQ;
     }
 
     @Override
@@ -182,6 +189,14 @@ class S3BlobStore implements BlobStore {
 
     public int getBulkDeletesSize() {
         return bulkDeletesSize;
+    }
+
+    public SizeBasedBlockingQ getOtherPrioritySizeBasedBlockingQ() {
+        return otherPrioritySizeBasedBlockingQ;
+    }
+
+    public SizeBasedBlockingQ getLowPrioritySizeBasedBlockingQ() {
+        return lowPrioritySizeBasedBlockingQ;
     }
 
     @Override
