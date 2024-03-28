@@ -10,12 +10,14 @@ package org.opensearch.plugins;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.http.HttpServerTransport;
-import org.opensearch.transport.TcpTransport;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportAdapterProvider;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Optional;
 
 /**
@@ -26,57 +28,30 @@ import java.util.Optional;
 @ExperimentalApi
 public interface SecureTransportSettingsProvider {
     /**
-     * An exception handler for errors that might happen while secure transport handle the requests.
-     *
-     * @see <a href="https://github.com/opensearch-project/security/blob/main/src/main/java/org/opensearch/security/ssl/SslExceptionHandler.java">SslExceptionHandler</a>
-     *
-     * @opensearch.experimental
+     * Collection of additional {@link TransportAdapterProvider}s that are specific to particular transport
+     * @param settings settings
+     * @return a collection of additional {@link TransportAdapterProvider}s
      */
-    @ExperimentalApi
-    @FunctionalInterface
-    interface ServerExceptionHandler {
-        static ServerExceptionHandler NOOP = t -> {};
-
-        /**
-         * Handler for errors happening during the server side processing of the requests
-         * @param t the error
-         */
-        void onError(Throwable t);
+    default Collection<TransportAdapterProvider<Transport>> getTransportAdapterProviders(Settings settings) {
+        return Collections.emptyList();
     }
 
     /**
-     * If supported, builds the {@link ServerExceptionHandler} instance for {@link HttpServerTransport} instance
+     * If supported, builds the {@link TransportExceptionHandler} instance for {@link Transport} instance
      * @param settings settings
-     * @param transport {@link HttpServerTransport} instance
-     * @return if supported, builds the {@link ServerExceptionHandler} instance
+     * @param transport {@link Transport} instance
+     * @return if supported, builds the {@link TransportExceptionHandler} instance
      */
-    Optional<ServerExceptionHandler> buildHttpServerExceptionHandler(Settings settings, HttpServerTransport transport);
+    Optional<TransportExceptionHandler> buildServerTransportExceptionHandler(Settings settings, Transport transport);
 
     /**
-     * If supported, builds the {@link ServerExceptionHandler} instance for {@link TcpTransport} instance
+     * If supported, builds the {@link SSLEngine} instance for {@link Transport} instance
      * @param settings settings
-     * @param transport {@link TcpTransport} instance
-     * @return if supported, builds the {@link ServerExceptionHandler} instance
-     */
-    Optional<ServerExceptionHandler> buildServerTransportExceptionHandler(Settings settings, TcpTransport transport);
-
-    /**
-     * If supported, builds the {@link SSLEngine} instance for {@link HttpServerTransport} instance
-     * @param settings settings
-     * @param transport {@link HttpServerTransport} instance
+     * @param transport {@link Transport} instance
      * @return if supported, builds the {@link SSLEngine} instance
      * @throws SSLException throws SSLException if the {@link SSLEngine} instance cannot be built
      */
-    Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport) throws SSLException;
-
-    /**
-     * If supported, builds the {@link SSLEngine} instance for {@link TcpTransport} instance
-     * @param settings settings
-     * @param transport {@link TcpTransport} instance
-     * @return if supported, builds the {@link SSLEngine} instance
-     * @throws SSLException throws SSLException if the {@link SSLEngine} instance cannot be built
-     */
-    Optional<SSLEngine> buildSecureServerTransportEngine(Settings settings, TcpTransport transport) throws SSLException;
+    Optional<SSLEngine> buildSecureServerTransportEngine(Settings settings, Transport transport) throws SSLException;
 
     /**
      * If supported, builds the {@link SSLEngine} instance for client transport instance

@@ -42,6 +42,7 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
+import org.opensearch.plugins.TransportExceptionHandler;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.SharedGroupFactory;
@@ -72,7 +73,7 @@ public class SecureNetty4Transport extends Netty4Transport {
 
     private static final Logger logger = LogManager.getLogger(SecureNetty4Transport.class);
     private final SecureTransportSettingsProvider secureTransportSettingsProvider;
-    private final SecureTransportSettingsProvider.ServerExceptionHandler exceptionHandler;
+    private final TransportExceptionHandler exceptionHandler;
 
     public SecureNetty4Transport(
         final Settings settings,
@@ -100,7 +101,7 @@ public class SecureNetty4Transport extends Netty4Transport {
 
         this.secureTransportSettingsProvider = secureTransportSettingsProvider;
         this.exceptionHandler = secureTransportSettingsProvider.buildServerTransportExceptionHandler(settings, this)
-            .orElse(SecureTransportSettingsProvider.ServerExceptionHandler.NOOP);
+            .orElse(TransportExceptionHandler.NOOP);
     }
 
     @Override
