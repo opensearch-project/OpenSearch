@@ -1717,7 +1717,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     }
 
     // No translog data in local as well as remote, we skip creating empty translog
-    public void testDownloadWithNoTranlogInLocalAndRemote() throws IOException {
+    public void testDownloadWithNoTranslogInLocalAndRemote() throws IOException {
         Path location = createTempDir();
 
         TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
@@ -1732,7 +1732,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
     // No translog data in remote but non-empty translog is present in local. In this case, we delete all the files
     // from local file system and create empty translog
-    public void testDownloadWithTranlogOnlyInLocal() throws IOException {
+    public void testDownloadWithTranslogOnlyInLocal() throws IOException {
         TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = mock(RemoteTranslogTransferTracker.class);
         when(mockTransfer.readMetadata()).thenReturn(null);
@@ -1768,7 +1768,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     }
 
     // No translog data in remote and empty translog in local. We skip creating another empty translog
-    public void testDownloadWithEmptyTranlogOnlyInLocal() throws IOException {
+    public void testDownloadWithEmptyTranslogOnlyInLocal() throws IOException {
         TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = mock(RemoteTranslogTransferTracker.class);
         when(mockTransfer.readMetadata()).thenReturn(null);
