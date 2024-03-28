@@ -289,13 +289,16 @@ public class PrimaryShardBatchAllocatorTests extends OpenSearchAllocationTestCas
             if (data == null) {
                 data = new HashMap<>();
             }
-            Map<ShardId, TransportNodesGatewayStartedShardHelper.GatewayStartedShard> shardData = Map.of(
+            Map<ShardId, TransportNodesListGatewayStartedShardsBatch.GatewayStartedShard> shardData = Map.of(
                 shardId,
-                new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(
-                    allocationId,
-                    primary,
-                    replicationCheckpoint,
-                    storeException
+                new TransportNodesListGatewayStartedShardsBatch.GatewayStartedShard(
+                    new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(
+                        allocationId,
+                        primary,
+                        replicationCheckpoint,
+                        storeException
+                    ),
+                    null
                 )
             );
             data.put(node, new TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch(node, shardData));
@@ -313,14 +316,17 @@ public class PrimaryShardBatchAllocatorTests extends OpenSearchAllocationTestCas
             if (data == null) {
                 data = new HashMap<>();
             }
-            Map<ShardId, TransportNodesGatewayStartedShardHelper.GatewayStartedShard> shardData = new HashMap<>();
+            Map<ShardId, TransportNodesListGatewayStartedShardsBatch.GatewayStartedShard> shardData = new HashMap<>();
             shardData.put(
                 shardId,
-                new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(
-                    allocationId,
-                    primary,
-                    replicationCheckpoint,
-                    storeException
+                new TransportNodesListGatewayStartedShardsBatch.GatewayStartedShard(
+                    new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(
+                        allocationId,
+                        primary,
+                        replicationCheckpoint,
+                        storeException
+                    ),
+                    null
                 )
             );
             if (data.get(node) != null) shardData.putAll(data.get(node).getNodeGatewayStartedShardsBatch());

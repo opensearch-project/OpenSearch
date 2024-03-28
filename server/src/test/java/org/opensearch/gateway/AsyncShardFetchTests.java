@@ -92,8 +92,8 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
             HashMap<ShardId, ShardAttributes> shardToCustomDataPath = new HashMap<>();
             ShardId shardId0 = new ShardId("index1", "index_uuid1", 0);
             ShardId shardId1 = new ShardId("index2", "index_uuid2", 0);
-            shardToCustomDataPath.put(shardId0, new ShardAttributes(shardId0, ""));
-            shardToCustomDataPath.put(shardId1, new ShardAttributes(shardId1, ""));
+            shardToCustomDataPath.put(shardId0, new ShardAttributes(""));
+            shardToCustomDataPath.put(shardId1, new ShardAttributes(""));
             this.test = new TestFetch(threadPool, shardToCustomDataPath);
         }
     }

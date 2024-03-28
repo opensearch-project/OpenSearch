@@ -276,6 +276,11 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
             }
         }
 
+        boolean isEmpty(NodeStoreFilesMetadata response) {
+            return response.storeFilesMetadata() == null
+                || response.storeFilesMetadata().isEmpty() && response.getStoreFileFetchException() == null;
+        }
+
         public Exception getStoreFileFetchException() {
             return storeFileFetchException;
         }
