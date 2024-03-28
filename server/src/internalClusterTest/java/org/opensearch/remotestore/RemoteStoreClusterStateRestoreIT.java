@@ -8,16 +8,30 @@
 
 package org.opensearch.remotestore;
 
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.datastream.DataStreamRolloverIT;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.opensearch.action.admin.indices.template.put.PutComponentTemplateAction;
+import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.metadata.ComponentTemplate;
+import org.opensearch.cluster.metadata.ComponentTemplateMetadata;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
+import org.opensearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.metadata.Template;
+import org.opensearch.common.action.ActionFuture;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
@@ -29,11 +43,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_SETTING;
@@ -46,6 +62,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
+    static final String TEMPLATE_NAME = "remote-store-test-template";
+    static final String COMPONENT_TEMPLATE_NAME = "remote-component-template1";
+    static final String COMPOSABLE_TEMPLATE_NAME = "remote-composable-template1";
+    static final Setting<String> MOCK_SETTING = Setting.simpleString("mock-setting");
+    static final String[] EXCLUDED_NODES = { "ex-1", "ex-2" };
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -87,6 +108,45 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         Map<String, Long> indexStats = initialTestSetup(shardCount, replicaCount, dataNodeCount, 1);
         String prevClusterUUID = clusterService().state().metadata().clusterUUID();
         long prevClusterStateVersion = clusterService().state().version();
+        // Step - 1.1 Add some cluster state elements
+        ActionFuture<AcknowledgedResponse> response = client().admin()
+            .indices()
+            .preparePutTemplate(TEMPLATE_NAME)
+            .addAlias(new Alias(INDEX_NAME))
+            .setPatterns(Arrays.stream(INDEX_NAMES_WILDCARD.split(",")).collect(Collectors.toList()))
+            .execute();
+        assertTrue(response.get().isAcknowledged());
+        ActionFuture<ClusterUpdateSettingsResponse> clusterUpdateSettingsResponse = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(SETTING_READ_ONLY_SETTING.getKey(), false).build())
+            .execute();
+        assertTrue(clusterUpdateSettingsResponse.get().isAcknowledged());
+        // update coordination metadata
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(EXCLUDED_NODES));
+        // Add a custom metadata as component index template
+        ActionFuture<AcknowledgedResponse> componentTemplateResponse = client().execute(
+            PutComponentTemplateAction.INSTANCE,
+            new PutComponentTemplateAction.Request(COMPONENT_TEMPLATE_NAME).componentTemplate(
+                new ComponentTemplate(new Template(Settings.EMPTY, null, Collections.emptyMap()), 1L, Collections.emptyMap())
+            )
+        );
+        assertTrue(componentTemplateResponse.get().isAcknowledged());
+        ActionFuture<AcknowledgedResponse> composableTemplateResponse = client().execute(
+            PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request(COMPOSABLE_TEMPLATE_NAME).indexTemplate(
+                new ComposableIndexTemplate(
+                    Arrays.stream(INDEX_NAMES_WILDCARD.split(",")).collect(Collectors.toList()),
+                    new Template(Settings.EMPTY, null, Collections.emptyMap()),
+                    Collections.singletonList(COMPONENT_TEMPLATE_NAME),
+                    1L,
+                    1L,
+                    Collections.emptyMap(),
+                    null
+                )
+            )
+        );
+        assertTrue(composableTemplateResponse.get().isAcknowledged());
 
         // Step - 2 Replace all nodes in the cluster with new nodes. This ensures new cluster state doesn't have previous index metadata
         resetCluster(dataNodeCount, clusterManagerNodeCount);
@@ -104,7 +164,24 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         );
         validateMetadata(List.of(INDEX_NAME));
         verifyRedIndicesAndTriggerRestore(indexStats, INDEX_NAME, true);
-
+        clusterService().state()
+            .metadata()
+            .coordinationMetadata()
+            .getVotingConfigExclusions()
+            .stream()
+            .forEach(config -> assertTrue(Arrays.stream(EXCLUDED_NODES).anyMatch(node -> node.equals(config.getNodeId()))));
+        assertFalse(clusterService().state().metadata().templates().isEmpty());
+        assertTrue(clusterService().state().metadata().templates().containsKey(TEMPLATE_NAME));
+        assertFalse(clusterService().state().metadata().settings().isEmpty());
+        assertFalse(clusterService().state().metadata().settings().getAsBoolean(SETTING_READ_ONLY_SETTING.getKey(), true));
+        assertNotNull(clusterService().state().metadata().custom("component_template"));
+        ComponentTemplateMetadata componentTemplateMetadata = clusterService().state().metadata().custom("component_template");
+        assertFalse(componentTemplateMetadata.componentTemplates().isEmpty());
+        assertTrue(componentTemplateMetadata.componentTemplates().containsKey(COMPONENT_TEMPLATE_NAME));
+        assertNotNull(clusterService().state().metadata().custom("index_template"));
+        ComposableIndexTemplateMetadata composableIndexTemplate = clusterService().state().metadata().custom("index_template");
+        assertFalse(composableIndexTemplate.indexTemplates().isEmpty());
+        assertTrue(composableIndexTemplate.indexTemplates().containsKey(COMPOSABLE_TEMPLATE_NAME));
     }
 
     /**
