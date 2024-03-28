@@ -37,19 +37,27 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpHandlingSettings;
+import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.netty4.Netty4HttpChannel;
 import org.opensearch.http.netty4.Netty4HttpServerTransport;
-import org.opensearch.plugins.SecureTransportSettingsProvider;
+import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
+import org.opensearch.plugins.TransportExceptionHandler;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.SharedGroupFactory;
+import org.opensearch.transport.TransportAdapterProvider;
 import org.opensearch.transport.netty4.ssl.SslUtils;
 
 import javax.net.ssl.SSLEngine;
 
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.DecoderException;
 import io.netty.handler.ssl.ApplicationProtocolNames;
 import io.netty.handler.ssl.ApplicationProtocolNegotiationHandler;
@@ -59,9 +67,14 @@ import io.netty.handler.ssl.SslHandler;
  * @see <a href="https://github.com/opensearch-project/security/blob/d526c9f6c2a438c14db8b413148204510b9fe2e2/src/main/java/org/opensearch/security/ssl/http/netty/SecuritySSLNettyHttpServerTransport.java">SecuritySSLNettyHttpServerTransport</a>
  */
 public class SecureNetty4HttpServerTransport extends Netty4HttpServerTransport {
+    public static final String REQUEST_HEADER_VERIFIER = "HeaderVerifier";
+    public static final String REQUEST_DECOMPRESSOR = "RequestDecompressor";
+
     private static final Logger logger = LogManager.getLogger(SecureNetty4HttpServerTransport.class);
-    private final SecureTransportSettingsProvider secureTransportSettingsProvider;
-    private final SecureTransportSettingsProvider.ServerExceptionHandler exceptionHandler;
+    private final SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider;
+    private final TransportExceptionHandler exceptionHandler;
+    private final ChannelInboundHandlerAdapter headerVerifier;
+    private final TransportAdapterProvider<HttpServerTransport> decompressorProvider;
 
     public SecureNetty4HttpServerTransport(
         final Settings settings,
@@ -72,7 +85,7 @@ public class SecureNetty4HttpServerTransport extends Netty4HttpServerTransport {
         final Dispatcher dispatcher,
         final ClusterSettings clusterSettings,
         final SharedGroupFactory sharedGroupFactory,
-        final SecureTransportSettingsProvider secureTransportSettingsProvider,
+        final SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider,
         final Tracer tracer
     ) {
         super(
@@ -86,9 +99,45 @@ public class SecureNetty4HttpServerTransport extends Netty4HttpServerTransport {
             sharedGroupFactory,
             tracer
         );
-        this.secureTransportSettingsProvider = secureTransportSettingsProvider;
-        this.exceptionHandler = secureTransportSettingsProvider.buildHttpServerExceptionHandler(settings, this)
-            .orElse(SecureTransportSettingsProvider.ServerExceptionHandler.NOOP);
+
+        this.secureHttpTransportSettingsProvider = secureHttpTransportSettingsProvider;
+        this.exceptionHandler = secureHttpTransportSettingsProvider.buildHttpServerExceptionHandler(settings, this)
+            .orElse(TransportExceptionHandler.NOOP);
+
+        final List<ChannelInboundHandlerAdapter> headerVerifiers = secureHttpTransportSettingsProvider.getHttpTransportAdapterProviders(
+            settings
+        )
+            .stream()
+            .filter(p -> REQUEST_HEADER_VERIFIER.equalsIgnoreCase(p.name()))
+            .map(p -> p.create(settings, this, ChannelInboundHandlerAdapter.class))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
+
+        if (headerVerifiers.size() > 1) {
+            throw new IllegalArgumentException("Cannot have more than one header verifier configured, supplied " + headerVerifiers.size());
+        }
+
+        final Optional<TransportAdapterProvider<HttpServerTransport>> decompressorProviderOpt = secureHttpTransportSettingsProvider
+            .getHttpTransportAdapterProviders(settings)
+            .stream()
+            .filter(p -> REQUEST_DECOMPRESSOR.equalsIgnoreCase(p.name()))
+            .findFirst();
+        // There could be multiple request decompressor providers configured, using the first one
+        decompressorProviderOpt.ifPresent(p -> logger.debug("Using request decompressor provider: {}", p));
+
+        this.headerVerifier = headerVerifiers.isEmpty() ? null : headerVerifiers.get(0);
+        this.decompressorProvider = decompressorProviderOpt.orElseGet(() -> new TransportAdapterProvider<HttpServerTransport>() {
+            @Override
+            public String name() {
+                return REQUEST_DECOMPRESSOR;
+            }
+
+            @Override
+            public <C> Optional<C> create(Settings settings, HttpServerTransport transport, Class<C> adapterClass) {
+                return Optional.empty();
+            }
+        });
     }
 
     @Override
@@ -152,7 +201,7 @@ public class SecureNetty4HttpServerTransport extends Netty4HttpServerTransport {
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
 
-            final SSLEngine sslEngine = secureTransportSettingsProvider.buildSecureHttpServerEngine(
+            final SSLEngine sslEngine = secureHttpTransportSettingsProvider.buildSecureHttpServerEngine(
                 settings,
                 SecureNetty4HttpServerTransport.this
             ).orElseGet(SslUtils::createDefaultServerSSLEngine);
@@ -165,5 +214,18 @@ public class SecureNetty4HttpServerTransport extends Netty4HttpServerTransport {
         protected void configurePipeline(Channel ch) {
             ch.pipeline().addLast(new Http2OrHttpHandler());
         }
+    }
+
+    protected ChannelInboundHandlerAdapter createHeaderVerifier() {
+        if (headerVerifier != null) {
+            return headerVerifier;
+        } else {
+            return super.createHeaderVerifier();
+        }
+    }
+
+    @Override
+    protected ChannelInboundHandlerAdapter createDecompressor() {
+        return decompressorProvider.create(settings, this, ChannelInboundHandlerAdapter.class).orElseGet(super::createDecompressor);
     }
 }
