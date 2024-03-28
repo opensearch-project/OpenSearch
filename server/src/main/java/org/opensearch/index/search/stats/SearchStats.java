@@ -261,7 +261,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 queryConcurrency = in.readVLong();
             }
 
-            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_2_14_0)) {
                 searchIdleReactivateCount = in.readVLong();
             }
         }
@@ -475,7 +475,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 out.writeVLong(queryConcurrency);
             }
 
-            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_14_0)) {
                 out.writeVLong(searchIdleReactivateCount);
             }
         }
