@@ -32,6 +32,8 @@
 
 package org.opensearch.core.xcontent.filtering;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Glob;
 
 import java.util.ArrayList;
@@ -46,7 +48,7 @@ import java.util.Set;
 public class FilterPath {
 
     static final FilterPath EMPTY = new FilterPath();
-
+    private static final Logger logger = LogManager.getLogger(FilterPath.class);
     private final String filter;
     private final String segment;
     private final FilterPath next;
@@ -99,32 +101,31 @@ public class FilterPath {
 
         List<FilterPath> paths = new ArrayList<>();
         for (String filter : filters) {
-            if (filter != null) {
+            if (filter != null && !filter.isEmpty()) {
                 filter = filter.trim();
                 if (filter.length() > 0) {
-                    paths.add(parse(filter, filter));
+                    paths.add(parse(filter));
+                } else {
+                    logger.warn("Filter is empty!");
                 }
             }
         }
         return paths.toArray(new FilterPath[0]);
     }
 
-    private static FilterPath parse(final String filter, final String segment) {
-        int end = segment.length();
+    private static FilterPath parse(final String filter) {
+        // Split the filter into segments using a regex
+        // that avoids splitting escaped dots.
+        String[] segments = filter.split("(?<!\\\\)\\.");
+        FilterPath next = EMPTY;
 
-        for (int i = 0; i < end;) {
-            char c = segment.charAt(i);
-
-            if (c == '.') {
-                String current = segment.substring(0, i).replaceAll("\\\\.", ".");
-                return new FilterPath(filter, current, parse(filter, segment.substring(i + 1)));
-            }
-            ++i;
-            if ((c == '\\') && (i < end) && (segment.charAt(i) == '.')) {
-                ++i;
-            }
+        for (int i = segments.length - 1; i >= 0; i--) {
+            // Replace escaped dots with actual dots in the current segment.
+            String segment = segments[i].replaceAll("\\\\.", ".");
+            next = new FilterPath(filter, segment, next);
         }
-        return new FilterPath(filter, segment.replaceAll("\\\\.", "."), EMPTY);
+
+        return next;
     }
 
     @Override
