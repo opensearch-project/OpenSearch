@@ -722,7 +722,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 CpuBasedAdmissionControllerSettings.CLUSTER_ADMIN_CPU_USAGE_LIMIT,
                 IoBasedAdmissionControllerSettings.IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                 IoBasedAdmissionControllerSettings.SEARCH_IO_USAGE_LIMIT,
-                IoBasedAdmissionControllerSettings.INDEXING_IO_USAGE_LIMIT
+                IoBasedAdmissionControllerSettings.INDEXING_IO_USAGE_LIMIT,
 
                 // Concurrent segment search settings
                 SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING,
