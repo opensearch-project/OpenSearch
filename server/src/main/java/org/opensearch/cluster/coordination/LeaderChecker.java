@@ -119,17 +119,17 @@ public class LeaderChecker {
     private final TransportService transportService;
     private final Consumer<Exception> onLeaderFailure;
     private final NodeHealthService nodeHealthService;
-
     private AtomicReference<CheckScheduler> currentChecker = new AtomicReference<>();
-
     private volatile DiscoveryNodes discoveryNodes;
+    private final ClusterManagerMetrics clusterManagerMetrics;
 
     LeaderChecker(
         final Settings settings,
         final ClusterSettings clusterSettings,
         final TransportService transportService,
         final Consumer<Exception> onLeaderFailure,
-        NodeHealthService nodeHealthService
+        NodeHealthService nodeHealthService,
+        final ClusterManagerMetrics clusterManagerMetrics
     ) {
         this.settings = settings;
         leaderCheckInterval = LEADER_CHECK_INTERVAL_SETTING.get(settings);
@@ -138,6 +138,7 @@ public class LeaderChecker {
         this.transportService = transportService;
         this.onLeaderFailure = onLeaderFailure;
         this.nodeHealthService = nodeHealthService;
+        this.clusterManagerMetrics = clusterManagerMetrics;
         clusterSettings.addSettingsUpdateConsumer(LEADER_CHECK_TIMEOUT_SETTING, this::setLeaderCheckTimeout);
 
         transportService.registerRequestHandler(
@@ -293,7 +294,6 @@ public class LeaderChecker {
                             logger.debug("closed check scheduler received a response, doing nothing");
                             return;
                         }
-
                         failureCountSinceLastSuccess.set(0);
                         scheduleNextWakeUp(); // logs trace message indicating success
                     }
@@ -304,7 +304,6 @@ public class LeaderChecker {
                             logger.debug("closed check scheduler received a response, doing nothing");
                             return;
                         }
-
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
                             logger.debug(new ParameterizedMessage("leader [{}] disconnected during check", leader), exp);
                             leaderFailed(new ConnectTransportException(leader, "disconnected during check", exp));
@@ -359,6 +358,7 @@ public class LeaderChecker {
                     @Override
                     public void run() {
                         onLeaderFailure.accept(e);
+                        clusterManagerMetrics.incrementCounter(clusterManagerMetrics.leaderCheckFailureCounter, 1.0);
                     }
 
                     @Override

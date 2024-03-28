@@ -33,6 +33,7 @@ package org.opensearch.discovery;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.coordination.ClusterManagerMetrics;
 import org.opensearch.cluster.coordination.Coordinator;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -48,6 +49,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.plugins.DiscoveryPlugin;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -128,7 +130,8 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
             mock(RerouteService.class),
             null,
             new PersistedStateRegistry(),
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
         );
     }
 

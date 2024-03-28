@@ -89,6 +89,7 @@ import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
@@ -1180,7 +1181,8 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     getElectionStrategy(),
                     nodeHealthService,
                     persistedStateRegistry,
-                    remoteStoreNodeService
+                    remoteStoreNodeService,
+                    new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
                 );
                 clusterManagerService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(

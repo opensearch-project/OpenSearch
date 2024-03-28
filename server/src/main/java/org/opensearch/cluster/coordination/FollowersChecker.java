@@ -127,6 +127,7 @@ public class FollowersChecker {
     private final TransportService transportService;
     private final NodeHealthService nodeHealthService;
     private volatile FastResponseState fastResponseState;
+    private ClusterManagerMetrics clusterManagerMetrics;
 
     public FollowersChecker(
         Settings settings,
@@ -134,7 +135,8 @@ public class FollowersChecker {
         TransportService transportService,
         Consumer<FollowerCheckRequest> handleRequestAndUpdateState,
         BiConsumer<DiscoveryNode, String> onNodeFailure,
-        NodeHealthService nodeHealthService
+        NodeHealthService nodeHealthService,
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -161,6 +163,7 @@ public class FollowersChecker {
                 handleDisconnectedNode(node);
             }
         });
+        this.clusterManagerMetrics = clusterManagerMetrics;
     }
 
     private void setFollowerCheckTimeout(TimeValue followerCheckTimeout) {
@@ -426,6 +429,7 @@ public class FollowersChecker {
                         followerCheckers.remove(discoveryNode);
                     }
                     onNodeFailure.accept(discoveryNode, reason);
+                    clusterManagerMetrics.incrementCounter(clusterManagerMetrics.followerChecksFailureCounter, 1.0);
                 }
 
                 @Override

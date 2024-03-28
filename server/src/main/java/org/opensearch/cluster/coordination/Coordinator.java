@@ -207,7 +207,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         ElectionStrategy electionStrategy,
         NodeHealthService nodeHealthService,
         PersistedStateRegistry persistedStateRegistry,
-        RemoteStoreNodeService remoteStoreNodeService
+        RemoteStoreNodeService remoteStoreNodeService,
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -261,14 +262,22 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             this::handlePublishRequest,
             this::handleApplyCommit
         );
-        this.leaderChecker = new LeaderChecker(settings, clusterSettings, transportService, this::onLeaderFailure, nodeHealthService);
+        this.leaderChecker = new LeaderChecker(
+            settings,
+            clusterSettings,
+            transportService,
+            this::onLeaderFailure,
+            nodeHealthService,
+            clusterManagerMetrics
+        );
         this.followersChecker = new FollowersChecker(
             settings,
             clusterSettings,
             transportService,
             this::onFollowerCheckRequest,
             this::removeNode,
-            nodeHealthService
+            nodeHealthService,
+            clusterManagerMetrics
         );
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.clusterApplier = clusterApplier;
