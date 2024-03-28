@@ -39,6 +39,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.ObjectMapper.Dynamic;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.script.Script;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
@@ -438,6 +439,52 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             createIndex("test").mapperService().documentMapperParser().parse("", new CompressedXContent(mapping));
         });
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
+    public void testDerivedFields() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("tweet")
+            .startObject("derived")
+            .startObject("derived_field_name1")
+            .field("type", "boolean")
+            .endObject()
+            .startObject("derived_field_name2")
+            .field("type", "keyword")
+            .startObject("script")
+            .field("source", "doc['test'].value")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("properties")
+            .startObject("field_name")
+            .field("type", "date")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        DocumentMapper documentMapper = createIndex("test").mapperService()
+            .documentMapperParser()
+            .parse("tweet", new CompressedXContent(mapping));
+
+        Mapper mapper = documentMapper.root().getMapper("derived_field_name1");
+        assertTrue(mapper instanceof DerivedFieldMapper);
+        DerivedFieldMapper derivedFieldMapper = (DerivedFieldMapper) mapper;
+        assertEquals("boolean", derivedFieldMapper.getType());
+        assertNull(derivedFieldMapper.getScript());
+
+        mapper = documentMapper.root().getMapper("derived_field_name2");
+        assertTrue(mapper instanceof DerivedFieldMapper);
+        derivedFieldMapper = (DerivedFieldMapper) mapper;
+        assertEquals("keyword", derivedFieldMapper.getType());
+        assertEquals(Script.parse("doc['test'].value"), derivedFieldMapper.getScript());
+
+        // Check that field in properties was parsed correctly as well
+        mapper = documentMapper.root().getMapper("field_name");
+        assertNotNull(mapper);
+        assertEquals("date", mapper.typeName());
     }
 
     @Override
