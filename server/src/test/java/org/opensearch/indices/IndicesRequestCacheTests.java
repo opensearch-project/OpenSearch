@@ -753,6 +753,75 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         terminate(threadPool);
     }
 
+    public void testCacheCleanupBasedOnStaleThreshold_thresholdUpdate() throws Exception {
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexShard indexShard = createIndex("test").getShard(0);
+        ThreadPool threadPool = getThreadPool();
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%").build();
+        IndicesRequestCache cache = new IndicesRequestCache(settings, (shardId -> {
+            IndexService indexService = null;
+            try {
+                indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            } catch (IndexNotFoundException ex) {
+                return Optional.empty();
+            }
+            return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
+        }), new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(), threadPool, clusterService);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
+        if (randomBoolean()) {
+            writer.flush();
+            IOUtils.close(writer);
+            writer = new IndexWriter(dir, newIndexWriterConfig());
+        }
+        writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
+        DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+
+        // Get 2 entries into the cache
+        IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
+        Loader loader = new Loader(reader, 0);
+        cache.getOrCompute(entity, loader, reader, termBytes);
+
+        entity = new IndicesService.IndexShardCacheEntity(indexShard);
+        loader = new Loader(reader, 0);
+        cache.getOrCompute(entity, loader, reader, termBytes);
+
+        IndicesService.IndexShardCacheEntity secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
+        loader = new Loader(secondReader, 0);
+        cache.getOrCompute(entity, loader, secondReader, termBytes);
+
+        secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
+        loader = new Loader(secondReader, 0);
+        cache.getOrCompute(secondEntity, loader, secondReader, termBytes);
+        assertEquals(2, cache.count());
+
+        // Close the reader, to be enqueued for cleanup
+        // 1 out of 2 keys ie 50% are now stale.
+        reader.close();
+        // cache count should not be affected
+        assertEquals(2, cache.count());
+
+        // clean cache with 51% staleness threshold
+        cache.cacheCleanupManager.cleanCache();
+        // cleanup should have been ignored
+        assertEquals(2, cache.count());
+
+        cache.setStalenessThreshold("49%");
+        // clean cache with 49% staleness threshold
+        cache.cacheCleanupManager.cleanCache();
+        // cleanup should NOT have been ignored
+        assertEquals(1, cache.count());
+
+        IOUtils.close(secondReader, writer, dir, cache);
+        terminate(threadPool);
+    }
+
     public void testEviction() throws Exception {
         final ByteSizeValue size;
         {
