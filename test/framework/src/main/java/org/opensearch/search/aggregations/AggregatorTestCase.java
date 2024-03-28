@@ -97,6 +97,7 @@ import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.DerivedFieldMapper;
 import org.opensearch.index.mapper.FieldAliasMapper;
 import org.opensearch.index.mapper.FieldMapper;
 import org.opensearch.index.mapper.GeoPointFieldMapper;
@@ -198,6 +199,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         denylist.add(ObjectMapper.NESTED_CONTENT_TYPE); // TODO support for nested
         denylist.add(CompletionFieldMapper.CONTENT_TYPE); // TODO support completion
         denylist.add(FieldAliasMapper.CONTENT_TYPE); // TODO support alias
+        denylist.add(DerivedFieldMapper.CONTENT_TYPE); // TODO support derived fields
         TYPE_TEST_DENYLIST = denylist;
     }
 
