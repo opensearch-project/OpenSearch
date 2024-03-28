@@ -82,4 +82,24 @@ public class NoopSpan implements Span {
     public String getSpanId() {
         return "noop-span-id";
     }
+
+    @Override
+    public String getAttributeString(String key) {
+        return "";
+    }
+
+    @Override
+    public Boolean getAttributeBoolean(String key) {
+        return false;
+    }
+
+    @Override
+    public Long getAttributeLong(String key) {
+        return 0L;
+    }
+
+    @Override
+    public Double getAttributeDouble(String key) {
+        return 0.0;
+    }
 }

@@ -13,6 +13,7 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.telemetry.tracing.TracerContextStorage;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 
@@ -69,19 +70,23 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
     @Override
     public void handleResponse(T response) {
         try (SpanScope scope = tracer.withSpanInScope(span)) {
-            delegate.handleResponse(response);
-        } finally {
+            if (response.sampled()) {
+                span.addAttribute(TracerContextStorage.SAMPLED, true);
+            }
             span.endSpan();
+        } finally {
+            delegate.handleResponse(response);
         }
     }
 
     @Override
     public void handleException(TransportException exp) {
         try (SpanScope scope = tracer.withSpanInScope(span)) {
-            delegate.handleException(exp);
-        } finally {
+            span.addAttribute(TracerContextStorage.SAMPLED, true);
             span.setError(exp);
             span.endSpan();
+        } finally {
+            delegate.handleException(exp);
         }
     }
 
@@ -98,10 +103,11 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
     @Override
     public void handleRejection(Exception exp) {
         try (SpanScope scope = tracer.withSpanInScope(span)) {
-            delegate.handleRejection(exp);
-        } finally {
+            span.addAttribute(TracerContextStorage.SAMPLED, true);
             span.setError(exp);
             span.endSpan();
+        } finally {
+            delegate.handleRejection(exp);
         }
     }
 }

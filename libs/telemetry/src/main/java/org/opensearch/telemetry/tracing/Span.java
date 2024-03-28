@@ -93,4 +93,31 @@ public interface Span {
      */
     String getSpanId();
 
+    /**
+     * *
+     * @param key for which we need to look for value
+     * @return string attribute value
+     */
+    String getAttributeString(String key);
+
+    /**
+     * *
+     * @param key for which we need to look for value
+     * @return Boolean attribute value
+     */
+    Boolean getAttributeBoolean(String key);
+
+    /**
+     * *
+     * @param key for which we need to look for value
+     * @return Long attribute value
+     */
+    Long getAttributeLong(String key);
+
+    /**
+     * *
+     * @param key for which we need to look for value
+     * @return Double attribute value
+     */
+    Double getAttributeDouble(String key);
 }

@@ -52,8 +52,9 @@ class DefaultTracer implements Tracer {
         } else {
             parentSpan = getCurrentSpanInternal();
         }
+
         Span span = createSpan(context, parentSpan);
-        addDefaultAttributes(span);
+        addDefaultAttributes(parentSpan, span);
         return span;
     }
 
@@ -97,14 +98,33 @@ class DefaultTracer implements Tracer {
      * Adds default attributes in the span
      * @param span the current active span
      */
-    protected void addDefaultAttributes(Span span) {
+    protected void addDefaultAttributes(Span parentSpan, Span span) {
+        addCommonParentAttributes(parentSpan, span);
         span.addAttribute(THREAD_NAME, Thread.currentThread().getName());
     }
 
     @Override
     public Span startSpan(SpanCreationContext spanCreationContext, Map<String, Collection<String>> headers) {
         Optional<Span> propagatedSpan = tracingTelemetry.getContextPropagator().extractFromHeaders(headers);
+        addRequestAttributeToContext(spanCreationContext, headers);
         return startSpan(spanCreationContext.parent(propagatedSpan.map(SpanContext::new).orElse(null)));
     }
 
+    private void addRequestAttributeToContext(SpanCreationContext spanCreationContext, Map<String, Collection<String>> headers) {
+        if (headers != null && headers.containsKey(TracerContextStorage.INFERRED_SAMPLER)) {
+            spanCreationContext.getAttributes().addAttribute(TracerContextStorage.INFERRED_SAMPLER, true);
+        }
+    }
+
+    private void addCommonParentAttributes(Span parentSpan, Span currentSpan) {
+        // This work as common attribute propagator from parent to child
+        if (parentSpan != null) {
+            Optional<Boolean> inferredAttribute = Optional.ofNullable(
+                parentSpan.getAttributeBoolean(TracerContextStorage.INFERRED_SAMPLER)
+            );
+            if (inferredAttribute.isPresent()) {
+                currentSpan.addAttribute(TracerContextStorage.INFERRED_SAMPLER, true);
+            }
+        }
+    }
 }

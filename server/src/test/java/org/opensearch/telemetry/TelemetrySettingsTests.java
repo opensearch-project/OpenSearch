@@ -15,12 +15,16 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.Set;
 
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
+import static org.opensearch.telemetry.TelemetrySettings.TRACER_INFERRED_SAMPLER_ALLOWLISTED;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_PROBABILITY;
 
 public class TelemetrySettingsTests extends OpenSearchTestCase {
 
     public void testSetTracingEnabledOrDisabled() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_INFERRED_SAMPLER_ALLOWLISTED)
+        );
         TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
 
         // Validation for tracingEnabled as true
@@ -33,7 +37,10 @@ public class TelemetrySettingsTests extends OpenSearchTestCase {
     }
 
     public void testSetSamplingProbability() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_INFERRED_SAMPLER_ALLOWLISTED)
+        );
         TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
 
         // Validating default sample rate i.e 1%
@@ -49,7 +56,10 @@ public class TelemetrySettingsTests extends OpenSearchTestCase {
     }
 
     public void testGetSamplingProbability() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_INFERRED_SAMPLER_ALLOWLISTED)
+        );
         TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
 
         // Validating default value of Sampling is 1%
