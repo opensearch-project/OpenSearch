@@ -322,7 +322,7 @@ public interface SearchOperationListener {
                 try {
                     listener.onSearchIdleReactivation();
                 } catch (Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("onNewSearchIdleReactivation listener [{}] failed", listener), e);
+                    logger.warn(() -> new ParameterizedMessage("onSearchIdleReactivation listener [{}] failed", listener), e);
                 }
             }
         }
