@@ -158,6 +158,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE)
     );
 
+    public static final ClusterBlock INDEX_WRITE_ONLY_ALLOW_DELETE_BLOCK = new ClusterBlock(
+        14,
+        "Index cannot be written. Only reads and deletes allowed",
+        false,
+        false,
+        true,
+        RestStatus.FORBIDDEN,
+        EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE)
+    );
+
     /**
      * The state of the index.
      *
@@ -461,7 +471,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         READ("read", INDEX_READ_BLOCK),
         WRITE("write", INDEX_WRITE_BLOCK),
         METADATA("metadata", INDEX_METADATA_BLOCK),
-        READ_ONLY_ALLOW_DELETE("read_only_allow_delete", INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+        READ_ONLY_ALLOW_DELETE("read_only_allow_delete", INDEX_READ_ONLY_ALLOW_DELETE_BLOCK),
+        WRITE_ONLY_ALLOW_DELETE("write_only_allow_delete", INDEX_WRITE_ONLY_ALLOW_DELETE_BLOCK);
 
         final String name;
         final String settingName;
@@ -529,6 +540,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_READ_ONLY_ALLOW_DELETE = APIBlock.READ_ONLY_ALLOW_DELETE.settingName();
     public static final Setting<Boolean> INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING = APIBlock.READ_ONLY_ALLOW_DELETE.setting();
+    public static final Setting<Boolean> INDEX_BLOCKS_WRITE_ONLY_ALLOW_DELETE_SETTING = APIBlock.WRITE_ONLY_ALLOW_DELETE.setting();
+    public static final String SETTING_WRITE_ONLY_ALLOW_DELETE = APIBlock.WRITE_ONLY_ALLOW_DELETE.settingName();
 
     public static final String SETTING_VERSION_CREATED = "index.version.created";
 

@@ -68,6 +68,7 @@ import static java.util.stream.Collectors.toList;
 import static org.opensearch.action.support.IndicesOptions.lenientExpandOpen;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_WRITE_ONLY_ALLOW_DELETE;
 import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertBlocked;
@@ -201,6 +202,16 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
         assertThat(settingsResponse, notNullValue());
     }
 
+    private void setIndexWriteOnlyDeleteAllow(String index, Object value) {
+        HashMap<String, Object> newSettings = new HashMap<>();
+        newSettings.put(SETTING_WRITE_ONLY_ALLOW_DELETE, value);
+
+        UpdateSettingsRequestBuilder settingsRequest = client().admin().indices().prepareUpdateSettings(index);
+        settingsRequest.setSettings(newSettings);
+        AcknowledgedResponse settingsResponse = settingsRequest.execute().actionGet();
+        assertThat(settingsResponse, notNullValue());
+    }
+
     public void testAddBlocksWhileExistingBlocks() {
         createIndex("test");
         ensureGreen("test");
@@ -223,7 +234,12 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
                 }
             }
 
-            for (APIBlock block : Arrays.asList(APIBlock.READ_ONLY, APIBlock.METADATA, APIBlock.READ_ONLY_ALLOW_DELETE)) {
+            for (APIBlock block : Arrays.asList(
+                APIBlock.READ_ONLY,
+                APIBlock.METADATA,
+                APIBlock.READ_ONLY_ALLOW_DELETE,
+                APIBlock.WRITE_ONLY_ALLOW_DELETE
+            )) {
                 boolean success = false;
                 try {
                     enableIndexBlock("test", block.settingName());
@@ -540,6 +556,33 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
                 }
             }
         }
+    }
+
+    public void testVerifyIndexWriteOnlyAllowDelete() {
+        // newly created an index has no plocks
+        canCreateIndex("test1");
+        canIndexDocument("test1");
+        canIndexExists("test1");
+
+        // adds index write-only-allow-delete block
+        setIndexWriteOnlyDeleteAllow("test1", "true");
+        assertIndexHasBlock(APIBlock.WRITE_ONLY_ALLOW_DELETE, "test1");
+        canNotIndexDocument("test1");
+        canIndexExists("test1");
+
+        // other indices not blocked
+        canCreateIndex("test2");
+        canIndexDocument("test2");
+        canIndexExists("test2");
+
+        // assert index can be deleted
+        assertAcked(client().admin().indices().prepareDelete("test1"));
+
+        // assert block can be removed
+        setIndexWriteOnlyDeleteAllow("test2", "true");
+        assertIndexHasBlock(APIBlock.WRITE_ONLY_ALLOW_DELETE, "test2");
+        setIndexWriteOnlyDeleteAllow("test2", "false");
+        canIndexDocument("test2");
     }
 
     static void assertIndexHasBlock(APIBlock block, final String... indices) {

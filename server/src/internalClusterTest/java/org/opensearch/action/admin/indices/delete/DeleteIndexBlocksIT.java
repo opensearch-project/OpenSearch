@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.delete;
 
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -56,35 +57,10 @@ public class DeleteIndexBlocksIT extends OpenSearchIntegTestCase {
     }
 
     public void testDeleteIndexOnIndexReadOnlyAllowDeleteSetting() {
-        createIndex("test");
-        ensureGreen("test");
-        client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar").get();
-        refresh();
-        try {
-            Settings settings = Settings.builder().put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, true).build();
-            assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get());
-            assertSearchHits(client().prepareSearch().get(), "1");
-            assertBlocked(
-                client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"),
-                IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
-            );
-            assertBlocked(
-                client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 2)),
-                IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
-            );
-            assertSearchHits(client().prepareSearch().get(), "1");
-            assertAcked(client().admin().indices().prepareDelete("test"));
-        } finally {
-            Settings settings = Settings.builder().putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE).build();
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings("test")
-                    .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                    .setSettings(settings)
-                    .get()
-            );
-        }
+        assertDeleteIndexOnAllowDeleteSetting(
+            IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE,
+            IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
+        );
     }
 
     public void testClusterBlockMessageHasIndexName() {
@@ -135,6 +111,42 @@ public class DeleteIndexBlocksIT extends OpenSearchIntegTestCase {
         } finally {
             Settings settings = Settings.builder().putNull(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey()).build();
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+        }
+    }
+
+    public void testDeleteIndexOnIndexWriteOnlyAllowDeleteSetting() {
+        assertDeleteIndexOnAllowDeleteSetting(
+            IndexMetadata.SETTING_WRITE_ONLY_ALLOW_DELETE,
+            IndexMetadata.INDEX_WRITE_ONLY_ALLOW_DELETE_BLOCK
+        );
+    }
+
+    private void assertDeleteIndexOnAllowDeleteSetting(String settingName, ClusterBlock blockToAssert) {
+        createIndex("test");
+        ensureGreen("test");
+        client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar").get();
+        refresh();
+        try {
+            Settings settings = Settings.builder().put(settingName, true).build();
+            assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get());
+            assertSearchHits(client().prepareSearch().get(), "1");
+            assertBlocked(client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"), blockToAssert);
+            assertBlocked(
+                client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 2)),
+                blockToAssert
+            );
+            assertSearchHits(client().prepareSearch().get(), "1");
+            assertAcked(client().admin().indices().prepareDelete("test"));
+        } finally {
+            Settings settings = Settings.builder().putNull(settingName).build();
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                    .setSettings(settings)
+                    .get()
+            );
         }
     }
 }

@@ -80,6 +80,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_WRITE_ONLY_ALLOW_DELETE;
 import static org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertBlocked;
@@ -557,7 +558,8 @@ public class ClusterRerouteIT extends OpenSearchIntegTestCase {
             SETTING_BLOCKS_WRITE,
             SETTING_READ_ONLY,
             SETTING_BLOCKS_METADATA,
-            SETTING_READ_ONLY_ALLOW_DELETE
+            SETTING_READ_ONLY_ALLOW_DELETE,
+            SETTING_WRITE_ONLY_ALLOW_DELETE
         )) {
             try {
                 enableIndexBlock("test-blocks", blockSetting);

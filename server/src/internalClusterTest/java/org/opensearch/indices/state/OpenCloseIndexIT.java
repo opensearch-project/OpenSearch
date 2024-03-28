@@ -60,6 +60,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_WRITE_ONLY_ALLOW_DELETE;
 import static org.opensearch.indices.state.CloseIndexIT.assertIndexIsClosed;
 import static org.opensearch.indices.state.CloseIndexIT.assertIndexIsOpened;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -375,7 +376,12 @@ public class OpenCloseIndexIT extends OpenSearchIntegTestCase {
         assertIndexIsClosed("test");
 
         // Opening an index is blocked
-        for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_READ_ONLY_ALLOW_DELETE, SETTING_BLOCKS_METADATA)) {
+        for (String blockSetting : Arrays.asList(
+            SETTING_READ_ONLY,
+            SETTING_READ_ONLY_ALLOW_DELETE,
+            SETTING_BLOCKS_METADATA,
+            SETTING_WRITE_ONLY_ALLOW_DELETE
+        )) {
             try {
                 enableIndexBlock("test", blockSetting);
                 assertBlocked(client().admin().indices().prepareOpen("test"));
