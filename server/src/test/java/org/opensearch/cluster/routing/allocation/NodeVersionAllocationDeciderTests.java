@@ -56,6 +56,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
+import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
@@ -440,9 +441,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode).add(oldNode1).add(oldNode2))
             .build();
-        AllocationDeciders allocationDeciders = new AllocationDeciders(
-            Collections.singleton(new NodeVersionAllocationDecider(Settings.EMPTY))
-        );
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Collections.singleton(new NodeVersionAllocationDecider()));
         AllocationService strategy = new MockAllocationService(
             allocationDeciders,
             new TestGatewayAllocator(),
@@ -512,7 +511,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             .nodes(DiscoveryNodes.builder().add(newNode).add(oldNode1).add(oldNode2))
             .build();
         AllocationDeciders allocationDeciders = new AllocationDeciders(
-            Arrays.asList(new ReplicaAfterPrimaryActiveAllocationDecider(), new NodeVersionAllocationDecider(Settings.EMPTY))
+            Arrays.asList(new ReplicaAfterPrimaryActiveAllocationDecider(), new NodeVersionAllocationDecider())
         );
         AllocationService strategy = new MockAllocationService(
             allocationDeciders,
@@ -647,9 +646,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode1).add(newNode2).add(oldNode1).add(oldNode2))
             .build();
-        AllocationDeciders allocationDeciders = new AllocationDeciders(
-            Collections.singleton(new NodeVersionAllocationDecider(segmentReplicationSettings))
-        );
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Collections.singleton(new NodeVersionAllocationDecider()));
         AllocationService strategy = new MockAllocationService(
             allocationDeciders,
             new TestGatewayAllocator(),
@@ -668,6 +665,98 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
         assertThat(
             state.routingTable().index(shard1.getIndex()).shardsWithState(ShardRoutingState.RELOCATING).get(0).primary(),
             equalTo(false)
+        );
+    }
+
+    public void testCanAllocatePrimaryOnHigherVersionNodesDocRepEnabled() {
+        ShardId shard1 = new ShardId("test1", "_na_", 0);
+        final DiscoveryNode newNode1 = new DiscoveryNode(
+            "newNode1",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            CLUSTER_MANAGER_DATA_ROLES,
+            Version.CURRENT
+        );
+        final DiscoveryNode oldNode1 = new DiscoveryNode(
+            "oldNode1",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            CLUSTER_MANAGER_DATA_ROLES,
+            VersionUtils.getPreviousVersion()
+        );
+        final DiscoveryNode oldNode2 = new DiscoveryNode(
+            "oldNode2",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            CLUSTER_MANAGER_DATA_ROLES,
+            VersionUtils.getPreviousVersion()
+        );
+        AllocationId allocationId1P = AllocationId.newInitializing();
+        AllocationId allocationId1R = AllocationId.newInitializing();
+
+        Settings documentReplicationSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
+            .build();
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder(shard1.getIndexName())
+                    .settings(settings(Version.CURRENT).put(documentReplicationSettings))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+                    .putInSyncAllocationIds(0, Sets.newHashSet(allocationId1P.getId(), allocationId1R.getId()))
+            )
+            .build();
+        RoutingTable routingTable = RoutingTable.builder()
+            .add(
+                IndexRoutingTable.builder(shard1.getIndex())
+                    .addIndexShard(
+                        new IndexShardRoutingTable.Builder(shard1).addShard(
+                            TestShardRouting.newShardRouting(
+                                shard1.getIndexName(),
+                                shard1.getId(),
+                                oldNode1.getId(),
+                                null,
+                                true,
+                                ShardRoutingState.STARTED,
+                                allocationId1P
+                            )
+                        )
+                            .addShard(
+                                TestShardRouting.newShardRouting(
+                                    shard1.getIndexName(),
+                                    shard1.getId(),
+                                    oldNode2.getId(),
+                                    null,
+                                    false,
+                                    ShardRoutingState.STARTED,
+                                    allocationId1R
+                                )
+                            )
+                            .build()
+                    )
+            )
+            .build();
+        ClusterState state = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(newNode1).add(oldNode1).add(oldNode2))
+            .build();
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Collections.singleton(new NodeVersionAllocationDecider()));
+        AllocationService strategy = new MockAllocationService(
+            allocationDeciders,
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
+        // move the primary shard to the node with higher version
+        AllocationCommands allocationCommands = new AllocationCommands(new MoveAllocationCommand("test1", 0, "oldNode1", "newNode1"));
+        state = strategy.reroute(state, allocationCommands, true, false).getClusterState();
+        // the primary shard will be moved successfully
+        assertThat(state.routingTable().index(shard1.getIndex()).shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(1));
+        assertThat(
+            state.routingTable().index(shard1.getIndex()).shardsWithState(ShardRoutingState.RELOCATING).get(0).primary(),
+            equalTo(true)
         );
     }
 
@@ -771,7 +860,7 @@ public class NodeVersionAllocationDeciderTests extends OpenSearchAllocationTestC
         RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, null, null, 0);
         routingAllocation.debugDecision(true);
 
-        final NodeVersionAllocationDecider allocationDecider = new NodeVersionAllocationDecider(Settings.EMPTY);
+        final NodeVersionAllocationDecider allocationDecider = new NodeVersionAllocationDecider();
         Decision decision = allocationDecider.canAllocate(primaryShard, newNode, routingAllocation);
         assertThat(decision.type(), is(Decision.Type.YES));
         assertThat(decision.getExplanation(), is("the primary shard is new or already existed on the node"));
