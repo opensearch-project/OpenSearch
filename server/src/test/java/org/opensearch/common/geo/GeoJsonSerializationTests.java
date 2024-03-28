@@ -56,6 +56,7 @@ import java.util.function.Supplier;
 import static org.opensearch.geo.GeometryTestUtils.randomCircle;
 import static org.opensearch.geo.GeometryTestUtils.randomGeometryCollection;
 import static org.opensearch.geo.GeometryTestUtils.randomLine;
+import static org.opensearch.geo.GeometryTestUtils.randomLinearRing;
 import static org.opensearch.geo.GeometryTestUtils.randomMultiLine;
 import static org.opensearch.geo.GeometryTestUtils.randomMultiPoint;
 import static org.opensearch.geo.GeometryTestUtils.randomMultiPolygon;
@@ -119,6 +120,10 @@ public class GeoJsonSerializationTests extends OpenSearchTestCase {
 
     public void testLineString() throws IOException {
         xContentTest(() -> randomLine(randomBoolean()));
+    }
+
+    public void testLinearRing() throws IOException {
+        xContentTest(() -> randomLinearRing(randomBoolean()));
     }
 
     public void testMultiLineString() throws IOException {
