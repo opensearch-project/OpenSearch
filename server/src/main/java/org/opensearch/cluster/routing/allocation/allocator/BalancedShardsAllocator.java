@@ -182,7 +182,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         setShardBalanceFactor(SHARD_BALANCE_FACTOR_SETTING.get(settings));
         setIndexBalanceFactor(INDEX_BALANCE_FACTOR_SETTING.get(settings));
         setPreferPrimaryShardRebalanceBuffer(PRIMARY_SHARD_REBALANCE_BUFFER.get(settings));
-        setWeightFunction();
+        updateWeightFunction();
         setThreshold(THRESHOLD_SETTING.get(settings));
         setPreferPrimaryShardBalance(PREFER_PRIMARY_SHARD_BALANCE.get(settings));
         setPreferPrimaryShardRebalance(PREFER_PRIMARY_SHARD_REBALANCE.get(settings));
@@ -232,20 +232,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     private void updateIndexBalanceFactor(float indexBalanceFactor) {
         this.indexBalanceFactor = indexBalanceFactor;
-        setWeightFunction();
+        updateWeightFunction();
     }
 
     private void updateShardBalanceFactor(float shardBalanceFactor) {
         this.shardBalanceFactor = shardBalanceFactor;
-        setWeightFunction();
+        updateWeightFunction();
     }
 
     private void updatePreferPrimaryShardBalanceBuffer(float preferPrimaryShardBalanceBuffer) {
         this.preferPrimaryShardRebalanceBuffer = preferPrimaryShardBalanceBuffer;
-        setWeightFunction();
+        updateWeightFunction();
     }
 
-    private void setWeightFunction() {
+    private void updateWeightFunction() {
         weightFunction = new WeightFunction(this.indexBalanceFactor, this.shardBalanceFactor, this.preferPrimaryShardRebalanceBuffer);
     }
 
