@@ -46,6 +46,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedSupplier;
+import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.module.CacheModule;
@@ -534,7 +535,13 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             readerCacheKeyId
         );
 
-        cache.onRemoval(new RemovalNotification<IndicesRequestCache.Key, BytesReference>(key, termBytes, RemovalReason.EVICTED));
+        cache.onRemoval(
+            new RemovalNotification<ICacheKey<IndicesRequestCache.Key>, BytesReference>(
+                new ICacheKey<>(key),
+                termBytes,
+                RemovalReason.EVICTED
+            )
+        );
         staleKeysCount = cache.cacheCleanupManager.getStaleKeysCount();
         // eviction of previous stale key from the cache should decrement staleKeysCount in iRC
         assertEquals(0, staleKeysCount.get());
@@ -607,7 +614,13 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             readerCacheKeyId
         );
 
-        cache.onRemoval(new RemovalNotification<IndicesRequestCache.Key, BytesReference>(key, termBytes, RemovalReason.EVICTED));
+        cache.onRemoval(
+            new RemovalNotification<ICacheKey<IndicesRequestCache.Key>, BytesReference>(
+                new ICacheKey<>(key),
+                termBytes,
+                RemovalReason.EVICTED
+            )
+        );
         staleKeysCount = cache.cacheCleanupManager.getStaleKeysCount();
         // eviction of NON-stale key from the cache should NOT decrement staleKeysCount in iRC
         assertEquals(1, staleKeysCount.get());
@@ -770,14 +783,15 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             assertEquals("foo", value1.streamInput().readString());
             BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, secondReader, termBytes);
             assertEquals("bar", value2.streamInput().readString());
-            size = indexShard.requestCache().stats().getMemorySize();
+            size = new ByteSizeValue(cache.getSizeInBytes());
             IOUtils.close(reader, secondReader, writer, dir, cache);
             terminate(threadPool);
         }
         IndexShard indexShard = createIndex("test1").getShard(0);
         ThreadPool threadPool = getThreadPool();
         IndicesRequestCache cache = new IndicesRequestCache(
-            Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.getBytes() + 1 + "b").build(),
+            // Add 5 instead of 1; the key size now depends on the length of dimension names and values so there's more variation
+            Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.getBytes() + 5 + "b").build(),
             (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
             new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
             threadPool

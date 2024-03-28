@@ -896,6 +896,10 @@ public class Cache<K, V> {
         }
     }
 
+    public ToLongBiFunction<K, V> getWeigher() {
+        return weigher;
+    }
+
     private CacheSegment<K, V> getCacheSegment(K key) {
         return segments[key.hashCode() & 0xff];
     }

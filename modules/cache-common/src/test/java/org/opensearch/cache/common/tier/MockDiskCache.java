@@ -10,11 +10,13 @@ package org.opensearch.cache.common.tier;
 
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
+import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.serializer.Serializer;
+import org.opensearch.common.cache.stats.CacheStats;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 
@@ -23,27 +25,27 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class MockDiskCache<K, V> implements ICache<K, V> {
 
-    Map<K, V> cache;
+    Map<ICacheKey<K>, V> cache;
     int maxSize;
     long delay;
 
-    private final RemovalListener<K, V> removalListener;
+    private final RemovalListener<ICacheKey<K>, V> removalListener;
 
-    public MockDiskCache(int maxSize, long delay, RemovalListener<K, V> removalListener) {
+    public MockDiskCache(int maxSize, long delay, RemovalListener<ICacheKey<K>, V> removalListener) {
         this.maxSize = maxSize;
         this.delay = delay;
         this.removalListener = removalListener;
-        this.cache = new ConcurrentHashMap<K, V>();
+        this.cache = new ConcurrentHashMap<ICacheKey<K>, V>();
     }
 
     @Override
-    public V get(K key) {
+    public V get(ICacheKey<K> key) {
         V value = cache.get(key);
         return value;
     }
 
     @Override
-    public void put(K key, V value) {
+    public void put(ICacheKey<K> key, V value) {
         if (this.cache.size() >= maxSize) { // For simplification
             this.removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EVICTED));
         }
@@ -56,7 +58,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
     }
 
     @Override
-    public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) {
+    public V computeIfAbsent(ICacheKey<K> key, LoadAwareCacheLoader<ICacheKey<K>, V> loader) {
         V value = cache.computeIfAbsent(key, key1 -> {
             try {
                 return loader.load(key);
@@ -68,7 +70,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
     }
 
     @Override
-    public void invalidate(K key) {
+    public void invalidate(ICacheKey<K> key) {
         this.cache.remove(key);
     }
 
@@ -78,7 +80,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
     }
 
     @Override
-    public Iterable<K> keys() {
+    public Iterable<ICacheKey<K>> keys() {
         return this.cache.keySet();
     }
 
@@ -89,6 +91,11 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
 
     @Override
     public void refresh() {}
+
+    @Override
+    public CacheStats stats() {
+        return null;
+    }
 
     @Override
     public void close() {
