@@ -1317,11 +1317,11 @@ public abstract class Engine implements LifecycleAware, Closeable {
                         }
                     }
 
-                    // If cleanup of unreferenced flag is enabled and force merge or regular merge failed due to IOException,
-                    // clean all unreferenced files on best effort basis created during failed merge and reset the
-                    // shard state back to last Lucene Commit.
-                    if (shouldCleanupUnreferencedFiles() && isMergeFailureDueToIOException(failure, reason)) {
-                        logger.info("Cleaning up unreferenced files as merge failed due to: {}", reason);
+                    // If cleanup of unreferenced file flag is enabled and any operation failed due to IOException,
+                    // clean up all unreferenced files on best effort basis created during failed merge and reset the
+                    // shard state back to last Lucene Commit
+                    if (shouldCleanupUnreferencedFiles() && isOperationFailureDueToIOException(failure)) {
+                        logger.info("Cleaning up unreferenced files created during failed merge due to: {}", reason);
                         cleanUpUnreferencedFiles();
                     }
 
@@ -1365,10 +1365,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
         }
     }
 
-    /** Check whether the merge failure happened due to IOException. */
-    private boolean isMergeFailureDueToIOException(Exception failure, String reason) {
-        return (reason.equals(FORCE_MERGE) || reason.equals(MERGE_FAILED))
-            && ExceptionsHelper.unwrap(failure, IOException.class) instanceof IOException;
+    /** Check whether an operation failed due to IOException. */
+    private boolean isOperationFailureDueToIOException(Exception failure) {
+        return ExceptionsHelper.unwrap(failure, IOException.class) instanceof IOException;
     }
 
     /** Check whether the engine should be failed */

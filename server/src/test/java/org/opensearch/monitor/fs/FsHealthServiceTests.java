@@ -184,6 +184,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7557")
     public void testFailsHealthOnHungIOBeyondHealthyTimeout() throws Exception {
         long healthyTimeoutThreshold = randomLongBetween(1500, 2000);
         long refreshInterval = randomLongBetween(500, 1000);
