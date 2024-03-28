@@ -902,7 +902,11 @@ final class DefaultSearchContext extends SearchContext {
      * Evaluate if parsed request supports concurrent segment search
      */
     public void evaluateRequestShouldUseConcurrentSearch() {
-        if (sort != null && sort.isSortOnTimeSeriesField()) {
+        // Do not use concurrent segment search for system indices or throttled requests. See:
+        // https://github.com/opensearch-project/OpenSearch/issues/12951
+        if (indexShard.isSystem() || indexShard.indexSettings().isSearchThrottled()) {
+            requestShouldUseConcurrentSearch.set(false);
+        } else if (sort != null && sort.isSortOnTimeSeriesField()) {
             requestShouldUseConcurrentSearch.set(false);
         } else if (aggregations() != null
             && aggregations().factories() != null
