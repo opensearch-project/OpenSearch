@@ -31,6 +31,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.translog.Translog.Durability;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -56,7 +57,7 @@ import java.util.stream.Stream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.comparesEqualTo;
@@ -189,7 +190,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         Path indexPath = Path.of(String.valueOf(segmentRepoPath), indexUUID, "/0/segments/metadata");
 
         IndexShard indexShard = getIndexShard(dataNode, INDEX_NAME);
-        int lastNMetadataFilesToKeep = indexShard.getRecoverySettings().getMinRemoteSegmentMetadataFiles();
+        int lastNMetadataFilesToKeep = indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles();
         // Delete is async.
         assertBusy(() -> {
             int actualFileCount = getFileCount(indexPath);
@@ -224,7 +225,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testStaleCommitDeletionWithMinSegmentFiles_3() throws Exception {
         Settings.Builder settings = Settings.builder()
-            .put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), "3");
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), "3");
         internalCluster().startNode(settings);
 
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
@@ -243,7 +244,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testStaleCommitDeletionWithMinSegmentFiles_Disabled() throws Exception {
         Settings.Builder settings = Settings.builder()
-            .put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), "-1");
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), "-1");
         internalCluster().startNode(settings);
 
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
@@ -469,7 +470,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     private void assertClusterRemoteBufferInterval(TimeValue expectedBufferInterval, String dataNode) {
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, dataNode);
-        assertEquals(expectedBufferInterval, indicesService.getClusterRemoteTranslogBufferInterval());
+        assertEquals(expectedBufferInterval, indicesService.getRemoteStoreSettings().getClusterRemoteTranslogBufferInterval());
     }
 
     private void assertBufferInterval(TimeValue expectedBufferInterval, IndexShard indexShard) {
