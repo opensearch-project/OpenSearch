@@ -62,10 +62,11 @@ public class InboundPipeline implements Releasable {
     private final StatsTracker statsTracker;
     private final InboundDecoder decoder;
     private final InboundAggregator aggregator;
-    private final BiConsumer<TcpChannel, InboundMessage> messageHandler;
+    private final BiConsumer<TcpChannel, BaseInboundMessage> messageHandler;
     private Exception uncaughtException;
     private final ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
+    private Version version;
 
     public InboundPipeline(
         Version version,
@@ -74,14 +75,15 @@ public class InboundPipeline implements Releasable {
         LongSupplier relativeTimeInMillis,
         Supplier<CircuitBreaker> circuitBreaker,
         Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
-        BiConsumer<TcpChannel, InboundMessage> messageHandler
+        BiConsumer<TcpChannel, BaseInboundMessage> messageHandler
     ) {
         this(
             statsTracker,
             relativeTimeInMillis,
             new InboundDecoder(version, recycler),
             new InboundAggregator(circuitBreaker, registryFunction),
-            messageHandler
+            messageHandler,
+            version
         );
     }
 
@@ -90,13 +92,15 @@ public class InboundPipeline implements Releasable {
         LongSupplier relativeTimeInMillis,
         InboundDecoder decoder,
         InboundAggregator aggregator,
-        BiConsumer<TcpChannel, InboundMessage> messageHandler
+        BiConsumer<TcpChannel, BaseInboundMessage> messageHandler,
+        Version version
     ) {
         this.relativeTimeInMillis = relativeTimeInMillis;
         this.statsTracker = statsTracker;
         this.decoder = decoder;
         this.aggregator = aggregator;
         this.messageHandler = messageHandler;
+        this.version = version;
     }
 
     @Override
@@ -124,37 +128,42 @@ public class InboundPipeline implements Releasable {
         statsTracker.markBytesRead(reference.length());
         pending.add(reference.retain());
 
-        final ArrayList<Object> fragments = fragmentList.get();
-        boolean continueHandling = true;
+        String incomingMessageProtocol = TcpTransport.determineTransportProtocol(reference);
+        if (incomingMessageProtocol.equals(BaseInboundMessage.PROTOBUF_PROTOCOL) && this.version.onOrAfter(Version.V_3_0_0)) {
+            // protobuf messages logic can be added here
+        } else {
+            final ArrayList<Object> fragments = fragmentList.get();
+            boolean continueHandling = true;
 
-        while (continueHandling && isClosed == false) {
-            boolean continueDecoding = true;
-            while (continueDecoding && pending.isEmpty() == false) {
-                try (ReleasableBytesReference toDecode = getPendingBytes()) {
-                    final int bytesDecoded = decoder.decode(toDecode, fragments::add);
-                    if (bytesDecoded != 0) {
-                        releasePendingBytes(bytesDecoded);
-                        if (fragments.isEmpty() == false && endOfMessage(fragments.get(fragments.size() - 1))) {
+            while (continueHandling && isClosed == false) {
+                boolean continueDecoding = true;
+                while (continueDecoding && pending.isEmpty() == false) {
+                    try (ReleasableBytesReference toDecode = getPendingBytes()) {
+                        final int bytesDecoded = decoder.decode(toDecode, fragments::add);
+                        if (bytesDecoded != 0) {
+                            releasePendingBytes(bytesDecoded);
+                            if (fragments.isEmpty() == false && endOfMessage(fragments.get(fragments.size() - 1))) {
+                                continueDecoding = false;
+                            }
+                        } else {
                             continueDecoding = false;
                         }
-                    } else {
-                        continueDecoding = false;
                     }
                 }
-            }
 
-            if (fragments.isEmpty()) {
-                continueHandling = false;
-            } else {
-                try {
-                    forwardFragments(channel, fragments);
-                } finally {
-                    for (Object fragment : fragments) {
-                        if (fragment instanceof ReleasableBytesReference) {
-                            ((ReleasableBytesReference) fragment).close();
+                if (fragments.isEmpty()) {
+                    continueHandling = false;
+                } else {
+                    try {
+                        forwardFragments(channel, fragments);
+                    } finally {
+                        for (Object fragment : fragments) {
+                            if (fragment instanceof ReleasableBytesReference) {
+                                ((ReleasableBytesReference) fragment).close();
+                            }
                         }
+                        fragments.clear();
                     }
-                    fragments.clear();
                 }
             }
         }
