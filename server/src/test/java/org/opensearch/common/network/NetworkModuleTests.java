@@ -75,6 +75,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import static org.hamcrest.CoreMatchers.startsWith;
+
 public class NetworkModuleTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
     private SecureSettingsFactory secureSettingsFactory;
@@ -636,5 +638,31 @@ public class NetworkModuleTests extends OpenSearchTestCase {
             coreTransportInterceptors,
             secureSettingsFactories
         );
+    }
+
+    public void testRegisterSecureTransportMultipleProviers() {
+        Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "custom-secure").build();
+        Supplier<Transport> custom = () -> null; // content doesn't matter we check reference equality
+        NetworkPlugin plugin = new NetworkPlugin() {
+            @Override
+            public Map<String, Supplier<Transport>> getSecureTransports(
+                Settings settings,
+                ThreadPool threadPool,
+                PageCacheRecycler pageCacheRecycler,
+                CircuitBreakerService circuitBreakerService,
+                NamedWriteableRegistry namedWriteableRegistry,
+                NetworkService networkService,
+                SecureTransportSettingsProvider secureTransportSettingsProvider,
+                Tracer tracer
+            ) {
+                return Collections.singletonMap("custom-secure", custom);
+            }
+        };
+
+        final IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> newNetworkModule(settings, null, List.of(secureSettingsFactory, secureSettingsFactory), plugin)
+        );
+        assertThat(ex.getMessage(), startsWith("there is more than one secure transport settings provider"));
     }
 }
