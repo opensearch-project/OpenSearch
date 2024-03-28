@@ -51,7 +51,7 @@ public abstract class TransportMessage implements Writeable {
         this.remoteAddress = remoteAddress;
     }
 
-    public void markSampled() {
+    public void markResponseAsSampled() {
         this.sampled = true;
     }
 

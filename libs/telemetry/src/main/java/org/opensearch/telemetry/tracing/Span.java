@@ -10,8 +10,6 @@ package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
-import java.util.Map;
-
 /**
  * An interface that represents a tracing span.
  * Spans are created by the Tracer.startSpan method.
@@ -96,15 +94,30 @@ public interface Span {
     String getSpanId();
 
     /**
-     * Returns attribute.
-     * @param key key
-     * @return value
+     * *
+     * @param key for which we need to look for value
+     * @return string attribute value
      */
-    Object getAttribute(String key);
+    String getAttributeString(String key);
 
     /**
-     * Returns the attributes as map.
-     * @return returns the attributes map.
+     * *
+     * @param key for which we need to look for value
+     * @return Boolean attribute value
      */
-    Map<String, Object> getAttributes();
+    Boolean getAttributeBoolean(String key);
+
+    /**
+     * *
+     * @param key for which we need to look for value
+     * @return Long attribute value
+     */
+    Long getAttributeLong(String key);
+
+    /**
+     * *
+     * @param key for which we need to look for value
+     * @return Double attribute value
+     */
+    Double getAttributeDouble(String key);
 }

@@ -405,7 +405,7 @@ public class InboundHandler {
             response = handler.read(stream);
             response.remoteAddress(new TransportAddress(remoteAddress));
             if (responseSampled) {
-                response.markSampled();
+                response.markResponseAsSampled();
             }
             checkStreamIsFullyConsumed(requestId, handler, stream, false);
         } catch (Exception e) {
