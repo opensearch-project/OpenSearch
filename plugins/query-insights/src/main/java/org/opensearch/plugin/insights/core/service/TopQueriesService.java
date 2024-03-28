@@ -8,10 +8,15 @@
 
 package org.opensearch.plugin.insights.core.service;
 
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.plugin.insights.core.exporter.AbstractExporter;
+import org.opensearch.plugin.insights.core.exporter.QueryInsightsExporterFactory;
+import org.opensearch.plugin.insights.core.exporter.SinkType;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -26,6 +31,12 @@ import java.util.PriorityQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.DEFAULT_TOP_N_LATENCY_QUERIES_INDEX_PATTERN;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.DEFAULT_TOP_QUERIES_EXPORTER_TYPE;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.EXPORTER_TYPE;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.EXPORT_INDEX;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.QUERY_INSIGHTS_EXECUTOR;
 
 /**
  * Service responsible for gathering and storing top N queries
@@ -63,12 +74,34 @@ public class TopQueriesService {
      */
     private final AtomicReference<List<SearchQueryRecord>> topQueriesHistorySnapshot;
 
-    TopQueriesService(final MetricType metricType) {
+    /**
+     * Factory for validating and creating exporters
+     */
+    private final QueryInsightsExporterFactory queryInsightsExporterFactory;
+
+    /**
+     * The internal OpenSearch thread pool that execute async processing and exporting tasks
+     */
+    private final ThreadPool threadPool;
+
+    /**
+     * Exporter for exporting top queries data
+     */
+    private AbstractExporter exporter;
+
+    TopQueriesService(
+        final MetricType metricType,
+        final ThreadPool threadPool,
+        final QueryInsightsExporterFactory queryInsightsExporterFactory
+    ) {
         this.enabled = false;
         this.metricType = metricType;
+        this.threadPool = threadPool;
+        this.queryInsightsExporterFactory = queryInsightsExporterFactory;
         this.topNSize = QueryInsightsSettings.DEFAULT_TOP_N_SIZE;
         this.windowSize = QueryInsightsSettings.DEFAULT_WINDOW_SIZE;
         this.windowStart = -1L;
+        this.exporter = null;
         topQueriesStore = new PriorityQueue<>(topNSize, (a, b) -> SearchQueryRecord.compare(a, b, metricType));
         topQueriesCurrentSnapshot = new AtomicReference<>(new ArrayList<>());
         topQueriesHistorySnapshot = new AtomicReference<>(new ArrayList<>());
@@ -170,6 +203,32 @@ public class TopQueriesService {
     }
 
     /**
+     * Set up the top queries exporter based on provided settings
+     *
+     * @param settings exporter config {@link Settings}
+     */
+    public void setExporter(final Settings settings) {
+        // Disable exporter if exporter type is set to null
+        if (settings.get(EXPORTER_TYPE) == null) {
+            this.exporter = null;
+            return;
+        }
+        this.exporter = queryInsightsExporterFactory.createExporter(
+            SinkType.parse(settings.get(EXPORTER_TYPE, DEFAULT_TOP_QUERIES_EXPORTER_TYPE)),
+            settings.get(EXPORT_INDEX, DEFAULT_TOP_N_LATENCY_QUERIES_INDEX_PATTERN)
+        );
+    }
+
+    /**
+     * Validate provided settings for top queries exporter
+     *
+     * @param settings settings exporter config {@link Settings}
+     */
+    public void validateExporterConfig(Settings settings) {
+        queryInsightsExporterFactory.validateExporterConfig(settings);
+    }
+
+    /**
      * Get all top queries records that are in the current top n queries store
      * Optionally include top N records from the last window.
      *
@@ -254,6 +313,10 @@ public class TopQueriesService {
             topQueriesStore.clear();
             topQueriesCurrentSnapshot.set(new ArrayList<>());
             windowStart = newWindowStart;
+            // export to the configured sink
+            if (exporter != null) {
+                threadPool.executor(QUERY_INSIGHTS_EXECUTOR).execute(() -> exporter.export(history));
+            }
         }
     }
 

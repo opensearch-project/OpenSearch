@@ -8,8 +8,11 @@
 
 package org.opensearch.plugin.insights.core.service;
 
+import org.opensearch.client.Client;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.plugin.insights.core.exporter.QueryInsightsExporterFactory;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
@@ -22,6 +25,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
+
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_LATENCY_EXPORTER_SETTINGS;
 
 /**
  * Service responsible for gathering, analyzing, storing and exporting
@@ -59,18 +64,27 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
     /**
      * Constructor of the QueryInsightsService
      *
-     * @param threadPool     The OpenSearch thread pool to run async tasks
+     * @param clusterSettings OpenSearch cluster level settings
+     * @param threadPool The OpenSearch thread pool to run async tasks
+     * @param client OS client
      */
     @Inject
-    public QueryInsightsService(final ThreadPool threadPool) {
+    public QueryInsightsService(final ClusterSettings clusterSettings, final ThreadPool threadPool, final Client client) {
         enableCollect = new HashMap<>();
         queryRecordsQueue = new LinkedBlockingQueue<>(QueryInsightsSettings.QUERY_RECORD_QUEUE_CAPACITY);
+        this.threadPool = threadPool;
+        final QueryInsightsExporterFactory queryInsightsExporterFactory = new QueryInsightsExporterFactory(client);
+        // initialize top n queries services and configurations consumers
         topQueriesServices = new HashMap<>();
         for (MetricType metricType : MetricType.allMetricTypes()) {
             enableCollect.put(metricType, false);
-            topQueriesServices.put(metricType, new TopQueriesService(metricType));
+            topQueriesServices.put(metricType, new TopQueriesService(metricType, threadPool, queryInsightsExporterFactory));
         }
-        this.threadPool = threadPool;
+        clusterSettings.addSettingsUpdateConsumer(
+            TOP_N_LATENCY_EXPORTER_SETTINGS,
+            (settings -> getTopQueriesService(MetricType.LATENCY).setExporter(settings)),
+            (settings -> getTopQueriesService(MetricType.LATENCY).validateExporterConfig(settings))
+        );
     }
 
     /**

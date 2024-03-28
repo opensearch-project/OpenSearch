@@ -9,7 +9,9 @@
 package org.opensearch.plugin.insights.settings;
 
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.plugin.insights.core.exporter.SinkType;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -107,6 +109,37 @@ public class QueryInsightsSettings {
         DEFAULT_WINDOW_SIZE,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
+    );
+
+    /**
+     * Config key for exporter type
+     */
+    public static final String EXPORTER_TYPE = "type";
+    /**
+     * Config key for export index
+     */
+    public static final String EXPORT_INDEX = "config.index";
+
+    /**
+     * Settings and defaults for top queries exporters
+     */
+    public static final String TOP_N_LATENCY_QUERIES_EXPORTER_PREFIX = TOP_N_LATENCY_QUERIES_PREFIX + ".exporter.";
+    /**
+     * Default index pattern of top n queries by latency
+     */
+    public static final String DEFAULT_TOP_N_LATENCY_QUERIES_INDEX_PATTERN = "'top_queries_by_latency-'YYYY.MM.dd";
+    /**
+     * Default exporter type of top queries
+     */
+    public static final String DEFAULT_TOP_QUERIES_EXPORTER_TYPE = SinkType.LOCAL_INDEX.toString();
+
+    /**
+     * Settings for the exporter of top latency queries
+     */
+    public static final Setting<Settings> TOP_N_LATENCY_EXPORTER_SETTINGS = Setting.groupSetting(
+        TOP_N_LATENCY_QUERIES_EXPORTER_PREFIX,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
     );
 
     /**
