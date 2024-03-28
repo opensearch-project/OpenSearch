@@ -65,6 +65,13 @@ public class RecoverySettings {
         Property.NodeScope
     );
 
+    public static final Setting<ByteSizeValue> SEGREP_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
+        "segrep.max_bytes_per_sec",
+        new ByteSizeValue(0),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     /**
      * Controls the maximum number of file chunk requests that can be sent concurrently from the source node to the target node.
      */
@@ -170,10 +177,12 @@ public class RecoverySettings {
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512 * 1024 - 16, ByteSizeUnit.BYTES);
 
     private volatile ByteSizeValue maxBytesPerSec;
+    private volatile ByteSizeValue segrepMaxBytesPerSec;
     private volatile int maxConcurrentFileChunks;
     private volatile int maxConcurrentOperations;
     private volatile int maxConcurrentRemoteStoreStreams;
     private volatile SimpleRateLimiter rateLimiter;
+    private volatile SimpleRateLimiter segrepRateLimiter;
     private volatile TimeValue retryDelayStateSync;
     private volatile TimeValue retryDelayNetwork;
     private volatile TimeValue activityTimeout;
@@ -204,11 +213,18 @@ public class RecoverySettings {
         } else {
             rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
         }
+        this.segrepMaxBytesPerSec = SEGREP_MAX_BYTES_PER_SEC_SETTING.get(settings);
+        if (segrepMaxBytesPerSec.getBytes() <= 0) {
+            segrepRateLimiter = null;
+        } else {
+            segrepRateLimiter = new SimpleRateLimiter(segrepMaxBytesPerSec.getMbFrac());
+        }
 
         logger.debug("using max_bytes_per_sec[{}]", maxBytesPerSec);
         this.internalRemoteUploadTimeout = INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.get(settings);
 
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setMaxBytesPerSec);
+        clusterSettings.addSettingsUpdateConsumer(SEGREP_MAX_BYTES_PER_SEC_SETTING, this::setSegrepMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING, this::setMaxConcurrentFileChunks);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING, this::setMaxConcurrentOperations);
         clusterSettings.addSettingsUpdateConsumer(
@@ -229,6 +245,10 @@ public class RecoverySettings {
 
     public RateLimiter rateLimiter() {
         return rateLimiter;
+    }
+
+    public RateLimiter segrepRateLimiter() {
+        return segrepRateLimiter;
     }
 
     public TimeValue retryDelayNetwork() {
@@ -302,6 +322,17 @@ public class RecoverySettings {
             rateLimiter.setMBPerSec(maxBytesPerSec.getMbFrac());
         } else {
             rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
+        }
+    }
+
+    private void setSegrepMaxBytesPerSec(ByteSizeValue segrepMaxBytesPerSec) {
+        this.segrepMaxBytesPerSec = segrepMaxBytesPerSec;
+        if (segrepMaxBytesPerSec.getBytes() <= 0) {
+            segrepRateLimiter = null;
+        } else if (segrepRateLimiter != null) {
+            segrepRateLimiter.setMBPerSec(segrepMaxBytesPerSec.getMbFrac());
+        } else {
+            segrepRateLimiter = new SimpleRateLimiter(segrepMaxBytesPerSec.getMbFrac());
         }
     }
 

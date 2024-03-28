@@ -48,6 +48,10 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
             Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build()
         );
         assertEquals(null, recoverySettings.rateLimiter());
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.SEGREP_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build()
+        );
+        assertEquals(null, recoverySettings.segrepRateLimiter());
     }
 
     public void testRetryDelayStateSync() {

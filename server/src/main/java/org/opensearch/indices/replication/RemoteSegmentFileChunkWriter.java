@@ -78,7 +78,12 @@ public final class RemoteSegmentFileChunkWriter implements FileChunkWriter {
         // Pause using the rate limiter, if desired, to throttle the recovery
         final long throttleTimeInNanos;
         // always fetch the ratelimiter - it might be updated in real-time on the recovery settings
-        final RateLimiter rl = recoverySettings.rateLimiter();
+        final RateLimiter rl;
+        if (SegmentReplicationTargetService.Actions.FILE_CHUNK.equals(action)) {
+            rl = recoverySettings.segrepRateLimiter();
+        } else {
+            rl = recoverySettings.rateLimiter();
+        }
         if (rl != null) {
             long bytes = bytesSinceLastPause.addAndGet(content.length());
             if (bytes > rl.getMinPauseCheckBytes()) {
