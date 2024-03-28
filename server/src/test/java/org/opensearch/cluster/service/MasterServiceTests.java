@@ -61,6 +61,9 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.BaseFuture;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.node.Node;
+import org.opensearch.telemetry.metrics.Histogram;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
@@ -95,6 +98,13 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class MasterServiceTests extends OpenSearchTestCase {
 
@@ -125,6 +135,10 @@ public class MasterServiceTests extends OpenSearchTestCase {
     }
 
     private ClusterManagerService createClusterManagerService(boolean makeClusterManager) {
+        return createClusterManagerService(makeClusterManager, NoopMetricsRegistry.INSTANCE);
+    }
+
+    private ClusterManagerService createClusterManagerService(boolean makeClusterManager, MetricsRegistry metricsRegistry) {
         final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final ClusterManagerService clusterManagerService = new ClusterManagerService(
             Settings.builder()
@@ -132,7 +146,8 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
                 .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            metricsRegistry
         );
         final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
             .nodes(
@@ -154,7 +169,18 @@ public class MasterServiceTests extends OpenSearchTestCase {
     }
 
     public void testClusterManagerAwareExecution() throws Exception {
-        final ClusterManagerService nonClusterManager = createClusterManagerService(false);
+        final MetricsRegistry metricsRegistry = mock(MetricsRegistry.class);
+        final Histogram clusterStateComputeHistogram = mock(Histogram.class);
+        final Histogram clusterStatePublishHistogram = mock(Histogram.class);
+        when(metricsRegistry.createHistogram(anyString(), anyString(), anyString())).thenAnswer(invocationOnMock -> {
+            String histogramName = (String) invocationOnMock.getArguments()[0];
+            if (histogramName.contains("cluster.state.new.compute.latency")) {
+                return clusterStateComputeHistogram;
+            }
+            return clusterStatePublishHistogram;
+        });
+
+        final ClusterManagerService nonClusterManager = createClusterManagerService(false, metricsRegistry);
 
         final boolean[] taskFailed = { false };
         final CountDownLatch latch1 = new CountDownLatch(1);
@@ -194,6 +220,9 @@ public class MasterServiceTests extends OpenSearchTestCase {
         assertFalse("non-cluster-manager cluster state update task was not executed", taskFailed[0]);
 
         nonClusterManager.close();
+
+        verify(metricsRegistry, times(2)).createHistogram(anyString(), anyString(), anyString());
+        verify(clusterStateComputeHistogram, times(1)).record(anyDouble(), any());
     }
 
     public void testThreadContext() throws InterruptedException {
@@ -1070,7 +1099,8 @@ public class MasterServiceTests extends OpenSearchTestCase {
                         .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
                         .build(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    threadPool
+                    threadPool,
+                    NoopMetricsRegistry.INSTANCE
                 )
             ) {
 
@@ -1246,6 +1276,18 @@ public class MasterServiceTests extends OpenSearchTestCase {
         final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final DiscoveryNode node3 = new DiscoveryNode("node3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+
+        final MetricsRegistry metricsRegistry = mock(MetricsRegistry.class);
+        final Histogram clusterStateComputeHistogram = mock(Histogram.class);
+        final Histogram clusterStatePublishHistogram = mock(Histogram.class);
+        when(metricsRegistry.createHistogram(anyString(), anyString(), anyString())).thenAnswer(invocationOnMock -> {
+            String histogramName = (String) invocationOnMock.getArguments()[0];
+            if (histogramName.contains("cluster.state.new.compute.latency")) {
+                return clusterStateComputeHistogram;
+            }
+            return clusterStatePublishHistogram;
+        });
+
         try (
             ClusterManagerService clusterManagerService = new ClusterManagerService(
                 Settings.builder()
@@ -1253,7 +1295,8 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
                     .build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool
+                threadPool,
+                metricsRegistry
             )
         ) {
 
@@ -1372,6 +1415,10 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 latch.await();
             }
         }
+
+        verify(metricsRegistry, times(2)).createHistogram(anyString(), anyString(), anyString());
+        verify(clusterStateComputeHistogram, times(2)).record(anyDouble(), any());
+        verify(clusterStatePublishHistogram, times(1)).record(anyDouble());
     }
 
     public void testDeprecatedMasterServiceUpdateTaskThreadName() {

@@ -89,6 +89,8 @@ import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
@@ -1144,7 +1146,8 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     settings,
                     clusterSettings,
                     deterministicTaskQueue,
-                    threadPool
+                    threadPool,
+                    NoopMetricsRegistry.INSTANCE
                 );
                 clusterService = new ClusterService(settings, clusterSettings, clusterManagerService, clusterApplierService);
                 clusterService.setNodeConnectionsService(
@@ -1594,9 +1597,10 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             Settings settings,
             ClusterSettings clusterSettings,
             DeterministicTaskQueue deterministicTaskQueue,
-            ThreadPool threadPool
+            ThreadPool threadPool,
+            MetricsRegistry metricsRegistry
         ) {
-            super(nodeName, settings, clusterSettings, threadPool);
+            super(nodeName, settings, clusterSettings, threadPool, metricsRegistry);
             this.nodeName = nodeName;
             this.deterministicTaskQueue = deterministicTaskQueue;
             addStateApplier(event -> {

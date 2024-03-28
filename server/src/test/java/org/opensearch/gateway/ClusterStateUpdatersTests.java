@@ -55,6 +55,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
@@ -123,7 +124,7 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
 
             })
         );
-        final ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, null);
+        final ClusterService clusterService = ClusterServiceUtils.createClusterService(Settings.EMPTY, clusterSettings, null);
         final Metadata.Builder builder = Metadata.builder();
         final Settings settings = Settings.builder().put("foo.old", randomAlphaOfLength(8)).build();
         applySettingsToBuilder.accept(builder, settings);

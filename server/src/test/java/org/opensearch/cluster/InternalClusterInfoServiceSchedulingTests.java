@@ -54,6 +54,7 @@ import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExec
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.node.Node;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpClient;
@@ -83,7 +84,13 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
         final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
 
-        final ClusterApplierService clusterApplierService = new ClusterApplierService("test", settings, clusterSettings, threadPool) {
+        final ClusterApplierService clusterApplierService = new ClusterApplierService(
+            "test",
+            settings,
+            clusterSettings,
+            threadPool,
+            NoopMetricsRegistry.INSTANCE
+        ) {
             @Override
             protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
                 return new MockSinglePrioritizingExecutor("mock-executor", deterministicTaskQueue, threadPool);

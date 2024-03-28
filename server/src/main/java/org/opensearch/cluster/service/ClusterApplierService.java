@@ -61,6 +61,9 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.telemetry.metrics.Histogram;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -121,7 +124,17 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private NodeConnectionsService nodeConnectionsService;
 
-    public ClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    private Histogram clusterStateAppliersHistogram;
+
+    private Histogram clusterStateListenersHistogram;
+
+    public ClusterApplierService(
+        String nodeName,
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        MetricsRegistry metricsRegistry
+    ) {
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
         this.state = new AtomicReference<>();
@@ -131,6 +144,20 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         this.clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
             this::setSlowTaskLoggingThreshold
+        );
+        initializeMetrics(metricsRegistry);
+    }
+
+    private void initializeMetrics(MetricsRegistry metricsRegistry) {
+        this.clusterStateAppliersHistogram = metricsRegistry.createHistogram(
+            "cluster.state.appliers.latency",
+            "Histogram for tracking the latency of cluster state appliers",
+            "ms"
+        );
+        this.clusterStateListenersHistogram = metricsRegistry.createHistogram(
+            "cluster.state.listeners.latency",
+            "Histogram for tracking the latency of cluster state listeners",
+            "ms"
         );
     }
 
@@ -597,7 +624,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         callClusterStateAppliers(clusterChangedEvent, stopWatch, lowPriorityStateAppliers);
     }
 
-    private static void callClusterStateAppliers(
+    private void callClusterStateAppliers(
         ClusterChangedEvent clusterChangedEvent,
         StopWatch stopWatch,
         Collection<ClusterStateApplier> clusterStateAppliers
@@ -605,7 +632,12 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         for (ClusterStateApplier applier : clusterStateAppliers) {
             logger.trace("calling [{}] with change to version [{}]", applier, clusterChangedEvent.state().version());
             try (TimingHandle ignored = stopWatch.timing("running applier [" + applier + "]")) {
+                long applierStartTimeNS = System.nanoTime();
                 applier.applyClusterState(clusterChangedEvent);
+                clusterStateAppliersHistogram.record(
+                    (double) Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - applierStartTimeNS)),
+                    Tags.create().addTag("Operation", applier.getClass().getSimpleName())
+                );
             }
         }
     }
@@ -624,7 +656,12 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             try {
                 logger.trace("calling [{}] with change to version [{}]", listener, clusterChangedEvent.state().version());
                 try (TimingHandle ignored = stopWatch.timing("notifying listener [" + listener + "]")) {
+                    long listenerStartTimeNS = System.nanoTime();
                     listener.clusterChanged(clusterChangedEvent);
+                    clusterStateListenersHistogram.record(
+                        (double) Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - listenerStartTimeNS)),
+                        Tags.create().addTag("Operation", listener.getClass().getSimpleName())
+                    );
                 }
             } catch (Exception ex) {
                 logger.warn("failed to notify ClusterStateListener", ex);
