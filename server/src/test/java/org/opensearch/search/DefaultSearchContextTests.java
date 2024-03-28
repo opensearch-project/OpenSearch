@@ -93,6 +93,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.opensearch.index.IndexSettings.INDEX_SEARCH_THROTTLED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.any;
@@ -551,7 +552,7 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
         }
     }
 
-    public void testSearchPathEvaluationUsingSortField() throws Exception {
+    public void testSearchPathEvaluation() throws Exception {
         ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
         when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
         ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 1);
@@ -578,8 +579,23 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         when(indexService.getIndexSettings()).thenReturn(indexSettings);
+        when(indexShard.indexSettings()).thenReturn(indexSettings);
 
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+
+        IndexShard systemIndexShard = mock(IndexShard.class);
+        when(systemIndexShard.getQueryCachingPolicy()).thenReturn(queryCachingPolicy);
+        when(systemIndexShard.getThreadPool()).thenReturn(threadPool);
+        when(systemIndexShard.isSystem()).thenReturn(true);
+
+        IndexShard throttledIndexShard = mock(IndexShard.class);
+        when(throttledIndexShard.getQueryCachingPolicy()).thenReturn(queryCachingPolicy);
+        when(throttledIndexShard.getThreadPool()).thenReturn(threadPool);
+        IndexSettings throttledIndexSettings = new IndexSettings(
+            indexMetadata,
+            Settings.builder().put(INDEX_SEARCH_THROTTLED.getKey(), true).build()
+        );
+        when(throttledIndexShard.indexSettings()).thenReturn(throttledIndexSettings);
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
 
@@ -695,6 +711,62 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             } else {
                 assertTrue(context.shouldUseConcurrentSearch());
             }
+            assertThrows(SetOnce.AlreadySetException.class, context::evaluateRequestShouldUseConcurrentSearch);
+
+            // Case 4: With a system index concurrent segment search is not used
+            readerContext = new ReaderContext(
+                newContextId(),
+                indexService,
+                systemIndexShard,
+                searcherSupplier.get(),
+                randomNonNegativeLong(),
+                false
+            );
+            context = new DefaultSearchContext(
+                readerContext,
+                shardSearchRequest,
+                target,
+                null,
+                bigArrays,
+                null,
+                null,
+                null,
+                false,
+                Version.CURRENT,
+                false,
+                executor,
+                null
+            );
+            context.evaluateRequestShouldUseConcurrentSearch();
+            assertFalse(context.shouldUseConcurrentSearch());
+            assertThrows(SetOnce.AlreadySetException.class, context::evaluateRequestShouldUseConcurrentSearch);
+
+            // Case 5: When search is throttled concurrent segment search is not used
+            readerContext = new ReaderContext(
+                newContextId(),
+                indexService,
+                throttledIndexShard,
+                searcherSupplier.get(),
+                randomNonNegativeLong(),
+                false
+            );
+            context = new DefaultSearchContext(
+                readerContext,
+                shardSearchRequest,
+                target,
+                null,
+                bigArrays,
+                null,
+                null,
+                null,
+                false,
+                Version.CURRENT,
+                false,
+                executor,
+                null
+            );
+            context.evaluateRequestShouldUseConcurrentSearch();
+            assertFalse(context.shouldUseConcurrentSearch());
             assertThrows(SetOnce.AlreadySetException.class, context::evaluateRequestShouldUseConcurrentSearch);
 
             // shutdown the threadpool
