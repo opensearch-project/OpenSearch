@@ -32,11 +32,17 @@
 
 package org.opensearch.search.query;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.TotalHits.Relation;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.DelayableWriteable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.search.DocValueFormat;
@@ -50,8 +56,17 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.profile.NetworkTime;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.suggest.Suggest;
+import org.opensearch.server.proto.QuerySearchResultProto;
+import org.opensearch.server.proto.ShardSearchRequestProto;
+import org.opensearch.server.proto.ShardSearchRequestProto.AliasFilter;
+import org.opensearch.server.proto.ShardSearchRequestProto.ShardSearchRequest.SearchType;
+import org.opensearch.transport.BaseInboundMessage;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.opensearch.common.lucene.Lucene.readTopDocs;
 import static org.opensearch.common.lucene.Lucene.writeTopDocs;
@@ -63,6 +78,8 @@ import static org.opensearch.common.lucene.Lucene.writeTopDocs;
  */
 @PublicApi(since = "1.0.0")
 public final class QuerySearchResult extends SearchPhaseResult {
+
+    private static final Logger logger = LogManager.getLogger(QuerySearchResult.class);
 
     private int from;
     private int size;
@@ -90,6 +107,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     private final boolean isNull;
 
+    private QuerySearchResultProto.QuerySearchResult querySearchResultProto;
+
     public QuerySearchResult() {
         this(false);
     }
@@ -103,11 +122,99 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
     }
 
+    public QuerySearchResult(InputStream in) throws IOException {
+        super(in);
+        assert FeatureFlags.isEnabled(FeatureFlags.PROTOBUF) : "protobuf feature flag is not enabled";
+        this.querySearchResultProto = QuerySearchResultProto.QuerySearchResult.parseFrom(in);
+        isNull = this.querySearchResultProto.getIsNull();
+        if (!isNull) {
+            this.contextId = new ShardSearchContextId(
+                this.querySearchResultProto.getContextId().getSessionId(),
+                this.querySearchResultProto.getContextId().getId()
+            );
+            ShardSearchRequest shardSearchRequest;
+            hasAggs = false;
+            try {
+                shardSearchRequest = new ShardSearchRequest(this.querySearchResultProto.getSearchShardRequest().toByteArray());
+                setShardSearchRequest(shardSearchRequest);
+            } catch (IOException e) {
+                logger.error("Error while setting shard search request", e);
+            }
+        }
+    }
+
     public QuerySearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
         this.contextId = contextId;
         setSearchShardTarget(shardTarget);
         isNull = false;
         setShardSearchRequest(shardSearchRequest);
+
+        ShardSearchRequestProto.ShardId shardIdProto = ShardSearchRequestProto.ShardId.newBuilder()
+            .setShardId(shardTarget.getShardId().getId())
+            .setHashCode(shardTarget.getShardId().hashCode())
+            .setIndexName(shardTarget.getShardId().getIndexName())
+            .setIndexUUID(shardTarget.getShardId().getIndex().getUUID())
+            .build();
+        QuerySearchResultProto.SearchShardTarget.Builder searchShardTarget = QuerySearchResultProto.SearchShardTarget.newBuilder()
+            .setNodeId(shardTarget.getNodeId())
+            .setShardId(shardIdProto);
+        ShardSearchRequestProto.ShardSearchContextId shardSearchContextId = ShardSearchRequestProto.ShardSearchContextId.newBuilder()
+            .setSessionId(contextId.getSessionId())
+            .setId(contextId.getId())
+            .build();
+        ShardSearchRequestProto.ShardSearchRequest.Builder shardSearchRequestProto = ShardSearchRequestProto.ShardSearchRequest
+            .newBuilder();
+        if (shardSearchRequest != null) {
+            ShardSearchRequestProto.OriginalIndices.Builder originalIndices = ShardSearchRequestProto.OriginalIndices.newBuilder();
+            if (shardSearchRequest.indices() != null) {
+                for (String index : shardSearchRequest.indices()) {
+                    originalIndices.addIndices(index);
+                }
+                originalIndices.setIndicesOptions(
+                    ShardSearchRequestProto.OriginalIndices.IndicesOptions.newBuilder()
+                        .setIgnoreUnavailable(shardSearchRequest.indicesOptions().ignoreUnavailable())
+                        .setAllowNoIndices(shardSearchRequest.indicesOptions().allowNoIndices())
+                        .setExpandWildcardsOpen(shardSearchRequest.indicesOptions().expandWildcardsOpen())
+                        .setExpandWildcardsClosed(shardSearchRequest.indicesOptions().expandWildcardsClosed())
+                        .setExpandWildcardsHidden(shardSearchRequest.indicesOptions().expandWildcardsHidden())
+                        .setAllowAliasesToMultipleIndices(shardSearchRequest.indicesOptions().allowAliasesToMultipleIndices())
+                        .setForbidClosedIndices(shardSearchRequest.indicesOptions().forbidClosedIndices())
+                        .setIgnoreAliases(shardSearchRequest.indicesOptions().ignoreAliases())
+                        .setIgnoreThrottled(shardSearchRequest.indicesOptions().ignoreThrottled())
+                        .build()
+                );
+            }
+            AliasFilter.Builder aliasFilter = AliasFilter.newBuilder();
+            if (shardSearchRequest.getAliasFilter() != null) {
+                for (int i = 0; i < shardSearchRequest.getAliasFilter().getAliases().length; i++) {
+                    aliasFilter.addAliases(shardSearchRequest.getAliasFilter().getAliases()[i]);
+                }
+            }
+            shardSearchRequestProto.setInboundNetworkTime(shardSearchRequest.getInboundNetworkTime())
+                .setOutboundNetworkTime(shardSearchRequest.getOutboundNetworkTime())
+                .setShardId(shardIdProto)
+                .setAllowPartialSearchResults(shardSearchRequest.allowPartialSearchResults())
+                .setNumberOfShards(shardSearchRequest.numberOfShards())
+                .setReaderId(shardSearchContextId)
+                .setOriginalIndices(originalIndices)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setAliasFilter(aliasFilter);
+            if (shardSearchRequest.keepAlive() != null) {
+                shardSearchRequestProto.setTimeValue(shardSearchRequest.keepAlive().getStringRep());
+            }
+        }
+
+        if (shardTarget.getClusterAlias() != null) {
+            searchShardTarget.setClusterAlias(shardTarget.getClusterAlias());
+        }
+
+        this.querySearchResultProto = QuerySearchResultProto.QuerySearchResult.newBuilder()
+            .setContextId(shardSearchContextId)
+            .setSearchShardTarget(searchShardTarget.build())
+            .setSearchShardRequest(shardSearchRequestProto.build())
+            .setHasAggs(false)
+            .setIsNull(isNull)
+            .build();
     }
 
     private QuerySearchResult(boolean isNull) {
@@ -157,8 +264,32 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public TopDocsAndMaxScore topDocs() {
-        if (topDocsAndMaxScore == null) {
+        if (topDocsAndMaxScore == null && this.querySearchResultProto.getTopDocsAndMaxScore() == null) {
             throw new IllegalStateException("topDocs already consumed");
+        }
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+            ScoreDoc[] scoreDocs = new ScoreDoc[this.querySearchResultProto.getTopDocsAndMaxScore().getTopDocs().getScoreDocsCount()];
+            for (int i = 0; i < scoreDocs.length; i++) {
+                org.opensearch.server.proto.QuerySearchResultProto.QuerySearchResult.TopDocs.ScoreDoc scoreDoc = this.querySearchResultProto
+                    .getTopDocsAndMaxScore()
+                    .getTopDocs()
+                    .getScoreDocsList()
+                    .get(i);
+                scoreDocs[i] = new ScoreDoc(scoreDoc.getDoc(), scoreDoc.getScore(), scoreDoc.getShardIndex());
+            }
+            TopDocs topDocsFromProtobuf = new TopDocs(
+                new TotalHits(
+                    this.querySearchResultProto.getTotalHits().getValue(),
+                    Relation.valueOf(this.querySearchResultProto.getTotalHits().getRelation().toString())
+                ),
+                scoreDocs
+            );
+
+            TopDocsAndMaxScore topDocsFromProtobufAndMaxScore = new TopDocsAndMaxScore(
+                topDocsFromProtobuf,
+                this.querySearchResultProto.getMaxScore()
+            );
+            return topDocsFromProtobufAndMaxScore;
         }
         return topDocsAndMaxScore;
     }
@@ -175,7 +306,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * @throws IllegalStateException if the top docs have already been consumed.
      */
     public TopDocsAndMaxScore consumeTopDocs() {
-        TopDocsAndMaxScore topDocsAndMaxScore = this.topDocsAndMaxScore;
+        TopDocsAndMaxScore topDocsAndMaxScore = this.topDocsAndMaxScore == null ? topDocs() : this.topDocsAndMaxScore;
         if (topDocsAndMaxScore == null) {
             throw new IllegalStateException("topDocs already consumed");
         }
@@ -201,6 +332,43 @@ public final class QuerySearchResult extends SearchPhaseResult {
         this.totalHits = topDocsAndMaxScore.topDocs.totalHits;
         this.maxScore = topDocsAndMaxScore.maxScore;
         this.hasScoreDocs = topDocsAndMaxScore.topDocs.scoreDocs.length > 0;
+
+        if (this.querySearchResultProto != null) {
+            List<QuerySearchResultProto.QuerySearchResult.TopDocs.ScoreDoc> scoreDocs = new ArrayList<>();
+            if (this.hasScoreDocs) {
+                for (ScoreDoc scoreDoc : topDocsAndMaxScore.topDocs.scoreDocs) {
+                    scoreDocs.add(
+                        QuerySearchResultProto.QuerySearchResult.TopDocs.ScoreDoc.newBuilder()
+                            .setDoc(scoreDoc.doc)
+                            .setScore(scoreDoc.score)
+                            .setShardIndex(scoreDoc.shardIndex)
+                            .build()
+                    );
+                }
+            }
+            QuerySearchResultProto.QuerySearchResult.TopDocs topDocsBuilder = QuerySearchResultProto.QuerySearchResult.TopDocs.newBuilder()
+                .setTotalHits(
+                    QuerySearchResultProto.TotalHits.newBuilder()
+                        .setValue(topDocsAndMaxScore.topDocs.totalHits.value)
+                        .setRelation(
+                            QuerySearchResultProto.TotalHits.Relation.valueOf(topDocsAndMaxScore.topDocs.totalHits.relation.name())
+                        )
+                        .build()
+                )
+                .addAllScoreDocs(scoreDocs)
+                .build();
+            QuerySearchResultProto.QuerySearchResult.TopDocsAndMaxScore topDocsAndMaxScoreBuilder =
+                QuerySearchResultProto.QuerySearchResult.TopDocsAndMaxScore.newBuilder()
+                    .setMaxScore(topDocsAndMaxScore.maxScore)
+                    .setTopDocs(topDocsBuilder)
+                    .build();
+            this.querySearchResultProto = this.querySearchResultProto.toBuilder()
+                .setTopDocsAndMaxScore(topDocsAndMaxScoreBuilder)
+                .setMaxScore(this.maxScore)
+                .setTotalHits(topDocsBuilder.getTotalHits())
+                .setHasScoreDocs(this.hasScoreDocs)
+                .build();
+        }
     }
 
     public DocValueFormat[] sortValueFormats() {
@@ -289,11 +457,17 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public int from() {
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+            return this.querySearchResultProto.getFrom();
+        }
         return from;
     }
 
     public QuerySearchResult from(int from) {
         this.from = from;
+        if (this.querySearchResultProto != null) {
+            this.querySearchResultProto = this.querySearchResultProto.toBuilder().setFrom(from).build();
+        }
         return this;
     }
 
@@ -301,11 +475,17 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns the maximum size of this results top docs.
      */
     public int size() {
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+            return this.querySearchResultProto.getSize();
+        }
         return size;
     }
 
     public QuerySearchResult size(int size) {
         this.size = size;
+        if (this.querySearchResultProto != null) {
+            this.querySearchResultProto = this.querySearchResultProto.toBuilder().setSize(size).build();
+        }
         return this;
     }
 
@@ -377,6 +557,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
     }
 
+    @Override
+    public void writeTo(OutputStream out) throws IOException {
+        if (!isNull) {
+            out.write(this.querySearchResultProto.toByteArray());
+        }
+    }
+
     public void writeToNoId(StreamOutput out) throws IOException {
         out.writeVInt(from);
         out.writeVInt(size);
@@ -416,5 +603,33 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public float getMaxScore() {
         return maxScore;
+    }
+
+    public QuerySearchResultProto.QuerySearchResult response() {
+        return this.querySearchResultProto;
+    }
+
+    public QuerySearchResult(QuerySearchResultProto.QuerySearchResult querySearchResult) {
+        this.querySearchResultProto = querySearchResult;
+        this.isNull = this.querySearchResultProto.getIsNull();
+        this.contextId = new ShardSearchContextId(
+            this.querySearchResultProto.getContextId().getSessionId(),
+            this.querySearchResultProto.getContextId().getId()
+        );
+        ShardSearchRequest shardSearchRequest;
+        try {
+            shardSearchRequest = new ShardSearchRequest(this.querySearchResultProto.getSearchShardRequest().toByteArray());
+            setShardSearchRequest(shardSearchRequest);
+        } catch (IOException e) {
+            logger.error("Error while setting shard search request", e);
+        }
+    }
+
+    @Override
+    public String getProtocol() {
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+            return BaseInboundMessage.PROTOBUF_PROTOCOL;
+        }
+        return BaseInboundMessage.NATIVE_PROTOCOL;
     }
 }

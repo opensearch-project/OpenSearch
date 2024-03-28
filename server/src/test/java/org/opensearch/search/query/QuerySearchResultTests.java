@@ -39,9 +39,11 @@ import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.OriginalIndicesTests;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.index.shard.ShardId;
@@ -54,7 +56,12 @@ import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.suggest.SuggestTests;
+import org.opensearch.server.proto.QuerySearchResultProto;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 
 import static java.util.Collections.emptyList;
 
@@ -124,5 +131,31 @@ public class QuerySearchResultTests extends OpenSearchTestCase {
         QuerySearchResult querySearchResult = QuerySearchResult.nullInstance();
         QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, Version.CURRENT);
         assertEquals(querySearchResult.isNull(), deserialized.isNull());
+    }
+
+    @SuppressForbidden(reason = "manipulates system properties for testing")
+    public void testProtobufSerialization() throws Exception {
+        System.setProperty(FeatureFlags.PROTOBUF, "true");
+        QuerySearchResult querySearchResult = createTestInstance();
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        querySearchResult.writeTo(stream);
+
+        InputStream inputStream = new ByteArrayInputStream(stream.toByteArray());
+        QuerySearchResult deserialized = new QuerySearchResult(inputStream);
+        QuerySearchResultProto.QuerySearchResult querySearchResultProto = deserialized.response();
+        assertNotNull(querySearchResultProto);
+        assertEquals(querySearchResult.getContextId().getId(), querySearchResultProto.getContextId().getId());
+        assertEquals(
+            querySearchResult.getSearchShardTarget().getShardId().getIndex().getUUID(),
+            querySearchResultProto.getSearchShardTarget().getShardId().getIndexUUID()
+        );
+        assertEquals(querySearchResult.topDocs().maxScore, querySearchResultProto.getTopDocsAndMaxScore().getMaxScore(), 0f);
+        assertEquals(
+            querySearchResult.topDocs().topDocs.totalHits.value,
+            querySearchResultProto.getTopDocsAndMaxScore().getTopDocs().getTotalHits().getValue()
+        );
+        assertEquals(querySearchResult.from(), querySearchResultProto.getFrom());
+        assertEquals(querySearchResult.size(), querySearchResultProto.getSize());
+        System.setProperty(FeatureFlags.PROTOBUF, "false");
     }
 }

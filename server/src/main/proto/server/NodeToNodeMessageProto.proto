@@ -1,0 +1,41 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+syntax = "proto3";
+package org.opensearch.server.proto;
+
+import "server/search/QueryFetchSearchResultProto.proto";
+import "server/search/QuerySearchResultProto.proto";
+
+option java_outer_classname = "NodeToNodeMessageProto";
+
+message NodeToNodeMessage {
+  Header header = 1;
+  map<string, string> requestHeaders = 2;
+  map<string, ResponseHandlersList> responseHandlers = 3;
+  string version = 4;
+  repeated string features = 5;
+  bytes status = 6;
+  string action = 7;
+  int64 requestId = 8;
+  oneof message {
+    QueryFetchSearchResult queryFetchSearchResult = 9;
+    QuerySearchResult querySearchResult = 10;
+  }
+  
+  message Header {
+    repeated bytes prefix = 1;
+    int64 requestId = 2;
+    bytes status = 3;
+    int32 versionId = 4;
+  }
+
+  message ResponseHandlersList {
+    repeated string setOfResponseHandlers = 1;
+  }
+}

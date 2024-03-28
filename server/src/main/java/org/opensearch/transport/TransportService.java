@@ -76,6 +76,7 @@ import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
@@ -1508,6 +1509,11 @@ public class TransportService extends AbstractLifecycleComponent
             this.handler = handler;
         }
 
+        @Override
+        public T read(InputStream in) throws IOException {
+            return delegate.read(in);
+        }
+
     }
 
     /**
@@ -1720,6 +1726,11 @@ public class TransportService extends AbstractLifecycleComponent
                     @Override
                     public String toString() {
                         return getClass().getName() + "/[" + action + "]:" + handler.toString();
+                    }
+
+                    @Override
+                    public T read(InputStream in) throws IOException {
+                        return handler.read(in);
                     }
                 };
             } else {

@@ -93,6 +93,7 @@ import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.search.sort.SortedWiderNumericSortField;
+import org.opensearch.server.proto.FetchSearchResultProto;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -646,6 +647,29 @@ public class Lucene {
         }
         if (match) {
             return Explanation.match(readExplanationValue(in), description, subExplanations);
+        } else {
+            return Explanation.noMatch(description, subExplanations);
+        }
+    }
+
+    public static Explanation readExplanation(byte[] in) throws IOException {
+        FetchSearchResultProto.SearchHit.Explanation explanationProto = FetchSearchResultProto.SearchHit.Explanation.parseFrom(in);
+        boolean match = explanationProto.getMatch();
+        String description = explanationProto.getDescription();
+        final Explanation[] subExplanations = new Explanation[explanationProto.getSubExplanationsCount()];
+        for (int i = 0; i < subExplanations.length; ++i) {
+            subExplanations[i] = readExplanation(explanationProto.getSubExplanations(i).toByteArray());
+        }
+        Number explanationValue = null;
+        if (explanationProto.hasValue1()) {
+            explanationValue = explanationProto.getValue1();
+        } else if (explanationProto.hasValue2()) {
+            explanationValue = explanationProto.getValue2();
+        } else if (explanationProto.hasValue3()) {
+            explanationValue = explanationProto.getValue3();
+        }
+        if (match) {
+            return Explanation.match(explanationValue, description, subExplanations);
         } else {
             return Explanation.noMatch(description, subExplanations);
         }

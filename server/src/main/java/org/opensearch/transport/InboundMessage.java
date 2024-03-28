@@ -47,7 +47,7 @@ import java.io.IOException;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class InboundMessage implements Releasable {
+public class InboundMessage implements Releasable, BaseInboundMessage {
 
     private final Header header;
     private final ReleasableBytesReference content;
@@ -55,6 +55,7 @@ public class InboundMessage implements Releasable {
     private final boolean isPing;
     private Releasable breakerRelease;
     private StreamInput streamInput;
+    private String protocol;
 
     public InboundMessage(Header header, ReleasableBytesReference content, Releasable breakerRelease) {
         this.header = header;
@@ -132,5 +133,15 @@ public class InboundMessage implements Releasable {
     @Override
     public String toString() {
         return "InboundMessage{" + header + "}";
+    }
+
+    @Override
+    public String getProtocol() {
+        return NATIVE_PROTOCOL;
+    }
+
+    @Override
+    public void setProtocol() {
+        this.protocol = NATIVE_PROTOCOL;
     }
 }

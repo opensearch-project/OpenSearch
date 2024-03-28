@@ -767,7 +767,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param channel the channel the message is from
      * @param message the message
      */
-    public void inboundMessage(TcpChannel channel, InboundMessage message) {
+    public void inboundMessage(TcpChannel channel, BaseInboundMessage message) {
         try {
             inboundHandler.inboundMessage(channel, message);
         } catch (Exception e) {
@@ -791,6 +791,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             return -1;
         } else {
             return readHeaderBuffer(networkBytes);
+        }
+    }
+
+    public static String determineTransportProtocol(BytesReference headerBuffer) {
+        if (headerBuffer.get(0) == 'O' && headerBuffer.get(1) == 'S' && headerBuffer.get(2) == 'P') {
+            return BaseInboundMessage.PROTOBUF_PROTOCOL;
+        } else {
+            return BaseInboundMessage.NATIVE_PROTOCOL;
         }
     }
 

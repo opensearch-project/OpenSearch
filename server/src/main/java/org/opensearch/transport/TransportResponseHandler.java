@@ -33,11 +33,13 @@
 package org.opensearch.transport;
 
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.BytesWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.function.Function;
 
 /**
@@ -46,13 +48,23 @@ import java.util.function.Function;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public interface TransportResponseHandler<T extends TransportResponse> extends Writeable.Reader<T> {
+public interface TransportResponseHandler<T extends TransportResponse> extends Writeable.Reader<T>, BytesWriteable.Reader<T> {
 
     void handleResponse(T response);
 
     void handleException(TransportException exp);
 
     String executor();
+
+    /**
+     * Read {@code V}-type value from a byte array.
+     *
+     * @param in byte array to read the value from
+     */
+    default T read(final InputStream in) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'read'");
+    }
 
     /**
      * This method should be handling the rejection/failure scenarios where connection to the node is rejected or failed.
@@ -82,6 +94,12 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
             @Override
             public Q read(StreamInput in) throws IOException {
                 return reader.read(in);
+            }
+
+            @Override
+            public Q read(InputStream in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         };
     }

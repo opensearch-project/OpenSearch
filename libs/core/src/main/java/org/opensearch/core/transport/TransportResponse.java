@@ -37,6 +37,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 /**
  * Response over the transport interface
@@ -61,6 +63,24 @@ public abstract class TransportResponse extends TransportMessage {
     }
 
     /**
+     * Constructs a new transport response with the data from the byte array. This is
+     * currently a no-op. However, this exists to allow extenders to call <code>super(in)</code>
+     * so that reading can mirror writing where we often call <code>super.writeTo(out)</code>.
+     */
+    public TransportResponse(InputStream in) throws IOException {
+        super(in);
+    }
+
+    /**
+     * Writes this response to the {@linkplain OutputStream}. This is added here so that classes
+     * don't have to implement since it is an experimental feature and only being added for
+     * search apis incrementally.
+     */
+    public void writeTo(OutputStream out) throws IOException {
+        // no-op
+    }
+
+    /**
      * Empty transport response
      *
      * @opensearch.internal
@@ -75,5 +95,8 @@ public abstract class TransportResponse extends TransportMessage {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {}
+
+        @Override
+        public void writeTo(OutputStream out) throws IOException {}
     }
 }

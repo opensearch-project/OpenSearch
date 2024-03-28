@@ -43,6 +43,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * This class is a base class for all search related results. It contains the shard target it
@@ -68,6 +69,10 @@ public abstract class SearchPhaseResult extends TransportResponse {
     }
 
     protected SearchPhaseResult(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    protected SearchPhaseResult(InputStream in) throws IOException {
         super(in);
     }
 

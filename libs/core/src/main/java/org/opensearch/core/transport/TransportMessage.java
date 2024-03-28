@@ -32,18 +32,23 @@
 
 package org.opensearch.core.transport;
 
+import org.opensearch.core.common.io.stream.BytesWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.transport.TransportAddress;
+
+import java.io.InputStream;
 
 /**
  * Message over the transport interface
  *
  * @opensearch.internal
  */
-public abstract class TransportMessage implements Writeable {
+public abstract class TransportMessage implements Writeable, BytesWriteable {
 
     private TransportAddress remoteAddress;
+
+    private String protocol;
 
     public void remoteAddress(TransportAddress remoteAddress) {
         this.remoteAddress = remoteAddress;
@@ -51,6 +56,13 @@ public abstract class TransportMessage implements Writeable {
 
     public TransportAddress remoteAddress() {
         return remoteAddress;
+    }
+
+    public String getProtocol() {
+        if (protocol != null) {
+            return protocol;
+        }
+        return "native";
     }
 
     /**
@@ -63,4 +75,10 @@ public abstract class TransportMessage implements Writeable {
      * currently a no-op
      */
     public TransportMessage(StreamInput in) {}
+
+    /**
+    * Constructs a new transport message with the data from the byte array. This is
+    * currently a no-op
+    */
+    public TransportMessage(InputStream in) {}
 }

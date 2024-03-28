@@ -35,12 +35,15 @@ package org.opensearch.action.search;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.ProtobufActionListenerResponseHandler;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.BytesWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -67,6 +70,7 @@ import org.opensearch.transport.TransportActionProxy;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
+import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -241,16 +245,21 @@ public class SearchTransportService {
         // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
         // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1;
-        Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
-
         final ActionListener handler = responseWrapper.apply(connection, listener);
-        transportService.sendChildRequest(
-            connection,
-            QUERY_ACTION_NAME,
-            request,
-            task,
-            new ConnectionCountingHandler<>(handler, reader, clientConnections, connection.getNode().getId())
-        );
+        TransportResponseHandler transportResponseHandler;
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+            BytesWriteable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
+            transportResponseHandler = new ProtobufConnectionCountingHandler<>(
+                handler,
+                reader,
+                clientConnections,
+                connection.getNode().getId()
+            );
+        } else {
+            Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
+            transportResponseHandler = new ConnectionCountingHandler<>(handler, reader, clientConnections, connection.getNode().getId());
+        }
+        transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task, transportResponseHandler);
     }
 
     public void sendExecuteQuery(
@@ -736,6 +745,59 @@ public class SearchTransportService {
         ConnectionCountingHandler(
             final ActionListener<? super Response> listener,
             final Writeable.Reader<Response> responseReader,
+            final Map<String, Long> clientConnections,
+            final String nodeId
+        ) {
+            super(listener, responseReader);
+            this.clientConnections = clientConnections;
+            this.nodeId = nodeId;
+            // Increment the number of connections for this node by one
+            clientConnections.compute(nodeId, (id, conns) -> conns == null ? 1 : conns + 1);
+        }
+
+        @Override
+        public void handleResponse(Response response) {
+            super.handleResponse(response);
+            // Decrement the number of connections or remove it entirely if there are no more connections
+            // We need to remove the entry here so we don't leak when nodes go away forever
+            assert assertNodePresent();
+            clientConnections.computeIfPresent(nodeId, (id, conns) -> conns.longValue() == 1 ? null : conns - 1);
+        }
+
+        @Override
+        public void handleException(TransportException e) {
+            super.handleException(e);
+            // Decrement the number of connections or remove it entirely if there are no more connections
+            // We need to remove the entry here so we don't leak when nodes go away forever
+            assert assertNodePresent();
+            clientConnections.computeIfPresent(nodeId, (id, conns) -> conns.longValue() == 1 ? null : conns - 1);
+        }
+
+        private boolean assertNodePresent() {
+            clientConnections.compute(nodeId, (id, conns) -> {
+                assert conns != null : "number of connections for " + id + " is null, but should be an integer";
+                assert conns >= 1 : "number of connections for " + id + " should be >= 1 but was " + conns;
+                return conns;
+            });
+            // Always return true, there is additional asserting here, the boolean is just so this
+            // can be skipped when assertions are not enabled
+            return true;
+        }
+    }
+
+    /**
+     * A handler that counts connections for protobuf
+     *
+     * @opensearch.internal
+     */
+    final class ProtobufConnectionCountingHandler<Response extends TransportResponse> extends ProtobufActionListenerResponseHandler<
+        Response> {
+        private final Map<String, Long> clientConnections;
+        private final String nodeId;
+
+        ProtobufConnectionCountingHandler(
+            final ActionListener<? super Response> listener,
+            final BytesWriteable.Reader<Response> responseReader,
             final Map<String, Long> clientConnections,
             final String nodeId
         ) {
