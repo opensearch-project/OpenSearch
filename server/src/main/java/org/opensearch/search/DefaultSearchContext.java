@@ -962,6 +962,12 @@ final class DefaultSearchContext extends SearchContext {
      *         false: otherwise
      */
     private boolean evaluateConcurrentSegmentSearchSettings(Executor concurrentSearchExecutor) {
+        // Do not use concurrent segment search for system indices or throttled requests. See:
+        // https://github.com/opensearch-project/OpenSearch/issues/12951
+        if (indexShard.isSystem() || indexShard.indexSettings().isSearchThrottled()) {
+            return false;
+        }
+
         if ((clusterService != null) && (concurrentSearchExecutor != null)) {
             return indexService.getIndexSettings()
                 .getSettings()
@@ -969,9 +975,8 @@ final class DefaultSearchContext extends SearchContext {
                     IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(),
                     clusterService.getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
                 );
-        } else {
-            return false;
         }
+        return false;
     }
 
     @Override
