@@ -1009,8 +1009,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     private static void assertCacheState(Client client, String index, long expectedHits, long expectedMisses) {
-        RequestCacheStats requestCacheStats = getRequestCacheStats(client, index);
-    // when staleness threshold is high, it should NOT clean-up
+        RequestCacheStats requestCacheStats = getRequestCacheStats(client, index);// when staleness threshold is high, it should NOT clean-up
     public void testStaleKeysCleanup_ThresholdUpdates() throws Exception {
         Instant start = Instant.now();
         long thresholdInMillis = 1_500;
