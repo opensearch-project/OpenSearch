@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 
 import static org.opensearch.common.cache.stats.MultiDimensionCacheStatsTests.getUsedDimensionValues;
 import static org.opensearch.common.cache.stats.MultiDimensionCacheStatsTests.populateStats;
@@ -77,16 +76,12 @@ public class StatsHolderTests extends OpenSearchTestCase {
 
         List<CacheStatsDimension> dims = List.of(new CacheStatsDimension("dim1", "A"), new CacheStatsDimension("dim2", "B"));
 
-        StatsHolder.Key matchingKey = new StatsHolder.Key(List.of(
-            new CacheStatsDimension("dim1", "A"),
-            new CacheStatsDimension("dim2", "B"),
-            new CacheStatsDimension("dim3", "C")
-        ));
-        StatsHolder.Key nonMatchingKey = new StatsHolder.Key(List.of(
-            new CacheStatsDimension("dim1", "A"),
-            new CacheStatsDimension("dim2", "Z"),
-            new CacheStatsDimension("dim3", "C")
-        ));
+        StatsHolder.Key matchingKey = new StatsHolder.Key(
+            List.of(new CacheStatsDimension("dim1", "A"), new CacheStatsDimension("dim2", "B"), new CacheStatsDimension("dim3", "C"))
+        );
+        StatsHolder.Key nonMatchingKey = new StatsHolder.Key(
+            List.of(new CacheStatsDimension("dim1", "A"), new CacheStatsDimension("dim2", "Z"), new CacheStatsDimension("dim3", "C"))
+        );
 
         assertTrue(statsHolder.keyContainsAllDimensions(matchingKey, dims));
         assertFalse(statsHolder.keyContainsAllDimensions(nonMatchingKey, dims));

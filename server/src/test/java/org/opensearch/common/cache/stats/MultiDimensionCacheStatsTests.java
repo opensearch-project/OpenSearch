@@ -17,11 +17,9 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.UUID;
 
 public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
@@ -149,7 +147,11 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         return result;
     }
 
-    private void getAllLeafNodesHelper(Map<List<String>, MultiDimensionCacheStats.DimensionNode> result, MultiDimensionCacheStats.DimensionNode current, List<String> pathToCurrent) {
+    private void getAllLeafNodesHelper(
+        Map<List<String>, MultiDimensionCacheStats.DimensionNode> result,
+        MultiDimensionCacheStats.DimensionNode current,
+        List<String> pathToCurrent
+    ) {
         if (current.children.isEmpty()) {
             result.put(pathToCurrent, current);
         } else {
