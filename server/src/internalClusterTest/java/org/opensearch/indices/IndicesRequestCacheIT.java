@@ -34,6 +34,7 @@ package org.opensearch.indices;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.search.SearchResponse;
@@ -66,6 +67,7 @@ import java.util.List;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateRange;
@@ -979,6 +981,89 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         currentMemorySize = getRequestCacheStats(client, "index").getMemorySizeInBytes();
         // cache should only contain the third entry, the first 2 entries should have been cleaned up
         assertEquals(expectedThirdCachedEntrySize, currentMemorySize);
+    }
+
+    private void setupIndex(Client client, String index) throws Exception {
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(index)
+                .setMapping("k", "type=keyword")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .get()
+        );
+        indexRandom(true, client.prepareIndex(index).setSource("k", "hello"));
+        indexRandom(true, client.prepareIndex(index).setSource("k", "there"));
+        ensureSearchable(index);
+    }
+
+    private void createCacheEntry(Client client, String index, String value) {
+        SearchResponse resp = client.prepareSearch(index).setRequestCache(true).setQuery(QueryBuilders.termQuery("k", value)).get();
+        assertSearchResponse(resp);
+        OpenSearchAssertions.assertAllSuccessful(resp);
+    }
+
+    private static void assertCacheState(Client client, String index, long expectedHits, long expectedMisses) {
+        RequestCacheStats requestCacheStats = getRequestCacheStats(client, index);
+    // when staleness threshold is high, it should NOT clean-up
+    public void testStaleKeysCleanup_ThresholdUpdates() throws Exception {
+        Instant start = Instant.now();
+        long thresholdInMillis = 1_500;
+        String node = internalCluster().startNode(
+            Settings.builder()
+                .put(IndicesRequestCache.SETTING_INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING, 0.90)
+                .put(IndicesRequestCache.SETTING_INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING, TimeValue.timeValueMillis(thresholdInMillis))
+        );
+        String index = "index";
+        Client client = client(node);
+        setupIndex(client, index);
+
+        // create first cache entry
+        createCacheEntry(client, index, "hello");
+        assertCacheState(client, index, 0, 1);
+        long expectedFirstCachedItemEntrySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
+        assertTrue(expectedFirstCachedItemEntrySize > 0);
+
+        // create second cache entry
+        createCacheEntry(client, index, "there");
+        assertCacheState(client, "index", 0, 2);
+        assertEquals(expectedFirstCachedItemEntrySize * 2, getRequestCacheStats(client, "index").getMemorySizeInBytes());
+
+        // force refresh so that it creates 2 stale keys in the cache for the cache cleaner to pick up.
+        flushAndRefresh("index");
+        client().prepareIndex("index").setId("1").setSource("k", "good bye");
+        ensureSearchable("index");
+
+        // create another entry
+        createCacheEntry(client, index, "hello1");
+        assertCacheState(client, "index", 0, 3);
+        long cacheSizeBeforeCleanup = getRequestCacheStats(client, "index").getMemorySizeInBytes();
+        assertTrue(cacheSizeBeforeCleanup > expectedFirstCachedItemEntrySize * 2);
+        assertEquals(cacheSizeBeforeCleanup, expectedFirstCachedItemEntrySize * 3, 2);
+
+        Instant end = Instant.now();
+        long elapsedTimeMillis = Duration.between(start, end).toMillis();
+        // if this test is flaky, increase the sleep time.
+        long sleepTime = (thresholdInMillis - elapsedTimeMillis) + 2_000;
+        Thread.sleep(sleepTime);
+
+        // cache cleaner should have skipped the cleanup
+        long cacheSizeAfterCleanup = getRequestCacheStats(client, "index").getMemorySizeInBytes();
+        assertEquals(cacheSizeBeforeCleanup, cacheSizeAfterCleanup);
+
+        // Set indices.requests.cache.cleanup.staleness_threshold to "10%"
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), 0.10));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        Thread.sleep(1_500);
+        cacheSizeAfterCleanup = getRequestCacheStats(client, "index").getMemorySizeInBytes();
+        assertTrue(cacheSizeBeforeCleanup > cacheSizeAfterCleanup);
     }
 
     private void setupIndex(Client client, String index) throws Exception {
