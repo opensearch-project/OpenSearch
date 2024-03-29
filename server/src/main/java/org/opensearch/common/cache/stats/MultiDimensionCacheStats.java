@@ -37,7 +37,7 @@ public class MultiDimensionCacheStats implements CacheStats {
     public MultiDimensionCacheStats(StreamInput in) throws IOException {
         this.dimensionNames = List.of(in.readStringArray());
         this.snapshot = in.readMap(
-            i -> new StatsHolder.Key(List.of(i.readArray(StreamInput::readString, String[]::new))),
+            i -> new StatsHolder.Key(List.of(i.readArray(CacheStatsDimension::new, CacheStatsDimension[]::new))),
             CounterSnapshot::new
         );
     }
@@ -47,7 +47,7 @@ public class MultiDimensionCacheStats implements CacheStats {
         out.writeStringArray(dimensionNames.toArray(new String[0]));
         out.writeMap(
             snapshot,
-            (o, key) -> o.writeArray((o1, dimValue) -> o1.writeString((String) dimValue), key.dimensionValues.toArray()),
+            (o, key) -> o.writeArray((o1, dim) -> ((CacheStatsDimension) dim).writeTo(o1), key.dimensions.toArray()),
             (o, snapshot) -> snapshot.writeTo(o)
         );
     }
@@ -140,9 +140,9 @@ public class MultiDimensionCacheStats implements CacheStats {
         DimensionNode root = new DimensionNode(null);
         for (Map.Entry<StatsHolder.Key, CounterSnapshot> entry : snapshot.entrySet()) {
             List<String> levelValues = new ArrayList<>(); // This key's relevant dimension values, which match the levels
-            List<String> keyDimensionValues = entry.getKey().dimensionValues;
+            List<CacheStatsDimension> keyDimensions = entry.getKey().dimensions;
             for (int levelPosition : levelPositions) {
-                levelValues.add(keyDimensionValues.get(levelPosition));
+                levelValues.add(keyDimensions.get(levelPosition).dimensionValue);
             }
             DimensionNode leafNode = root.getNode(levelValues);
             leafNode.addSnapshot(entry.getValue());
