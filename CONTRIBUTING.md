@@ -1,13 +1,13 @@
 - [Contributing to OpenSearch](#contributing-to-opensearch)
-    - [First Things First](#first-things-first)
-    - [Ways to Contribute](#ways-to-contribute)
-        - [Bug Reports](#bug-reports)
-        - [Feature Requests](#feature-requests)
-        - [Documentation Changes](#documentation-changes)
-        - [Contributing Code](#contributing-code)
-    - [Developer Certificate of Origin](#developer-certificate-of-origin)
-    - [Changelog](#changelog)
-    - [Review Process](#review-process)
+- [First Things First](#first-things-first)
+- [Ways to Contribute](#ways-to-contribute)
+    - [Bug Reports](#bug-reports)
+    - [Feature Requests](#feature-requests)
+    - [Documentation Changes](#documentation-changes)
+    - [Contributing Code](#contributing-code)
+- [Developer Certificate of Origin](#developer-certificate-of-origin)
+- [Changelog](#changelog)
+- [Review Process](#review-process)
 
 # Contributing to OpenSearch
 
