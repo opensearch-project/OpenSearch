@@ -11,11 +11,13 @@ package org.opensearch.telemetry.tracing;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.ThreadContextStatePropagator;
+import org.opensearch.telemetry.tracing.attributes.SamplingAttributes;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Core's ThreadContext based TracerContextStorage implementation
@@ -83,12 +85,18 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
                 tracingTelemetry.getContextPropagator().inject(current.getSpan(), headers::put);
 
                 // We will be sending one more header with the response if the request is marked for sampling
-                if (current.getSpan().getAttributeBoolean(SAMPLED) != null && current.getSpan().getAttributeBoolean(SAMPLED)) {
-                    headers.put(SAMPLED, "true");
+                Optional<Boolean> isSpanSampled = Optional.ofNullable(
+                    current.getSpan().getAttributeBoolean(SamplingAttributes.SAMPLED.getValue())
+                );
+                if (isSpanSampled.isPresent()) {
+                    headers.put(SamplingAttributes.SAMPLED.getValue(), "true");
                 }
-                if (current.getSpan().getAttributeBoolean(INFERRED_SAMPLER) != null
-                    && current.getSpan().getAttributeBoolean(INFERRED_SAMPLER)) {
-                    headers.put(INFERRED_SAMPLER, "true");
+                Optional<String> isSpanInferredSampled = Optional.ofNullable(
+                    current.getSpan().getAttributeString(SamplingAttributes.SAMPLER.getValue())
+                );
+                if (isSpanInferredSampled.isPresent()
+                    && isSpanInferredSampled.get().equals(SamplingAttributes.INFERRED_SAMPLER.getValue())) {
+                    headers.put(SamplingAttributes.SAMPLER.getValue(), isSpanInferredSampled.get());
                 }
             }
         }

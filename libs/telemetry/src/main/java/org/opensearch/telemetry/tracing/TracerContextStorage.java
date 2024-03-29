@@ -25,16 +25,6 @@ public interface TracerContextStorage<K, V> {
     String CURRENT_SPAN = "current_span";
 
     /**
-     * Key for storing sample information
-     */
-    String SAMPLED = "sampled";
-
-    /**
-     * Key for storing inferred Sampling information
-     */
-    String INFERRED_SAMPLER = "Inferred_sampler";
-
-    /**
      * Fetches value corresponding to key
      * @param key of the tracing context
      * @return value for key

@@ -10,7 +10,7 @@ package org.opensearch.telemetry.tracing.sampler;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.TelemetrySettings;
-import org.opensearch.telemetry.tracing.TracerContextStorage;
+import org.opensearch.telemetry.tracing.attributes.SamplingAttributes;
 import org.opensearch.telemetry.tracing.samplingResult.OTelSamplingResult;
 
 import java.util.List;
@@ -68,7 +68,7 @@ public class InferredActionSampler implements Sampler {
         boolean inferredSamplingAllowListed = telemetrySettings.getInferredSamplingAllowListed();
         if (inferredSamplingAllowListed) {
             Attributes customSampleAttributes = Attributes.builder()
-                .put(TracerContextStorage.INFERRED_SAMPLER, true)
+                .put(SamplingAttributes.SAMPLER.getValue(), SamplingAttributes.INFERRED_SAMPLER.getValue())
                 .putAll(attributes)
                 .build();
             SamplingResult result = SamplingResult.recordAndSample();

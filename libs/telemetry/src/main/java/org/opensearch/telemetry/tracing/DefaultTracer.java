@@ -9,6 +9,7 @@
 package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.annotation.InternalApi;
+import org.opensearch.telemetry.tracing.attributes.SamplingAttributes;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -99,7 +100,7 @@ class DefaultTracer implements Tracer {
      * @param span the current active span
      */
     protected void addDefaultAttributes(Span parentSpan, Span span) {
-        addCommonParentAttributes(parentSpan, span);
+        copyInheritableParentAttributes(parentSpan, span);
         span.addAttribute(THREAD_NAME, Thread.currentThread().getName());
     }
 
@@ -111,19 +112,18 @@ class DefaultTracer implements Tracer {
     }
 
     private void addRequestAttributeToContext(SpanCreationContext spanCreationContext, Map<String, Collection<String>> headers) {
-        if (headers != null && headers.containsKey(TracerContextStorage.INFERRED_SAMPLER)) {
-            spanCreationContext.getAttributes().addAttribute(TracerContextStorage.INFERRED_SAMPLER, true);
+        if (headers != null && headers.containsKey(SamplingAttributes.SAMPLER.getValue())) {
+            spanCreationContext.getAttributes()
+                .addAttribute(SamplingAttributes.SAMPLER.getValue(), SamplingAttributes.INFERRED_SAMPLER.getValue());
         }
     }
 
-    private void addCommonParentAttributes(Span parentSpan, Span currentSpan) {
+    private void copyInheritableParentAttributes(Span parentSpan, Span currentSpan) {
         // This work as common attribute propagator from parent to child
         if (parentSpan != null) {
-            Optional<Boolean> inferredAttribute = Optional.ofNullable(
-                parentSpan.getAttributeBoolean(TracerContextStorage.INFERRED_SAMPLER)
-            );
+            Optional<String> inferredAttribute = Optional.ofNullable(parentSpan.getAttributeString(SamplingAttributes.SAMPLER.getValue()));
             if (inferredAttribute.isPresent()) {
-                currentSpan.addAttribute(TracerContextStorage.INFERRED_SAMPLER, true);
+                currentSpan.addAttribute(SamplingAttributes.SAMPLER.getValue(), SamplingAttributes.INFERRED_SAMPLER.getValue());
             }
         }
     }

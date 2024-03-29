@@ -8,7 +8,9 @@
 
 package org.opensearch.telemetry.tracing.processor;
 
-import org.opensearch.telemetry.tracing.TracerContextStorage;
+import org.opensearch.telemetry.tracing.attributes.SamplingAttributes;
+
+import java.util.Objects;
 
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
@@ -71,8 +73,11 @@ public class OtelSpanProcessor implements SpanProcessor {
     public void onEnd(ReadableSpan span) {
         if (span != null
             && span.getSpanContext().isSampled()
-            && Boolean.TRUE.equals(span.getAttribute(AttributeKey.booleanKey(TracerContextStorage.INFERRED_SAMPLER)))) {
-            if (span.getAttribute(AttributeKey.booleanKey(TracerContextStorage.SAMPLED)) != null) {
+            && Objects.equals(
+                span.getAttribute(AttributeKey.stringKey(SamplingAttributes.SAMPLER.getValue())),
+                SamplingAttributes.INFERRED_SAMPLER.getValue()
+            )) {
+            if (span.getAttribute(AttributeKey.booleanKey(SamplingAttributes.SAMPLED.getValue())) != null) {
                 this.delegateProcessor.onEnd(span);
             }
         } else {
