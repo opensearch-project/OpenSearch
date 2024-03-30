@@ -98,7 +98,7 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
      * @opensearch.internal
      */
     @PublicApi(since = "2.14.0")
-    static final class ConstantKeywordFieldType extends ConstantFieldType {
+    protected static final class ConstantKeywordFieldType extends ConstantFieldType {
 
         protected final String value;
 
