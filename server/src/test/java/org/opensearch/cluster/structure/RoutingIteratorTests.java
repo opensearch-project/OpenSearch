@@ -700,9 +700,18 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
                 .shard(0)
                 .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, false, null);
             assertEquals(1, shardIterator.size());
-            shardRouting = shardIterator.nextOrNull();
-            assertNotNull(shardRouting);
-            assertFalse(Arrays.asList("node2", "node1").contains(shardRouting.currentNodeId()));
+            assertEquals("node3", shardIterator.nextOrNull().currentNodeId());
+
+            weights = Map.of("zone1", -1.0, "zone2", 0.0, "zone3", 1.0);
+            weightedRouting = new WeightedRouting("zone", weights);
+            shardIterator = clusterState.routingTable()
+                .index("test")
+                .shard(0)
+                .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, true, null);
+            assertEquals(3, shardIterator.size());
+            assertEquals("node3", shardIterator.nextOrNull().currentNodeId());
+            assertNotEquals("node3", shardIterator.nextOrNull().currentNodeId());
+            assertNotEquals("node3", shardIterator.nextOrNull().currentNodeId());
 
             weights = Map.of("zone1", 3.0, "zone2", 2.0, "zone3", 0.0);
             weightedRouting = new WeightedRouting("zone", weights);
@@ -711,8 +720,9 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
                 .shard(0)
                 .activeInitializingShardsWeightedIt(weightedRouting, clusterState.nodes(), 1, true, null);
             assertEquals(3, shardIterator.size());
-            shardRouting = shardIterator.nextOrNull();
-            assertNotNull(shardRouting);
+            assertNotEquals("node3", shardIterator.nextOrNull().currentNodeId());
+            assertNotEquals("node3", shardIterator.nextOrNull().currentNodeId());
+            assertEquals("node3", shardIterator.nextOrNull().currentNodeId());
         } finally {
             terminate(threadPool);
         }
@@ -887,6 +897,7 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
                 shardRouting = shardIterator.nextOrNull();
                 assertNotNull(shardRouting);
                 requestCount.put(shardRouting.currentNodeId(), requestCount.getOrDefault(shardRouting.currentNodeId(), 0) + 1);
+
             }
             assertEquals(3, requestCount.get("node1").intValue());
             assertEquals(2, requestCount.get("node2").intValue());
