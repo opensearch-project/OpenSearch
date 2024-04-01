@@ -14,7 +14,6 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
@@ -136,7 +135,6 @@ public class ResizeIndexMigrationTestCase extends MigrationBaseTestCase {
 
         addRemote = false;
         String nonRemoteNodeName = internalCluster().startNode();
-
 
         logger.info("-->Create index on remote node and SETTING_REMOTE_STORE_ENABLED is true. Resize should not happen");
         Settings.Builder builder = Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);

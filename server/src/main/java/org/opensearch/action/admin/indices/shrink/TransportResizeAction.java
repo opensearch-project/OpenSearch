@@ -382,10 +382,11 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         if (clusterSettings.get(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING)
             .equals(RemoteStoreNodeService.CompatibilityMode.MIXED)) {
             boolean isRemoteStoreEnabled = sourceIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false);
-            if ((clusterSettings.get(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING).equals(RemoteStoreNodeService.Direction.REMOTE_STORE)
+            if ((clusterSettings.get(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING)
+                .equals(RemoteStoreNodeService.Direction.REMOTE_STORE)
                 && isRemoteStoreEnabled == false)
                 || (clusterSettings.get(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING).equals(RemoteStoreNodeService.Direction.DOCREP)
-                && isRemoteStoreEnabled == true)) {
+                    && isRemoteStoreEnabled == true)) {
                 throw new IllegalStateException(
                     "index Resizing for type ["
                         + type

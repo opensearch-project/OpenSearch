@@ -667,7 +667,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
 
         if (compatibilityMode == CompatibilityMode.MIXED) {
             if ((migrationDirection == RemoteStoreNodeService.Direction.REMOTE_STORE && isRemoteStoreEnabled == false)
-                || migrationDirection == RemoteStoreNodeService.Direction.DOCREP && isRemoteStoreEnabled == true ){
+                || migrationDirection == RemoteStoreNodeService.Direction.DOCREP && isRemoteStoreEnabled == true) {
                 ClusterState finalState = clusterState;
                 IllegalStateException ise = expectThrows(
                     IllegalStateException.class,
