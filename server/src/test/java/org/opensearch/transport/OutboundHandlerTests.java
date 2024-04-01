@@ -103,7 +103,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
-        }, Version.CURRENT);
+        });
     }
 
     @After

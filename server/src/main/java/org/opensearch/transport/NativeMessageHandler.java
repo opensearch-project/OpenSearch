@@ -66,7 +66,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-public class NativeMessageHandler {
+public class NativeMessageHandler implements ProtocolMessageHandler {
 
     private static final Logger logger = LogManager.getLogger(NativeMessageHandler.class);
 
@@ -74,6 +74,7 @@ public class NativeMessageHandler {
     private final OutboundHandler outboundHandler;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final TransportHandshaker handshaker;
+    private final TransportKeepAlive keepAlive;
     private final Transport.ResponseHandlers responseHandlers;
     private final Transport.RequestHandlers requestHandlers;
 
@@ -86,7 +87,8 @@ public class NativeMessageHandler {
         TransportHandshaker handshaker,
         Transport.RequestHandlers requestHandlers,
         Transport.ResponseHandlers responseHandlers,
-        Tracer tracer
+        Tracer tracer,
+        TransportKeepAlive keepAlive
     ) {
         this.threadPool = threadPool;
         this.outboundHandler = outboundHandler;
@@ -95,12 +97,30 @@ public class NativeMessageHandler {
         this.requestHandlers = requestHandlers;
         this.responseHandlers = responseHandlers;
         this.tracer = tracer;
+        this.keepAlive = keepAlive;
     }
 
     // Empty stream constant to avoid instantiating a new stream for empty messages.
     private static final StreamInput EMPTY_STREAM_INPUT = new ByteBufferStreamInput(ByteBuffer.wrap(BytesRef.EMPTY_BYTES));
 
+    @Override
     public void messageReceived(
+        TcpChannel channel,
+        ProtocolInboundMessage message,
+        long startTime,
+        long slowLogThresholdMs,
+        TransportMessageListener messageListener
+    ) throws IOException {
+        InboundMessage inboundMessage = (InboundMessage) message;
+        TransportLogger.logInboundMessage(channel, inboundMessage);
+        if (inboundMessage.isPing()) {
+            keepAlive.receiveKeepAlive(channel);
+        } else {
+            handleMessage(channel, inboundMessage, startTime, slowLogThresholdMs, messageListener);
+        }
+    }
+
+    private void handleMessage(
         TcpChannel channel,
         InboundMessage message,
         long startTime,

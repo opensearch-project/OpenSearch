@@ -38,6 +38,7 @@ import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Handler for inbound data
@@ -47,18 +48,12 @@ import java.io.IOException;
 public class InboundHandler {
 
     private final ThreadPool threadPool;
-    private final OutboundHandler outboundHandler;
-    private final NamedWriteableRegistry namedWriteableRegistry;
-    private final TransportHandshaker handshaker;
-    private final TransportKeepAlive keepAlive;
-    private final Transport.ResponseHandlers responseHandlers;
-    private final Transport.RequestHandlers requestHandlers;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
     private volatile long slowLogThresholdMs = Long.MAX_VALUE;
 
-    private final Tracer tracer;
+    private final Map<String, ProtocolMessageHandler> protocolMessageHandlers;
 
     InboundHandler(
         ThreadPool threadPool,
@@ -71,13 +66,19 @@ public class InboundHandler {
         Tracer tracer
     ) {
         this.threadPool = threadPool;
-        this.outboundHandler = outboundHandler;
-        this.namedWriteableRegistry = namedWriteableRegistry;
-        this.handshaker = handshaker;
-        this.keepAlive = keepAlive;
-        this.requestHandlers = requestHandlers;
-        this.responseHandlers = responseHandlers;
-        this.tracer = tracer;
+        this.protocolMessageHandlers = Map.of(
+            ProtocolInboundMessage.NATIVE_PROTOCOL,
+            new NativeMessageHandler(
+                threadPool,
+                outboundHandler,
+                namedWriteableRegistry,
+                handshaker,
+                requestHandlers,
+                responseHandlers,
+                tracer,
+                keepAlive
+            )
+        );
     }
 
     void setMessageListener(TransportMessageListener listener) {
@@ -92,32 +93,17 @@ public class InboundHandler {
         this.slowLogThresholdMs = slowLogThreshold.getMillis();
     }
 
-    void inboundMessage(TcpChannel channel, BaseInboundMessage message) throws Exception {
+    void inboundMessage(TcpChannel channel, ProtocolInboundMessage message) throws Exception {
         final long startTime = threadPool.relativeTimeInMillis();
         channel.getChannelStats().markAccessed(startTime);
         messageReceivedFromPipeline(channel, message, startTime);
     }
 
-    private void messageReceivedFromPipeline(TcpChannel channel, BaseInboundMessage message, long startTime) throws IOException {
-        if ((message.getProtocol()).equals(BaseInboundMessage.PROTOBUF_PROTOCOL)) {
-            // protobuf messages logic can be added here
-        } else {
-            InboundMessage inboundMessage = (InboundMessage) message;
-            TransportLogger.logInboundMessage(channel, inboundMessage);
-            if (inboundMessage.isPing()) {
-                keepAlive.receiveKeepAlive(channel);
-            } else {
-                NativeMessageHandler nativeInboundHandler = new NativeMessageHandler(
-                    threadPool,
-                    outboundHandler,
-                    namedWriteableRegistry,
-                    handshaker,
-                    requestHandlers,
-                    responseHandlers,
-                    tracer
-                );
-                nativeInboundHandler.messageReceived(channel, inboundMessage, startTime, slowLogThresholdMs, messageListener);
-            }
+    private void messageReceivedFromPipeline(TcpChannel channel, ProtocolInboundMessage message, long startTime) throws IOException {
+        ProtocolMessageHandler protocolMessageHandler = protocolMessageHandlers.get(message.getProtocol());
+        if (protocolMessageHandler == null) {
+            throw new IllegalStateException("No protocol message handler found for protocol: " + message.getProtocol());
         }
+        protocolMessageHandler.messageReceived(channel, message, startTime, slowLogThresholdMs, messageListener);
     }
 }

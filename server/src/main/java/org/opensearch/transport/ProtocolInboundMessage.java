@@ -17,7 +17,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
  * @opensearch.internal
  */
 @ExperimentalApi
-public interface BaseInboundMessage {
+public interface ProtocolInboundMessage {
 
     /**
      * The protocol used to encode this message
@@ -28,10 +28,7 @@ public interface BaseInboundMessage {
     /**
      * @return the protocol used to encode this message
      */
-    public String getProtocol();
-
-    /**
-     * Set the protocol used to encode this message
-     */
-    public void setProtocol();
+    default public String getProtocol() {
+        return "native";
+    }
 }
