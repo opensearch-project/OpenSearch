@@ -139,10 +139,8 @@ public class DerivedFieldScriptTests extends ScriptTestCase {
         LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
 
         // Execute the script
-        DerivedFieldScript script = compile(
-            "emit(doc['test_geo_field'].value.getLat(), doc['test_geo_field'].value.getLon())",
-            lookup
-        ).newInstance(leafReaderContext);
+        DerivedFieldScript script = compile("emit(doc['test_geo_field'].value.getLat(), doc['test_geo_field'].value.getLon())", lookup)
+            .newInstance(leafReaderContext);
         script.setDocument(1);
         script.execute();
 

@@ -85,7 +85,9 @@ public abstract class DerivedFieldScript {
     /**
      * Return the emitted values from the script execution.
      */
-    public List<Object> getEmittedValues() { return emittedValues; }
+    public List<Object> getEmittedValues() {
+        return emittedValues;
+    }
 
     /**
      * Set the current document to run the script on next.
@@ -96,7 +98,9 @@ public abstract class DerivedFieldScript {
         leafLookup.setDocument(docid);
     }
 
-    public void addEmittedValue(Object o) { emittedValues.add(o); }
+    public void addEmittedValue(Object o) {
+        emittedValues.add(o);
+    }
 
     public void execute() {}
 

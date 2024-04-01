@@ -29,12 +29,12 @@ public final class ScriptEmitValues {
         }
 
         // TODO: Keeping this generic for the time being due to limitations with
-        //  binding methods with the same name and arity.
-        //  Ideally, we should have an emit signature per derived field type and try to scope
-        //  that to the respective script execution so the other emits aren't allowed.
-        //  One way to do this could be to create implementations of the DerivedFieldScript.LeafFactory
-        //  per field type where they each define their own emit() method and then the engine that executes
-        //  it can have custom compilation logic to perform class bindings on that emit implementation.
+        // binding methods with the same name and arity.
+        // Ideally, we should have an emit signature per derived field type and try to scope
+        // that to the respective script execution so the other emits aren't allowed.
+        // One way to do this could be to create implementations of the DerivedFieldScript.LeafFactory
+        // per field type where they each define their own emit() method and then the engine that executes
+        // it can have custom compilation logic to perform class bindings on that emit implementation.
         public void emit(Object val) {
             derivedFieldScript.addEmittedValue(val);
         }
