@@ -55,8 +55,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -702,292 +700,222 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when staleness threshold is low, it should clean the cache
-    public void testStaleKeysCleanup_LowThresholdCleansUpCache() throws Exception {
-        Instant start = Instant.now();
-        long thresholdInMillis = 1_500;
+    public void testStaleKeysCleanup_LowStaleThresholdShouldCleanUpStaleKeysFromCache() throws Exception {
+
         String node = internalCluster().startNode(
             Settings.builder()
                 .put(IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING_KEY, 0.10)
-                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(thresholdInMillis))
+                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(1_000))
         );
-        String index = "index";
+        String index1 = "index1";
+        String index2 = "index2";
         Client client = client(node);
-        setupIndex(client, index);
+        setupIndex(client, index1);
+        setupIndex(client, index2);
 
-        // create first cache entry
-        createCacheEntry(client, index, "hello");
-        assertCacheState(client, index, 0, 1);
-        long expectedFirstCachedItemEntrySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        assertTrue(expectedFirstCachedItemEntrySize > 0);
+        // create first cache entry in index1
+        createCacheEntry(client, index1, "hello");
+        assertCacheState(client, index1, 0, 1);
+        long memorySizeForIndex1 = getRequestCacheStats(client, index1).getMemorySizeInBytes();
+        assertTrue(memorySizeForIndex1 > 0);
 
-        // create second cache entry
-        createCacheEntry(client, index, "there");
-        assertCacheState(client, index, 0, 2);
-        assertEquals(expectedFirstCachedItemEntrySize * 2, getRequestCacheStats(client, index).getMemorySizeInBytes());
+        // create second cache entry in index1
+        createCacheEntry(client, index1, "there");
+        assertCacheState(client, index1, 0, 2);
+        assertTrue(getRequestCacheStats(client, index1).getMemorySizeInBytes() > memorySizeForIndex1);
 
-        // force refresh so that it creates 2 stale keys in the cache for the cache cleaner to pick up.
-        flushAndRefresh(index);
-        client().prepareIndex(index).setId("1").setSource("k", "good bye");
-        ensureSearchable(index);
+        // create first cache entry in index2
+        createCacheEntry(client, index2, "hello");
+        assertCacheState(client, index2, 0, 1);
+        assertTrue(getRequestCacheStats(client, index2).getMemorySizeInBytes() > 0);
 
-        // create another entry
-        createCacheEntry(client, index, "hello1");
-        assertCacheState(client, index, 0, 3);
-        long currentMemorySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        long expectedThirdCachedEntrySize = currentMemorySize - (expectedFirstCachedItemEntrySize * 2);
-        assertTrue(currentMemorySize > expectedFirstCachedItemEntrySize * 2);
-        assertEquals(currentMemorySize, expectedFirstCachedItemEntrySize * 3, 2);
-
-        Instant end = Instant.now();
-        long elapsedTimeMillis = Duration.between(start, end).toMillis();
-        // if this test is flaky, increase the sleep time.
-        long sleepTime = (thresholdInMillis - elapsedTimeMillis) + 2_000;
-        Thread.sleep(sleepTime);
-
-        // cache cleaner should have cleared the stale keys by now
-        currentMemorySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        // cache should only contain the third entry, the first 2 entries should have been cleaned up
-        assertEquals(currentMemorySize, expectedThirdCachedEntrySize);
+        // force refresh so that it creates 1 stale key
+        flushAndRefresh(index2);
+        // sleep until cache cleaner would have cleaned up the stale key from index 2
+        Thread.sleep(1_000);
+        // cache cleaner should have cleaned up the stale key from index 2
+        assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
     }
 
-    // when staleness threshold is high, it should NOT clean-up
-    public void testStaleKeysCleanup_HighThresholdSkipsCleanUp() throws Exception {
-        Instant start = Instant.now();
-        long thresholdInMillis = 1_500;
+    // when staleness threshold is equal, it should clean the cache
+    public void testStaleKeysCleanup_EqualThresholdAndStalenessShouldCleanUpStaleKeysFromCache() throws Exception {
+        String node = internalCluster().startNode(
+            Settings.builder()
+                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING_KEY, 0.33)
+                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(1_000))
+        );
+        String index1 = "index1";
+        String index2 = "index2";
+        Client client = client(node);
+        setupIndex(client, index1);
+        setupIndex(client, index2);
+
+        // create first cache entry in index1
+        createCacheEntry(client, index1, "hello");
+        assertCacheState(client, index1, 0, 1);
+        long memorySizeForIndex1 = getRequestCacheStats(client, index1).getMemorySizeInBytes();
+        assertTrue(memorySizeForIndex1 > 0);
+
+        // create second cache entry in index1
+        createCacheEntry(client, index1, "there");
+        assertCacheState(client, index1, 0, 2);
+        assertTrue(getRequestCacheStats(client, index1).getMemorySizeInBytes() > memorySizeForIndex1);
+
+        // create first cache entry in index2
+        createCacheEntry(client, index2, "hello");
+        assertCacheState(client, index2, 0, 1);
+        assertTrue(getRequestCacheStats(client, index2).getMemorySizeInBytes() > 0);
+
+        // force refresh so that it creates 1 stale key
+        flushAndRefresh(index2);
+        // sleep until cache cleaner would have cleaned up the stale key from index 2
+        Thread.sleep(1_000);
+        // cache cleaner should have cleaned up the stale key from index 2
+        assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
+    }
+
+    // when staleness threshold is high, it should NOT clean the cache
+    public void testStaleKeysCleanup_HighStaleThresholdShouldSkipCleanUp() throws Exception {
         String node = internalCluster().startNode(
             Settings.builder()
                 .put(IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING_KEY, 0.90)
-                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(thresholdInMillis))
+                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(1_000))
         );
-        String index = "index";
+        String index1 = "index1";
+        String index2 = "index2";
         Client client = client(node);
-        setupIndex(client, index);
+        setupIndex(client, index1);
+        setupIndex(client, index2);
 
-        // create first cache entry
-        createCacheEntry(client, index, "hello");
-        assertCacheState(client, index, 0, 1);
-        long expectedFirstCachedItemEntrySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        assertTrue(expectedFirstCachedItemEntrySize > 0);
+        // create first cache entry in index1
+        createCacheEntry(client, index1, "hello");
+        assertCacheState(client, index1, 0, 1);
+        long memorySizeForIndex1 = getRequestCacheStats(client, index1).getMemorySizeInBytes();
+        assertTrue(memorySizeForIndex1 > 0);
 
-        // create second cache entry
-        createCacheEntry(client, index, "there");
-        assertCacheState(client, index, 0, 2);
-        assertEquals(expectedFirstCachedItemEntrySize * 2, getRequestCacheStats(client, index).getMemorySizeInBytes());
+        // create second cache entry in index1
+        createCacheEntry(client, index1, "there");
+        assertCacheState(client, index1, 0, 2);
+        assertTrue(getRequestCacheStats(client, index1).getMemorySizeInBytes() > memorySizeForIndex1);
 
-        // force refresh so that it creates 2 stale keys in the cache for the cache cleaner to pick up.
-        flushAndRefresh(index);
-        client().prepareIndex(index).setId("1").setSource("k", "good bye");
-        ensureSearchable(index);
+        // create first cache entry in index2
+        createCacheEntry(client, index2, "hello");
+        assertCacheState(client, index2, 0, 1);
+        assertTrue(getRequestCacheStats(client, index2).getMemorySizeInBytes() > 0);
 
-        // create another entry
-        createCacheEntry(client, index, "hello1");
-        assertCacheState(client, index, 0, 3);
-        long cacheSizeBeforeCleanup = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        assertTrue(cacheSizeBeforeCleanup > expectedFirstCachedItemEntrySize * 2);
-        assertEquals(cacheSizeBeforeCleanup, expectedFirstCachedItemEntrySize * 3, 2);
-
-        Instant end = Instant.now();
-        long elapsedTimeMillis = Duration.between(start, end).toMillis();
-        // if this test is flaky, increase the sleep time.
-        long sleepTime = (thresholdInMillis - elapsedTimeMillis) + 1_000;
-        Thread.sleep(sleepTime);
-
-        // cache cleaner should have skipped the cleanup
-        long cacheSizeAfterCleanup = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        assertEquals(cacheSizeBeforeCleanup, cacheSizeAfterCleanup);
+        // force refresh so that it creates 1 stale key
+        flushAndRefresh(index2);
+        // sleep until cache cleaner would have cleaned up the stale key from index 2
+        Thread.sleep(1_000);
+        // cache cleaner should NOT have cleaned up the stale key from index 2
+        assertTrue(getRequestCacheStats(client, index2).getMemorySizeInBytes() > 0);
     }
 
-    // when staleness threshold is equal, it should clean-up
-    public void testStaleKeysCleanup_ThresholdAndStaleEqualCleansUp() throws Exception {
-        Instant start = Instant.now();
-        long thresholdInMillis = 1_500;
-        String node = internalCluster().startNode(
-            Settings.builder()
-                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING_KEY, 0.66)
-                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(thresholdInMillis))
-        );
-        String index = "index";
-        Client client = client(node);
-        setupIndex(client, index);
-
-        // create first cache entry
-        createCacheEntry(client, index, "hello");
-        assertCacheState(client, index, 0, 1);
-        long expectedFirstCachedItemEntrySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        assertTrue(expectedFirstCachedItemEntrySize > 0);
-
-        // create second cache entry
-        createCacheEntry(client, index, "there");
-        assertCacheState(client, index, 0, 2);
-        assertEquals(expectedFirstCachedItemEntrySize * 2, getRequestCacheStats(client, index).getMemorySizeInBytes());
-
-        // force refresh so that it creates 2 stale keys in the cache for the cache cleaner to pick up.
-        flushAndRefresh(index);
-        client().prepareIndex(index).setId("1").setSource("k", "good bye");
-        ensureSearchable(index);
-
-        // create another entry
-        createCacheEntry(client, index, "hello1");
-        assertCacheState(client, index, 0, 3);
-        long currentMemorySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        long expectedThirdCachedEntrySize = currentMemorySize - (expectedFirstCachedItemEntrySize * 2);
-        assertTrue(currentMemorySize > expectedFirstCachedItemEntrySize * 2);
-        assertEquals(currentMemorySize, expectedFirstCachedItemEntrySize * 3, 2);
-
-        Instant end = Instant.now();
-        long elapsedTimeMillis = Duration.between(start, end).toMillis();
-        // if this test is flaky, increase the sleep time.
-        long sleepTime = (thresholdInMillis - elapsedTimeMillis) + 2_500;
-        Thread.sleep(sleepTime);
-
-        // cache cleaner should have cleared the stale keys by now
-        currentMemorySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        // cache should only contain the third entry, the first 2 entries should have been cleaned up
-        assertEquals(expectedThirdCachedEntrySize, currentMemorySize);
-    }
-
-    // cache cleaner wakes up and cleans regularly when staleness threshold is explicitly set to 0
-    public void testStaleKeysCleanup_ZeroStaleThresholdCleansUp() throws Exception {
-        Instant start = Instant.now();
-        long thresholdInMillis = 1_500;
+    // when staleness threshold is explicitly set to 0, cache cleaner regularly cleans up.
+    public void testStaleKeysCleanup_ZeroStaleThresholdShouldCleanUpStaleKeysFromCache() throws Exception {
         String node = internalCluster().startNode(
             Settings.builder()
                 .put(IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING_KEY, 0)
-                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(thresholdInMillis))
+                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(1_000))
         );
-        String index = "index";
+        String index1 = "index1";
+        String index2 = "index2";
         Client client = client(node);
-        setupIndex(client, index);
+        setupIndex(client, index1);
+        setupIndex(client, index2);
 
-        // create first cache entry
-        createCacheEntry(client, index, "hello");
-        assertCacheState(client, index, 0, 1);
-        long expectedFirstCachedItemEntrySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        assertTrue(expectedFirstCachedItemEntrySize > 0);
+        // create first cache entry in index1
+        createCacheEntry(client, index1, "hello");
+        assertCacheState(client, index1, 0, 1);
+        long memorySizeForIndex1 = getRequestCacheStats(client, index1).getMemorySizeInBytes();
+        assertTrue(memorySizeForIndex1 > 0);
 
-        // create second cache entry
-        createCacheEntry(client, index, "there");
-        assertCacheState(client, index, 0, 2);
-        assertEquals(expectedFirstCachedItemEntrySize * 2, getRequestCacheStats(client, index).getMemorySizeInBytes());
+        // create second cache entry in index1
+        createCacheEntry(client, index1, "there");
+        assertCacheState(client, index1, 0, 2);
+        assertTrue(getRequestCacheStats(client, index1).getMemorySizeInBytes() > memorySizeForIndex1);
 
-        // force refresh so that it creates 2 stale keys in the cache for the cache cleaner to pick up.
-        flushAndRefresh(index);
-        client.prepareIndex(index).setId("1").setSource("k", "good bye");
-        ensureSearchable(index);
+        // create first cache entry in index2
+        createCacheEntry(client, index2, "hello");
+        assertCacheState(client, index2, 0, 1);
+        assertTrue(getRequestCacheStats(client, index2).getMemorySizeInBytes() > 0);
 
-        // create another entry
-        createCacheEntry(client, index, "hello1");
-        assertCacheState(client, index, 0, 3);
-        long currentMemorySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        long expectedThirdCachedEntrySize = currentMemorySize - (expectedFirstCachedItemEntrySize * 2);
-        assertTrue(currentMemorySize > expectedFirstCachedItemEntrySize * 2);
-        assertEquals(currentMemorySize, expectedFirstCachedItemEntrySize * 3, 2);
-
-        Instant end = Instant.now();
-        long elapsedTimeMillis = Duration.between(start, end).toMillis();
-        // if this test is flaky, increase the sleep time.
-        long sleepTime = (thresholdInMillis - elapsedTimeMillis) + 2_500;
-        Thread.sleep(sleepTime);
-
-        // cache cleaner should have cleared the stale keys by now
-        currentMemorySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        // cache should only contain the third entry, the first 2 entries should have been cleaned up
-        assertEquals(expectedThirdCachedEntrySize, currentMemorySize);
+        // force refresh so that it creates 1 stale key
+        flushAndRefresh(index2);
+        // sleep until cache cleaner would have cleaned up the stale key from index 2
+        Thread.sleep(1_000);
+        // cache cleaner should have cleaned up the stale key from index 2
+        assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
     }
 
-    // cache cleaner wakes up and cleans regularly when staleness threshold is not explicitly set
-    public void testStaleKeysCleanup_NoStaleThresholdCleansUp() throws Exception {
-        Instant start = Instant.now();
-        long thresholdInMillis = 1_500;
+    // when staleness threshold is not explicitly set, cache cleaner regularly cleans up
+    public void testStaleKeysCleanup_NoStaleThresholdShouldCleanUpStaleKeysFromCache() throws Exception {
         String node = internalCluster().startNode(
-            Settings.builder()
-                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(thresholdInMillis))
+            Settings.builder().put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(1_000))
         );
-        String index = "index";
+        String index1 = "index1";
+        String index2 = "index2";
         Client client = client(node);
-        setupIndex(client, index);
+        setupIndex(client, index1);
+        setupIndex(client, index2);
 
-        // create first cache entry
-        createCacheEntry(client, index, "hello");
-        assertCacheState(client, index, 0, 1);
-        long expectedFirstCachedItemEntrySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        assertTrue(expectedFirstCachedItemEntrySize > 0);
+        // create first cache entry in index1
+        createCacheEntry(client, index1, "hello");
+        assertCacheState(client, index1, 0, 1);
+        long memorySizeForIndex1 = getRequestCacheStats(client, index1).getMemorySizeInBytes();
+        assertTrue(memorySizeForIndex1 > 0);
 
-        // create second cache entry
-        createCacheEntry(client, index, "there");
-        assertCacheState(client, index, 0, 2);
-        assertEquals(expectedFirstCachedItemEntrySize * 2, getRequestCacheStats(client, index).getMemorySizeInBytes());
+        // create second cache entry in index1
+        createCacheEntry(client, index1, "there");
+        assertCacheState(client, index1, 0, 2);
+        assertTrue(getRequestCacheStats(client, index1).getMemorySizeInBytes() > memorySizeForIndex1);
 
-        // force refresh so that it creates 2 stale keys in the cache for the cache cleaner to pick up.
-        flushAndRefresh(index);
-        client().prepareIndex(index).setId("1").setSource("k", "good bye");
-        ensureSearchable(index);
+        // create first cache entry in index2
+        createCacheEntry(client, index2, "hello");
+        assertCacheState(client, index2, 0, 1);
+        assertTrue(getRequestCacheStats(client, index2).getMemorySizeInBytes() > 0);
 
-        // create another cache entry
-        createCacheEntry(client, index, "hello1");
-        assertCacheState(client, index, 0, 3);
-        long currentMemorySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        long expectedThirdCachedEntrySize = currentMemorySize - (expectedFirstCachedItemEntrySize * 2);
-        assertTrue(currentMemorySize > expectedFirstCachedItemEntrySize * 2);
-        assertEquals(currentMemorySize, expectedFirstCachedItemEntrySize * 3, 2);
-
-        Instant end = Instant.now();
-        long elapsedTimeMillis = Duration.between(start, end).toMillis();
-        // if this test is flaky, increase the sleep time.
-        long sleepTime = (thresholdInMillis - elapsedTimeMillis) + 2_000;
-        Thread.sleep(sleepTime);
-
-        // cache cleaner should have cleared the stale keys by now
-        currentMemorySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        // cache should only contain the third entry, the first 2 entries should have been cleaned up
-        assertEquals(expectedThirdCachedEntrySize, currentMemorySize);
+        // force refresh so that it creates 1 stale key
+        flushAndRefresh(index2);
+        // sleep until cache cleaner would have cleaned up the stale key from index 2
+        Thread.sleep(1_000);
+        // cache cleaner should have cleaned up the stale key from index 2
+        assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
     }
 
-    // cache cleaner is configured appropriately with the fall back setting
+    // when cache cleaner interval setting is not set, cache cleaner is configured appropriately with the fall-back setting
     public void testStaleKeysCleanup_NoIntervalSettingFallsBackAppropriately() throws Exception {
-        Instant start = Instant.now();
-        long thresholdInMillis = 1_500;
         String node = internalCluster().startNode(
-            Settings.builder().put(INDICES_CACHE_CLEAN_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(thresholdInMillis))
+            Settings.builder().put(INDICES_CACHE_CLEAN_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(1_000))
         );
-        String index = "index";
+        String index1 = "index1";
+        String index2 = "index2";
         Client client = client(node);
-        setupIndex(client, index);
+        setupIndex(client, index1);
+        setupIndex(client, index2);
 
-        // create first cache entry
-        createCacheEntry(client, index, "hello");
-        assertCacheState(client, index, 0, 1);
-        long expectedFirstCachedItemEntrySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        assertTrue(expectedFirstCachedItemEntrySize > 0);
+        // create first cache entry in index1
+        createCacheEntry(client, index1, "hello");
+        assertCacheState(client, index1, 0, 1);
+        long memorySizeForIndex1 = getRequestCacheStats(client, index1).getMemorySizeInBytes();
+        assertTrue(memorySizeForIndex1 > 0);
 
-        // create second cache entry
-        createCacheEntry(client, index, "there");
-        assertCacheState(client, index, 0, 2);
-        assertEquals(expectedFirstCachedItemEntrySize * 2, getRequestCacheStats(client, index).getMemorySizeInBytes());
+        // create second cache entry in index1
+        createCacheEntry(client, index1, "there");
+        assertCacheState(client, index1, 0, 2);
+        assertTrue(getRequestCacheStats(client, index1).getMemorySizeInBytes() > memorySizeForIndex1);
 
-        // force refresh so that it creates 2 stale keys in the cache for the cache cleaner to pick up.
-        flushAndRefresh(index);
-        client().prepareIndex(index).setId("1").setSource("k", "good bye");
-        ensureSearchable(index);
+        // create first cache entry in index2
+        createCacheEntry(client, index2, "hello");
+        assertCacheState(client, index2, 0, 1);
+        assertTrue(getRequestCacheStats(client, index2).getMemorySizeInBytes() > 0);
 
-        // create another cache entry
-        createCacheEntry(client, index, "hello1");
-        assertCacheState(client, index, 0, 3);
-        long currentMemorySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        long expectedThirdCachedEntrySize = currentMemorySize - (expectedFirstCachedItemEntrySize * 2);
-        assertTrue(currentMemorySize > expectedFirstCachedItemEntrySize * 2);
-        assertEquals(currentMemorySize, expectedFirstCachedItemEntrySize * 3, 2);
-
-        Instant end = Instant.now();
-        long elapsedTimeMillis = Duration.between(start, end).toMillis();
-        // if this test is flaky, increase the sleep time.
-        long sleepTime = (thresholdInMillis - elapsedTimeMillis) + 2_500;
-        Thread.sleep(sleepTime);
-
-        // cache cleaner should have cleared the stale keys by now
-        currentMemorySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        // cache should only contain the third entry, the first 2 entries should have been cleaned up
-        assertEquals(expectedThirdCachedEntrySize, currentMemorySize);
+        // force refresh so that it creates 1 stale key
+        flushAndRefresh(index2);
+        // sleep until cache cleaner would have cleaned up the stale key from index 2
+        Thread.sleep(1_000);
+        // cache cleaner should have cleaned up the stale key from index 2
+        assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
     }
 
     private void setupIndex(Client client, String index) throws Exception {
@@ -1016,60 +944,51 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     private static void assertCacheState(Client client, String index, long expectedHits, long expectedMisses) {
-        RequestCacheStats requestCacheStats = getRequestCacheStats(client, index);// when staleness threshold is high, it should NOT clean-up
-    public void testStaleKeysCleanup_ThresholdUpdates() throws Exception {
-        Instant start = Instant.now();
-        long thresholdInMillis = 1_500;
+        RequestCacheStats requestCacheStats = getRequestCacheStats(client, index);// staleness threshold dynamic updates should take effect in cleaning
+    public void testStaleKeysCleanup_ThresholdUpdatesShouldTakeEffectAndCleanAppropriately() throws Exception {
         String node = internalCluster().startNode(
             Settings.builder()
                 .put(IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING_KEY, 0.90)
-                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(thresholdInMillis))
+                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(1_000))
         );
-        String index = "index";
+        String index1 = "index1";
+        String index2 = "index2";
         Client client = client(node);
-        setupIndex(client, index);
+        setupIndex(client, index1);
+        setupIndex(client, index2);
 
-        // create first cache entry
-        createCacheEntry(client, index, "hello");
-        assertCacheState(client, index, 0, 1);
-        long expectedFirstCachedItemEntrySize = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        assertTrue(expectedFirstCachedItemEntrySize > 0);
+        // create first cache entry in index1
+        createCacheEntry(client, index1, "hello");
+        assertCacheState(client, index1, 0, 1);
+        long memorySizeForIndex1 = getRequestCacheStats(client, index1).getMemorySizeInBytes();
+        assertTrue(memorySizeForIndex1 > 0);
 
-        // create second cache entry
-        createCacheEntry(client, index, "there");
-        assertCacheState(client, index, 0, 2);
-        assertEquals(expectedFirstCachedItemEntrySize * 2, getRequestCacheStats(client, index).getMemorySizeInBytes());
+        // create second cache entry in index1
+        createCacheEntry(client, index1, "there");
+        assertCacheState(client, index1, 0, 2);
+        assertTrue(getRequestCacheStats(client, index1).getMemorySizeInBytes() > memorySizeForIndex1);
 
-        // force refresh so that it creates 2 stale keys in the cache for the cache cleaner to pick up.
-        flushAndRefresh(index);
-        client().prepareIndex(index).setId("1").setSource("k", "good bye");
-        ensureSearchable(index);
+        // create first cache entry in index2
+        createCacheEntry(client, index2, "hello");
+        assertCacheState(client, index2, 0, 1);
+        assertTrue(getRequestCacheStats(client, index2).getMemorySizeInBytes() > 0);
 
-        // create another entry
-        createCacheEntry(client, index, "hello1");
-        assertCacheState(client, index, 0, 3);
-        long cacheSizeBeforeCleanup = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        assertTrue(cacheSizeBeforeCleanup > expectedFirstCachedItemEntrySize * 2);
-        assertEquals(cacheSizeBeforeCleanup, expectedFirstCachedItemEntrySize * 3, 2);
+        // force refresh so that it creates 1 stale key
+        flushAndRefresh(index2);
+        // sleep until cache cleaner would have cleaned up the stale key from index 2
+        Thread.sleep(1_000);
+        // cache cleaner should NOT have cleaned up the stale key from index 2
+        assertTrue(getRequestCacheStats(client, index2).getMemorySizeInBytes() > 0);
 
-        Instant end = Instant.now();
-        long elapsedTimeMillis = Duration.between(start, end).toMillis();
-        // if this test is flaky, increase the sleep time.
-        long sleepTime = (thresholdInMillis - elapsedTimeMillis) + 2_000;
-        Thread.sleep(sleepTime);
-
-        // cache cleaner should have skipped the cleanup
-        long cacheSizeAfterCleanup = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        assertEquals(cacheSizeBeforeCleanup, cacheSizeAfterCleanup);
-
-        // Set indices.requests.cache.cleanup.staleness_threshold to "10%"
+        // Update indices.requests.cache.cleanup.staleness_threshold to "10%"
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), 0.10));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-        Thread.sleep(1_500);
-        cacheSizeAfterCleanup = getRequestCacheStats(client, index).getMemorySizeInBytes();
-        assertTrue(cacheSizeBeforeCleanup > cacheSizeAfterCleanup);
+        // sleep until cache cleaner would have cleaned up the stale key from index 2
+        Thread.sleep(1_000);
+        // cache cleaner should have cleaned up the stale key from index 2
+        assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
     }
 
     private void setupIndex(Client client, String index) throws Exception {
