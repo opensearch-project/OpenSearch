@@ -17,6 +17,8 @@ import org.opensearch.index.store.RemoteStoreFileTrackerAdapter;
 import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 public class OnDemandCompositeBlockIndexInput extends OnDemandBlockIndexInput {
 
@@ -26,19 +28,29 @@ public class OnDemandCompositeBlockIndexInput extends OnDemandBlockIndexInput {
     private final Long originalFileSize;
     private final FSDirectory directory;
 
-    public OnDemandCompositeBlockIndexInput(RemoteStoreFileTrackerAdapter remoteStoreFileTrackerAdapter, String fileName, FSDirectory directory) {
+    public OnDemandCompositeBlockIndexInput(
+        RemoteStoreFileTrackerAdapter remoteStoreFileTrackerAdapter,
+        String fileName,
+        FSDirectory directory
+    ) {
         this(
-            OnDemandBlockIndexInput.builder().
-                resourceDescription("OnDemandCompositeBlockIndexInput").
-                isClone(false).
-                offset(0L).
-                length(getFileLength(remoteStoreFileTrackerAdapter, fileName)),
+            OnDemandBlockIndexInput.builder()
+                .resourceDescription("OnDemandCompositeBlockIndexInput")
+                .isClone(false)
+                .offset(0L)
+                .length(getFileLength(remoteStoreFileTrackerAdapter, fileName)),
             remoteStoreFileTrackerAdapter,
             fileName,
-            directory);
+            directory
+        );
     }
 
-    public OnDemandCompositeBlockIndexInput(Builder builder, RemoteStoreFileTrackerAdapter remoteStoreFileTrackerAdapter, String fileName, FSDirectory directory) {
+    public OnDemandCompositeBlockIndexInput(
+        Builder builder,
+        RemoteStoreFileTrackerAdapter remoteStoreFileTrackerAdapter,
+        String fileName,
+        FSDirectory directory
+    ) {
         super(builder);
         this.remoteStoreFileTrackerAdapter = remoteStoreFileTrackerAdapter;
         this.directory = directory;
@@ -49,12 +61,12 @@ public class OnDemandCompositeBlockIndexInput extends OnDemandBlockIndexInput {
     @Override
     protected OnDemandCompositeBlockIndexInput buildSlice(String sliceDescription, long offset, long length) {
         return new OnDemandCompositeBlockIndexInput(
-            OnDemandBlockIndexInput.builder().
-                blockSizeShift(blockSizeShift).
-                isClone(true).
-                offset(this.offset + offset).
-                length(length).
-                resourceDescription(sliceDescription),
+            OnDemandBlockIndexInput.builder()
+                .blockSizeShift(blockSizeShift)
+                .isClone(true)
+                .offset(this.offset + offset)
+                .length(length)
+                .resourceDescription(sliceDescription),
             remoteStoreFileTrackerAdapter,
             fileName,
             directory
@@ -64,21 +76,28 @@ public class OnDemandCompositeBlockIndexInput extends OnDemandBlockIndexInput {
     @Override
     protected IndexInput fetchBlock(int blockId) throws IOException {
         logger.trace("fetchBlock called with blockId -> " + blockId);
-        final String uploadedFileName = ((CompositeDirectoryRemoteStoreFileTrackerAdapter)remoteStoreFileTrackerAdapter).getUploadedFileName(fileName);
+        final String uploadedFileName = ((CompositeDirectoryRemoteStoreFileTrackerAdapter) remoteStoreFileTrackerAdapter)
+            .getUploadedFileName(fileName);
         final String blockFileName = fileName + "_block_" + blockId;
         final long blockStart = getBlockStart(blockId);
         final long length = getActualBlockSize(blockId);
-        logger.trace("File: " + uploadedFileName +
-            ", Block File: " + blockFileName +
-            ", BlockStart: " + blockStart +
-            ", Length: " + length +
-            ", BlockSize: " + blockSize +
-            ", OriginalFileSize: " + originalFileSize);
-
+        logger.trace(
+            "File: "
+                + uploadedFileName
+                + ", Block File: "
+                + blockFileName
+                + ", BlockStart: "
+                + blockStart
+                + ", Length: "
+                + length
+                + ", BlockSize: "
+                + blockSize
+                + ", OriginalFileSize: "
+                + originalFileSize
+        );
+        BlobFetchRequest.BlobPart blobPart = new BlobFetchRequest.BlobPart(uploadedFileName, blockStart, length);
         BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder()
-            .position(blockStart)
-            .length(length)
-            .blobName(uploadedFileName)
+            .blobParts(new ArrayList<>(Arrays.asList(blobPart)))
             .directory(directory)
             .fileName(blockFileName)
             .build();
@@ -98,6 +117,6 @@ public class OnDemandCompositeBlockIndexInput extends OnDemandBlockIndexInput {
     }
 
     private static long getFileLength(RemoteStoreFileTrackerAdapter remoteStoreFileTrackerAdapter, String fileName) {
-        return ((CompositeDirectoryRemoteStoreFileTrackerAdapter)remoteStoreFileTrackerAdapter).getFileLength(fileName);
+        return ((CompositeDirectoryRemoteStoreFileTrackerAdapter) remoteStoreFileTrackerAdapter).getFileLength(fileName);
     }
 }
