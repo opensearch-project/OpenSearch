@@ -1498,7 +1498,7 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
      * Persist the global checkpoint on all shards of the given index into disk.
      * This makes sure that the persisted global checkpoint on those shards will equal to the in-memory value.
      */
-    public static void persistGlobalCheckpoint(String index) throws Exception {
+    private void persistGlobalCheckpoint(String index) throws Exception {
         final Set<String> nodes = internalCluster().nodesInclude(index);
         for (String node : nodes) {
             final IndicesService indexServices = internalCluster().getInstance(IndicesService.class, node);
