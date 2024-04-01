@@ -297,11 +297,12 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                         }
                     }, latch);
 
+                    Collection<String> segmentsToRefresh = localSegmentsPostRefresh.stream().filter(file -> !skipUpload(file)).collect(Collectors.toList());
                     // Start the segments files upload
                     uploadNewSegments(localSegmentsPostRefresh, localSegmentsSizeMap, segmentUploadsCompletedListener);
                     Directory directory = ((FilterDirectory) (((FilterDirectory) storeDirectory).getDelegate())).getDelegate();
                     if (directory instanceof CompositeDirectory) {
-                        ((CompositeDirectory) directory).afterSyncToRemote(localSegmentsPostRefresh);
+                        ((CompositeDirectory) directory).afterSyncToRemote(segmentsToRefresh);
                     }
                     if (latch.await(
                         remoteStoreSettings.getClusterRemoteSegmentTransferTimeout().millis(),

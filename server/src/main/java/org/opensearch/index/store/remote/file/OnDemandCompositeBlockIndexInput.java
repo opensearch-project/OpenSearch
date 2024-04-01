@@ -8,6 +8,8 @@
 
 package org.opensearch.index.store.remote.file;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.index.store.CompositeDirectoryRemoteStoreFileTrackerAdapter;
@@ -18,6 +20,7 @@ import java.io.IOException;
 
 public class OnDemandCompositeBlockIndexInput extends OnDemandBlockIndexInput {
 
+    private static final Logger logger = LogManager.getLogger(OnDemandCompositeBlockIndexInput.class);
     private final RemoteStoreFileTrackerAdapter remoteStoreFileTrackerAdapter;
     private final String fileName;
     private final Long originalFileSize;
@@ -38,7 +41,7 @@ public class OnDemandCompositeBlockIndexInput extends OnDemandBlockIndexInput {
     public OnDemandCompositeBlockIndexInput(Builder builder, RemoteStoreFileTrackerAdapter remoteStoreFileTrackerAdapter, String fileName, FSDirectory directory) {
         super(builder);
         this.remoteStoreFileTrackerAdapter = remoteStoreFileTrackerAdapter;
-        this.directory = null;
+        this.directory = directory;
         this.fileName = fileName;
         originalFileSize = getFileLength(remoteStoreFileTrackerAdapter, fileName);
     }
@@ -60,10 +63,17 @@ public class OnDemandCompositeBlockIndexInput extends OnDemandBlockIndexInput {
 
     @Override
     protected IndexInput fetchBlock(int blockId) throws IOException {
+        logger.trace("fetchBlock called with blockId -> " + blockId);
         final String uploadedFileName = ((CompositeDirectoryRemoteStoreFileTrackerAdapter)remoteStoreFileTrackerAdapter).getUploadedFileName(fileName);
-        final String blockFileName = uploadedFileName + "." + blockId;
+        final String blockFileName = fileName + "_block_" + blockId;
         final long blockStart = getBlockStart(blockId);
         final long length = getActualBlockSize(blockId);
+        logger.trace("File: " + uploadedFileName +
+            ", Block File: " + blockFileName +
+            ", BlockStart: " + blockStart +
+            ", Length: " + length +
+            ", BlockSize: " + blockSize +
+            ", OriginalFileSize: " + originalFileSize);
 
         BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder()
             .position(blockStart)
