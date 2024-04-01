@@ -82,6 +82,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         super(settings);
     }
 
+    
     @ParametersFactory
     public static Collection<Object[]> parameters() {
         return Arrays.asList(
