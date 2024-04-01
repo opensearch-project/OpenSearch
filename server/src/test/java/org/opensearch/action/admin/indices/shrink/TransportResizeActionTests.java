@@ -664,30 +664,50 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             .settings(Settings.builder().put("index.number_of_shards", expectedShardsNum).put("index.blocks.read_only", false).build());
         final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
         resizeRequest.setWaitForActiveShards(activeShardCount);
-        // startsWith("index Resizing for type [")
-        if (compatibilityMode == CompatibilityMode.MIXED
-            && migrationDirection == RemoteStoreNodeService.Direction.REMOTE_STORE
-            && !isRemoteStoreEnabled) {
-            ClusterState finalState = clusterState;
-            IllegalStateException ise = expectThrows(
-                IllegalStateException.class,
-                () -> TransportResizeAction.prepareCreateIndexRequest(
-                    new ResizeRequest("target", "source"),
-                    finalState,
+
+        if (compatibilityMode == CompatibilityMode.MIXED) {
+            if ((migrationDirection == RemoteStoreNodeService.Direction.REMOTE_STORE && isRemoteStoreEnabled == false)
+                || migrationDirection == RemoteStoreNodeService.Direction.DOCREP && isRemoteStoreEnabled == true ){
+                ClusterState finalState = clusterState;
+                IllegalStateException ise = expectThrows(
+                    IllegalStateException.class,
+                    () -> TransportResizeAction.prepareCreateIndexRequest(
+                        resizeRequest,
+                        finalState,
+                        (i) -> stats,
+                        new StoreStats(between(1, 10000), between(1, 10000)),
+                        clusterSettings,
+                        "source",
+                        "target"
+                    )
+                );
+                assertEquals(
+                    ise.getMessage(),
+                    "index Resizing for type ["
+                        + resizeType
+                        + "] is not allowed as Cluster mode is [Mixed]"
+                        + " and migration direction is ["
+                        + migrationDirection
+                        + "]"
+                        + " and index's SETTING_REMOTE_STORE_ENABLED = "
+                        + isRemoteStoreEnabled
+                );
+            } else {
+                CreateIndexClusterStateUpdateRequest request = TransportResizeAction.prepareCreateIndexRequest(
+                    resizeRequest,
+                    clusterState,
                     (i) -> stats,
-                    new StoreStats(between(1, 10000), between(1, 10000)),
+                    new StoreStats(100, between(1, 10000)),
                     clusterSettings,
                     "source",
                     "target"
-                )
-            );
-            assertEquals(
-                ise.getMessage(),
-                "index Resizing for type ["
-                    + resizeType
-                    + "] is not allowed as Cluster mode is [Mixed]"
-                    + " and migration direction is [Remote Store]"
-            );
+                );
+                assertNotNull(request.recoverFrom());
+                assertEquals("source", request.recoverFrom().getName());
+                assertEquals(String.valueOf(expectedShardsNum), request.settings().get("index.number_of_shards"));
+                assertEquals(cause, request.cause());
+                assertEquals(request.waitForActiveShards(), activeShardCount);
+            }
         } else {
             CreateIndexClusterStateUpdateRequest request = TransportResizeAction.prepareCreateIndexRequest(
                 resizeRequest,
