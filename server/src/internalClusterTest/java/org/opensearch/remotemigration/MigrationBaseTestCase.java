@@ -41,6 +41,7 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
     protected Path segmentRepoPath;
     protected Path translogRepoPath;
     boolean addRemote = false;
+    Settings extraSettings = Settings.EMPTY;
 
     private final List<String> documentKeys = List.of(
         randomAlphaOfLength(5),
@@ -59,6 +60,7 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
             logger.info("Adding remote store node");
             return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
+                .put(extraSettings)
                 .put(remoteStoreClusterSettings(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, translogRepoPath))
                 .build();
         } else {

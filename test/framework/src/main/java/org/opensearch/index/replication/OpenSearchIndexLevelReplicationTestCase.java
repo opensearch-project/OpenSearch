@@ -359,13 +359,6 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             return builder.build();
         }
 
-        public synchronized void updateDiscoveryNodesOnShards(DiscoveryNodes discoveryNodes) {
-            primary.setDiscoveryNodes(discoveryNodes);
-            for (IndexShard replica : replicas) {
-                replica.setDiscoveryNodes(discoveryNodes);
-            }
-        }
-
         public synchronized int startReplicas(int numOfReplicasToStart) throws IOException {
             if (primary.routingEntry().initializing()) {
                 startPrimary();
@@ -384,10 +377,6 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         }
 
         public void startPrimary() throws IOException {
-            startPrimary(false);
-        }
-
-        public void startPrimary(boolean remote) throws IOException {
             recoverPrimary(primary);
             computeReplicationTargets();
             HashSet<String> activeIds = new HashSet<>();
@@ -436,7 +425,6 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             if (replicationTargets != null) {
                 replicationTargets.addReplica(replica);
             }
-            updateDiscoveryNodesOnShards(generateFakeDiscoveryNodes());
             updateAllocationIDsOnPrimary();
         }
 

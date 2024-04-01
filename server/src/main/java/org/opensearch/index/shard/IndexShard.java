@@ -520,24 +520,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * checks does not fail during a cluster manager state update when the latest replication group
      * calculation is not yet done and the cached replication group details are available
      */
-    public Function<String, Boolean> isShardOnRemoteEnabledNode = (shardId) -> {
-        DiscoveryNode discoveryNode = this.discoveryNodes.get(shardId);
+    public Function<String, Boolean> isShardOnRemoteEnabledNode = (nodeId) -> {
+        DiscoveryNode discoveryNode = this.discoveryNodes.get(nodeId);
         if (discoveryNode != null) {
-            logger.trace(
-                "ShardID {} is assigned to Node {} which has remote_enabled as {}",
-                shardId,
-                discoveryNode,
-                discoveryNode.isRemoteStoreNode()
-            );
+            logger.trace("Node {} has remote_enabled as {}", nodeId, discoveryNode.isRemoteStoreNode());
             return discoveryNode.isRemoteStoreNode();
         }
         return false;
     };
-
-    // Only to be used for Unit Tests
-    public void setDiscoveryNodes(DiscoveryNodes discoveryNodes) {
-        this.discoveryNodes = discoveryNodes;
-    }
 
     public boolean isRemoteSeeded() {
         return shardMigrationState == REMOTE_MIGRATING_SEEDED;
@@ -4028,7 +4018,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public boolean isRemoteTranslogEnabled() {
-        return indexSettings() != null && indexSettings().isRemoteTranslogStoreEnabled();
+        return indexSettings() != null && (indexSettings().isRemoteTranslogStoreEnabled());
     }
 
     /**

@@ -19,17 +19,21 @@ import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.remote.RemoteSegmentStats;
+import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static org.opensearch.indices.stats.IndexStatsIT.persistGlobalCheckpoint;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -40,7 +44,14 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(InternalSettingsPlugin.class);
+        /* Adding the following mock plugins:
+        - InternalSettingsPlugin : To override default intervals of retention lease and global ckp sync
+        - MockFsRepositoryPlugin and MockTransportService.TestPlugin: To ensure remote interactions are not no-op and retention leases are properly propagated
+         */
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(InternalSettingsPlugin.class, MockFsRepositoryPlugin.class, MockTransportService.TestPlugin.class)
+        ).collect(Collectors.toList());
     }
 
     /*
@@ -62,7 +73,11 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
         assertEquals(internalCluster().client().admin().cluster().prepareGetRepositories().get().repositories().size(), 0);
 
         logger.info("---> Creating index with 1 replica");
-        Settings oneReplica = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        Settings oneReplica = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "1s")
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
+            .build();
         createIndex(REMOTE_PRI_DOCREP_REP, oneReplica);
         ensureGreen(REMOTE_PRI_DOCREP_REP);
 
@@ -137,7 +152,8 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
         logger.info("---> Creating index with 0 replica");
         Settings zeroReplicas = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "1s")
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
             .build();
         createIndex(REMOTE_PRI_DOCREP_REMOTE_REP, zeroReplicas);
         ensureGreen(REMOTE_PRI_DOCREP_REMOTE_REP);
@@ -145,6 +161,7 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
 
         logger.info("---> Starting 1 remote enabled data node");
         addRemote = true;
+
         String remoteNodeName = internalCluster().startDataOnlyNode();
         internalCluster().validateClusterFormed();
         assertEquals(
@@ -210,9 +227,10 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
     Checks if retention leases are published on primary shard and it's docrep copies, but not on remote copies
      */
     public void testRetentionLeasePresentOnDocrepReplicaButNotRemote() throws Exception {
+        // Reducing indices.memory.shard_inactive_time to force a flush and trigger translog sync,
+        // instead of relying on Global CKP Sync action which doesn't run on remote enabled copies
+        extraSettings = Settings.builder().put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), "3s").build();
         testRemotePrimaryDocRepAndRemoteReplica();
-        // Ensuring global checkpoint is synced across all the shard copies
-        persistGlobalCheckpoint(REMOTE_PRI_DOCREP_REMOTE_REP);
         DiscoveryNodes nodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
         assertBusy(() -> {
             for (ShardStats shardStats : internalCluster().client()
@@ -227,13 +245,15 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
                 if (shardRouting.primary()) {
                     // Primary copy should be on remote node and should have retention leases
                     assertTrue(discoveryNode.isRemoteStoreNode());
+                    assertCheckpointsConsistency(shardStats);
                     assertRetentionLeaseConsistency(shardStats, retentionLeases);
                 } else {
+                    // Checkpoints and Retention Leases are not synced to remote replicas
                     if (discoveryNode.isRemoteStoreNode()) {
-                        // Replica copy on remote node should not have retention leases
                         assertTrue(shardStats.getRetentionLeaseStats().retentionLeases().leases().isEmpty());
                     } else {
                         // Replica copy on docrep node should have retention leases
+                        assertCheckpointsConsistency(shardStats);
                         assertRetentionLeaseConsistency(shardStats, retentionLeases);
                     }
                 }
@@ -478,6 +498,23 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
      */
     private static void assertRetentionLeaseConsistency(ShardStats shardStats, RetentionLeases retentionLeases) {
         long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
-        assertTrue(retentionLeases.leases().stream().allMatch(l -> l.retainingSequenceNumber() == maxSeqNo + 1));
+        for (RetentionLease rl : retentionLeases.leases()) {
+            assertEquals(maxSeqNo + 1, rl.retainingSequenceNumber());
+        }
+    }
+
+    /**
+     * For a docrep enabled shard copy or a primary shard copy,
+     * asserts that local and global checkpoints are up-to-date with maxSeqNo of doc operations
+     *
+     * @param shardStats ShardStats object from NodesStats API
+     */
+    private static void assertCheckpointsConsistency(ShardStats shardStats) {
+        long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
+        long localCkp = shardStats.getSeqNoStats().getLocalCheckpoint();
+        long globalCkp = shardStats.getSeqNoStats().getGlobalCheckpoint();
+
+        assertEquals(maxSeqNo, localCkp);
+        assertEquals(maxSeqNo, globalCkp);
     }
 }

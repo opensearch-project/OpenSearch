@@ -647,7 +647,8 @@ public abstract class TransportReplicationAction<
                                 getReplicationMode(indexShard),
                                 clusterState.getNodes(),
                                 replicasProxy,
-                                termValidationProxy
+                                termValidationProxy,
+                                indexShard.isRemoteTranslogEnabled()
                             )
                             : new FanoutReplicationProxy<>(replicasProxy)
                     ).execute();

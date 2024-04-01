@@ -367,7 +367,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      * Visible for tests
      * @opensearch.internal
      */
-    public final class PrimaryTermValidationProxy extends WriteActionReplicasProxy {
+    private final class PrimaryTermValidationProxy extends WriteActionReplicasProxy {
 
         @Override
         public void performOn(

@@ -45,7 +45,7 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
         final Path remoteDir = createTempDir();
         final String indexMapping = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": {} }";
         try (ReplicationGroup shards = createGroup(0, settings, indexMapping, new NRTReplicationEngineFactory(), remoteDir)) {
-            shards.startPrimary(true);
+            shards.startPrimary();
             final IndexShard primary = shards.getPrimary();
             int numDocs = shards.indexDocs(randomIntBetween(10, 100));
             shards.flush();
@@ -117,7 +117,7 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
         try (ReplicationGroup shards = createGroup(0, settings, indexMapping, new NRTReplicationEngineFactory(), remoteDir)) {
 
             // Step1 - Start primary, index docs, flush, index more docs, check translog in primary as expected
-            shards.startPrimary(true);
+            shards.startPrimary();
             final IndexShard primary = shards.getPrimary();
             int numDocs = shards.indexDocs(randomIntBetween(10, 100));
             shards.flush();

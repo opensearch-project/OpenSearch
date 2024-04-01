@@ -192,7 +192,7 @@ final class StoreRecovery {
                     // just trigger a merge to do housekeeping on the
                     // copied segments - we will also see them in stats etc.
                     indexShard.getEngine().forceMerge(false, -1, false, false, false, UUIDs.randomBase64UUID());
-                    if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
+                    if ((indexShard.isRemoteTranslogEnabled() || indexShard.isMigratingToRemote()) && indexShard.shardRouting.primary()) {
                         indexShard.waitForRemoteStoreSync();
                         if (indexShard.isRemoteSegmentStoreInSync() == false) {
                             throw new IndexShardRecoveryException(
@@ -435,7 +435,7 @@ final class StoreRecovery {
                 }
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
-                if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
+                if ((indexShard.isRemoteTranslogEnabled() || indexShard.isMigratingToRemote()) && indexShard.shardRouting.primary()) {
                     indexShard.waitForRemoteStoreSync();
                     if (indexShard.isRemoteSegmentStoreInSync() == false) {
                         listener.onFailure(new IndexShardRestoreFailedException(shardId, "Failed to upload to remote segment store"));
@@ -721,7 +721,7 @@ final class StoreRecovery {
             }
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
-            if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
+            if ((indexShard.isRemoteTranslogEnabled() || indexShard.isMigratingToRemote()) && indexShard.shardRouting.primary()) {
                 indexShard.waitForRemoteStoreSync();
                 if (indexShard.isRemoteSegmentStoreInSync() == false) {
                     listener.onFailure(new IndexShardRestoreFailedException(shardId, "Failed to upload to remote segment store"));

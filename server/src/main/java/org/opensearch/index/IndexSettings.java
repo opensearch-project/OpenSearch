@@ -1233,11 +1233,7 @@ public final class IndexSettings {
     }
 
     public boolean isSegRepLocalEnabled() {
-        return isSegRepEnabledOrRemoteNode() && !isRemoteStoreEnabled();
-    }
-
-    public boolean isSegRepWithRemoteEnabled() {
-        return isSegRepEnabledOrRemoteNode() && isRemoteNode();
+        return ReplicationType.SEGMENT.equals(replicationType) && !isRemoteStoreEnabled();
     }
 
     /**

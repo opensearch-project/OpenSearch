@@ -244,7 +244,8 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
                 ReplicationMode.NO_REPLICATION,
                 buildRemoteStoreEnabledDiscoveryNodes(routingTable),
                 replicasProxy,
-                replicasProxy
+                replicasProxy,
+                true
             )
         );
         op.execute();
@@ -314,7 +315,8 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
                 ReplicationMode.NO_REPLICATION,
                 buildRemoteStoreEnabledDiscoveryNodes(routingTable),
                 replicasProxy,
-                replicasProxy
+                replicasProxy,
+                true
             )
         );
         op.execute();
@@ -443,7 +445,8 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
                 ReplicationMode.NO_REPLICATION,
                 buildMixedModeEnabledDiscoveryNodes(routingTable),
                 replicasProxy,
-                replicasProxy
+                replicasProxy,
+                false
             )
         );
         op.execute();

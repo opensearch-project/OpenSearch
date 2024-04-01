@@ -111,6 +111,7 @@ public class GlobalCheckpointSyncActionTests extends OpenSearchTestCase {
         final ShardId shardId = new ShardId(index, id);
         when(indexShard.shardId()).thenReturn(shardId);
 
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
         final Translog.Durability durability = randomFrom(Translog.Durability.ASYNC, Translog.Durability.REQUEST);
         when(indexShard.getTranslogDurability()).thenReturn(durability);
 
@@ -192,6 +193,7 @@ public class GlobalCheckpointSyncActionTests extends OpenSearchTestCase {
         when(indexShard.getLastKnownGlobalCheckpoint()).thenReturn(globalCheckpoint);
         when(indexShard.getLastSyncedGlobalCheckpoint()).thenReturn(globalCheckpoint - 1);
         when(indexShard.getTranslogDurability()).thenReturn(Translog.Durability.REQUEST);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
 
         action.shardOperationOnPrimary(primaryRequest, indexShard, ActionTestUtils.assertNoFailureListener(r -> {}));
         verify(indexShard, never()).sync();
@@ -206,6 +208,7 @@ public class GlobalCheckpointSyncActionTests extends OpenSearchTestCase {
         when(indexShard.getLastKnownGlobalCheckpoint()).thenReturn(globalCheckpoint);
         when(indexShard.getLastSyncedGlobalCheckpoint()).thenReturn(globalCheckpoint - 1);
         when(indexShard.getTranslogDurability()).thenReturn(Translog.Durability.REQUEST);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
 
         action.shardOperationOnPrimary(primaryRequest, indexShard, ActionTestUtils.assertNoFailureListener(r -> {}));
         verify(indexShard).sync();
