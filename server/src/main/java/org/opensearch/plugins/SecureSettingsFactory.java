@@ -26,4 +26,11 @@ public interface SecureSettingsFactory {
      * @return optionally, the instance of the {@link SecureTransportSettingsProvider}
      */
     Optional<SecureTransportSettingsProvider> getSecureTransportSettingsProvider(Settings settings);
+
+    /**
+     * Creates (or provides pre-created) instance of the {@link SecureHttpTransportSettingsProvider}
+     * @param settings settings
+     * @return optionally, the instance of the {@link SecureHttpTransportSettingsProvider}
+     */
+    Optional<SecureHttpTransportSettingsProvider> getSecureHttpTransportSettingsProvider(Settings settings);
 }
