@@ -85,6 +85,30 @@ public class OTelSpanTests extends OpenSearchTestCase {
         assertEquals(SPAN_ID, oTelSpan.getSpanId());
     }
 
+    public void testGetSpanBoolean() {
+        Span mockSpan = getMockSpan();
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
+        assertNull(oTelSpan.getAttributeBoolean("key"));
+    }
+
+    public void testGetSpanString() {
+        Span mockSpan = getMockSpan();
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
+        assertNull(oTelSpan.getAttributeString("key"));
+    }
+
+    public void testGetSpanLong() {
+        Span mockSpan = getMockSpan();
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
+        assertNull(oTelSpan.getAttributeLong("key"));
+    }
+
+    public void testGetSpanDouble() {
+        Span mockSpan = getMockSpan();
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
+        assertNull(oTelSpan.getAttributeDouble("key"));
+    }
+
     private Span getMockSpan() {
         Span mockSpan = mock(Span.class);
         when(mockSpan.getSpanContext()).thenReturn(SpanContext.create(TRACE_ID, SPAN_ID, TraceFlags.getDefault(), TraceState.getDefault()));

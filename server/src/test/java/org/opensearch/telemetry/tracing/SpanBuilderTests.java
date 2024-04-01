@@ -115,6 +115,20 @@ public class SpanBuilderTests extends OpenSearchTestCase {
         assertEquals(parentSpanContext, context.getParent());
     }
 
+    public void testNoopSpanAttributes() {
+        String spanName = "test-name";
+        SpanContext parentSpanContext = new SpanContext(NoopSpan.INSTANCE);
+        SpanCreationContext context = SpanBuilder.from(spanName, parentSpanContext);
+        Attributes attributes = context.getAttributes();
+        assertNull(attributes);
+        assertEquals(spanName, context.getSpanName());
+        assertEquals(parentSpanContext, context.getParent());
+        assertEquals("", parentSpanContext.getSpan().getAttributeString("mockKey"));
+        assertEquals(false, parentSpanContext.getSpan().getAttributeBoolean("mockKey"));
+        assertEquals(0L, (Object) parentSpanContext.getSpan().getAttributeLong("mockKey"));
+        assertEquals(0.0, (Object) parentSpanContext.getSpan().getAttributeDouble("mockKey"));
+    }
+
     private static Transport.Connection createTransportConnection() {
         return new Transport.Connection() {
             @Override

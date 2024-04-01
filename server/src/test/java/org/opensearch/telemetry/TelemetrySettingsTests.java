@@ -71,4 +71,34 @@ public class TelemetrySettingsTests extends OpenSearchTestCase {
         assertEquals(0.02, telemetrySettings.getSamplingProbability(), 0.00d);
     }
 
+    public void testGetInferredSetting() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_INFERRED_SAMPLER_ALLOWLISTED)
+        );
+        TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
+
+        assertFalse(telemetrySettings.getInferredSamplingAllowListed());
+
+        clusterSettings.applySettings(Settings.builder().put("telemetry.inferred.sampler.allowlisted", "true").build());
+
+        // Validate inferred allowlist setting
+        assertTrue(telemetrySettings.getInferredSamplingAllowListed());
+    }
+
+    public void testSetInferredSetting() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_INFERRED_SAMPLER_ALLOWLISTED)
+        );
+        TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
+
+        assertFalse(telemetrySettings.getInferredSamplingAllowListed());
+
+        telemetrySettings.setInferredSamplingAllowListed(true);
+
+        // Validate inferred allowlist setting
+        assertTrue(telemetrySettings.getInferredSamplingAllowListed());
+    }
+
 }

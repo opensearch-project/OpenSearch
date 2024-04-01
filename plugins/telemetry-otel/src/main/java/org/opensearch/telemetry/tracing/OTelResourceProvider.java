@@ -12,7 +12,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.exporter.OTelMetricsExporterFactory;
 import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
-import org.opensearch.telemetry.tracing.processor.OtelSpanProcessor;
+import org.opensearch.telemetry.tracing.processor.OTelSpanProcessor;
 import org.opensearch.telemetry.tracing.sampler.OTelSamplerFactory;
 import org.opensearch.telemetry.tracing.sampler.RequestSampler;
 
@@ -118,8 +118,8 @@ public final class OTelResourceProvider {
             .build();
     }
 
-    private static OtelSpanProcessor spanProcessor(Settings settings, SpanExporter spanExporter) {
-        return new OtelSpanProcessor(batchSpanProcessor(settings, spanExporter));
+    private static OTelSpanProcessor spanProcessor(Settings settings, SpanExporter spanExporter) {
+        return new OTelSpanProcessor(batchSpanProcessor(settings, spanExporter));
     }
 
     private static BatchSpanProcessor batchSpanProcessor(Settings settings, SpanExporter spanExporter) {

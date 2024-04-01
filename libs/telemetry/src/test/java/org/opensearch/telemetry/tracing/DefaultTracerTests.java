@@ -13,12 +13,17 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.node.Node;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
+import org.opensearch.telemetry.tracing.attributes.SamplingAttributes;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.telemetry.tracing.MockSpan;
 import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
@@ -423,5 +428,60 @@ public class DefaultTracerTests extends OpenSearchTestCase {
             spanCreationContext.parent(new SpanContext(parentSpan));
         }
         return spanCreationContext;
+    }
+
+    public void testCreateSpanWithInferredAttributes() {
+        TracingTelemetry tracingTelemetry = new MockTracingTelemetry();
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        DefaultTracer defaultTracer = new DefaultTracer(
+            tracingTelemetry,
+            new ThreadContextBasedTracerContextStorage(threadContext, tracingTelemetry)
+        );
+
+        SpanCreationContext spanCreationContext = buildSpanCreationContext(
+            "span_name",
+            Attributes.create().addAttribute(SamplingAttributes.SAMPLER.getValue(), SamplingAttributes.INFERRED_SAMPLER.getValue()),
+            null
+        );
+
+        Span span = defaultTracer.startSpan(spanCreationContext);
+
+        assertThat(defaultTracer.getCurrentSpan(), is(nullValue()));
+        assertEquals(SamplingAttributes.INFERRED_SAMPLER.getValue(), ((MockSpan) span).getAttribute(SamplingAttributes.SAMPLER.getValue()));
+        span.endSpan();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCreateSpanWithInferredSampledParent() {
+        TracingTelemetry tracingTelemetry = new MockTracingTelemetry();
+        DefaultTracer defaultTracer = new DefaultTracer(
+            tracingTelemetry,
+            new ThreadContextBasedTracerContextStorage(new ThreadContext(Settings.EMPTY), tracingTelemetry)
+        );
+
+        SpanCreationContext spanCreationContext = buildSpanCreationContext("span_name", null, null);
+
+        Span span = defaultTracer.startSpan(
+            spanCreationContext,
+            (Map<String, Collection<String>>) new HashMap<String, Collection<String>>().put(
+                SamplingAttributes.SAMPLER.getValue(),
+                Collections.singleton(SamplingAttributes.INFERRED_SAMPLER.getValue())
+            )
+        );
+
+        try (final SpanScope scope = defaultTracer.withSpanInScope(span)) {
+            SpanContext parentSpan = defaultTracer.getCurrentSpan();
+            SpanCreationContext spanCreationContext1 = buildSpanCreationContext("span_name_1", Attributes.EMPTY, parentSpan.getSpan());
+            Span span1 = defaultTracer.startSpan(spanCreationContext1);
+            assertEquals("span_name_1", span1.getSpanName());
+            assertEquals(parentSpan.getSpan(), span1.getParentSpan());
+            assertEquals(
+                SamplingAttributes.INFERRED_SAMPLER.getValue(),
+                ((MockSpan) span1).getAttribute(SamplingAttributes.SAMPLER.getValue())
+            );
+            span1.endSpan();
+        } finally {
+            span.endSpan();
+        }
     }
 }
