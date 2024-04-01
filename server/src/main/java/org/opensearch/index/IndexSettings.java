@@ -761,7 +761,7 @@ public final class IndexSettings {
 
     private volatile String defaultSearchPipeline;
     private final boolean widenIndexSortType;
-    private final boolean isOnRemoteNode;
+    private final boolean assignedOnRemoteNode;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -985,7 +985,7 @@ public final class IndexSettings {
          * Now this sortField (IndexSort) is stored in SegmentInfo and we need to maintain backward compatibility for them.
          */
         widenIndexSortType = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).before(V_2_7_0);
-        isOnRemoteNode = RemoteStoreNodeAttribute.isRemoteDataAttributePresent(this.getNodeSettings());
+        assignedOnRemoteNode = RemoteStoreNodeAttribute.isRemoteDataAttributePresent(this.getNodeSettings());
 
         setEnableFuzzySetForDocId(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING));
         setDocIdFuzzySetFalsePositiveProbability(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING));
@@ -1231,7 +1231,7 @@ public final class IndexSettings {
      * proper index setting during the migration.
      */
     public boolean isSegRepEnabledOrRemoteNode() {
-        return ReplicationType.SEGMENT.equals(replicationType) || isOnRemoteNode();
+        return ReplicationType.SEGMENT.equals(replicationType) || isAssignedOnRemoteNode();
     }
 
     public boolean isSegRepLocalEnabled() {
@@ -1249,8 +1249,8 @@ public final class IndexSettings {
         return isRemoteStoreEnabled;
     }
 
-    public boolean isOnRemoteNode() {
-        return isOnRemoteNode;
+    public boolean isAssignedOnRemoteNode() {
+        return assignedOnRemoteNode;
     }
 
     /**

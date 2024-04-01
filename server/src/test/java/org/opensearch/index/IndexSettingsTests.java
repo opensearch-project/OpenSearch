@@ -1062,6 +1062,6 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             .build();
         Settings nodeSettings = Settings.builder().put("node.attr.remote_store.translog.repository", "my-repo-1").build();
         IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), nodeSettings);
-        assertTrue("Index should be on remote node", settings.isOnRemoteNode());
+        assertTrue("Index should be on remote node", settings.isAssignedOnRemoteNode());
     }
 }

@@ -654,7 +654,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory = null;
             RepositoriesService mockRepoSvc = mock(RepositoriesService.class);
 
-            if (indexSettings.isRemoteStoreEnabled() || indexSettings.isOnRemoteNode()) {
+            if (indexSettings.isRemoteStoreEnabled() || indexSettings.isAssignedOnRemoteNode()) {
                 String remoteStoreRepository = indexSettings.getRemoteStoreRepository();
                 // remote path via setting a repository . This is a hack used for shards are created using reset .
                 // since we can't get remote path from IndexShard directly, we are using repository to store it .
@@ -1498,7 +1498,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
 
         SegmentReplicationSourceFactory sourceFactory = null;
         SegmentReplicationTargetService targetService;
-        if (primaryShard.indexSettings.isRemoteStoreEnabled() || primaryShard.indexSettings.isOnRemoteNode()) {
+        if (primaryShard.indexSettings.isRemoteStoreEnabled() || primaryShard.indexSettings.isAssignedOnRemoteNode()) {
             RecoverySettings recoverySettings = new RecoverySettings(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
