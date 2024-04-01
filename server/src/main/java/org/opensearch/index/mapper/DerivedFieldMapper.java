@@ -8,8 +8,6 @@
 
 package org.opensearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.script.Script;
@@ -27,23 +25,6 @@ import java.util.function.Function;
 public class DerivedFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "derived";
-
-    /**
-     * Default parameters for the boolean field mapper
-     *
-     * @opensearch.internal
-     */
-    public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
-
-        static {
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.freeze();
-        }
-    }
 
     private static DerivedFieldMapper toType(FieldMapper in) {
         return (DerivedFieldMapper) in;
