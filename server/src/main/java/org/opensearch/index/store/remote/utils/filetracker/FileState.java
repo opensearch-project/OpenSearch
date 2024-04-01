@@ -9,7 +9,12 @@
 package org.opensearch.index.store.remote.utils.filetracker;
 
 public enum FileState {
+    /**
+     * DISK State means that currently the file is present only locally and has not yet been uploaded to the Remote Store
+     */
     DISK,
-    CACHE,
-    REMOTE_ONLY;
+    /**
+     * REMOTE State means that the file has been successfully uploaded to the Remote Store and is safe to be removed locally
+     */
+    REMOTE;
 }
