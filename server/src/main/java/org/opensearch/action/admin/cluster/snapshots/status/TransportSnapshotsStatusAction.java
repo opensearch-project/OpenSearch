@@ -360,8 +360,7 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                             state = SnapshotsInProgress.State.SUCCESS;
                             break;
                         case PARTIAL:
-                            if (Version.CURRENT.onOrAfter(Version.V_3_0_0))
-                                state = SnapshotsInProgress.State.PARTIAL;
+                            if (Version.CURRENT.onOrAfter(Version.V_3_0_0)) state = SnapshotsInProgress.State.PARTIAL;
                             else
                                 // Setting to SUCCESS in older versions to maintain backward compatibility
                                 state = SnapshotsInProgress.State.SUCCESS;
