@@ -149,8 +149,9 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     // pkg-private for testing
     final IndicesRequestCacheCleanupManager cacheCleanupManager;
 
-    public static final String SHARD_ID_DIMENSION_NAME = "shardId";
-    public static final String INDEX_DIMENSION_NAME = "index";
+    // These values determine the valid names for levels in the cache stats API
+    public static final String SHARD_ID_DIMENSION_NAME = "shards";
+    public static final String INDEX_DIMENSION_NAME = "indices";
 
     IndicesRequestCache(
         Settings settings,
