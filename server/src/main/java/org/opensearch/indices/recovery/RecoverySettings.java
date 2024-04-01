@@ -159,25 +159,6 @@ public class RecoverySettings {
         Property.NodeScope
     );
 
-    /**
-     * Controls minimum number of metadata files to keep in remote segment store.
-     * {@code value < 1} will disable deletion of stale segment metadata files.
-     */
-    public static final Setting<Integer> CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING = Setting.intSetting(
-        "cluster.remote_store.index.segment_metadata.retention.max_count",
-        10,
-        -1,
-        v -> {
-            if (v == 0) {
-                throw new IllegalArgumentException(
-                    "Value 0 is not allowed for this setting as it would delete all the data from remote segment store"
-                );
-            }
-        },
-        Property.NodeScope,
-        Property.Dynamic
-    );
-
     public static final Setting<TimeValue> INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT = Setting.timeSetting(
         "indices.recovery.internal_remote_upload_timeout",
         new TimeValue(1, TimeUnit.HOURS),
@@ -199,7 +180,6 @@ public class RecoverySettings {
     private volatile TimeValue internalActionTimeout;
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
-    private volatile int minRemoteSegmentMetadataFiles;
 
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
     private volatile TimeValue internalRemoteUploadTimeout;
@@ -243,11 +223,6 @@ public class RecoverySettings {
             this::setInternalActionLongTimeout
         );
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
-        minRemoteSegmentMetadataFiles = CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(
-            CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING,
-            this::setMinRemoteSegmentMetadataFiles
-        );
         clusterSettings.addSettingsUpdateConsumer(INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT, this::setInternalRemoteUploadTimeout);
 
     }
@@ -354,11 +329,4 @@ public class RecoverySettings {
         this.maxConcurrentRemoteStoreStreams = maxConcurrentRemoteStoreStreams;
     }
 
-    private void setMinRemoteSegmentMetadataFiles(int minRemoteSegmentMetadataFiles) {
-        this.minRemoteSegmentMetadataFiles = minRemoteSegmentMetadataFiles;
-    }
-
-    public int getMinRemoteSegmentMetadataFiles() {
-        return this.minRemoteSegmentMetadataFiles;
-    }
 }
