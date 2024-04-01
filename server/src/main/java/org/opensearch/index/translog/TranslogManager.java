@@ -142,4 +142,6 @@ public interface TranslogManager {
     Releasable drainSync();
 
     Translog.TranslogGeneration getTranslogGeneration();
+
+    boolean shouldRefreshShard(int maxUncommittedTranslogFilesThreshold);
 }

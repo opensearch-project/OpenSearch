@@ -4485,6 +4485,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicBoolean flushOrRollRunning = new AtomicBoolean();
 
     /**
+     * Tests whether or not the shard should be Refreshed, if number of translog files breaches the
+     * threshold count determined by {@code index.translog.max_uncommitted_files_threshold}
+     * @return {@code true} if the shard should be Refreshed
+     */
+    boolean shouldRefreshShard(){
+        final Engine engine = getEngineOrNull();
+        if (engine != null) {
+            try {
+                return engine.translogManager().shouldRefreshShard(indexSettings.getMaxUncommittedTranslogFiles());
+            } catch (final AlreadyClosedException e) {
+                // we are already closed, no need to Refresh
+            }
+        }
+        return false;
+    }
+
+    private final AtomicBoolean isRefreshRunning = new AtomicBoolean();
+
+    /**
+     * Will Call a blocking Refresh and then Trim the Unreferenced Translog files
+     */
+    private void refreshAndTrimTranslogfiles(String source) throws IOException {
+        refresh(source);
+        getEngine().translogManager().trimUnreferencedTranslogFiles();
+    }
+
+    /**
      * Schedules a flush or translog generation roll if needed but will not schedule more than one concurrently. The operation will be
      * executed asynchronously on the flush thread pool.
      */
@@ -4547,6 +4574,35 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } else {
                     flushOrRollRunning.compareAndSet(true, false);
                 }
+            }
+        } else if (shouldRefreshShard() && isRefreshRunning.compareAndSet(false, true)) {
+
+            if (shouldRefreshShard()) {
+                logger.info("submitting async Refresh request");
+                final AbstractRunnable refreshAndTrimTranslog = new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("forced refresh failed after number of uncommited translog files breached limit", e);
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        refreshAndTrimTranslogfiles("Too many uncommited Translog files");
+                    }
+
+                    @Override
+                    public boolean isForceExecution() {
+                        return true;
+                    }
+
+                    @Override
+                    public void onAfter() {
+                        isRefreshRunning.compareAndSet(true, false);
+                    }
+                };
+                threadPool.executor(ThreadPool.Names.REFRESH).execute(refreshAndTrimTranslog);
+            } else {
+                isRefreshRunning.compareAndSet(true, false);
             }
         }
     }

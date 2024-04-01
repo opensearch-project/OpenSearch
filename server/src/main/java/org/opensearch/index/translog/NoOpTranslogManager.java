@@ -134,4 +134,9 @@ public class NoOpTranslogManager implements TranslogManager {
     public Translog.TranslogGeneration getTranslogGeneration() {
         return null;
     }
+
+    @Override
+    public boolean shouldRefreshShard(int maxUncommittedTranslogFilesThreshold) {
+        return false;
+    }
 }

@@ -719,6 +719,19 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    /**
+     * Index setting describing the maximum number of uncommitted translog files at a time.
+     * If breached the shard will be Refreshed, this is to control large number of tranlog files
+     * downloads during recovery.
+     */
+    public static final Setting<Integer> INDEX_MAX_UNCOMMITTED_TRANSLOG_FILES = Setting.intSetting(
+        "index.max_uncommitted_translog_files",
+        300,
+        1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -802,6 +815,7 @@ public final class IndexSettings {
     private volatile long mappingTotalFieldsLimit;
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
+    private volatile int maxUncommittedTranslogFiles;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -980,6 +994,7 @@ public final class IndexSettings {
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
         checkPendingFlushEnabled = scopedSettings.get(INDEX_CHECK_PENDING_FLUSH_ENABLED);
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
+        maxUncommittedTranslogFiles = scopedSettings.get(INDEX_MAX_UNCOMMITTED_TRANSLOG_FILES);
         /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
          * For indices created prior version (prior to 2.7) which has IndexSort type, they used to type cast the SortField.Type
          * to higher bytes size like integer to long. This behavior was changed from OpenSearch 2.7 version not to
@@ -1104,6 +1119,15 @@ public final class IndexSettings {
             INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,
             this::setDocIdFuzzySetFalsePositiveProbability
         );
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAX_UNCOMMITTED_TRANSLOG_FILES,this::setMaxUncommittedTranslogFiles);
+    }
+
+    private void setMaxUncommittedTranslogFiles(int maxUncommittedTranslogFiles) {
+        this.maxUncommittedTranslogFiles = maxUncommittedTranslogFiles;
+    }
+
+    public int getMaxUncommittedTranslogFiles() {
+        return maxUncommittedTranslogFiles;
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {

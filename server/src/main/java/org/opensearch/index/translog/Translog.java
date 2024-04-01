@@ -2052,4 +2052,14 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     public long getMinUnreferencedSeqNoInSegments(long minUnrefCheckpointInLastCommit) {
         return minUnrefCheckpointInLastCommit;
     }
+
+    /**
+     * Tests whether or not the shard should be Refreshed.
+     * This test is based on the number of Translog files compared to configured number of Translog files threshold
+     *
+     * @return {@code true} if the shard should be Refreshed
+     */
+    public boolean shouldRefreshShard(int maxUncommittedTranslogFilesThreshold) {
+        return false;
+    }
 }

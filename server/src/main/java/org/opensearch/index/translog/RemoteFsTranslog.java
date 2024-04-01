@@ -652,4 +652,15 @@ public class RemoteFsTranslog extends Translog {
     int availablePermits() {
         return syncPermit.availablePermits();
     }
+
+    /**
+     * Tests whether or not the shard should be Refreshed.
+     * This test is based on the number of Translog files compared to configured number of Translog files threshold
+     *
+     * @return {@code true} if the shard should be Refreshed
+     */
+    @Override
+    public boolean shouldRefreshShard(int maxUncommittedTranslogFilesThreshold) {
+        return readers.size() > maxUncommittedTranslogFilesThreshold;
+    }
 }

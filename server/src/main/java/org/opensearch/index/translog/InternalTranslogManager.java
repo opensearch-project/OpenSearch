@@ -469,4 +469,9 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
     public void close() throws IOException {
         IOUtils.closeWhileHandlingException(translog);
     }
+
+    @Override
+    public boolean shouldRefreshShard(int maxUncommittedTranslogFilesThreshold) {
+        return getTranslog(true).shouldRefreshShard(maxUncommittedTranslogFilesThreshold);
+    }
 }
