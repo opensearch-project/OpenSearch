@@ -109,7 +109,12 @@ public class CompositeDirectoryRemoteStoreFileTrackerAdapter implements RemoteSt
     public String logFileTracker() {
         String result = "";
         for (Map.Entry<String, FileTrackingInfo> entry : fileTracker.entrySet()) {
-            result += entry.getKey() + " : " + entry.getValue().getFileType().name() + " , " + entry.getValue().getFileState().name() +"\n";
+            result += entry.getKey()
+                + " : "
+                + entry.getValue().getFileType().name()
+                + " , "
+                + entry.getValue().getFileState().name()
+                + "\n";
         }
         return result;
     }

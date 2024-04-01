@@ -54,8 +54,8 @@ public class CompositeDirectory extends FilterDirectory {
 
     public void setRemoteDirectory(Directory remoteDirectory) {
         logger.trace("Setting remote Directory ...");
-        if (!isRemoteDirectorySet()){
-            ((CompositeDirectoryRemoteStoreFileTrackerAdapter)remoteStoreFileTrackerAdapter).setRemoteDirectory(remoteDirectory);
+        if (!isRemoteDirectorySet()) {
+            ((CompositeDirectoryRemoteStoreFileTrackerAdapter) remoteStoreFileTrackerAdapter).setRemoteDirectory(remoteDirectory);
             isRemoteDirectorySet.set(true);
         }
     }
@@ -67,16 +67,14 @@ public class CompositeDirectory extends FilterDirectory {
         try {
             String[] remoteFiles = new String[0];
             String[] localFiles = localDirectory.listAll();
-            if (isRemoteDirectorySet())
-                remoteFiles = ((CompositeDirectoryRemoteStoreFileTrackerAdapter)remoteStoreFileTrackerAdapter).getRemoteFiles();
+            if (isRemoteDirectorySet()) remoteFiles = ((CompositeDirectoryRemoteStoreFileTrackerAdapter) remoteStoreFileTrackerAdapter)
+                .getRemoteFiles();
             logger.trace("LocalDirectory files : " + Arrays.toString(localFiles));
             logger.trace("Remote Directory files : " + Arrays.toString(remoteFiles));
             Set<String> allFiles = new HashSet<>(Arrays.asList(localFiles));
             allFiles.addAll(Arrays.asList(remoteFiles));
 
-            Set<String> localLuceneFiles = allFiles.stream()
-                .filter(file -> !isBlockFile(file))
-                .collect(Collectors.toUnmodifiableSet());
+            Set<String> localLuceneFiles = allFiles.stream().filter(file -> !isBlockFile(file)).collect(Collectors.toUnmodifiableSet());
             String[] files = new String[localLuceneFiles.size()];
             localLuceneFiles.toArray(files);
             Arrays.sort(files);
@@ -108,15 +106,15 @@ public class CompositeDirectory extends FilterDirectory {
         logger.trace("fileLength() called " + name);
         readLock.lock();
         try {
-            if(remoteStoreFileTrackerAdapter.getFileState(name).equals(FileState.DISK))
-            {
+            if (remoteStoreFileTrackerAdapter.getFileState(name).equals(FileState.DISK)) {
                 logger.trace("fileLength from Local " + localDirectory.fileLength(name));
                 return localDirectory.fileLength(name);
-            }
-            else
-            {
-                logger.trace("fileLength from Remote " + ((CompositeDirectoryRemoteStoreFileTrackerAdapter)remoteStoreFileTrackerAdapter).getFileLength(name));
-                return ((CompositeDirectoryRemoteStoreFileTrackerAdapter)remoteStoreFileTrackerAdapter).getFileLength(name);
+            } else {
+                logger.trace(
+                    "fileLength from Remote "
+                        + ((CompositeDirectoryRemoteStoreFileTrackerAdapter) remoteStoreFileTrackerAdapter).getFileLength(name)
+                );
+                return ((CompositeDirectoryRemoteStoreFileTrackerAdapter) remoteStoreFileTrackerAdapter).getFileLength(name);
             }
         } finally {
             readLock.unlock();
@@ -154,8 +152,7 @@ public class CompositeDirectory extends FilterDirectory {
         try {
             Collection<String> newLocalFiles = new ArrayList<>();
             for (String name : names) {
-                if(remoteStoreFileTrackerAdapter.getFileState(name).equals(FileState.DISK))
-                    newLocalFiles.add(name);
+                if (remoteStoreFileTrackerAdapter.getFileState(name).equals(FileState.DISK)) newLocalFiles.add(name);
             }
             logger.trace("Synced files : " + newLocalFiles);
             localDirectory.sync(newLocalFiles);
@@ -181,7 +178,11 @@ public class CompositeDirectory extends FilterDirectory {
         writeLock.lock();
         try {
             localDirectory.rename(source, dest);
-            remoteStoreFileTrackerAdapter.trackFile(dest, remoteStoreFileTrackerAdapter.getFileState(source), remoteStoreFileTrackerAdapter.getFileType(source));
+            remoteStoreFileTrackerAdapter.trackFile(
+                dest,
+                remoteStoreFileTrackerAdapter.getFileState(source),
+                remoteStoreFileTrackerAdapter.getFileType(source)
+            );
             remoteStoreFileTrackerAdapter.removeFileFromTracker(source);
             logFileTracker();
         } finally {
@@ -195,7 +196,7 @@ public class CompositeDirectory extends FilterDirectory {
         writeLock.lock();
         try {
             if (!remoteStoreFileTrackerAdapter.isFilePresent(name)) {
-                //Print filename to check which file is not present in tracker
+                // Print filename to check which file is not present in tracker
                 logger.trace("File not found in tracker");
                 return localDirectory.openInput(name, context);
             }
@@ -235,15 +236,16 @@ public class CompositeDirectory extends FilterDirectory {
 
     public void afterSyncToRemote(Collection<String> files) throws IOException {
         logger.trace("afterSyncToRemote called for " + files);
-        if(!isRemoteDirectorySet())
-            throw new UnsupportedOperationException("Cannot perform afterSyncToRemote if Remote Directory is not set");
+        if (!isRemoteDirectorySet()) throw new UnsupportedOperationException(
+            "Cannot perform afterSyncToRemote if Remote Directory is not set"
+        );
         List<String> delFiles = new ArrayList<>();
         for (String fileName : files) {
-            if (isSegmentsOrLockFile(fileName))
-                continue;
+            if (isSegmentsOrLockFile(fileName)) continue;
             writeLock.lock();
             try {
-                if (remoteStoreFileTrackerAdapter.isFilePresent(fileName) && remoteStoreFileTrackerAdapter.getFileState(fileName).equals(FileState.DISK)) {
+                if (remoteStoreFileTrackerAdapter.isFilePresent(fileName)
+                    && remoteStoreFileTrackerAdapter.getFileState(fileName).equals(FileState.DISK)) {
                     remoteStoreFileTrackerAdapter.updateFileState(fileName, FileState.REMOTE);
                 }
             } finally {
@@ -257,16 +259,12 @@ public class CompositeDirectory extends FilterDirectory {
     }
 
     private boolean isSegmentsOrLockFile(String fileName) {
-        if (fileName.startsWith("segments_") ||
-            fileName.endsWith(".si") ||
-            fileName.endsWith(".lock"))
-            return true;
+        if (fileName.startsWith("segments_") || fileName.endsWith(".si") || fileName.endsWith(".lock")) return true;
         return false;
     }
 
     private boolean isBlockFile(String fileName) {
-        if (fileName.contains("_block_"))
-            return true;
+        if (fileName.contains("_block_")) return true;
         return false;
     }
 
@@ -275,7 +273,7 @@ public class CompositeDirectory extends FilterDirectory {
     }
 
     public void logFileTracker() {
-        String res = ((CompositeDirectoryRemoteStoreFileTrackerAdapter)remoteStoreFileTrackerAdapter).logFileTracker();
+        String res = ((CompositeDirectoryRemoteStoreFileTrackerAdapter) remoteStoreFileTrackerAdapter).logFileTracker();
         logger.trace(res);
     }
 }
