@@ -227,8 +227,18 @@ public class RemoteDualMigrationIT extends MigrationBaseTestCase {
     Checks if retention leases are published on primary shard and it's docrep copies, but not on remote copies
      */
     public void testRetentionLeasePresentOnDocrepReplicaButNotRemote() throws Exception {
-        // Reducing indices.memory.shard_inactive_time to force a flush and trigger translog sync,
-        // instead of relying on Global CKP Sync action which doesn't run on remote enabled copies
+        /* Reducing indices.memory.shard_inactive_time to force a flush and trigger translog sync,
+        instead of relying on Global CKP Sync action which doesn't run on remote enabled copies
+
+        Under steady state, RetentionLeases would be on (GlobalCkp + 1) on a
+        docrep enabled shard copy and (GlobalCkp) for a remote enabled shard copy.
+        This is because we block translog sync on remote enabled shard copies during the GlobalCkpSync background task.
+
+        RLs on remote enabled copies are brought up to (GlobalCkp + 1) upon a flush request issued by IndexingMemoryController
+        when the shard becomes inactive after SHARD_INACTIVE_TIME_SETTING interval.
+
+        Flush triggers a force sync of translog which bumps the RetentionLease sequence number along with it
+        */
         extraSettings = Settings.builder().put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), "3s").build();
         testRemotePrimaryDocRepAndRemoteReplica();
         DiscoveryNodes nodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();

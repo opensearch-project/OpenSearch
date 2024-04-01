@@ -1457,8 +1457,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                             + " as in-sync but it does not exist locally";
                         final long localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
                         final long globalCheckpoint = localCheckpoint;
-                        final boolean assignedToRemoteStoreNode = indexSettings.isRemoteStoreEnabled()
-                            || onRemoteEnabledNode(routingTable, initializingId);
                         checkpoints.put(
                             initializingId,
                             new CheckpointState(
@@ -1466,7 +1464,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                                 globalCheckpoint,
                                 inSync,
                                 inSync,
-                                isReplicated(initializingId, primaryAllocationId, primaryTargetAllocationId, assignedToRemoteStoreNode)
+                                isReplicated(
+                                    initializingId,
+                                    primaryAllocationId,
+                                    primaryTargetAllocationId,
+                                    assignedToRemoteStoreNode(routingTable, initializingId)
+                                )
                             )
                         );
                     }
@@ -1478,8 +1481,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 for (String initializingId : initializingAllocationIds) {
                     final long localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
                     final long globalCheckpoint = localCheckpoint;
-                    final boolean assignedToRemoteStoreNode = indexSettings().isRemoteStoreEnabled()
-                        || onRemoteEnabledNode(routingTable, initializingId);
                     checkpoints.put(
                         initializingId,
                         new CheckpointState(
@@ -1487,15 +1488,18 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                             globalCheckpoint,
                             false,
                             false,
-                            isReplicated(initializingId, primaryAllocationId, primaryTargetAllocationId, assignedToRemoteStoreNode)
+                            isReplicated(
+                                initializingId,
+                                primaryAllocationId,
+                                primaryTargetAllocationId,
+                                assignedToRemoteStoreNode(routingTable, initializingId)
+                            )
                         )
                     );
                 }
                 for (String inSyncId : inSyncAllocationIds) {
                     final long localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
                     final long globalCheckpoint = localCheckpoint;
-                    final boolean assignedToRemoteStoreNode = indexSettings().isRemoteStoreEnabled()
-                        || onRemoteEnabledNode(routingTable, inSyncId);
                     checkpoints.put(
                         inSyncId,
                         new CheckpointState(
@@ -1503,7 +1507,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                             globalCheckpoint,
                             true,
                             true,
-                            isReplicated(inSyncId, primaryAllocationId, primaryTargetAllocationId, assignedToRemoteStoreNode)
+                            isReplicated(
+                                inSyncId,
+                                primaryAllocationId,
+                                primaryTargetAllocationId,
+                                assignedToRemoteStoreNode(routingTable, inSyncId)
+                            )
                         )
                     );
                 }
@@ -1520,9 +1529,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert invariant();
     }
 
-    private boolean onRemoteEnabledNode(IndexShardRoutingTable routingTable, String initializingId) {
-        return routingTable.getByAllocationId(initializingId) != null
-            && isShardOnRemoteEnabledNode.apply(routingTable.getByAllocationId(initializingId).currentNodeId());
+    private boolean assignedToRemoteStoreNode(IndexShardRoutingTable routingTable, String allocationId) {
+        return indexSettings().isRemoteStoreEnabled()
+            || (routingTable.getByAllocationId(allocationId) != null
+                && isShardOnRemoteEnabledNode.apply(routingTable.getByAllocationId(allocationId).currentNodeId()));
     }
 
     /**

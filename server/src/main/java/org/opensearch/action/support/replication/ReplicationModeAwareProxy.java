@@ -35,7 +35,7 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
 
     private final DiscoveryNodes discoveryNodes;
 
-    private final boolean isRemoteStoreIndexSettingEnabled;
+    private final boolean isRemoteEnabled;
 
     public ReplicationModeAwareProxy(
         ReplicationMode replicationModeOverride,
@@ -48,7 +48,7 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
         this.replicationModeOverride = Objects.requireNonNull(replicationModeOverride);
         this.primaryTermValidationProxy = Objects.requireNonNull(primaryTermValidationProxy);
         this.discoveryNodes = discoveryNodes;
-        this.isRemoteStoreIndexSettingEnabled = isRemoteStoreIndexSettingEnabled;
+        this.isRemoteEnabled = isRemoteStoreIndexSettingEnabled;
     }
 
     @Override
@@ -83,7 +83,7 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
         During the migration process, remote based index settings will not be enabled,
         thus we will rely on node attributes to figure out the replication mode
          */
-        if (isRemoteStoreIndexSettingEnabled == false) {
+        if (isRemoteEnabled == false) {
             DiscoveryNode targetNode = discoveryNodes.get(shardRouting.currentNodeId());
             if (targetNode != null && targetNode.isRemoteStoreNode() == false) {
                 // Perform full replication if replica is hosted on a non-remote node.
