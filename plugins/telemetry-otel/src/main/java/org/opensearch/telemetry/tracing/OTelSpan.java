@@ -10,6 +10,8 @@ package org.opensearch.telemetry.tracing;
 
 import org.opensearch.telemetry.tracing.attributes.SamplingAttributes;
 
+import java.util.Optional;
+
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
@@ -47,7 +49,12 @@ class OTelSpan extends AbstractSpan {
      * This Framework will be used to evaluate a span if that is an outlier or not.
      */
     private boolean isSpanOutlier() {
-        return false;
+        Optional<Boolean> isSpanSampled = Optional.ofNullable(getAttributeBoolean(SamplingAttributes.SAMPLED.getValue()));
+        Optional<String> isSpanInferredSampled = Optional.ofNullable(getAttributeString(SamplingAttributes.SAMPLER.getValue()));
+
+        return isSpanSampled.isPresent()
+            && isSpanInferredSampled.isPresent()
+            && isSpanInferredSampled.get().equals(SamplingAttributes.INFERRED_SAMPLER.getValue());
     }
 
     private void markParentForSampling() {

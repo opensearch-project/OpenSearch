@@ -8,12 +8,15 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.telemetry.tracing.attributes.SamplingAttributes;
 import org.opensearch.test.OpenSearchTestCase;
 
+import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.TraceFlags;
 import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.sdk.trace.ReadWriteSpan;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -107,6 +110,33 @@ public class OTelSpanTests extends OpenSearchTestCase {
         Span mockSpan = getMockSpan();
         OTelSpan oTelSpan = new OTelSpan("spanName", mockSpan, null);
         assertNull(oTelSpan.getAttributeDouble("key"));
+    }
+
+    public void testSpanOutlier() {
+        ReadWriteSpan mockReadWriteSpan = mock(ReadWriteSpan.class);
+        Span mockSpan = getMockSpan();
+        OTelSpan mockParent = new OTelSpan("parentSpan", mockSpan, null);
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockReadWriteSpan, mockParent);
+        when(mockReadWriteSpan.getAttribute(AttributeKey.booleanKey(SamplingAttributes.SAMPLED.getValue()))).thenReturn(true);
+        when(mockReadWriteSpan.getAttribute(AttributeKey.stringKey(SamplingAttributes.SAMPLER.getValue()))).thenReturn(
+            SamplingAttributes.INFERRED_SAMPLER.getValue()
+        );
+        oTelSpan.endSpan();
+        verify(mockSpan).setAttribute(SamplingAttributes.SAMPLED.getValue(), true);
+    }
+
+    public void testSpanAttributes() {
+        ReadWriteSpan mockReadWriteSpan = mock(ReadWriteSpan.class);
+        OTelSpan oTelSpan = new OTelSpan("spanName", mockReadWriteSpan, null);
+        oTelSpan.addAttribute("key", 0.0);
+        when(mockReadWriteSpan.getAttribute(AttributeKey.doubleKey("key"))).thenReturn(0.0);
+        verify(mockReadWriteSpan).setAttribute("key", 0.0);
+        assertEquals(0.0, (Object) oTelSpan.getAttributeDouble("key"));
+
+        oTelSpan.addAttribute("key1", 0L);
+        when(mockReadWriteSpan.getAttribute(AttributeKey.longKey("key1"))).thenReturn(0L);
+        verify(mockReadWriteSpan).setAttribute("key1", 0L);
+        assertEquals(0L, (Object) oTelSpan.getAttributeLong("key1"));
     }
 
     private Span getMockSpan() {

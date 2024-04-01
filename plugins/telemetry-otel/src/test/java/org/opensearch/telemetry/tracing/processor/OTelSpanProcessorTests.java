@@ -15,6 +15,8 @@ import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.TraceFlags;
 import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.sdk.trace.ReadWriteSpan;
 import io.opentelemetry.sdk.trace.ReadableSpan;
 import io.opentelemetry.sdk.trace.SpanProcessor;
 import org.mockito.Mockito;
@@ -51,6 +53,15 @@ public class OTelSpanProcessorTests extends OpenSearchTestCase {
         );
         oTelSpanProcessor.onEnd(readableSpan);
         Mockito.verify(mockProcessor, Mockito.times(1)).onEnd(readableSpan);
+    }
+
+    public void testOnStartFunction() {
+        SpanProcessor mockProcessor = mock(SpanProcessor.class);
+        Context spanContext = mock(Context.class);
+        oTelSpanProcessor = new OTelSpanProcessor(mockProcessor);
+        ReadWriteSpan readWriteSpan = mock(ReadWriteSpan.class);
+        oTelSpanProcessor.onStart(spanContext, readWriteSpan);
+        Mockito.verify(mockProcessor, Mockito.times(1)).onStart(spanContext, readWriteSpan);
     }
 
     public void testOnEndFunctionWithInferredAttribute() {

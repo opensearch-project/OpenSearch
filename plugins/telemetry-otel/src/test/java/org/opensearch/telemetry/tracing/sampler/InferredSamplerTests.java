@@ -105,5 +105,36 @@ public class InferredSamplerTests extends OpenSearchTestCase {
             result.getAttributes().get(AttributeKey.stringKey(SamplingAttributes.SAMPLER.getValue())),
             SamplingAttributes.INFERRED_SAMPLER.getValue()
         );
+        assertEquals("Inferred Action Sampler", inferredActionSampler.getDescription());
+    }
+
+    public void testFallBackSampler() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_INFERRED_SAMPLER_ALLOWLISTED)
+        );
+
+        TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
+
+        // InferredActionSampler
+        Sampler probabilisticTransportActionSampler = ProbabilisticTransportActionSampler.create(telemetrySettings, Settings.EMPTY, null);
+        Sampler inferredActionSampler = InferredActionSampler.create(
+            telemetrySettings,
+            Settings.EMPTY,
+            probabilisticTransportActionSampler
+        );
+
+        SamplingResult result = inferredActionSampler.shouldSample(
+            mock(Context.class),
+            "00000000000000000000000000000000",
+            "spanName",
+            SpanKind.INTERNAL,
+            Attributes.builder().put(TRANSPORT_ACTION, "dummy_action").build(),
+            Collections.emptyList()
+        );
+
+        // ProbabilisticTransportActionSampler
+        assertEquals(SamplingResult.recordAndSample(), result);
+        assertEquals(0.001, ((ProbabilisticTransportActionSampler) probabilisticTransportActionSampler).getSamplingRatio(), 0.000d);
     }
 }
