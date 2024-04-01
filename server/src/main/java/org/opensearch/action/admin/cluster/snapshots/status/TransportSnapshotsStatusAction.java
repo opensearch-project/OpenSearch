@@ -34,6 +34,7 @@ package org.opensearch.action.admin.cluster.snapshots.status;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ActionFilters;
@@ -359,7 +360,11 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                             state = SnapshotsInProgress.State.SUCCESS;
                             break;
                         case PARTIAL:
-                            state = SnapshotsInProgress.State.PARTIAL;
+                            if (Version.CURRENT.onOrAfter(Version.V_3_0_0))
+                                state = SnapshotsInProgress.State.PARTIAL;
+                            else
+                                // Setting to SUCCESS in older versions to maintain backward compatibility
+                                state = SnapshotsInProgress.State.SUCCESS;
                             break;
                         default:
                             throw new IllegalArgumentException("Unknown snapshot state " + snapshotInfo.state());
