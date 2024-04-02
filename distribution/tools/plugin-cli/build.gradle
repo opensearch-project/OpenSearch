@@ -44,7 +44,7 @@ dependencies {
   testRuntimeOnly("com.google.guava:guava:${versions.guava}") {
     transitive = false
   }
-  api "commons-io:commons-io:2.16.0"
+  api "commons-io:commons-io:${versions.commonsio}"
   implementation "org.apache.commons:commons-compress:${versions.commonscompress}"
 }
 
