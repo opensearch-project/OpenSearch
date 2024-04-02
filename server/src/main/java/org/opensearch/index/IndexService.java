@@ -511,7 +511,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(this.indexSettings.getNodeSettings()),
                         this.indexSettings.getUUID(),
                         shardId,
-                        this.indexSettings.getRemoteStorePathType()
+                        this.indexSettings.getRemoteStorePathStrategy()
                     );
                 }
                 remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY, path);

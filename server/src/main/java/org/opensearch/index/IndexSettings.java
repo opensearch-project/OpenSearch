@@ -49,7 +49,9 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
-import org.opensearch.index.remote.RemoteStorePathType;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
@@ -1906,10 +1908,15 @@ public final class IndexSettings {
         this.docIdFuzzySetFalsePositiveProbability = docIdFuzzySetFalsePositiveProbability;
     }
 
-    public RemoteStorePathType getRemoteStorePathType() {
+    public RemoteStorePathStrategy getRemoteStorePathStrategy() {
         Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
-        return remoteCustomData != null && remoteCustomData.containsKey(RemoteStorePathType.NAME)
-            ? RemoteStorePathType.parseString(remoteCustomData.get(RemoteStorePathType.NAME))
-            : RemoteStorePathType.FIXED;
+        if (remoteCustomData != null
+            && remoteCustomData.containsKey(PathType.NAME)
+            && remoteCustomData.containsKey(PathHashAlgorithm.NAME)) {
+            PathType pathType = PathType.parseString(remoteCustomData.get(PathType.NAME));
+            PathHashAlgorithm pathHashAlgorithm = PathHashAlgorithm.parseString(remoteCustomData.get(PathHashAlgorithm.NAME));
+            return new RemoteStorePathStrategy(pathType, pathHashAlgorithm);
+        }
+        return new RemoteStorePathStrategy(PathType.FIXED);
     }
 }

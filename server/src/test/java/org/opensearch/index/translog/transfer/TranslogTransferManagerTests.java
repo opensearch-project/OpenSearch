@@ -48,8 +48,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.mockito.Mockito;
 
-import static org.opensearch.index.remote.RemoteStoreDataEnums.DataCategory.TRANSLOG;
-import static org.opensearch.index.remote.RemoteStoreDataEnums.DataType.METADATA;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.METADATA_SEPARATOR;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;

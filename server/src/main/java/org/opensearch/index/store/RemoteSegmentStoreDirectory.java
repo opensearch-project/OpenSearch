@@ -31,7 +31,7 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.remote.RemoteStorePathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
@@ -899,14 +899,14 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         String remoteStoreRepoForIndex,
         String indexUUID,
         ShardId shardId,
-        RemoteStorePathType pathType
+        RemoteStorePathStrategy pathStrategy
     ) {
         try {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
                 remoteStoreRepoForIndex,
                 indexUUID,
                 shardId,
-                pathType
+                pathStrategy
             );
             remoteSegmentStoreDirectory.deleteStaleSegments(0);
             remoteSegmentStoreDirectory.deleteIfEmpty();

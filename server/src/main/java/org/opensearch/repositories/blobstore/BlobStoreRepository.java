@@ -108,7 +108,8 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.remote.RemoteStorePathType;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -675,7 +676,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 remoteStoreRepository,
                 indexUUID,
                 String.valueOf(shardId.shardId()),
-                RemoteStorePathType.FIXED // TODO - The path type needs to be obtained from RemoteStoreShardShallowCopySnapshot
+                new RemoteStorePathStrategy(PathType.FIXED)
+            // TODO - The path type needs to be obtained from RemoteStoreShardShallowCopySnapshot
             );
             remoteStoreMetadataLockManger.cloneLock(
                 FileLockInfo.getLockInfoBuilder().withAcquirerId(source.getUUID()).build(),
@@ -1173,7 +1175,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         String indexUUID,
         ShardId shardId,
         String threadPoolName,
-        RemoteStorePathType pathType
+        RemoteStorePathStrategy pathStrategy
     ) {
         threadpool.executor(threadPoolName)
             .execute(
@@ -1183,7 +1185,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         remoteStoreRepoForIndex,
                         indexUUID,
                         shardId,
-                        pathType
+                        pathStrategy
                     ),
                     indexUUID,
                     shardId
@@ -1215,7 +1217,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             remoteStoreRepoForIndex,
             indexUUID,
             shardId,
-            RemoteStorePathType.HASHED_PREFIX // TODO - The path type needs to be obtained from RemoteStoreShardShallowCopySnapshot
+            new RemoteStorePathStrategy(PathType.FIXED)
+            // TODO - The path type needs to be obtained from RemoteStoreShardShallowCopySnapshot
         );
         remoteStoreMetadataLockManager.release(FileLockInfo.getLockInfoBuilder().withAcquirerId(shallowSnapshotUUID).build());
         logger.debug("Successfully released lock for shard {} of index with uuid {}", shardId, indexUUID);
@@ -1238,7 +1241,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexUUID,
                 new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt(shardId)),
                 ThreadPool.Names.REMOTE_PURGE,
-                RemoteStorePathType.FIXED // TODO - The path type needs to be obtained from RemoteStoreShardShallowCopySnapshot
+                new RemoteStorePathStrategy(PathType.FIXED)
+                // TODO - The path type needs to be obtained from RemoteStoreShardShallowCopySnapshot
             );
         }
     }

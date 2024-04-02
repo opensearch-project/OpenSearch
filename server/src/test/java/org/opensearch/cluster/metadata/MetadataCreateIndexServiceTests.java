@@ -74,7 +74,8 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.remote.RemoteStorePathType;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
@@ -1700,32 +1701,38 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
      */
     public void testRemoteCustomData() {
         // Case 1 - Remote store is not enabled
-        IndexMetadata indexMetadata = testRemoteCustomData(false, randomFrom(RemoteStorePathType.values()));
+        IndexMetadata indexMetadata = testRemoteCustomData(false, randomFrom(PathType.values()));
         assertNull(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY));
 
         // Case 2 - cluster.remote_store.index.path.prefix.optimised=fixed (default value)
-        indexMetadata = testRemoteCustomData(true, RemoteStorePathType.FIXED);
+        indexMetadata = testRemoteCustomData(true, PathType.FIXED);
+        validateRemoteCustomData(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY), PathType.NAME, PathType.FIXED.name());
         validateRemoteCustomData(
             indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY),
-            RemoteStorePathType.NAME,
-            RemoteStorePathType.FIXED.toString()
+            PathHashAlgorithm.NAME,
+            PathHashAlgorithm.FNV_1A.name()
         );
 
         // Case 3 - cluster.remote_store.index.path.prefix.optimised=hashed_prefix
-        indexMetadata = testRemoteCustomData(true, RemoteStorePathType.HASHED_PREFIX);
+        indexMetadata = testRemoteCustomData(true, PathType.HASHED_PREFIX);
         validateRemoteCustomData(
             indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY),
-            RemoteStorePathType.NAME,
-            RemoteStorePathType.HASHED_PREFIX.toString()
+            PathType.NAME,
+            PathType.HASHED_PREFIX.toString()
+        );
+        validateRemoteCustomData(
+            indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY),
+            PathHashAlgorithm.NAME,
+            PathHashAlgorithm.FNV_1A.name()
         );
     }
 
-    private IndexMetadata testRemoteCustomData(boolean remoteStoreEnabled, RemoteStorePathType remoteStorePathType) {
+    private IndexMetadata testRemoteCustomData(boolean remoteStoreEnabled, PathType pathType) {
         Settings.Builder settingsBuilder = Settings.builder();
         if (remoteStoreEnabled) {
             settingsBuilder.put(NODE_ATTRIBUTES.getKey() + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "test");
         }
-        settingsBuilder.put(IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING.getKey(), remoteStorePathType.toString());
+        settingsBuilder.put(IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING.getKey(), pathType.toString());
         Settings settings = settingsBuilder.build();
 
         ClusterService clusterService = mock(ClusterService.class);
