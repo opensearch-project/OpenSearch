@@ -112,6 +112,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private SearchSourceBuilder source;
     private final ShardSearchContextId readerId;
     private final TimeValue keepAlive;
+    private String sandboxId;
 
     public ShardSearchRequest(
         OriginalIndices originalIndices,
@@ -265,6 +266,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
         readerId = in.readOptionalWriteable(ShardSearchContextId::new);
         keepAlive = in.readOptionalTimeValue();
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            sandboxId = in.readOptionalString();
+        }
         originalIndices = OriginalIndices.readOriginalIndices(in);
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
     }
@@ -290,6 +294,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = clone.originalIndices;
         this.readerId = clone.readerId;
         this.keepAlive = clone.keepAlive;
+        this.sandboxId = clone.sandboxId;
     }
 
     @Override
@@ -335,6 +340,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
         }
+
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalString(sandboxId);
+        }
     }
 
     @Override
@@ -351,6 +360,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             return null;
         }
         return originalIndices.indicesOptions();
+    }
+
+    public String getSandboxId() {
+        return sandboxId;
+    }
+
+    public void setSandboxId(String sandboxId) {
+        this.sandboxId = sandboxId;
     }
 
     public ShardId shardId() {

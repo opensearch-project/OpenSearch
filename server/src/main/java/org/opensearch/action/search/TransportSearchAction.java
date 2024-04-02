@@ -85,6 +85,7 @@ import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
+import org.opensearch.search.sandbox.RequestSandboxClassifier;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
@@ -193,6 +194,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private SearchQueryCategorizer searchQueryCategorizer;
 
+    private RequestSandboxClassifier requestSandboxClassifier;
+
     @Inject
     public TransportSearchAction(
         NodeClient client,
@@ -230,6 +233,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchRequestSlowLog = searchRequestSlowLog;
         this.metricsRegistry = metricsRegistry;
         this.searchQueryMetricsEnabled = clusterService.getClusterSettings().get(SEARCH_QUERY_METRICS_ENABLED_SETTING);
+        this.searchRequestOperationsCompositeListenerFactory = searchRequestOperationsCompositeListenerFactory;
+        this.requestSandboxClassifier = requestSandboxClassifier;
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(SEARCH_QUERY_METRICS_ENABLED_SETTING, this::setSearchQueryMetricsEnabled);
     }
@@ -1141,6 +1146,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             concreteLocalIndices,
             localShardIterators.size() + remoteShardIterators.size()
         );
+        // Set sandbox for the request
+        final String requestSandboxId = requestSandboxClassifier.resolveSandboxFor(searchRequest);
+        task.setSandboxId(requestSandboxId);
+
         searchAsyncActionProvider.asyncSearchAction(
             task,
             searchRequest,
