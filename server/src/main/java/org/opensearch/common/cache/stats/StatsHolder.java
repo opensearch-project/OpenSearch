@@ -30,12 +30,9 @@ public class StatsHolder {
     // A tree structure based on dimension values, which stores stats values in its leaf nodes.
     private final DimensionNode<CacheStatsCounter> statsRoot;
 
-    static final String ROOT_DIMENSION_VALUE = "#ROOT"; // test only for now
-
     public StatsHolder(List<String> dimensionNames) {
         this.dimensionNames = dimensionNames;
-        this.statsRoot = new DimensionNode<CacheStatsCounter>(ROOT_DIMENSION_VALUE); // The root node has no dimension value associated with
-                                                                                     // it, only children
+        this.statsRoot = new DimensionNode<>(null); // The root node has no dimension value associated with it, only children
         statsRoot.setStats(new CacheStatsCounter());
     }
 
@@ -109,8 +106,8 @@ public class StatsHolder {
         final CounterMetric count = new CounterMetric();
         traverseStatsTreeHelper(statsRoot, new ArrayList<>(), (node, path) -> {
             if (node.children.isEmpty()) {
-                count.inc(node.getStats().getEntries()); // Only increment on leaf nodes to avoid double-counting, as non-leaf nodes contain
-                                                         // stats too
+                // Only increment on leaf nodes to avoid double-counting, as non-leaf nodes contain stats too
+                count.inc(node.getStats().getEntries());
             }
         });
         return count.count();
@@ -149,7 +146,7 @@ public class StatsHolder {
      * Produce an immutable CacheStats representation of these stats.
      */
     public CacheStats getCacheStats() {
-        DimensionNode<CounterSnapshot> snapshot = new DimensionNode<>(ROOT_DIMENSION_VALUE);
+        DimensionNode<CounterSnapshot> snapshot = new DimensionNode<>(null);
         traverseStatsTreeHelper(statsRoot, new ArrayList<>(), (node, path) -> {
             if (path.size() > 0) {
                 CounterSnapshot nodeSnapshot = node.getStats().snapshot();

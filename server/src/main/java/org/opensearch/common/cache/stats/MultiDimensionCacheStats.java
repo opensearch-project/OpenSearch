@@ -39,7 +39,7 @@ public class MultiDimensionCacheStats implements CacheStats {
         // This allows us to avoid ambiguity if nodes have the same dimension value, without having to serialize the whole path to each
         // node.
         this.dimensionNames = List.of(in.readStringArray());
-        this.statsRoot = new DimensionNode<>(StatsHolder.ROOT_DIMENSION_VALUE);
+        this.statsRoot = new DimensionNode<>(null);
         List<DimensionNode<CounterSnapshot>> ancestorsOfLastRead = List.of(statsRoot);
         while (ancestorsOfLastRead != null) {
             ancestorsOfLastRead = readAndAttachDimensionNode(in, ancestorsOfLastRead);
@@ -54,18 +54,17 @@ public class MultiDimensionCacheStats implements CacheStats {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // Write each node in preorder order, along with its depth and the dimension value of its parent.
+        // Write each node in preorder order, along with its depth.
         // Then, when rebuilding the tree from the stream, we can always find the correct parent to attach each node to.
 
         out.writeStringArray(dimensionNames.toArray(new String[0]));
-        // writeDimensionNodeRecursive(out, statsRoot, 0, null);
         for (DimensionNode<CounterSnapshot> child : statsRoot.children.values()) {
-            writeDimensionNodeRecursive(out, child, 1, statsRoot.getDimensionValue());
+            writeDimensionNodeRecursive(out, child, 1);
         }
         out.writeBoolean(false); // Write false to signal there are no more nodes
     }
 
-    private void writeDimensionNodeRecursive(StreamOutput out, DimensionNode<CounterSnapshot> node, int depth, String parentDimensionValue)
+    private void writeDimensionNodeRecursive(StreamOutput out, DimensionNode<CounterSnapshot> node, int depth)
         throws IOException {
         out.writeBoolean(true);
         out.writeVInt(depth);
@@ -75,7 +74,7 @@ public class MultiDimensionCacheStats implements CacheStats {
         if (!node.children.isEmpty()) {
             // Not a leaf node
             for (DimensionNode<CounterSnapshot> child : node.children.values()) {
-                writeDimensionNodeRecursive(out, child, depth + 1, node.getDimensionValue());
+                writeDimensionNodeRecursive(out, child, depth + 1);
             }
         }
     }
@@ -143,7 +142,6 @@ public class MultiDimensionCacheStats implements CacheStats {
     DimensionNode<CounterSnapshot> aggregateByLevels(List<String> levels) {
         checkLevels(levels);
         DimensionNode<CounterSnapshot> newRoot = new DimensionNode<>(null);
-        // aggregateByLevelsHelper(newRoot, statsRoot, levels, -1);
         for (DimensionNode<CounterSnapshot> child : statsRoot.children.values()) {
             aggregateByLevelsHelper(newRoot, child, levels, 0);
         }
@@ -177,7 +175,6 @@ public class MultiDimensionCacheStats implements CacheStats {
         if (!currentInOriginalTree.children.isEmpty()) {
             // Not a leaf node
             for (Map.Entry<String, DimensionNode<CounterSnapshot>> childEntry : currentInOriginalTree.children.entrySet()) {
-                String childValue = childEntry.getKey();
                 DimensionNode<CounterSnapshot> child = childEntry.getValue();
                 aggregateByLevelsHelper(parentInNewTree, child, levels, depth + 1);
             }
