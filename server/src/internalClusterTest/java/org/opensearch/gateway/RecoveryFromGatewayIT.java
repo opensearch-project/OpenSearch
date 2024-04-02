@@ -56,7 +56,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.gateway.TransportNodesListGatewayStartedShardsBatch.GatewayStartedShard;
+import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayStartedShard;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergePolicyProvider;
@@ -818,9 +818,9 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             .get(discoveryNodes[0].getId())
             .getNodeGatewayStartedShardsBatch()
             .get(shardId);
-        assertNotNull(gatewayStartedShard.get().storeException());
-        assertNotNull(gatewayStartedShard.get().allocationId());
-        assertTrue(gatewayStartedShard.get().primary());
+        assertNotNull(gatewayStartedShard.storeException());
+        assertNotNull(gatewayStartedShard.allocationId());
+        assertTrue(gatewayStartedShard.primary());
     }
 
     public void testSingleShardStoreFetchUsingBatchAction() throws ExecutionException, InterruptedException {
@@ -949,9 +949,9 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
     }
 
     private void assertNodeGatewayStartedShardsHappyCase(GatewayStartedShard gatewayStartedShard) {
-        assertNull(gatewayStartedShard.get().storeException());
-        assertNotNull(gatewayStartedShard.get().allocationId());
-        assertTrue(gatewayStartedShard.get().primary());
+        assertNull(gatewayStartedShard.storeException());
+        assertNotNull(gatewayStartedShard.allocationId());
+        assertTrue(gatewayStartedShard.primary());
     }
 
     private void prepareIndex(String indexName, int numberOfPrimaryShards) {

@@ -120,14 +120,15 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         String type,
         Map<ShardId, ShardAttributes> shardAttributesMap,
         Lister<? extends BaseNodesResponse<T>, T> action,
-        String batchId
+        String batchId,
+        AsyncShardFetchCache<T> cache
     ) {
         this.logger = logger;
         this.type = type;
         this.shardAttributesMap = shardAttributesMap;
         this.action = (Lister<BaseNodesResponse<T>, T>) action;
         this.reroutingKey = "BatchID=[" + batchId + "]";
-        cache = new ShardCache<>(logger, reroutingKey, type);
+        this.cache = cache;
     }
 
     @Override

@@ -233,8 +233,11 @@ public class TransportNodesGatewayStartedShardHelper {
             return buf.toString();
         }
 
-        public Boolean isEmpty() {
-            return allocationId == null && primary == false && storeException == null && replicationCheckpoint == null;
+        public static Boolean isEmpty(GatewayStartedShard gatewayStartedShard) {
+            return gatewayStartedShard.allocationId() == null
+                && gatewayStartedShard.primary() == false
+                && gatewayStartedShard.storeException() == null
+                && gatewayStartedShard.replicationCheckpoint() == null;
         }
     }
 

@@ -15,8 +15,8 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.gateway.AsyncShardFetch.FetchResult;
+import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayStartedShard;
 import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.NodeGatewayStartedShard;
-import org.opensearch.gateway.TransportNodesListGatewayStartedShardsBatch.GatewayStartedShard;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch;
 
 import java.util.ArrayList;
@@ -136,10 +136,10 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
             GatewayStartedShard shardData = nodeGatewayStartedShardsBatch.getNodeGatewayStartedShardsBatch().get(unassignedShard.shardId());
             nodeShardStates.add(
                 new NodeGatewayStartedShard(
-                    shardData.get().allocationId(),
-                    shardData.get().primary(),
-                    shardData.get().replicationCheckpoint(),
-                    shardData.get().storeException(),
+                    shardData.allocationId(),
+                    shardData.primary(),
+                    shardData.replicationCheckpoint(),
+                    shardData.storeException(),
                     node
                 )
             );

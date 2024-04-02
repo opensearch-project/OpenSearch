@@ -16,7 +16,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.gateway.TransportNodesListGatewayStartedShardsBatch.GatewayStartedShard;
+import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayStartedShard;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch;
 import org.opensearch.indices.store.ShardAttributes;
 
@@ -53,9 +53,7 @@ public class ShardBatchCacheTests extends OpenSearchAllocationTestCase {
             GatewayStartedShard.class,
             NodeGatewayStartedShardsBatch::new,
             NodeGatewayStartedShardsBatch::getNodeGatewayStartedShardsBatch,
-            () -> new GatewayStartedShard(new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(null, false, null, null), null),
-            this::removeShard,
-            GatewayStartedShard::getTransportError,
+            new GatewayStartedShard(null, false, null, null),
             GatewayStartedShard::isEmpty
         );
     }
@@ -128,7 +126,7 @@ public class ShardBatchCacheTests extends OpenSearchAllocationTestCase {
         );
         assertEquals(2, fetchData.size());
         assertEquals(10, fetchData.get(node1).getNodeGatewayStartedShardsBatch().size());
-        assertEquals("alloc-1", fetchData.get(node1).getNodeGatewayStartedShardsBatch().get(shard).get().allocationId());
+        assertEquals("alloc-1", fetchData.get(node1).getNodeGatewayStartedShardsBatch().get(shard).allocationId());
 
         assertEquals(10, fetchData.get(node2).getNodeGatewayStartedShardsBatch().size());
         assertTrue(GatewayStartedShard.isEmpty(fetchData.get(node2).getNodeGatewayStartedShardsBatch().get(shard)));
@@ -150,7 +148,7 @@ public class ShardBatchCacheTests extends OpenSearchAllocationTestCase {
         assertTrue(fetchData.get(node1).getNodeGatewayStartedShardsBatch().isEmpty());
     }
 
-    public void testFilterFailedShards() {
+    public void testShardsDataWithException() {
         setupShardBatchCache(BATCH_ID, NUMBER_OF_SHARDS_DEFAULT);
         this.shardCache.initData(node1);
         this.shardCache.initData(node2);
@@ -163,7 +161,7 @@ public class ShardBatchCacheTests extends OpenSearchAllocationTestCase {
 
         // assertEquals(5, batchInfo.size());
         assertEquals(2, fetchData.size());
-        assertEquals(5, fetchData.get(node1).getNodeGatewayStartedShardsBatch().size());
+        assertEquals(10, fetchData.get(node1).getNodeGatewayStartedShardsBatch().size());
         assertTrue(fetchData.get(node2).getNodeGatewayStartedShardsBatch().isEmpty());
     }
 
@@ -176,22 +174,10 @@ public class ShardBatchCacheTests extends OpenSearchAllocationTestCase {
                     shardData.put(shard, null);
                     break;
                 case EMPTY:
-                    shardData.put(
-                        shard,
-                        new GatewayStartedShard(
-                            new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(null, false, null, null),
-                            null
-                        )
-                    );
+                    shardData.put(shard, new GatewayStartedShard(null, false, null, null));
                     break;
                 case VALID:
-                    shardData.put(
-                        shard,
-                        new GatewayStartedShard(
-                            new TransportNodesGatewayStartedShardHelper.GatewayStartedShard("alloc-" + allocationId++, false, null, null),
-                            null
-                        )
-                    );
+                    shardData.put(shard, new GatewayStartedShard("alloc-" + allocationId++, false, null, null));
                     break;
                 default:
                     throw new AssertionError("unknown response type");
@@ -207,19 +193,10 @@ public class ShardBatchCacheTests extends OpenSearchAllocationTestCase {
             if (failedShardsCount-- > 0) {
                 shardData.put(
                     shard,
-                    new GatewayStartedShard(
-                        new TransportNodesGatewayStartedShardHelper.GatewayStartedShard("alloc-" + allocationId++, false, null, null),
-                        new OpenSearchRejectedExecutionException()
-                    )
+                    new GatewayStartedShard("alloc-" + allocationId++, false, null, new OpenSearchRejectedExecutionException())
                 );
             } else {
-                shardData.put(
-                    shard,
-                    new GatewayStartedShard(
-                        new TransportNodesGatewayStartedShardHelper.GatewayStartedShard("alloc-" + allocationId++, false, null, null),
-                        null
-                    )
-                );
+                shardData.put(shard, new GatewayStartedShard("alloc-" + allocationId++, false, null, null));
             }
         }
         return shardData;

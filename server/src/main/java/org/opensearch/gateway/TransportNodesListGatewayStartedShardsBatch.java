@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayStartedShard;
 import static org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.INDEX_NOT_FOUND;
 import static org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.getShardInfoOnLocalNode;
 
@@ -135,23 +136,22 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
     @Override
     protected NodeGatewayStartedShardsBatch nodeOperation(NodeRequest request) {
         Map<ShardId, GatewayStartedShard> shardsOnNode = new HashMap<>();
+        // NOTE : If we ever change this for loop to run in parallel threads, we should re-visit the exception
+        // handling in AsyncShardBatchFetch class.
         for (Map.Entry<ShardId, ShardAttributes> shardAttr : request.shardAttributes.entrySet()) {
             final ShardId shardId = shardAttr.getKey();
             try {
                 shardsOnNode.put(
                     shardId,
-                    new GatewayStartedShard(
-                        getShardInfoOnLocalNode(
-                            logger,
-                            shardId,
-                            namedXContentRegistry,
-                            nodeEnv,
-                            indicesService,
-                            shardAttr.getValue().getCustomDataPath(),
-                            settings,
-                            clusterService
-                        ),
-                        null
+                    getShardInfoOnLocalNode(
+                        logger,
+                        shardId,
+                        namedXContentRegistry,
+                        nodeEnv,
+                        indicesService,
+                        shardAttr.getValue().getCustomDataPath(),
+                        settings,
+                        clusterService
                     )
                 );
             } catch (Exception e) {
@@ -160,10 +160,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
                     shardsOnNode.put(shardId, null);
                 } else {
                     // return actual exception as it is for unknown exceptions
-                    shardsOnNode.put(
-                        shardId,
-                        new GatewayStartedShard(new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(null, false, null, null), e)
-                    );
+                    shardsOnNode.put(shardId, new GatewayStartedShard(null, false, null, e));
                 }
             }
         }
@@ -253,57 +250,6 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeMap(shardAttributes, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
-        }
-    }
-
-    /**
-     * Primary shard response from node. It contains the metadata in
-     * {@link TransportNodesGatewayStartedShardHelper.GatewayStartedShard} and any exception thrown from code will be
-     * stored in transportError. This exception is stored specifically to disambiguate the store related exceptions
-     * present in {@link TransportNodesGatewayStartedShardHelper.GatewayStartedShard} as those exceptions may be used
-     * during decision-making.
-     */
-    public static class GatewayStartedShard {
-        private final TransportNodesGatewayStartedShardHelper.GatewayStartedShard gatewayStartedShard;
-        private final Exception transportError;
-
-        public GatewayStartedShard(
-            TransportNodesGatewayStartedShardHelper.GatewayStartedShard gatewayStartedShard,
-            Exception transportError
-        ) {
-            this.gatewayStartedShard = gatewayStartedShard;
-            this.transportError = transportError;
-        }
-
-        public GatewayStartedShard(StreamInput in) throws IOException {
-            this.gatewayStartedShard = new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(in);
-            if (in.readBoolean()) {
-                this.transportError = in.readException();
-            } else {
-                this.transportError = null;
-            }
-        }
-
-        public void writeTo(StreamOutput out) throws IOException {
-            gatewayStartedShard.writeTo(out);
-            if (transportError != null) {
-                out.writeBoolean(true);
-                out.writeException(transportError);
-            } else {
-                out.writeBoolean(false);
-            }
-        }
-
-        public static boolean isEmpty(GatewayStartedShard gatewayStartedShard) {
-            return gatewayStartedShard.get().isEmpty() && gatewayStartedShard.getTransportError() == null;
-        }
-
-        public Exception getTransportError() {
-            return transportError;
-        }
-
-        public TransportNodesGatewayStartedShardHelper.GatewayStartedShard get() {
-            return gatewayStartedShard;
         }
     }
 

@@ -155,7 +155,7 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
                 shardStoreMetadataMap.put(shardId, new NodeStoreFilesMetadata(storeFilesMetadata, null));
             } catch (Exception e) {
                 // should return null in case of known exceptions being returned from listShardMetadataInternal method.
-                if (e.getMessage().contains(INDEX_NOT_FOUND)) {
+                if (e.getMessage().contains(INDEX_NOT_FOUND) || e instanceof IOException) {
                     shardStoreMetadataMap.put(shardId, null);
                 } else {
                     // return actual exception as it is for unknown exceptions
