@@ -37,7 +37,7 @@ import java.util.stream.Stream;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class RemoteDualMigrationIT extends MigrationBaseTestCase {
+public class RemoteDualReplicationIT extends MigrationBaseTestCase {
     private final String REMOTE_PRI_DOCREP_REP = "remote-primary-docrep-replica";
     private final String REMOTE_PRI_DOCREP_REMOTE_REP = "remote-primary-docrep-remote-replica";
     private final String FAILOVER_REMOTE_TO_DOCREP = "failover-remote-to-docrep";

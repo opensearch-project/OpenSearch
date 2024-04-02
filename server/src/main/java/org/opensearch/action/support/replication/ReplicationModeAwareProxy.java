@@ -42,13 +42,13 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
         DiscoveryNodes discoveryNodes,
         ReplicationOperation.Replicas<ReplicaRequest> replicasProxy,
         ReplicationOperation.Replicas<ReplicaRequest> primaryTermValidationProxy,
-        boolean isRemoteStoreIndexSettingEnabled
+        boolean remoteIndexSettingsEnabled
     ) {
         super(replicasProxy);
         this.replicationModeOverride = Objects.requireNonNull(replicationModeOverride);
         this.primaryTermValidationProxy = Objects.requireNonNull(primaryTermValidationProxy);
         this.discoveryNodes = discoveryNodes;
-        this.isRemoteEnabled = isRemoteStoreIndexSettingEnabled;
+        this.isRemoteEnabled = remoteIndexSettingsEnabled;
     }
 
     @Override
