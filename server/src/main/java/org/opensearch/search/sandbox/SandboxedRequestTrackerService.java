@@ -39,7 +39,6 @@ public class SandboxedRequestTrackerService implements TaskManager.TaskEventList
     /**
      * It is used to track the task to sandbox mapping which will be useful to remove it from the @link tasksPerSandbox
      */
-    private final Map<String, SandboxStats> sandboxStats;
     private final TaskManager taskManager;
     private final TaskResourceTrackingService taskResourceTrackingService;
 
@@ -51,7 +50,6 @@ public class SandboxedRequestTrackerService implements TaskManager.TaskEventList
         this.taskManager = taskManager;
         this.taskResourceTrackingService = taskResourceTrackingService;
         toDeleteSandboxes = Collections.synchronizedList(new ArrayList<>());
-        sandboxStats = new ConcurrentHashMap<>();
         this.timeNanosSupplier = timeNanosSupplier;
     }
 

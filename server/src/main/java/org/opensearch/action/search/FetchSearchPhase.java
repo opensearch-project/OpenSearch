@@ -194,9 +194,6 @@ final class FetchSearchPhase extends SearchPhase {
                             queryResult.getShardSearchRequest(),
                             queryResult.getRescoreDocIds()
                         );
-                        // set sandboxId in shard level fetch request
-                        assert context.getTask().getSandboxId() != null : "Search task should have the sandboxId";
-                        fetchSearchRequest.setSandboxId(context.getTask().getSandboxId());
                         executeFetch(i, searchShardTarget, counter, fetchSearchRequest, queryResult.queryResult(), connection);
                     }
                 }

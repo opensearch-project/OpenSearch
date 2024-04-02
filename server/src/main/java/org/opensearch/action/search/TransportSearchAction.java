@@ -194,7 +194,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private SearchQueryCategorizer searchQueryCategorizer;
 
-    private RequestSandboxClassifier requestSandboxClassifier;
+    private final RequestSandboxClassifier requestSandboxClassifier;
 
     @Inject
     public TransportSearchAction(
@@ -212,7 +212,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchPipelineService searchPipelineService,
         SearchRequestStats searchRequestStats,
         SearchRequestSlowLog searchRequestSlowLog,
-        MetricsRegistry metricsRegistry
+        MetricsRegistry metricsRegistry,
+        RequestSandboxClassifier requestSandboxClassifier
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -233,7 +234,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchRequestSlowLog = searchRequestSlowLog;
         this.metricsRegistry = metricsRegistry;
         this.searchQueryMetricsEnabled = clusterService.getClusterSettings().get(SEARCH_QUERY_METRICS_ENABLED_SETTING);
-        this.searchRequestOperationsCompositeListenerFactory = searchRequestOperationsCompositeListenerFactory;
         this.requestSandboxClassifier = requestSandboxClassifier;
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(SEARCH_QUERY_METRICS_ENABLED_SETTING, this::setSearchQueryMetricsEnabled);

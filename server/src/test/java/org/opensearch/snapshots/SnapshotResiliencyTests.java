@@ -222,6 +222,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.query.QueryPhase;
+import org.opensearch.search.sandbox.RequestSandboxClassifier;
 import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
@@ -2312,7 +2313,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         ),
                         null,
                         new SearchRequestSlowLog(clusterService),
-                        NoopMetricsRegistry.INSTANCE
+                        NoopMetricsRegistry.INSTANCE,
+                        new RequestSandboxClassifier()
                     )
                 );
                 actions.put(

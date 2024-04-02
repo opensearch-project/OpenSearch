@@ -14,10 +14,10 @@ import org.opensearch.core.action.ActionResponse;
 /**
  * This interface defines the key APIs for implementing Sandbox persistence
  */
-public interface Perisist {
+public interface Persistable {
     /**
      * persists the @link Sandbox in a durable storage
      * @param sandbox
      */
-    <U extends ActionResponse> void persist(Sandbox sandbox, ActionListener<U> listener);
+    <U extends ActionResponse> void persist(Object sandbox, ActionListener<U> listener);
 }

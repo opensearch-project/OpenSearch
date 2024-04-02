@@ -8,6 +8,9 @@
 
 package org.opensearch.search.sandbox;
 
-public interface StatsReporter<T> {
-    public T getStats();
+/**
+ * Interface to expose the sandbox level stats
+ */
+public interface SandboxStatsReporter {
+    public SandboxStatsHolder getStats();
 }
