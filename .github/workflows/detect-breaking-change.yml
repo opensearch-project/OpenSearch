@@ -1,5 +1,7 @@
 name: "Detect Breaking Changes"
-on: [push, pull_request]
+on:
+  pull_request
+
 jobs:
   detect-breaking-change:
     runs-on: ubuntu-latest
@@ -11,6 +13,7 @@ jobs:
         java-version: 21
     - uses: gradle/gradle-build-action@v3
       with:
+        cache-disabled: true
         arguments: japicmp
         gradle-version: 8.7
         build-root-directory: server
