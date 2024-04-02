@@ -500,7 +500,13 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         void updateStalenessThreshold(double stalenessThreshold) {
             double oldStalenessThreshold = this.stalenessThreshold;
             this.stalenessThreshold = stalenessThreshold;
-            logger.debug(" StalenessThreshold is updated from : " + oldStalenessThreshold + " to : " + this.stalenessThreshold);
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    "Staleness threshold for indices request cache changed to {} from {}",
+                    this.stalenessThreshold,
+                    oldStalenessThreshold
+                );
+            }
         }
 
         /**
