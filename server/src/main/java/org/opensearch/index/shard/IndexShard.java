@@ -3520,8 +3520,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              * When remote translog is enabled for an index, replication operation is limited to primary term validation and does not
              * update local checkpoint at replica, so the local checkpoint at replica can be less than globalCheckpoint.
              */
-            assert (state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED) || indexSettings.isRemoteNode()
-                : "supposedly in-sync shard copy received a global checkpoint ["
+            assert (state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED)
+                || indexSettings.isAssignedOnRemoteNode() : "supposedly in-sync shard copy received a global checkpoint ["
                     + globalCheckpoint
                     + "] "
                     + "that is higher than its local checkpoint ["

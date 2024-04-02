@@ -344,13 +344,13 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         public synchronized DiscoveryNodes generateFakeDiscoveryNodes() {
             DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder();
-            if (primary.indexSettings() != null && primary.indexSettings().isRemoteNode()) {
+            if (primary.indexSettings() != null && primary.indexSettings().isAssignedOnRemoteNode()) {
                 builder.add(IndexShardTestUtils.getFakeRemoteEnabledNode(primary.routingEntry().currentNodeId()));
             } else {
                 builder.add(IndexShardTestUtils.getFakeDiscoNode(primary.routingEntry().currentNodeId()));
             }
             for (IndexShard replica : replicas) {
-                if (replica.indexSettings() != null && replica.indexSettings().isRemoteNode()) {
+                if (replica.indexSettings() != null && replica.indexSettings().isAssignedOnRemoteNode()) {
                     builder.add(IndexShardTestUtils.getFakeRemoteEnabledNode(replica.routingEntry().currentNodeId()));
                 } else {
                     builder.add(IndexShardTestUtils.getFakeDiscoNode(replica.routingEntry().currentNodeId()));
