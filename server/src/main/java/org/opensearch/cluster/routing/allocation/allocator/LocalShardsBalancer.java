@@ -61,6 +61,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final ShardMovementStrategy shardMovementStrategy;
 
     private final boolean preferPrimaryBalance;
+    private final boolean preferPrimaryRebalance;
     private final BalancedShardsAllocator.WeightFunction weight;
 
     private final float threshold;
@@ -76,7 +77,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
         ShardMovementStrategy shardMovementStrategy,
         BalancedShardsAllocator.WeightFunction weight,
         float threshold,
-        boolean preferPrimaryBalance
+        boolean preferPrimaryBalance,
+        boolean preferPrimaryRebalance
     ) {
         this.logger = logger;
         this.allocation = allocation;
@@ -91,6 +93,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         sorter = newNodeSorter();
         inEligibleTargetNode = new HashSet<>();
         this.preferPrimaryBalance = preferPrimaryBalance;
+        this.preferPrimaryRebalance = preferPrimaryRebalance;
         this.shardMovementStrategy = shardMovementStrategy;
     }
 
@@ -995,13 +998,18 @@ public class LocalShardsBalancer extends ShardsBalancer {
                     continue;
                 }
                 // This is a safety net which prevents un-necessary primary shard relocations from maxNode to minNode when
-                // doing such relocation wouldn't help in primary balance.
+                // doing such relocation wouldn't help in primary balance. The condition won't be applicable when we enable node level
+                // primary rebalance
                 if (preferPrimaryBalance == true
+                    && preferPrimaryRebalance == false
                     && shard.primary()
                     && maxNode.numPrimaryShards(shard.getIndexName()) - minNode.numPrimaryShards(shard.getIndexName()) < 2) {
                     continue;
                 }
-
+                // Relax the above condition to per node to allow rebalancing to attain global balance
+                if (preferPrimaryRebalance == true && shard.primary() && maxNode.numPrimaryShards() - minNode.numPrimaryShards() < 2) {
+                    continue;
+                }
                 final Decision decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
                 maxNode.removeShard(shard);
                 long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
