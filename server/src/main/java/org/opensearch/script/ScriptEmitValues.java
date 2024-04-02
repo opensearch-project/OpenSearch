@@ -18,8 +18,10 @@ import org.opensearch.common.collect.Tuple;
  */
 public final class ScriptEmitValues {
 
-    // Takes in a single value and emits it
-    // Could be a long, double, String, etc.
+    /**
+     * Takes in a single value and emits it
+     * Could be a long, double, String, etc.
+     */
     public static final class EmitSingle {
 
         private final DerivedFieldScript derivedFieldScript;
@@ -41,7 +43,9 @@ public final class ScriptEmitValues {
 
     }
 
-    // Emits a GeoPoint value
+    /**
+     * Emits a GeoPoint value
+     */
     public static final class GeoPoint {
 
         private final DerivedFieldScript derivedFieldScript;
