@@ -18,8 +18,7 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -55,7 +54,6 @@ import org.mockito.Mockito;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.METADATA_SEPARATOR;
-import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_TRANSFER_TIMEOUT_SETTING;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anySet;
@@ -195,17 +193,28 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
     public void testTransferSnapshotOnUploadTimeout() throws Exception {
         doAnswer(invocationOnMock -> {
-            Thread.sleep(5);
+            Set<TransferFileSnapshot> transferFileSnapshots = invocationOnMock.getArgument(0);
+            ActionListener<TransferFileSnapshot> listener = invocationOnMock.getArgument(2);
+            Runnable runnable = () -> {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                for (TransferFileSnapshot transferFileSnapshot : transferFileSnapshots) {
+                    listener.onResponse(transferFileSnapshot);
+                }
+            };
+            Thread t = new Thread(runnable);
+            t.start();
             return null;
         }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
         FileTransferTracker fileTransferTracker = new FileTransferTracker(
             new ShardId("index", "indexUUid", 0),
             remoteTranslogTransferTracker
         );
-        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(
-            Settings.builder().put(CLUSTER_REMOTE_TRANSLOG_TRANSFER_TIMEOUT_SETTING.getKey(), "1ms").build(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        );
+        RemoteStoreSettings remoteStoreSettings = mock(RemoteStoreSettings.class);
+        when(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout()).thenReturn(new TimeValue(1));
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
