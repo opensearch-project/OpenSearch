@@ -34,7 +34,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 
@@ -84,11 +84,17 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         List<BytesRef> terms = new ArrayList<>();
         terms.add(new BytesRef("true"));
         terms.add(new BytesRef("false"));
-        assertEquals(new FieldExistsQuery("field"), ft.termsQuery(terms, null));
+        assertEquals(new DocValuesFieldExistsQuery("field"), ft.termsQuery(terms, null));
 
         List<BytesRef> newTerms = new ArrayList<>();
         newTerms.add(new BytesRef("true"));
         assertEquals(new TermQuery(new Term("field", "T")), ft.termsQuery(newTerms, null));
+
+        List<BytesRef> incorrectTerms = new ArrayList<>();
+        incorrectTerms.add(new BytesRef("true"));
+        incorrectTerms.add(new BytesRef("random"));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> ft.termsQuery(incorrectTerms, null));
+        assertEquals("Can't parse boolean value [random], expected [true] or [false]", ex.getMessage());
 
         MappedFieldType doc_only_ft = new BooleanFieldMapper.BooleanFieldType("field", false, true);
 

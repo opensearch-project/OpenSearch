@@ -39,7 +39,6 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -62,8 +61,10 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -284,26 +285,25 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            boolean seenTrue = false;
-            boolean seenFalse = false;
-            for (Object value : values) {
+            int distinct = 0;
+            Set<?> distinctValues = new HashSet<>(values);
+            for (Object value : distinctValues) {
                 if (Values.TRUE.equals(indexedValueForSearch(value))) {
-                    seenTrue = true;
+                    distinct |= 2;
                 } else if (Values.FALSE.equals(indexedValueForSearch(value))) {
-                    seenFalse = true;
-                } else {
-                    return new MatchNoDocsQuery("Values did not contain True or False");
+                    distinct |= 1;
+                }
+                if (distinct == 3) {
+                    return this.existsQuery(context);
                 }
             }
-            if (seenTrue) {
-                if (seenFalse) {
-                    return new FieldExistsQuery(name());
-                }
-                return termQuery("true", context);
+            switch (distinct) {
+                case 1:
+                    return termQuery("false", context);
+                case 2:
+                    return termQuery("true", context);
             }
-            if (seenFalse) {
-                return termQuery("false", context);
-            }
+
             return new MatchNoDocsQuery("Values did not contain True or False");
         }
 
