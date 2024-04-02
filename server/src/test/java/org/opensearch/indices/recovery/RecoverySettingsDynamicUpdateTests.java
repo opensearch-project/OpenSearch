@@ -35,6 +35,8 @@ package org.opensearch.indices.recovery;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.TimeUnit;
@@ -47,11 +49,36 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         clusterSettings.applySettings(
             Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build()
         );
-        assertEquals(null, recoverySettings.rateLimiter());
+        assertEquals(null, recoverySettings.recoveryRateLimiter());
         clusterSettings.applySettings(
-            Settings.builder().put(RecoverySettings.SEGREP_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build()
+            Settings.builder()
+                .put(RecoverySettings.INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.getKey(), 0)
+                .put(RecoverySettings.INDICES_USE_REPLICATION_INDIVIDUAL_RATE_LIMITER_SETTING.getKey(), true)
+                .build()
         );
-        assertEquals(null, recoverySettings.segrepRateLimiter());
+        assertEquals(null, recoverySettings.replicaitonRateLimiter());
+    }
+
+    public void testSetReplicationMaxBytesPerSec() {
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.getKey(), new ByteSizeValue(60, ByteSizeUnit.MB))
+                .put(RecoverySettings.INDICES_USE_REPLICATION_INDIVIDUAL_RATE_LIMITER_SETTING.getKey(), false)
+                .build()
+        );
+        assertEquals(40, (int) recoverySettings.replicaitonRateLimiter().getMBPerSec());
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build()
+        );
+        assertNull(recoverySettings.recoveryRateLimiter());
+        assertNull(recoverySettings.replicaitonRateLimiter());
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.getKey(), new ByteSizeValue(60, ByteSizeUnit.MB))
+                .put(RecoverySettings.INDICES_USE_REPLICATION_INDIVIDUAL_RATE_LIMITER_SETTING.getKey(), true)
+                .build()
+        );
+        assertEquals(60, (int) recoverySettings.replicaitonRateLimiter().getMBPerSec());
     }
 
     public void testRetryDelayStateSync() {

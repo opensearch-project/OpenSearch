@@ -80,9 +80,9 @@ public final class RemoteSegmentFileChunkWriter implements FileChunkWriter {
         // always fetch the ratelimiter - it might be updated in real-time on the recovery settings
         final RateLimiter rl;
         if (SegmentReplicationTargetService.Actions.FILE_CHUNK.equals(action)) {
-            rl = recoverySettings.segrepRateLimiter();
+            rl = recoverySettings.replicaitonRateLimiter();
         } else {
-            rl = recoverySettings.rateLimiter();
+            rl = recoverySettings.recoveryRateLimiter();
         }
         if (rl != null) {
             long bytes = bytesSinceLastPause.addAndGet(content.length());
