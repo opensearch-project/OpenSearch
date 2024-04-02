@@ -943,6 +943,11 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
     }
 
+    /**
+     * Holder class for shard routing(s) which are classified and stored based on their weights.
+     *
+     * @opensearch.api
+     */
     @PublicApi(since = "2.14.0")
     public static class WeightedShardRoutings {
         private final List<ShardRouting> shardRoutingsWithWeight;
