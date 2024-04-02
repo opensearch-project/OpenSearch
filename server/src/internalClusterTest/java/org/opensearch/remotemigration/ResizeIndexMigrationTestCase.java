@@ -32,6 +32,10 @@ public class ResizeIndexMigrationTestCase extends MigrationBaseTestCase {
     private final static String STRICT_MODE = "strict";
     private final static String MIXED_MODE = "mixed";
 
+    /*
+    * This test will verify the resize request failure, when cluster mode is mixed
+    * and index is on DocRep node, and migration to remote store is in progress.
+    * */
     public void testFailResizeIndexWhileDocRepToRemoteStoreMigration() throws Exception {
 
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
@@ -120,6 +124,10 @@ public class ResizeIndexMigrationTestCase extends MigrationBaseTestCase {
         );
     }
 
+    /*
+     * This test will verify the resize request failure, when cluster mode is mixed
+     * and index is on Remote Store node, and migration to DocRep node is in progress.
+     * */
     public void testFailResizeIndexWhileRemoteStoreToDocRepMigration() throws Exception {
 
         addRemote = true;

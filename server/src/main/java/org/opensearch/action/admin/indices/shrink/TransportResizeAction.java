@@ -374,6 +374,18 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         return super.getClusterManagerActionName(node);
     }
 
+    /**
+     * Reject resize request if cluster mode is [Mixed] and migration direction is [RemoteStore] and index is not on
+     * REMOTE_STORE_ENABLED node or [DocRep] and index is on REMOTE_STORE_ENABLED node.
+     * @param type resize type
+     * @param sourceIndexMetadata source index's metadata
+     * @param clusterSettings cluster settings
+     * @throws IllegalStateException if cluster mode is [Mixed] and migration direction is [RemoteStore] or [DocRep] and
+     *                               index's SETTING_REMOTE_STORE_ENABLED is not equal to the migration direction's value.
+     *                               For example, if migration direction is [RemoteStore] and index's SETTING_REMOTE_STORE_ENABLED
+     *                               is false, then throw IllegalStateException. If migration direction is [DocRep] and
+     *                               index's SETTING_REMOTE_STORE_ENABLED is true, then throw IllegalStateException.
+     */
     private static void validateClusterModeSettings(
         final ResizeType type,
         IndexMetadata sourceIndexMetadata,
