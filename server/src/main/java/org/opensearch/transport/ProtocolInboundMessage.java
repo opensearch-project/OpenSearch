@@ -29,6 +29,6 @@ public interface ProtocolInboundMessage {
      * @return the protocol used to encode this message
      */
     default public String getProtocol() {
-        return "native";
+        return NATIVE_PROTOCOL;
     }
 }

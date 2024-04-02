@@ -44,10 +44,10 @@ import java.io.IOException;
  * This api is deprecated, please use {@link org.opensearch.transport.nativeprotocol.NativeInboundMessage} instead.
  * @opensearch.api
  */
-@Deprecated
+@Deprecated(since = "2.14.0")
 public class InboundMessage implements Releasable, ProtocolInboundMessage {
 
-    private NativeInboundMessage nativeInboundMessage;
+    private final NativeInboundMessage nativeInboundMessage;
 
     public InboundMessage(Header header, ReleasableBytesReference content, Releasable breakerRelease) {
         this.nativeInboundMessage = new NativeInboundMessage(header, content, breakerRelease);

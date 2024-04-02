@@ -73,7 +73,6 @@ public class TcpHeader {
     }
 
     private static final byte[] PREFIX = { (byte) 'E', (byte) 'S' };
-    private static final byte[] PROTOBUF_PREFIX = { (byte) 'O', (byte) 'S', (byte) 'P' };
 
     public static void writeHeader(
         StreamOutput output,
@@ -91,9 +90,5 @@ public class TcpHeader {
         output.writeInt(version.id);
         assert variableHeaderSize != -1 : "Variable header size not set";
         output.writeInt(variableHeaderSize);
-    }
-
-    public static void writeHeaderForProtobuf(StreamOutput output) throws IOException {
-        output.writeBytes(PROTOBUF_PREFIX);
     }
 }
