@@ -8,7 +8,7 @@
 
 package org.opensearch.search.sandbox;
 
-import org.opensearch.action.ActionRequest;
+import org.opensearch.action.search.SearchRequest;
 
 /**
  * This class is used to classify co-ordinator search reqyests into  sandboxes
@@ -17,10 +17,10 @@ public class RequestSandboxClassifier {
 
     /**
      *
-     * @param request is a coordinator request task
-     * @return List of matching sandboxes based on user firing the request
+     * @param request is a coordinator search request
+     * @return matching sandboxId based on request attributes
      */
-    public String resolveSandboxFor(final ActionRequest request) {
+    public String resolveSandboxFor(final SearchRequest request) {
         return "dummy";
     }
 

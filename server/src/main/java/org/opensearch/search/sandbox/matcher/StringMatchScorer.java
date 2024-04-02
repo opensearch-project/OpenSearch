@@ -9,7 +9,8 @@
 package org.opensearch.search.sandbox.matcher;
 
 /**
- * This interface is mainly for calculating the match score of two strings
+ * This interface id for calculating the match score of two strings, It can be generalised into different approaches
+ *
  */
 public interface StringMatchScorer {
     public double score(String input, String target) throws IllegalArgumentException;

@@ -11,7 +11,7 @@ package org.opensearch.search.sandbox.matcher;
 import java.util.Map;
 
 /**
- * Main interface for calculation the score of a sandbox and request match
+ * Main interface for calculating the score of a sandbox and request match
  */
 public interface SandboxMatchScorer {
     public double score(Map<String, String> requestAttributes, Map<String, String> sandboxAttributes) throws IllegalArgumentException;

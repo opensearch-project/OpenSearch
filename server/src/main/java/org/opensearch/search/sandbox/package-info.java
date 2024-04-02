@@ -6,11 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.sandbox;
-
 /**
- * Main class to hold sandbox level stats
+ * This package encapsulates query sandboxing related interfaces and classes
  */
-public class SandboxStatsHolder {
-    // TODO: We will fill in this class when raising the stats PR
-}
+package org.opensearch.search.sandbox;

@@ -35,20 +35,23 @@ public class QuerySandboxServiceSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final String QUERY_SANDBOX_SERVICE_RUN_INTERVAL_MILLIS_SETTING_NAME = "query_sandbox.service.run_interval_millis";
     private static final Setting<Long> QSB_RUN_INTERVAL_SETTING = Setting.longSetting(
-        "query_sandbox.service.run_interval_millis",
+        QUERY_SANDBOX_SERVICE_RUN_INTERVAL_MILLIS_SETTING_NAME,
         DEFAULT_RUN_INTERVAL_MILLIS,
         1,
         Setting.Property.NodeScope
     );
 
+    public static final String QUERY_SANDBOX_NODE_REJECTION_THRESHOLD_SETTING_NAME = "query_sandbox.node.rejection_threshold";
     public static final Setting<Double> NODE_LEVEL_REJECTION_THRESHOLD = Setting.doubleSetting(
-        "query_sandbox.node.rejection_threshold",
+        QUERY_SANDBOX_NODE_REJECTION_THRESHOLD_SETTING_NAME,
         DEFAULT_NODE_LEVEL_REJECTION_QUERY_SANDBOX_THRESHOLD,
         Setting.Property.NodeScope
     );
+    public static final String QUERY_SANDBOX_NODE_CANCELLATION_THRESHOLD_SETTING_NAME = "query_sandbox.node.cancellation_threshold";
     public static final Setting<Double> NODE_LEVEL_CANCELLATION_THRESHOLD = Setting.doubleSetting(
-        "query_sandbox.node.cancellation_threshold",
+        QUERY_SANDBOX_NODE_CANCELLATION_THRESHOLD_SETTING_NAME,
         DEFAULT_NODE_LEVEL_CANCELLATION_QUERY_SANDBOX_THRESHOLD,
         Setting.Property.NodeScope
     );
@@ -68,7 +71,6 @@ public class QuerySandboxServiceSettings {
         return runIntervalMillis;
     }
 
-
     public void setMaxSandboxCount(int newMaxSandboxCount) {
         if (newMaxSandboxCount < 0) {
             throw new IllegalArgumentException("node.sandbox.max_count can't be negative");
@@ -77,6 +79,11 @@ public class QuerySandboxServiceSettings {
     }
 
     public void setRunIntervalMillis(TimeValue runIntervalMillis) {
+        if (runIntervalMillis.getMillis() < 100 && runIntervalMillis.getMillis() < 0) {
+            throw new IllegalArgumentException(
+                QUERY_SANDBOX_SERVICE_RUN_INTERVAL_MILLIS_SETTING_NAME + " can't be negative and should be greater than 100ms"
+            );
+        }
         this.runIntervalMillis = runIntervalMillis;
     }
 
@@ -85,6 +92,15 @@ public class QuerySandboxServiceSettings {
     }
 
     public void setNodeLevelJvmCancellationThreshold(Double nodeLevelJvmCancellationThreshold) {
+        if (nodeLevelJvmCancellationThreshold > 0.95) {
+            throw new IllegalArgumentException(
+                QUERY_SANDBOX_NODE_CANCELLATION_THRESHOLD_SETTING_NAME
+                    + " value should not be greater than 0.95 as it pose a threat of node drop"
+            );
+        }
+
+        ensureRejectionThresholdIsLessThanCancellation(nodeLevelJvmRejectionThreshold, nodeLevelJvmCancellationThreshold);
+
         this.nodeLevelJvmCancellationThreshold = nodeLevelJvmCancellationThreshold;
     }
 
@@ -93,7 +109,28 @@ public class QuerySandboxServiceSettings {
     }
 
     public void setNodeLevelJvmRejectionThreshold(Double nodeLevelJvmRejectionThreshold) {
+        if (nodeLevelJvmRejectionThreshold > 0.90) {
+            throw new IllegalArgumentException(
+                QUERY_SANDBOX_NODE_REJECTION_THRESHOLD_SETTING_NAME + " value not be greater than 0.90 as it pose a threat of node drop"
+            );
+        }
+
+        ensureRejectionThresholdIsLessThanCancellation(nodeLevelJvmRejectionThreshold, nodeLevelJvmCancellationThreshold);
+
         this.nodeLevelJvmRejectionThreshold = nodeLevelJvmRejectionThreshold;
+    }
+
+    private void ensureRejectionThresholdIsLessThanCancellation(
+        Double nodeLevelJvmRejectionThreshold,
+        Double nodeLevelJvmCancellationThreshold
+    ) {
+        if (nodeLevelJvmCancellationThreshold < nodeLevelJvmRejectionThreshold) {
+            throw new IllegalArgumentException(
+                QUERY_SANDBOX_NODE_CANCELLATION_THRESHOLD_SETTING_NAME
+                    + " value should not be less than "
+                    + QUERY_SANDBOX_NODE_REJECTION_THRESHOLD_SETTING_NAME
+            );
+        }
     }
 
     public int getMaxSandboxCount() {
