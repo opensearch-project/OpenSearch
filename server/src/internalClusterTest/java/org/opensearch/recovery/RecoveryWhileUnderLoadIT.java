@@ -32,6 +32,8 @@
 
 package org.opensearch.recovery;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
@@ -55,7 +57,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.BackgroundIndexer;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -74,7 +76,17 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccess
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
 
-public class RecoveryWhileUnderLoadIT extends OpenSearchIntegTestCase {
+public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public RecoveryWhileUnderLoadIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return replicationSettings;
+    }
+
     private final Logger logger = LogManager.getLogger(RecoveryWhileUnderLoadIT.class);
 
     public static final class RetentionLeaseSyncIntervalSettingPlugin extends Plugin {
@@ -150,7 +162,7 @@ public class RecoveryWhileUnderLoadIT extends OpenSearchIntegTestCase {
             logger.info("--> indexing threads stopped");
 
             logger.info("--> refreshing the index");
-            refreshAndAssert();
+            assertAfterRefreshAndWaitForReplication();
             logger.info("--> verifying indexed content");
             iterateAssertCount(numberOfShards, 10, indexer.getIds());
         }
@@ -211,7 +223,7 @@ public class RecoveryWhileUnderLoadIT extends OpenSearchIntegTestCase {
             logger.info("--> indexing threads stopped");
 
             logger.info("--> refreshing the index");
-            refreshAndAssert();
+            assertAfterRefreshAndWaitForReplication();
             logger.info("--> verifying indexed content");
             iterateAssertCount(numberOfShards, 10, indexer.getIds());
         }
@@ -325,7 +337,7 @@ public class RecoveryWhileUnderLoadIT extends OpenSearchIntegTestCase {
             );
 
             logger.info("--> refreshing the index");
-            refreshAndAssert();
+            assertAfterRefreshAndWaitForReplication();
             logger.info("--> verifying indexed content");
             iterateAssertCount(numberOfShards, 10, indexer.getIds());
         }
@@ -375,7 +387,7 @@ public class RecoveryWhileUnderLoadIT extends OpenSearchIntegTestCase {
             ensureGreen(TimeValue.timeValueMinutes(5));
 
             logger.info("--> refreshing the index");
-            refreshAndAssert();
+            assertAfterRefreshAndWaitForReplication();
             logger.info("--> verifying indexed content");
             iterateAssertCount(numShards, 10, indexer.getIds());
         }
@@ -474,10 +486,11 @@ public class RecoveryWhileUnderLoadIT extends OpenSearchIntegTestCase {
         );
     }
 
-    private void refreshAndAssert() throws Exception {
+    private void assertAfterRefreshAndWaitForReplication() throws Exception {
         assertBusy(() -> {
             RefreshResponse actionGet = client().admin().indices().prepareRefresh().get();
             assertAllSuccessful(actionGet);
         }, 5, TimeUnit.MINUTES);
+        waitForReplication();
     }
 }

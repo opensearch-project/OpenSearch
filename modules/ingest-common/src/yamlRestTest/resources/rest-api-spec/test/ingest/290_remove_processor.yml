@@ -319,3 +319,43 @@ teardown:
           }
   - match: { docs.0.error.type: "illegal_argument_exception" }
   - match: { docs.0.error.reason: "cannot remove metadata field [_id] when specifying external version for the document, version: 1, version_type: external_gte" }
+
+# Related issue: https://github.com/opensearch-project/OpenSearch/issues/1578
+---
+"Test remove processor with exclude_field":
+  - skip:
+      version: " - 2.11.99"
+      reason: "exclude_field is introduced in 2.12"
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "exclude_field": "bar"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo1: "bar",
+          foo2: "bar",
+          bar: "zoo",
+          zoo: "bar"
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source:  { bar: "zoo"}}

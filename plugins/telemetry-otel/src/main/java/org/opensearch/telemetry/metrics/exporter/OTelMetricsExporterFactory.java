@@ -51,6 +51,7 @@ public class OTelMetricsExporterFactory {
         return metricExporter;
     }
 
+    @SuppressWarnings("removal")
     private static MetricExporter instantiateExporter(Class<MetricExporter> exporterProviderClass) {
         try {
             // Check we ourselves are not being called by unprivileged code.

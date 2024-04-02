@@ -41,6 +41,11 @@ public final class AttributeNames {
     public static final String HTTP_URI = "http.uri";
 
     /**
+     * Http Request Query Parameters.
+     */
+    public static final String HTTP_REQ_QUERY_PARAMS = "url.query";
+
+    /**
      * Rest Request ID.
      */
     public static final String REST_REQ_ID = "rest.request_id";
@@ -71,6 +76,16 @@ public final class AttributeNames {
     public static final String TRANSPORT_ACTION = "action";
 
     /**
+     * Task id
+     */
+    public static final String TASK_ID = "task_id";
+
+    /**
+     * Parent task id
+     */
+    public static final String PARENT_TASK_ID = "parent_task_id";
+
+    /**
      * Index Name
      */
     public static final String INDEX = "index";
@@ -94,4 +109,9 @@ public final class AttributeNames {
      * Refresh Policy
      */
     public static final String REFRESH_POLICY = "refresh_policy";
+
+    /**
+     * Search Response Total Hits
+     */
+    public static final String TOTAL_HITS = "total_hits";
 }

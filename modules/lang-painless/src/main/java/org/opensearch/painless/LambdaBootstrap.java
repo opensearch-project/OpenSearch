@@ -501,6 +501,7 @@ public final class LambdaBootstrap {
      * Defines the {@link Class} for the lambda class using the same {@link Compiler.Loader}
      * that originally defined the class for the Painless script.
      */
+    @SuppressWarnings("removal")
     private static Class<?> createLambdaClass(Compiler.Loader loader, ClassWriter cw, Type lambdaClassType) {
 
         byte[] classBytes = cw.toByteArray();

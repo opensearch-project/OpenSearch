@@ -514,7 +514,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             for (ListObjectsV2Response listObjectsV2Response : listObjectsIterable) {
                 results.add(listObjectsV2Response);
                 totalObjects += listObjectsV2Response.contents().size();
-                if (limit != -1 && totalObjects > limit) {
+                if (limit != -1 && totalObjects >= limit) {
                     break;
                 }
             }

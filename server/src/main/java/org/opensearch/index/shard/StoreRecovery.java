@@ -58,6 +58,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.remote.RemoteStorePathType;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
@@ -191,7 +192,8 @@ final class StoreRecovery {
                     // just trigger a merge to do housekeeping on the
                     // copied segments - we will also see them in stats etc.
                     indexShard.getEngine().forceMerge(false, -1, false, false, false, UUIDs.randomBase64UUID());
-                    if (indexShard.isRemoteTranslogEnabled()) {
+                    if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
+                        indexShard.waitForRemoteStoreSync();
                         if (indexShard.isRemoteSegmentStoreInSync() == false) {
                             throw new IndexShardRecoveryException(
                                 indexShard.shardId(),
@@ -408,7 +410,8 @@ final class StoreRecovery {
                 RemoteSegmentStoreDirectory sourceRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
                     remoteStoreRepository,
                     indexUUID,
-                    shardId
+                    shardId,
+                    RemoteStorePathType.FIXED // TODO - The path type needs to be obtained from RemoteStoreShardShallowCopySnapshot
                 );
                 sourceRemoteDirectory.initializeToSpecificCommit(
                     primaryTerm,
@@ -432,7 +435,8 @@ final class StoreRecovery {
                 }
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
-                if (indexShard.isRemoteTranslogEnabled()) {
+                if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
+                    indexShard.waitForRemoteStoreSync();
                     if (indexShard.isRemoteSegmentStoreInSync() == false) {
                         listener.onFailure(new IndexShardRestoreFailedException(shardId, "Failed to upload to remote segment store"));
                         return;
@@ -717,7 +721,8 @@ final class StoreRecovery {
             }
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
-            if (indexShard.isRemoteTranslogEnabled()) {
+            if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
+                indexShard.waitForRemoteStoreSync();
                 if (indexShard.isRemoteSegmentStoreInSync() == false) {
                     listener.onFailure(new IndexShardRestoreFailedException(shardId, "Failed to upload to remote segment store"));
                     return;

@@ -336,6 +336,11 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         public boolean advanceExact(int doc) throws IOException {
             return in.advanceExact(doc);
         }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return in.advance(target);
+        }
     }
 
     /**
@@ -363,6 +368,11 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         @Override
         public int docValueCount() {
             return in.docValueCount();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return in.advance(target);
         }
     }
 
@@ -434,6 +444,11 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         public boolean advanceExact(int doc) throws IOException {
             return in.advanceExact(doc);
         }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return in.advance(target);
+        }
     }
 
     /**
@@ -461,6 +476,11 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         @Override
         public int docValueCount() {
             return in.docValueCount();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return in.advance(target);
         }
     }
 

@@ -116,6 +116,7 @@ import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.recovery.AsyncRecoveryTarget;
@@ -617,7 +618,14 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         @Nullable Path remotePath,
         IndexingOperationListener... listeners
     ) throws IOException {
-        final Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
+        Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
+        // To simulate that the node is remote backed
+        if (indexMetadata.getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_ENABLED) == "true") {
+            nodeSettings = Settings.builder()
+                .put("node.name", routing.currentNodeId())
+                .put("node.attr.remote_store.translog.repository", "seg_repo")
+                .build();
+        }
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, nodeSettings);
         final IndexShard indexShard;
         if (storeProvider == null) {
@@ -646,7 +654,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory = null;
             RepositoriesService mockRepoSvc = mock(RepositoriesService.class);
 
-            if (indexSettings.isRemoteStoreEnabled()) {
+            if (indexSettings.isRemoteStoreEnabled() || indexSettings.isRemoteNode()) {
                 String remoteStoreRepository = indexSettings.getRemoteStoreRepository();
                 // remote path via setting a repository . This is a hack used for shards are created using reset .
                 // since we can't get remote path from IndexShard directly, we are using repository to store it .
@@ -701,9 +709,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 checkpointPublisher,
                 remoteStore,
                 remoteStoreStatsTrackerFactory,
-                () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
                 "dummy-node",
-                DefaultRecoverySettings.INSTANCE
+                DefaultRecoverySettings.INSTANCE,
+                DefaultRemoteStoreSettings.INSTANCE,
+                false
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {
@@ -785,10 +794,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     protected RemoteSegmentStoreDirectory createRemoteSegmentStoreDirectory(ShardId shardId, Path path) throws IOException {
         NodeEnvironment.NodePath remoteNodePath = new NodeEnvironment.NodePath(path);
         ShardPath remoteShardPath = new ShardPath(false, remoteNodePath.resolve(shardId), remoteNodePath.resolve(shardId), shardId);
-        RemoteDirectory dataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
-        RemoteDirectory metadataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
+        RemoteDirectory dataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex().resolve("data"));
+        RemoteDirectory metadataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex().resolve("metadata"));
         RemoteStoreLockManager remoteStoreLockManager = new RemoteStoreMetadataLockManager(
-            new RemoteBufferedOutputDirectory(getBlobContainer(remoteShardPath.resolveIndex()))
+            new RemoteBufferedOutputDirectory(getBlobContainer(remoteShardPath.resolveIndex().resolve("lock_files")))
         );
         return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, remoteStoreLockManager, threadPool, shardId);
     }
@@ -1001,7 +1010,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     protected void recoveryEmptyReplica(IndexShard replica, boolean startReplica) throws IOException {
         IndexShard primary = null;
         try {
-            primary = newStartedShard(true);
+            primary = newStartedShard(true, replica.indexSettings.getSettings());
             recoverReplica(replica, primary, startReplica);
         } finally {
             closeShards(primary);
@@ -1033,7 +1042,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         recoverReplica(
             replica,
             primary,
-            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener),
+            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, threadPool),
             true,
             startReplica,
             replicatePrimaryFunction
@@ -1051,7 +1060,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     public Function<List<IndexShard>, List<SegmentReplicationTarget>> getReplicationFunc(final IndexShard target) {
-        return target.indexSettings().isSegRepEnabled() ? (shardList) -> {
+        return target.indexSettings().isSegRepEnabledOrRemoteNode() ? (shardList) -> {
             try {
                 assert shardList.size() >= 2;
                 final IndexShard primary = shardList.get(0);
@@ -1489,7 +1498,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
 
         SegmentReplicationSourceFactory sourceFactory = null;
         SegmentReplicationTargetService targetService;
-        if (primaryShard.indexSettings.isRemoteStoreEnabled()) {
+        if (primaryShard.indexSettings.isRemoteStoreEnabled() || primaryShard.indexSettings.isRemoteNode()) {
             RecoverySettings recoverySettings = new RecoverySettings(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)

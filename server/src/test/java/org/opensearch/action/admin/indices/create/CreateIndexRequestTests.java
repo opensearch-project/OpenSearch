@@ -50,6 +50,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class CreateIndexRequestTests extends OpenSearchTestCase {
@@ -148,6 +149,20 @@ public class CreateIndexRequestTests extends OpenSearchTestCase {
         CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest();
         OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> parsedCreateIndexRequest.source(builder));
         assertThat(e.getMessage(), equalTo("key [settings] must be an object"));
+    }
+
+    public void testToString() throws IOException {
+        CreateIndexRequest request = new CreateIndexRequest("foo");
+        String mapping = JsonXContent.contentBuilder()
+            .startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+            .endObject()
+            .endObject()
+            .toString();
+        request.mapping(mapping);
+
+        assertThat(request.toString(), containsString("index='foo'"));
+        assertThat(request.toString(), containsString("mappings='{\"_doc\":{}}'"));
     }
 
     public static void assertMappingsEqual(Map<String, String> expected, Map<String, String> actual) throws IOException {

@@ -34,12 +34,16 @@ package org.opensearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
@@ -58,6 +62,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.opensearch.index.IndexSettingsTests.newIndexMeta;
 import static org.opensearch.index.query.InnerHitBuilderTests.randomNestedInnerHits;
@@ -430,5 +435,97 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         nqb.rewrite(queryShardContext).toQuery(queryShardContext);
         assertNull(queryShardContext.getParentFilter());
         verify(innerQueryBuilder).toQuery(queryShardContext);
+    }
+
+    public void testNestedDepthProhibited() throws Exception {
+        assertThrows(IllegalArgumentException.class, () -> doWithDepth(0, context -> fail("won't call")));
+    }
+
+    public void testNestedDepthAllowed() throws Exception {
+        ThrowingConsumer<QueryShardContext> check = (context) -> {
+            NestedQueryBuilder queryBuilder = new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.None);
+            OpenSearchToParentBlockJoinQuery blockJoinQuery = (OpenSearchToParentBlockJoinQuery) queryBuilder.toQuery(context);
+            Optional<BooleanClause> childLeg = ((BooleanQuery) blockJoinQuery.getChildQuery()).clauses()
+                .stream()
+                .filter(c -> c.getOccur() == BooleanClause.Occur.MUST)
+                .findFirst();
+            assertTrue(childLeg.isPresent());
+            assertEquals(new MatchAllDocsQuery(), childLeg.get().getQuery());
+        };
+        check.accept(createShardContext());
+        doWithDepth(randomIntBetween(1, 20), check);
+    }
+
+    public void testNestedDepthOnceOnly() throws Exception {
+        doWithDepth(1, this::checkOnceNested);
+    }
+
+    public void testNestedDepthDefault() throws Exception {
+        assertEquals(20, createShardContext().getIndexSettings().getMaxNestedQueryDepth());
+    }
+
+    private void checkOnceNested(QueryShardContext ctx) throws Exception {
+        {
+            NestedQueryBuilder depth2 = new NestedQueryBuilder(
+                "nested1",
+                new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.None),
+                ScoreMode.None
+            );
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> depth2.toQuery(ctx));
+            assertEquals(
+                "The depth of Nested Query is [2] has exceeded the allowed maximum of [1]. This maximum can be set by changing the [index.query.max_nested_depth] index level setting.",
+                e.getMessage()
+            );
+        }
+        {
+            QueryBuilder mustBjqMustBjq = new BoolQueryBuilder().must(
+                new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.None)
+            ).must(new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.None));
+            BooleanQuery bool = (BooleanQuery) mustBjqMustBjq.toQuery(ctx);
+            assertEquals(
+                "Can parse joins one by one without breaching depth limit",
+                2,
+                bool.clauses().stream().filter(c -> c.getQuery() instanceof OpenSearchToParentBlockJoinQuery).count()
+            );
+        }
+    }
+
+    public void testUpdateMaxDepthSettings() throws Exception {
+        doWithDepth(2, (ctx) -> {
+            assertEquals(ctx.getIndexSettings().getMaxNestedQueryDepth(), 2);
+            NestedQueryBuilder depth2 = new NestedQueryBuilder(
+                "nested1",
+                new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.None),
+                ScoreMode.None
+            );
+            Query depth2Query = depth2.toQuery(ctx);
+            assertTrue(depth2Query instanceof OpenSearchToParentBlockJoinQuery);
+        });
+    }
+
+    void doWithDepth(int depth, ThrowingConsumer<QueryShardContext> test) throws Exception {
+        QueryShardContext context = createShardContext();
+        int defLimit = context.getIndexSettings().getMaxNestedQueryDepth();
+        assertTrue(defLimit > 0);
+        Settings updateSettings = Settings.builder()
+            .put(context.getIndexSettings().getSettings())
+            .put("index.query.max_nested_depth", depth)
+            .build();
+        context.getIndexSettings().updateIndexMetadata(IndexMetadata.builder("index").settings(updateSettings).build());
+        try {
+            test.accept(context);
+        } finally {
+            context.getIndexSettings()
+                .updateIndexMetadata(
+                    IndexMetadata.builder("index")
+                        .settings(
+                            Settings.builder()
+                                .put(context.getIndexSettings().getSettings())
+                                .put("index.query.max_nested_depth", defLimit)
+                                .build()
+                        )
+                        .build()
+                );
+        }
     }
 }

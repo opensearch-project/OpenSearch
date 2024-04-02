@@ -34,6 +34,7 @@ package org.opensearch.action.admin.cluster.node.tasks;
 import org.opensearch.Version;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
+import org.opensearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.opensearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
@@ -41,6 +42,7 @@ import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.action.support.nodes.TransportNodesAction;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
+import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -57,6 +59,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.tasks.TaskCancellationService;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -85,6 +88,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.opensearch.test.ClusterServiceUtils.setState;
+import static org.mockito.Mockito.mock;
 
 /**
  * The test case for unit testing task manager and related transport actions
@@ -249,6 +253,17 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
                 taskResourceTrackingService
             );
             transportCancelTasksAction = new TransportCancelTasksAction(clusterService, transportService, actionFilters);
+            Client mockClient = mock(Client.class);
+            NamedXContentRegistry namedXContentRegistry = mock(NamedXContentRegistry.class);
+            transportGetTaskAction = new TransportGetTaskAction(
+                threadPool,
+                transportService,
+                actionFilters,
+                clusterService,
+                mockClient,
+                namedXContentRegistry,
+                taskResourceTrackingService
+            );
             transportService.acceptIncomingRequests();
         }
 
@@ -258,6 +273,7 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
         private final SetOnce<DiscoveryNode> discoveryNode = new SetOnce<>();
         public final TransportListTasksAction transportListTasksAction;
         public final TransportCancelTasksAction transportCancelTasksAction;
+        public final TransportGetTaskAction transportGetTaskAction;
 
         @Override
         public void close() {

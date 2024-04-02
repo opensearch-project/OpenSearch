@@ -244,6 +244,10 @@ public abstract class ValuesSource {
                     this.indexFieldData = indexFieldData;
                 }
 
+                public String getIndexFieldName() {
+                    return this.indexFieldData.getFieldName();
+                }
+
                 @Override
                 public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
                     final LeafOrdinalsFieldData atomicFieldData = indexFieldData.load(context);
@@ -575,6 +579,11 @@ public abstract class ValuesSource {
                         return true;
                     }
                     return false;
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    return doubleValues.advance(target);
                 }
             }
         }

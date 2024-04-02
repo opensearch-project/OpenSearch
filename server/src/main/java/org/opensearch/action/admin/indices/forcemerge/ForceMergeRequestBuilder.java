@@ -81,4 +81,12 @@ public class ForceMergeRequestBuilder extends BroadcastOperationRequestBuilder<
         request.flush(flush);
         return this;
     }
+
+    /**
+     * Should force merge only performed on primary shards. Defaults to {@code false}.
+     */
+    public ForceMergeRequestBuilder setPrimaryOnly(boolean primaryOnly) {
+        request.primaryOnly(primaryOnly);
+        return this;
+    }
 }

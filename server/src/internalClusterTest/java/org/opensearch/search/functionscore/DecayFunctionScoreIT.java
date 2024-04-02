@@ -46,7 +46,6 @@ import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery.ScoreMode;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -56,7 +55,7 @@ import org.opensearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.time.ZoneOffset;
@@ -91,10 +90,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
-public class DecayFunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
+public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public DecayFunctionScoreIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public DecayFunctionScoreIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -103,11 +102,6 @@ public class DecayFunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override

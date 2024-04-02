@@ -48,11 +48,12 @@ public class TransferManager {
     }
 
     /**
-     * Given a blobFetchRequest, return it's corresponding IndexInput.
+     * Given a blobFetchRequestList, return it's corresponding IndexInput.
      * @param blobFetchRequest to fetch
      * @return future of IndexInput augmented with internal caching maintenance tasks
      */
     public IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws IOException {
+
         final Path key = blobFetchRequest.getFilePath();
 
         final CachedIndexInput cacheEntry = fileCache.compute(key, (path, cachedIndexInput) -> {
@@ -75,6 +76,7 @@ public class TransferManager {
         }
     }
 
+    @SuppressWarnings("removal")
     private static FileCachedIndexInput createIndexInput(FileCache fileCache, BlobContainer blobContainer, BlobFetchRequest request) {
         // We need to do a privileged action here in order to fetch from remote
         // and write to the local file cache in case this is invoked as a side
@@ -84,15 +86,20 @@ public class TransferManager {
             try {
                 if (Files.exists(request.getFilePath()) == false) {
                     try (
-                        InputStream snapshotFileInputStream = blobContainer.readBlob(
-                            request.getBlobName(),
-                            request.getPosition(),
-                            request.getLength()
-                        );
                         OutputStream fileOutputStream = Files.newOutputStream(request.getFilePath());
                         OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream)
                     ) {
-                        snapshotFileInputStream.transferTo(localFileOutputStream);
+                        for (BlobFetchRequest.BlobPart blobPart : request.blobParts()) {
+                            try (
+                                InputStream snapshotFileInputStream = blobContainer.readBlob(
+                                    blobPart.getBlobName(),
+                                    blobPart.getPosition(),
+                                    blobPart.getLength()
+                                );
+                            ) {
+                                snapshotFileInputStream.transferTo(localFileOutputStream);
+                            }
+                        }
                     }
                 }
                 final IndexInput luceneIndexInput = request.getDirectory().openInput(request.getFileName(), IOContext.READ);
@@ -152,7 +159,7 @@ public class TransferManager {
 
         @Override
         public long length() {
-            return request.getLength();
+            return request.getBlobLength();
         }
 
         @Override

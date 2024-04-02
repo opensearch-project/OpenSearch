@@ -35,7 +35,7 @@ public class ApiAnnotationProcessorTests extends OpenSearchTestCase implements C
                 matching(
                     Diagnostic.Kind.ERROR,
                     containsString(
-                        "The element org.opensearch.common.annotation.processor.NotAnnotated is part of the public APIs but is not maked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
+                        "The element org.opensearch.common.annotation.processor.NotAnnotated is part of the public APIs but is not marked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
                             + "(referenced by org.opensearch.common.annotation.processor.PublicApiMethodArgumentNotAnnotated)"
                     )
                 )
@@ -56,7 +56,7 @@ public class ApiAnnotationProcessorTests extends OpenSearchTestCase implements C
                 matching(
                     Diagnostic.Kind.ERROR,
                     containsString(
-                        "The element org.opensearch.common.annotation.processor.NotAnnotated is part of the public APIs but is not maked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
+                        "The element org.opensearch.common.annotation.processor.NotAnnotated is part of the public APIs but is not marked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
                             + "(referenced by org.opensearch.common.annotation.processor.PublicApiMethodArgumentNotAnnotatedGenerics)"
                     )
                 )
@@ -77,7 +77,7 @@ public class ApiAnnotationProcessorTests extends OpenSearchTestCase implements C
                 matching(
                     Diagnostic.Kind.ERROR,
                     containsString(
-                        "The element org.opensearch.common.annotation.processor.NotAnnotatedException is part of the public APIs but is not maked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
+                        "The element org.opensearch.common.annotation.processor.NotAnnotatedException is part of the public APIs but is not marked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
                             + "(referenced by org.opensearch.common.annotation.processor.PublicApiMethodThrowsNotAnnotated)"
                     )
                 )
@@ -111,7 +111,7 @@ public class ApiAnnotationProcessorTests extends OpenSearchTestCase implements C
                 matching(
                     Diagnostic.Kind.ERROR,
                     containsString(
-                        "The element org.opensearch.common.annotation.processor.NotAnnotatedPackagePrivate is part of the public APIs but is not maked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
+                        "The element org.opensearch.common.annotation.processor.NotAnnotatedPackagePrivate is part of the public APIs but is not marked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
                             + "(referenced by org.opensearch.common.annotation.processor.PublicApiMethodArgumentNotAnnotatedPackagePrivate)"
                     )
                 )
@@ -209,7 +209,7 @@ public class ApiAnnotationProcessorTests extends OpenSearchTestCase implements C
                 matching(
                     Diagnostic.Kind.ERROR,
                     containsString(
-                        "The element org.opensearch.common.annotation.processor.NotAnnotated is part of the public APIs but is not maked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
+                        "The element org.opensearch.common.annotation.processor.NotAnnotated is part of the public APIs but is not marked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
                             + "(referenced by org.opensearch.common.annotation.processor.PublicApiMethodReturnNotAnnotated)"
                     )
                 )
@@ -230,7 +230,7 @@ public class ApiAnnotationProcessorTests extends OpenSearchTestCase implements C
                 matching(
                     Diagnostic.Kind.ERROR,
                     containsString(
-                        "The element org.opensearch.common.annotation.processor.NotAnnotated is part of the public APIs but is not maked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
+                        "The element org.opensearch.common.annotation.processor.NotAnnotated is part of the public APIs but is not marked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
                             + "(referenced by org.opensearch.common.annotation.processor.PublicApiMethodReturnNotAnnotatedGenerics)"
                     )
                 )
@@ -251,7 +251,7 @@ public class ApiAnnotationProcessorTests extends OpenSearchTestCase implements C
                 matching(
                     Diagnostic.Kind.ERROR,
                     containsString(
-                        "The element org.opensearch.common.annotation.processor.NotAnnotated is part of the public APIs but is not maked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
+                        "The element org.opensearch.common.annotation.processor.NotAnnotated is part of the public APIs but is not marked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
                             + "(referenced by org.opensearch.common.annotation.processor.PublicApiMethodReturnNotAnnotatedArray)"
                     )
                 )
@@ -272,7 +272,7 @@ public class ApiAnnotationProcessorTests extends OpenSearchTestCase implements C
                 matching(
                     Diagnostic.Kind.ERROR,
                     containsString(
-                        "The element org.opensearch.common.annotation.processor.NotAnnotated is part of the public APIs but is not maked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
+                        "The element org.opensearch.common.annotation.processor.NotAnnotated is part of the public APIs but is not marked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
                             + "(referenced by org.opensearch.common.annotation.processor.PublicApiMethodReturnNotAnnotatedBoundedGenerics)"
                     )
                 )
@@ -297,7 +297,7 @@ public class ApiAnnotationProcessorTests extends OpenSearchTestCase implements C
                 matching(
                     Diagnostic.Kind.ERROR,
                     containsString(
-                        "The element org.opensearch.common.annotation.processor.NotAnnotatedAnnotation is part of the public APIs but is not maked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
+                        "The element org.opensearch.common.annotation.processor.NotAnnotatedAnnotation is part of the public APIs but is not marked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
                             + "(referenced by org.opensearch.common.annotation.processor.PublicApiMethodReturnNotAnnotatedAnnotation)"
                     )
                 )
@@ -388,7 +388,7 @@ public class ApiAnnotationProcessorTests extends OpenSearchTestCase implements C
                 matching(
                     Diagnostic.Kind.ERROR,
                     containsString(
-                        "The element org.opensearch.common.annotation.processor.NotAnnotated is part of the public APIs but is not maked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
+                        "The element org.opensearch.common.annotation.processor.NotAnnotated is part of the public APIs but is not marked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
                             + "(referenced by org.opensearch.common.annotation.processor.PublicApiMethodGenericsArgumentNotAnnotated)"
                     )
                 )
@@ -453,7 +453,7 @@ public class ApiAnnotationProcessorTests extends OpenSearchTestCase implements C
                 matching(
                     Diagnostic.Kind.ERROR,
                     containsString(
-                        "The element org.opensearch.common.annotation.processor.NotAnnotatedAnnotation is part of the public APIs but is not maked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
+                        "The element org.opensearch.common.annotation.processor.NotAnnotatedAnnotation is part of the public APIs but is not marked as @PublicApi, @ExperimentalApi or @DeprecatedApi "
                             + "(referenced by org.opensearch.common.annotation.processor.PublicApiMethodReturnAnnotatedGenerics)"
                     )
                 )

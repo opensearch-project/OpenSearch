@@ -32,6 +32,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -359,7 +360,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * request. When created through {@link #subSearchRequest(SearchRequest, String[], String, long, boolean)}, this method returns
      * the provided current time, otherwise it will return {@link System#currentTimeMillis()}.
      */
-    long getOrCreateAbsoluteStartMillis() {
+    public long getOrCreateAbsoluteStartMillis() {
         return absoluteStartMillis == DEFAULT_ABSOLUTE_START_MILLIS ? System.currentTimeMillis() : absoluteStartMillis;
     }
 
@@ -712,7 +713,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             sb.append("scroll[").append(scroll.keepAlive()).append("], ");
         }
         if (source != null) {
-            sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+            sb.append("source[");
+            try {
+                sb.append(source.toString(FORMAT_PARAMS));
+            } catch (final OpenSearchException ex) {
+                sb.append("<error: ").append(ex.getMessage()).append(">");
+            }
+            sb.append("]");
         } else {
             sb.append("source[]");
         }

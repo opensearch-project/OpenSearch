@@ -57,7 +57,6 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -223,11 +222,6 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                 }
             });
         }
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
@@ -1189,7 +1183,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
     public void testConcurrentSegmentSearchSearchContext() throws IOException {
         Boolean[][] scenarios = {
             // cluster setting, index setting, concurrent search enabled?
-            { null, null, true },
+            { null, null, false },
             { null, false, false },
             { null, true, true },
             { true, null, true },

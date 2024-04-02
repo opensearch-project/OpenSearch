@@ -594,4 +594,25 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         waitForActiveShards.writeTo(out);
     }
+
+    @Override
+    public String toString() {
+        return "CreateIndexRequest{"
+            + "cause='"
+            + cause
+            + '\''
+            + ", index='"
+            + index
+            + '\''
+            + ", settings="
+            + settings
+            + ", mappings='"
+            + mappings
+            + '\''
+            + ", aliases="
+            + aliases
+            + ", waitForActiveShards="
+            + waitForActiveShards
+            + '}';
+    }
 }

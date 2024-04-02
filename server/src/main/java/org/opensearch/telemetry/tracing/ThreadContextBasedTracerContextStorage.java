@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.ThreadContextStatePropagator;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -50,20 +51,29 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
     }
 
     @Override
+    @SuppressWarnings("removal")
     public Map<String, Object> transients(Map<String, Object> source) {
         final Map<String, Object> transients = new HashMap<>();
-
         if (source.containsKey(CURRENT_SPAN)) {
             final SpanReference current = (SpanReference) source.get(CURRENT_SPAN);
             if (current != null) {
                 transients.put(CURRENT_SPAN, new SpanReference(current.getSpan()));
             }
         }
-
         return transients;
     }
 
     @Override
+    public Map<String, Object> transients(Map<String, Object> source, boolean isSystemContext) {
+        if (isSystemContext == true) {
+            return Collections.emptyMap();
+        } else {
+            return transients(source);
+        }
+    }
+
+    @Override
+    @SuppressWarnings("removal")
     public Map<String, String> headers(Map<String, Object> source) {
         final Map<String, String> headers = new HashMap<>();
 
@@ -75,6 +85,11 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
         }
 
         return headers;
+    }
+
+    @Override
+    public Map<String, String> headers(Map<String, Object> source, boolean isSystemContext) {
+        return headers(source);
     }
 
     Span getCurrentSpan(String key) {

@@ -183,6 +183,12 @@ Run OpenSearch using `gradlew run`.
 ./gradlew run
 ```
 
+[Plugins](plugins/) may be installed by passing a `-PinstalledPlugins` property:
+
+```bash
+./gradlew run -PinstalledPlugins="['plugin1', 'plugin2']"
+```
+
 That will build OpenSearch and start it, writing its log above Gradle's status message. We log a lot of stuff on startup, specifically these lines tell you that OpenSearch is ready.
 
 ```
@@ -342,7 +348,7 @@ Please follow these formatting guidelines:
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail.
 * If *absolutely* necessary, you can disable formatting for regions of code with the `// tag::NAME` and `// end::NAME` directives, but note that these are intended for use in documentation, so please make it clear what you have done, and only do this where the benefit clearly outweighs the decrease in consistency.
 * Note that JavaDoc and block comments i.e. `/* ... */` are not formatted, but line comments i.e `// ...` are.
-* There is an implicit rule that negative boolean expressions should use the form `foo == false` instead of `!foo` for better readability of the code. While this isn't strictly enforced, if might get called out in PR reviews as something to change.
+* There is an implicit rule that negative boolean expressions should use the form `foo == false` instead of `!foo` for better readability of the code. While this isn't strictly enforced, it might get called out in PR reviews as something to change.
 
 ## Adding Dependencies
 
@@ -578,7 +584,7 @@ explicitly marked by an annotation should not be extended by external implementa
 any time. The `@DeprecatedApi` annotation could also be added to any classes annotated with `@PublicApi` (or documented as `@opensearch.api`) or their methods that
 are either changed (with replacement) or planned to be removed across major versions.
 
-The APIs which are designated to be public but have not been stabilized yet should be marked with `@ExperimentalApi` (or documented as `@opensearch.experimental`) 
+The APIs which are designated to be public but have not been stabilized yet should be marked with `@ExperimentalApi` (or documented as `@opensearch.experimental`)
 annotation. The presence of this annotation signals that API may change at any time (major, minor or even patch releases). In general, the classes annotated with
 `@PublicApi` may expose other classes or methods annotated with `@ExperimentalApi`, in such cases the backward compatibility guarantees would not apply to latter
 (see please [Experimental Development](#experimental-development) for more details).

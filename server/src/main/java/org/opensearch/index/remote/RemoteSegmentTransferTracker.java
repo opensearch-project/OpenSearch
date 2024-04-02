@@ -260,7 +260,7 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
     }
 
     public long getTimeMsLag() {
-        if (remoteRefreshTimeMs == localRefreshTimeMs) {
+        if (remoteRefreshTimeMs == localRefreshTimeMs || bytesLag == 0) {
             return 0;
         }
         return currentTimeMsUsingSystemNanos() - remoteRefreshStartTimeMs;
@@ -301,12 +301,17 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
     }
 
     /**
-     * Updates the latestLocalFileNameLengthMap by adding file name and it's size to the map. The method is given a function as an argument which is used for determining the file size (length in bytes). This method is also provided the collection of segment files which are the latest refresh local segment files. This method also removes the stale segment files from the map that are not part of the input segment files.
+     * Updates the latestLocalFileNameLengthMap by adding file name and it's size to the map.
+     * The method is given a function as an argument which is used for determining the file size (length in bytes).
+     * This method is also provided the collection of segment files which are the latest refresh local segment files.
+     * This method also removes the stale segment files from the map that are not part of the input segment files.
      *
      * @param segmentFiles     list of local refreshed segment files
      * @param fileSizeFunction function is used to determine the file size in bytes
+     *
+     * @return updated map of local segment files and filesize
      */
-    public void updateLatestLocalFileNameLengthMap(
+    public Map<String, Long> updateLatestLocalFileNameLengthMap(
         Collection<String> segmentFiles,
         CheckedFunction<String, Long, IOException> fileSizeFunction
     ) {
@@ -332,6 +337,7 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
         // Remove keys from the fileSizeMap that do not exist in the latest segment files
         latestLocalFileNameLengthMap.entrySet().removeIf(entry -> fileSet.contains(entry.getKey()) == false);
         computeBytesLag();
+        return Collections.unmodifiableMap(latestLocalFileNameLengthMap);
     }
 
     public void addToLatestUploadedFiles(String file) {
