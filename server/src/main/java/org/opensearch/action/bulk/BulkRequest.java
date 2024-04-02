@@ -96,6 +96,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private String globalRouting;
     private String globalIndex;
     private Boolean globalRequireAlias;
+    private BatchIngestionOption batchIngestionOption;
+    private Integer maximumBatchSize;
 
     private long sizeInBytes = 0;
 
@@ -344,6 +346,24 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     public final BulkRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
+    }
+
+    public final BulkRequest batchIngestionOption(String batchOption) {
+        this.batchIngestionOption = BatchIngestionOption.from(batchOption);
+        return this;
+    }
+
+    public final BatchIngestionOption batchIngestionOption() {
+        return this.batchIngestionOption;
+    }
+
+    public final BulkRequest maximumBatchSize(int size) {
+        this.maximumBatchSize = size;
+        return this;
+    }
+
+    public final int maximumBatchSize() {
+        return this.maximumBatchSize;
     }
 
     /**

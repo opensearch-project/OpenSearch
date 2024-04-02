@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -150,7 +151,34 @@ public class CompoundProcessor implements Processor {
         innerExecute(0, ingestDocument, handler);
     }
 
-    void innerExecute(int currentProcessor, IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+    @Override
+    public void batchExecute(List<IngestDocument> ingestDocuments,
+        Consumer<List<Tuple<IngestDocument, Exception>>> handler) {
+        innerBatchExecute(0, ingestDocuments, handler);
+    }
+
+    public void innerBatchExecute(int currentProcessor, List<IngestDocument> ingestDocuments,
+        Consumer<List<Tuple<IngestDocument, Exception>>> handler) {
+        if (currentProcessor == processorsWithMetrics.size()) {
+            handler.accept(ingestDocuments.stream()
+                .map(t -> new Tuple<IngestDocument, Exception>(t, null)).collect(Collectors.toList()));
+            return;
+        }
+        Tuple<Processor, OperationMetrics> processorWithMetric = processorsWithMetrics.get(currentProcessor);
+        final Processor processor = processorWithMetric.v1();
+        final OperationMetrics metric = processorWithMetric.v2();
+        final long startTimeInNanos = relativeTimeProvider.getAsLong();
+        metric.before();
+        processor.batchExecute(ingestDocuments, results -> {
+            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
+            metric.after(ingestTimeInMillis);
+            innerBatchExecute(currentProcessor + 1,
+                results.stream().map(Tuple::v1).collect(Collectors.toList()), handler);
+        });
+    }
+
+    void innerExecute(int currentProcessor, IngestDocument ingestDocument,
+        BiConsumer<IngestDocument, Exception> handler) {
         if (currentProcessor == processorsWithMetrics.size()) {
             handler.accept(ingestDocument, null);
             return;

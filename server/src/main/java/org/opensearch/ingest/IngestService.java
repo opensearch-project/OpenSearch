@@ -39,7 +39,9 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.DocWriteRequest;
-import org.opensearch.action.bulk.TransportBulkAction;
+import org.opensearch.action.bulk.BatchIngestionOption;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.TransportBulkActionHelper;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.ingest.DeletePipelineRequest;
 import org.opensearch.action.ingest.PutPipelineRequest;
@@ -93,6 +95,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.stream.Collectors;
 
 /**
  * Holder class for several ingest related services.
@@ -505,6 +508,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
+    /**
+     *  Only used for testing
+     */
     public void executeBulkRequest(
         int numberOfActionRequests,
         Iterable<DocWriteRequest<?>> actionRequests,
@@ -513,7 +519,19 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         IntConsumer onDropped,
         String executorName
     ) {
+        executeBulkRequest(numberOfActionRequests, actionRequests, onFailure, onCompletion,
+            onDropped, executorName, new BulkRequest());
+    }
 
+    public void executeBulkRequest(
+        int numberOfActionRequests,
+        Iterable<DocWriteRequest<?>> actionRequests,
+        BiConsumer<Integer, Exception> onFailure,
+        BiConsumer<Thread, Exception> onCompletion,
+        IntConsumer onDropped,
+        String executorName,
+        BulkRequest originalBulkRequst
+    ) {
         threadPool.executor(executorName).execute(new AbstractRunnable() {
 
             @Override
@@ -525,9 +543,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             protected void doRun() {
                 final Thread originalThread = Thread.currentThread();
                 final AtomicInteger counter = new AtomicInteger(numberOfActionRequests);
+
                 int i = 0;
+                List<IndexRequestWrapper> indexRequestWrappers = new ArrayList<>();
                 for (DocWriteRequest<?> actionRequest : actionRequests) {
-                    IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
+                    IndexRequest indexRequest = TransportBulkActionHelper.getIndexWriteRequest(actionRequest);
                     if (indexRequest == null) {
                         if (counter.decrementAndGet() == 0) {
                             onCompletion.accept(originalThread, null);
@@ -560,22 +580,212 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         continue;
                     }
 
-                    executePipelines(
-                        i,
-                        pipelines.iterator(),
-                        hasFinalPipeline,
-                        indexRequest,
-                        onDropped,
-                        onFailure,
-                        counter,
-                        onCompletion,
-                        originalThread
-                    );
+                    indexRequestWrappers.add(new IndexRequestWrapper(i, indexRequest, pipelines, hasFinalPipeline));
 
                     i++;
                 }
+                BatchIngestionOption batchOption = originalBulkRequst.batchIngestionOption();
+                int batchSize = originalBulkRequst.maximumBatchSize();
+
+                if (batchOption == BatchIngestionOption.NONE ||
+                    (batchOption == BatchIngestionOption.ENABLED && indexRequestWrappers.size() == 1) ||
+                    (batchOption == BatchIngestionOption.ENABLED && batchSize == 1)) {
+                    for (IndexRequestWrapper indexRequestWrapper : indexRequestWrappers) {
+                        executePipelines(indexRequestWrapper.getSlot(),
+                            indexRequestWrapper.getPipelines().iterator(),
+                            indexRequestWrapper.isHasFinalPipeline(),
+                            indexRequestWrapper.getIndexRequest(),
+                            onDropped, onFailure, counter, onCompletion, originalThread);
+                    }
+                } else {
+                    List<List<IndexRequestWrapper>> batches = handleBatch(batchSize, indexRequestWrappers);
+                    logger.info("batchSize: {}, batches: {}", batchSize, batches.size());
+                    for (List<IndexRequestWrapper> batch : batches) {
+                        executePipelinesInBatchIndexRequests(batch.stream()
+                                .map(IndexRequestWrapper::getSlot)
+                                .collect(Collectors.toList()),
+                            batch.get(0).getPipelines().iterator(),
+                            batch.get(0).isHasFinalPipeline(),
+                            batch.stream().map(IndexRequestWrapper::getIndexRequest).collect(Collectors.toList()),
+                            onDropped,
+                            onFailure,
+                            counter,
+                            onCompletion,
+                            originalThread
+                        );
+                    }
+                }
             }
         });
+    }
+
+    private List<List<IndexRequestWrapper>> handleBatch(int batchSize, List<IndexRequestWrapper> indexRequestWrappers) {
+        final Map<String, List<IndexRequestWrapper>> indexRequestsPerIndexMap = new HashMap<>();
+        for (IndexRequestWrapper indexRequestWrapper : indexRequestWrappers) {
+            String index = indexRequestWrapper.getIndexRequest().index();
+            indexRequestsPerIndexMap.putIfAbsent(index, new ArrayList<>());
+            indexRequestsPerIndexMap.get(index).add(indexRequestWrapper);
+        }
+        List<List<IndexRequestWrapper>> batchedIndexRequests = new ArrayList<>();
+        for (Map.Entry<String, List<IndexRequestWrapper>> indexRequestsPerIndex : indexRequestsPerIndexMap.entrySet()) {
+            for (int i = 0; i < indexRequestsPerIndex.getValue().size(); i += batchSize) {
+                batchedIndexRequests.add(new ArrayList<>(
+                    indexRequestsPerIndex.getValue().subList(i,
+                    i + Math.min(batchSize, indexRequestsPerIndex.getValue().size() - i))));
+            }
+        }
+        return batchedIndexRequests;
+    }
+
+    private static final class IndexRequestWrapper {
+        private final int slot;
+        private final IndexRequest indexRequest;
+        private final List<String> pipelines;
+        private final boolean hasFinalPipeline;
+
+        private IndexRequestWrapper(int slot, IndexRequest indexRequest, List<String> pipelines, boolean hasFinalPipeline) {
+            this.slot = slot;
+            this.indexRequest = indexRequest;
+            this.pipelines = pipelines;
+            this.hasFinalPipeline = hasFinalPipeline;
+        }
+
+        public int getSlot() {
+            return slot;
+        }
+
+        public IndexRequest getIndexRequest() {
+            return indexRequest;
+        }
+
+        public List<String> getPipelines() {
+            return pipelines;
+        }
+
+        public boolean isHasFinalPipeline() {
+            return hasFinalPipeline;
+        }
+    }
+
+    private void executePipelinesInBatchIndexRequests(
+        final List<Integer> slots,
+        final Iterator<String> it,
+        final boolean hasFinalPipeline,
+        final List<IndexRequest> indexRequests,
+        final IntConsumer onDropped,
+        final BiConsumer<Integer, Exception> onFailure,
+        final AtomicInteger counter,
+        final BiConsumer<Thread, Exception> onCompletion,
+        final Thread originalThread
+    ) {
+        if (indexRequests.size() == 1) {
+            executePipelines(slots.get(0), it, hasFinalPipeline, indexRequests.get(0), onDropped, onFailure, counter, onCompletion, originalThread);
+            return;
+        }
+        while (it.hasNext()) {
+            final String pipelineId = it.next();
+            try {
+                PipelineHolder holder = pipelines.get(pipelineId);
+                if (holder == null) {
+                    throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
+                }
+                Pipeline pipeline = holder.pipeline;
+                String originalIndex = indexRequests.get(0).indices()[0];
+                innerExecute(slots, indexRequests, pipeline, onDropped, exceptions -> {
+                    for (int i = 0; i < indexRequests.size(); ++i) {
+                        Exception e = exceptions.get(i);
+                        IndexRequest indexRequest = indexRequests.get(i);
+                        if (e != null) {
+                            logger.debug(
+                                () -> new ParameterizedMessage(
+                                    "failed to execute pipeline [{}] for document [{}/{}]",
+                                    pipelineId,
+                                    indexRequest.index(),
+                                    indexRequest.id()
+                                ),
+                                e
+                            );
+                            onFailure.accept(slots.get(i), e);
+                        }
+                    }
+
+                    Iterator<String> newIt = it;
+                    boolean newHasFinalPipeline = hasFinalPipeline;
+                    // indexRequests are grouped for the same index and same pipelines
+                    String newIndex = indexRequests.get(0).indices()[0];
+
+                    // handle index change case
+                    if (Objects.equals(originalIndex, newIndex) == false) {
+                        if (hasFinalPipeline && it.hasNext() == false) {
+                            totalMetrics.failed();
+                            for (int slot : slots) {
+                                onFailure.accept(
+                                    slot,
+                                    new IllegalStateException("final pipeline [" + pipelineId + "] can't change the target index")
+                                );
+                            }
+                        } else {
+                            // Drain old it so it's not looped over
+                            it.forEachRemaining($ -> {});
+                            for (IndexRequest indexRequest : indexRequests) {
+                                indexRequest.isPipelineResolved(false);
+                                resolvePipelines(null, indexRequest, state.metadata());
+                                if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
+                                    newIt = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
+                                    newHasFinalPipeline = true;
+                                } else {
+                                    newIt = Collections.emptyIterator();
+                                }
+                            }
+                        }
+                    }
+
+                    if (newIt.hasNext()) {
+                        executePipelinesInBatchIndexRequests(
+                            slots,
+                            newIt,
+                            newHasFinalPipeline,
+                            indexRequests,
+                            onDropped,
+                            onFailure,
+                            counter,
+                            onCompletion,
+                            originalThread
+                        );
+                    } else {
+                        if (counter.addAndGet(-indexRequests.size()) == 0) {
+                            onCompletion.accept(originalThread, null);
+                        }
+                        assert counter.get() >= 0;
+                    }
+                });
+            } catch (Exception e) {
+                StringBuilder documentLogBuilder = new StringBuilder();
+                for (int i = 0; i < indexRequests.size(); ++i) {
+                    IndexRequest indexRequest = indexRequests.get(i);
+                    documentLogBuilder.append(indexRequest.index());
+                    documentLogBuilder.append("/");
+                    documentLogBuilder.append(indexRequest.id());
+                    if (i < indexRequests.size() - 1) {
+                        documentLogBuilder.append(", ");
+                    }
+                    onFailure.accept(slots.get(i), e);
+                }
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "failed to execute pipeline [{}] for documents [{}]",
+                        pipelineId,
+                        documentLogBuilder.toString()
+                    ),
+                    e
+                );
+                if (counter.addAndGet(-indexRequests.size()) == 0) {
+                    onCompletion.accept(originalThread, null);
+                }
+                assert counter.get() >= 0;
+                break;
+            }
+        }
     }
 
     private void executePipelines(
@@ -781,6 +991,69 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 handler.accept(null);
             }
         });
+    }
+
+    private void innerExecute(
+        List<Integer> slots,
+        List<IndexRequest> indexRequests,
+        Pipeline pipeline,
+        IntConsumer itemDroppedHandler,
+        Consumer<List<Exception>> handler
+    ) {
+        if (pipeline.getProcessors().isEmpty()) {
+            handler.accept(null);
+            return;
+        }
+
+        long startTimeInNanos = System.nanoTime();
+        // the pipeline specific stat holder may not exist and that is fine:
+        // (e.g. the pipeline may have been removed while we're ingesting a document
+        totalMetrics.before();
+        List<IngestDocument> ingestDocuments = indexRequests.stream()
+            .map(IngestService::toIngestDocument)
+            .collect(Collectors.toList());
+        pipeline.batchExecute(ingestDocuments, results -> {
+            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
+            totalMetrics.after(ingestTimeInMillis);
+            List<Exception> exceptions = Arrays.asList(new Exception[ingestDocuments.size()]);
+            for (int i = 0; i < results.size(); ++i) {
+                Tuple<IngestDocument, Exception> result = results.get(i);
+                Exception e = result.v2();
+                IngestDocument ingestDocument = result.v1();
+                IndexRequest indexRequest = indexRequests.get(i);
+                int slot = slots.get(i);
+                if (e != null) {
+                    totalMetrics.failed();
+                    exceptions.set(i, e);
+                } else if (ingestDocument == null) {
+                    itemDroppedHandler.accept(slot);
+                } else {
+                    Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
+                    // it's fine to set all metadata fields all the time, as ingest document holds their starting values
+                    // before ingestion, which might also get modified during ingestion.
+                    indexRequests.get(i).index((String) metadataMap.get(IngestDocument.Metadata.INDEX));
+                    indexRequests.get(i).id((String) metadataMap.get(IngestDocument.Metadata.ID));
+                    indexRequests.get(i).routing((String) metadataMap.get(IngestDocument.Metadata.ROUTING));
+                    indexRequests.get(i).version(((Number) metadataMap.get(IngestDocument.Metadata.VERSION)).longValue());
+                    if (metadataMap.get(IngestDocument.Metadata.VERSION_TYPE) != null) {
+                        indexRequests.get(i).versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.Metadata.VERSION_TYPE)));
+                    }
+                    if (metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO) != null) {
+                        indexRequests.get(i).setIfSeqNo(((Number) metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO)).longValue());
+                    }
+                    if (metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM) != null) {
+                        indexRequests.get(i).setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
+                    }
+                    indexRequests.get(i).source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
+                }
+            }
+            handler.accept(exceptions);
+        });
+    }
+
+    private static IngestDocument toIngestDocument(IndexRequest indexRequest) {
+        return new IngestDocument(indexRequest.index(), indexRequest.id(), indexRequest.routing(),
+            indexRequest.version(), indexRequest.versionType(), indexRequest.sourceAsMap());
     }
 
     @Override

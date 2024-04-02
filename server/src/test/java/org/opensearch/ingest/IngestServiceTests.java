@@ -40,6 +40,7 @@ import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.TransportBulkAction;
+import org.opensearch.action.bulk.TransportBulkActionHelper;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.ingest.DeletePipelineRequest;
@@ -210,7 +211,8 @@ public class IngestServiceTests extends OpenSearchTestCase {
             failureHandler,
             completionHandler,
             indexReq -> {},
-            Names.WRITE
+            Names.WRITE,
+            new BulkRequest()
         );
 
         assertTrue(failure.get());
@@ -1210,7 +1212,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         verify(requestItemErrorHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
         for (DocWriteRequest<?> docWriteRequest : bulkRequest.requests()) {
-            IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(docWriteRequest);
+            IndexRequest indexRequest = TransportBulkActionHelper.getIndexWriteRequest(docWriteRequest);
             assertThat(indexRequest, notNullValue());
             assertThat(indexRequest.getContentType(), equalTo(xContentType));
         }

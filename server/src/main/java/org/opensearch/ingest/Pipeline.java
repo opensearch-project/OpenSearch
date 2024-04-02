@@ -34,6 +34,7 @@ package org.opensearch.ingest;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.metrics.OperationMetrics;
 import org.opensearch.script.ScriptService;
 
@@ -43,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 /**
@@ -200,5 +202,19 @@ public final class Pipeline {
      */
     public OperationMetrics getMetrics() {
         return metrics;
+    }
+
+    public void batchExecute(List<IngestDocument> ingestDocuments, Consumer<List<Tuple<IngestDocument, Exception>>> handler) {
+        final long startTimeInNanos = relativeTimeProvider.getAsLong();
+        metrics.before();
+        compoundProcessor.batchExecute(ingestDocuments, (List<Tuple<IngestDocument, Exception>> results) -> {
+            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
+            metrics.after(ingestTimeInMillis);
+            // TODO: Check if any exception should make a failure.
+            if (results.stream().anyMatch(t -> t.v2() != null)) {
+                metrics.failed();
+            }
+            handler.accept(results);
+        });
     }
 }
