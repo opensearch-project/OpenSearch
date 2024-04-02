@@ -31,8 +31,8 @@ public final class DerivedFieldValueFetcher implements ValueFetcher {
     @Override
     public List<Object> fetchValues(SourceLookup lookup) {
         derivedFieldScript.setDocument(lookup.docId());
-        // TODO: remove List.of() when derivedFieldScript.execute() returns list of objects.
-        return List.of(derivedFieldScript.execute());
+        derivedFieldScript.execute();
+        return derivedFieldScript.getEmittedValues();
     }
 
     public void setNextReader(LeafReaderContext context) {
