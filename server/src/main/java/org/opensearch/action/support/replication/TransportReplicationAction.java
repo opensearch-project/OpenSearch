@@ -356,7 +356,7 @@ public abstract class TransportReplicationAction<
      * @return the overridden replication mode.
      */
     public ReplicationMode getReplicationMode(IndexShard indexShard) {
-        if (indexShard.isRemoteTranslogEnabled()) {
+        if (indexShard.indexSettings().isRemoteNode()) {
             return ReplicationMode.NO_REPLICATION;
         }
         return ReplicationMode.FULL_REPLICATION;
@@ -642,8 +642,14 @@ public abstract class TransportReplicationAction<
                         primaryRequest.getPrimaryTerm(),
                         initialRetryBackoffBound,
                         retryTimeout,
-                        indexShard.isRemoteTranslogEnabled()
-                            ? new ReplicationModeAwareProxy<>(getReplicationMode(indexShard), replicasProxy, termValidationProxy)
+                        indexShard.indexSettings().isRemoteNode()
+                            ? new ReplicationModeAwareProxy<>(
+                                getReplicationMode(indexShard),
+                                clusterState.getNodes(),
+                                replicasProxy,
+                                termValidationProxy,
+                                indexShard.isRemoteTranslogEnabled()
+                            )
                             : new FanoutReplicationProxy<>(replicasProxy)
                     ).execute();
                 }

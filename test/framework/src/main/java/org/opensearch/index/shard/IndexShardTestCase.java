@@ -48,6 +48,7 @@ import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -619,12 +620,14 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexingOperationListener... listeners
     ) throws IOException {
         Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
+        DiscoveryNodes discoveryNodes = IndexShardTestUtils.getFakeDiscoveryNodes(routing);
         // To simulate that the node is remote backed
         if (indexMetadata.getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_ENABLED) == "true") {
             nodeSettings = Settings.builder()
                 .put("node.name", routing.currentNodeId())
                 .put("node.attr.remote_store.translog.repository", "seg_repo")
                 .build();
+            discoveryNodes = DiscoveryNodes.builder().add(IndexShardTestUtils.getFakeRemoteEnabledNode(routing.currentNodeId())).build();
         }
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, nodeSettings);
         final IndexShard indexShard;
@@ -712,7 +715,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 "dummy-node",
                 DefaultRecoverySettings.INSTANCE,
                 DefaultRemoteStoreSettings.INSTANCE,
-                false
+                false,
+                discoveryNodes
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {
@@ -986,7 +990,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     protected void recoverShardFromStore(IndexShard primary) throws IOException {
         primary.markAsRecovering(
             "store",
-            new RecoveryState(primary.routingEntry(), getFakeDiscoNode(primary.routingEntry().currentNodeId()), null)
+            new RecoveryState(primary.routingEntry(), IndexShardTestUtils.getFakeDiscoNode(primary.routingEntry().currentNodeId()), null)
         );
         recoverFromStore(primary);
         updateRoutingEntry(primary, ShardRoutingHelper.moveToStarted(primary.routingEntry()));
@@ -1003,7 +1007,19 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             null,
             currentClusterStateVersion.incrementAndGet(),
             inSyncIds,
-            newRoutingTable
+            newRoutingTable,
+            DiscoveryNodes.builder()
+                .add(
+                    new DiscoveryNode(
+                        shardRouting.currentNodeId(),
+                        shardRouting.currentNodeId(),
+                        buildNewFakeTransportAddress(),
+                        Collections.emptyMap(),
+                        DiscoveryNodeRole.BUILT_IN_ROLES,
+                        Version.CURRENT
+                    )
+                )
+                .build()
         );
     }
 
@@ -1015,17 +1031,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         } finally {
             closeShards(primary);
         }
-    }
-
-    protected DiscoveryNode getFakeDiscoNode(String id) {
-        return new DiscoveryNode(
-            id,
-            id,
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.BUILT_IN_ROLES,
-            Version.CURRENT
-        );
     }
 
     protected void recoverReplica(IndexShard replica, IndexShard primary, boolean startReplica) throws IOException {
@@ -1104,7 +1109,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * @param targetSupplier         supplies an instance of {@link RecoveryTarget}
      * @param markAsRecovering       set to {@code false} if the replica is marked as recovering
      */
-    protected final void recoverUnstartedReplica(
+    public final void recoverUnstartedReplica(
         final IndexShard replica,
         final IndexShard primary,
         final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
@@ -1113,8 +1118,18 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         final IndexShardRoutingTable routingTable,
         final Function<List<IndexShard>, List<SegmentReplicationTarget>> replicatePrimaryFunction
     ) throws IOException {
-        final DiscoveryNode pNode = getFakeDiscoNode(primary.routingEntry().currentNodeId());
-        final DiscoveryNode rNode = getFakeDiscoNode(replica.routingEntry().currentNodeId());
+        final DiscoveryNode pNode;
+        final DiscoveryNode rNode;
+        if (primary.isRemoteTranslogEnabled()) {
+            pNode = IndexShardTestUtils.getFakeRemoteEnabledNode(primary.routingEntry().currentNodeId());
+        } else {
+            pNode = IndexShardTestUtils.getFakeDiscoNode(primary.routingEntry().currentNodeId());
+        }
+        if (replica.isRemoteTranslogEnabled()) {
+            rNode = IndexShardTestUtils.getFakeRemoteEnabledNode(replica.routingEntry().currentNodeId());
+        } else {
+            rNode = IndexShardTestUtils.getFakeDiscoNode(replica.routingEntry().currentNodeId());
+        }
         if (markAsRecovering) {
             replica.markAsRecovering("remote", new RecoveryState(replica.routingEntry(), pNode, rNode));
         } else {
@@ -1155,7 +1170,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             null,
             currentClusterStateVersion.incrementAndGet(),
             inSyncIds,
-            routingTable
+            routingTable,
+            primary.isRemoteTranslogEnabled()
+                ? IndexShardTestUtils.getFakeRemoteEnabledDiscoveryNodes(routingTable.getShards())
+                : IndexShardTestUtils.getFakeDiscoveryNodes(routingTable.getShards())
         );
         try {
             PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
@@ -1189,7 +1207,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             null,
             currentClusterStateVersion.incrementAndGet(),
             inSyncIdsWithReplica,
-            newRoutingTable
+            newRoutingTable,
+            primary.indexSettings.isRemoteTranslogStoreEnabled()
+                ? IndexShardTestUtils.getFakeRemoteEnabledDiscoveryNodes(routingTable.shards())
+                : IndexShardTestUtils.getFakeDiscoveryNodes(routingTable.shards())
         );
         replica.updateShardState(
             replica.routingEntry().moveToStarted(),
@@ -1197,7 +1218,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             null,
             currentClusterStateVersion.get(),
             inSyncIdsWithReplica,
-            newRoutingTable
+            newRoutingTable,
+            replica.indexSettings.isRemoteTranslogStoreEnabled()
+                ? IndexShardTestUtils.getFakeRemoteEnabledDiscoveryNodes(routingTable.shards())
+                : IndexShardTestUtils.getFakeDiscoveryNodes(routingTable.shards())
         );
     }
 
@@ -1226,7 +1250,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             ),
             currentClusterStateVersion.incrementAndGet(),
             inSyncIds,
-            newRoutingTable
+            newRoutingTable,
+            IndexShardTestUtils.getFakeDiscoveryNodes(routingEntry)
         );
     }
 
@@ -1370,7 +1395,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         final Version version = Version.CURRENT;
         final ShardId shardId = shard.shardId();
         final IndexId indexId = new IndexId(shardId.getIndex().getName(), shardId.getIndex().getUUID());
-        final DiscoveryNode node = getFakeDiscoNode(shard.routingEntry().currentNodeId());
+        final DiscoveryNode node = IndexShardTestUtils.getFakeDiscoNode(shard.routingEntry().currentNodeId());
         final RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             snapshot,
