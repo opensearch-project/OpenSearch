@@ -29,6 +29,7 @@ import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.painless.spi.AllowlistLoader;
 import org.opensearch.script.DerivedFieldScript;
 import org.opensearch.script.ScriptContext;
+import org.opensearch.script.ScriptException;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
 
@@ -168,5 +169,59 @@ public class DerivedFieldScriptTests extends ScriptTestCase {
 
         List<Object> result = script.getEmittedValues();
         assertEquals(List.of("test", "multiple", "values"), result);
+    }
+
+    public void testExceedingByteSizeLimit() throws IOException {
+        SearchLookup lookup = mock(SearchLookup.class);
+
+        // We don't need a real index, just need to construct a LeafReaderContext which cannot be mocked
+        MemoryIndex index = new MemoryIndex();
+        LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
+
+        LeafSearchLookup leafSearchLookup = mock(LeafSearchLookup.class);
+        when(lookup.getLeafSearchLookup(leafReaderContext)).thenReturn(leafSearchLookup);
+
+        // Emitting a large string to exceed the byte size limit
+        DerivedFieldScript stringScript = compile("for (int i = 0; i < 1024 * 1024; i++) emit('a' + i);", lookup).newInstance(
+            leafReaderContext
+        );
+        expectThrows(ScriptException.class, () -> {
+            stringScript.setDocument(1);
+            stringScript.execute();
+        });
+
+        // Emitting an integer to check byte size limit
+        DerivedFieldScript intScript = compile("for (int i = 0; i < 1024 * 1024; i++) emit(42)", lookup).newInstance(leafReaderContext);
+        expectThrows(ScriptException.class, "Expected IllegalStateException for exceeding byte size limit", () -> {
+            intScript.setDocument(1);
+            intScript.execute();
+        });
+
+        // Emitting a long to check byte size limit
+        DerivedFieldScript longScript = compile("for (int i = 0; i < 1024 * 1024; i++) emit(1234567890123456789L)", lookup).newInstance(
+            leafReaderContext
+        );
+        expectThrows(ScriptException.class, "Expected IllegalStateException for exceeding byte size limit", () -> {
+            longScript.setDocument(1);
+            longScript.execute();
+        });
+
+        // Emitting a double to check byte size limit
+        DerivedFieldScript doubleScript = compile("for (int i = 0; i < 1024 * 1024; i++) emit(3.14159)", lookup).newInstance(
+            leafReaderContext
+        );
+        expectThrows(ScriptException.class, "Expected IllegalStateException for exceeding byte size limit", () -> {
+            doubleScript.setDocument(1);
+            doubleScript.execute();
+        });
+
+        // Emitting a GeoPoint to check byte size limit
+        DerivedFieldScript geoPointScript = compile("for (int i = 0; i < 1024 * 1024; i++) emit(1.23, 4.56);", lookup).newInstance(
+            leafReaderContext
+        );
+        expectThrows(ScriptException.class, "Expected IllegalStateException for exceeding byte size limit", () -> {
+            geoPointScript.setDocument(1);
+            geoPointScript.execute();
+        });
     }
 }

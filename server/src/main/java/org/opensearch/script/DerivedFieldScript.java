@@ -9,12 +9,14 @@
 package org.opensearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -31,6 +33,7 @@ public abstract class DerivedFieldScript {
 
     public static final String[] PARAMETERS = {};
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("derived_field", Factory.class);
+    private static final int MAX_BYTE_SIZE = 1024 * 1024; // Maximum allowed byte size (1 MB)
 
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
         "doc",
@@ -54,18 +57,22 @@ public abstract class DerivedFieldScript {
      */
     private List<Object> emittedValues;
 
+    private int totalByteSize;
+
     public DerivedFieldScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
         Map<String, Object> parameters = new HashMap<>(params);
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         parameters.putAll(leafLookup.asMap());
         this.params = new DynamicMap(parameters, PARAMS_FUNCTIONS);
         this.emittedValues = new ArrayList<>();
+        this.totalByteSize = 0;
     }
 
     public DerivedFieldScript() {
         this.params = null;
         this.leafLookup = null;
         this.emittedValues = new ArrayList<>();
+        this.totalByteSize = 0;
     }
 
     /**
@@ -95,11 +102,38 @@ public abstract class DerivedFieldScript {
      */
     public void setDocument(int docid) {
         this.emittedValues = new ArrayList<>();
+        this.totalByteSize = 0;
         leafLookup.setDocument(docid);
     }
 
     public void addEmittedValue(Object o) {
-        emittedValues.add(o);
+        int byteSize = getObjectByteSize(o);
+        int newTotalByteSize = totalByteSize + byteSize;
+        if (newTotalByteSize <= MAX_BYTE_SIZE) {
+            emittedValues.add(o);
+            totalByteSize = newTotalByteSize;
+        } else {
+            throw new IllegalStateException("Exceeded maximum allowed byte size for emitted values");
+        }
+    }
+
+    private int getObjectByteSize(Object obj) {
+        if (obj instanceof String) {
+            return ((String) obj).getBytes(StandardCharsets.UTF_8).length;
+        } else if (obj instanceof Integer) {
+            return Integer.BYTES;
+        } else if (obj instanceof Long) {
+            return Long.BYTES;
+        } else if (obj instanceof Double) {
+            return Double.BYTES;
+        } else if (obj instanceof Boolean) {
+            return Byte.BYTES; // Assuming 1 byte for boolean
+        } else if (obj instanceof Tuple) {
+            // Assuming each element in the tuple is a double for GeoPoint case
+            return Double.BYTES * 2;
+        } else {
+            throw new IllegalArgumentException("Unsupported object type passed in emit()");
+        }
     }
 
     public void execute() {}
