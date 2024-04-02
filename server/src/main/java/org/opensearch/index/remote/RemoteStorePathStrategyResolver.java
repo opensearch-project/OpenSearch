@@ -9,27 +9,29 @@
 package org.opensearch.index.remote;
 
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.indices.IndicesService;
 
 /**
- * Determines the {@link RemoteStorePathType} at the time of index metadata creation.
+ * Determines the {@link RemoteStorePathStrategy} at the time of index metadata creation.
  *
  * @opensearch.internal
  */
-public class RemoteStorePathTypeResolver {
+public class RemoteStorePathStrategyResolver {
 
-    private volatile RemoteStorePathType type;
+    private volatile PathType type;
 
-    public RemoteStorePathTypeResolver(ClusterSettings clusterSettings) {
+    public RemoteStorePathStrategyResolver(ClusterSettings clusterSettings) {
         type = clusterSettings.get(IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING);
         clusterSettings.addSettingsUpdateConsumer(IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING, this::setType);
     }
 
-    public RemoteStorePathType getType() {
-        return type;
+    public RemoteStorePathStrategy get() {
+        return new RemoteStorePathStrategy(type, PathHashAlgorithm.FNV_1A);
     }
 
-    public void setType(RemoteStorePathType type) {
+    private void setType(PathType type) {
         this.type = type;
     }
 }
