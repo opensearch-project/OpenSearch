@@ -39,10 +39,11 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
@@ -283,19 +284,27 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            if (!isSearchable()) {
-                long[] v = new long[values.size()];
-                for (int i = 0; i < v.length; i++) {
-                    v[i] = Values.TRUE.bytesEquals(indexedValueForSearch(values.get(i))) ? 1 : 0;
+            boolean seenTrue = false;
+            boolean seenFalse = false;
+            for (Object value : values) {
+                if (Values.TRUE.equals(indexedValueForSearch(value))) {
+                    seenTrue = true;
+                } else if (Values.FALSE.equals(indexedValueForSearch(value))) {
+                    seenFalse = true;
+                } else {
+                    return new MatchNoDocsQuery("Values did not contain True or False");
                 }
-                return SortedNumericDocValuesField.newSlowSetQuery(name(), v);
             }
-            BytesRef[] bytesRefs = new BytesRef[values.size()];
-            for (int i = 0; i < bytesRefs.length; i++) {
-                bytesRefs[i] = indexedValueForSearch(values.get(i));
+            if (seenTrue) {
+                if (seenFalse) {
+                    return new FieldExistsQuery(name());
+                }
+                return termQuery("true", context);
             }
-            return new TermInSetQuery(name(), List.of(bytesRefs));
-
+            if (seenFalse) {
+                return termQuery("false", context);
+            }
+            return new MatchNoDocsQuery("Values did not contain True or False");
         }
 
         @Override

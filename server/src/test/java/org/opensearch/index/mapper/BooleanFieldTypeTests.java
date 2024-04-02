@@ -34,7 +34,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 
@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Stream;
 
 public class BooleanFieldTypeTests extends FieldTypeTestCase {
 
@@ -85,18 +84,15 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         List<BytesRef> terms = new ArrayList<>();
         terms.add(new BytesRef("true"));
         terms.add(new BytesRef("false"));
-        assertEquals(new TermInSetQuery("field", List.of(new BytesRef("T"), newBytesRef("F"))), ft.termsQuery(terms, null));
+        assertEquals(new FieldExistsQuery("field"), ft.termsQuery(terms, null));
 
         List<BytesRef> newTerms = new ArrayList<>();
         newTerms.add(new BytesRef("true"));
-        assertEquals(new TermInSetQuery("field", List.of(new BytesRef("T"))), ft.termsQuery(newTerms, null));
+        assertEquals(new TermQuery(new Term("field", "T")), ft.termsQuery(newTerms, null));
 
         MappedFieldType doc_only_ft = new BooleanFieldMapper.BooleanFieldType("field", false, true);
 
-        assertEquals(
-            SortedNumericDocValuesField.newSlowSetQuery("field", Stream.of(1).mapToLong(l -> l).toArray()),
-            doc_only_ft.termsQuery(newTerms, null)
-        );
+        assertEquals(SortedNumericDocValuesField.newSlowExactQuery("field", 1), doc_only_ft.termsQuery(newTerms, null));
 
         MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false, false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termsQuery(terms, null));
