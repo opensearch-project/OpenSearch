@@ -444,7 +444,7 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
         allocation.debugDecision(true);
         ShardRouting sr = ShardRouting.newUnassigned(
-            routingTable.index("idx").shard(0).shardId(),
+            routingTable.index("sourceIndex").shard(0).shardId(),
             false,
             RecoverySource.PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "")
@@ -457,7 +457,7 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
         assertEquals(decision.toString(), Type.YES, decision.type());
 
         sr = ShardRouting.newUnassigned(
-            routingTable.index("idx").shard(0).shardId(),
+            routingTable.index("sourceIndex").shard(0).shardId(),
             false,
             RecoverySource.PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")

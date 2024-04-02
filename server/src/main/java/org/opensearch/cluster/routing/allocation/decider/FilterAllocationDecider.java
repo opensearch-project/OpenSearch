@@ -148,20 +148,22 @@ public class FilterAllocationDecider extends AllocationDecider {
                 return allocation.decision(Decision.NO, NAME, explanation, initialRecoveryFilters);
             }
 
-            Decision decision = isMixedModeReplicaDecision(shardRouting, allocation);
+            Decision decision = isRemoteStoreMigrationReplicaDecision(shardRouting, allocation);
             if (decision != null) return decision;
         }
         return shouldFilter(shardRouting, node.node(), allocation);
     }
 
-    public Decision isMixedModeReplicaDecision(ShardRouting shardRouting, RoutingAllocation allocation) {
+    public Decision isRemoteStoreMigrationReplicaDecision(ShardRouting shardRouting, RoutingAllocation allocation) {
         assert shardRouting.unassigned();
+        boolean primaryOnRemote = RemoteStoreMigrationAllocationDecider.isPrimaryOnRemote(shardRouting.shardId(), allocation);
         if (shardRouting.primary() == false
             && shardRouting.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED
             && (compatibilityMode.equals(RemoteStoreNodeService.CompatibilityMode.MIXED))
-            && (migrationDirection.equals(RemoteStoreNodeService.Direction.REMOTE_STORE))) {
+            && (migrationDirection.equals(RemoteStoreNodeService.Direction.REMOTE_STORE))
+            && primaryOnRemote == false) {
             String explanation =
-                "in mixed mode with remote store direction, allocation filters are not applicable for existing replica copies";
+                "in  remote store migration, allocation filters are not applicable for replica copies whose primary is on doc rep node";
             return allocation.decision(Decision.YES, NAME, explanation);
         }
         return null;

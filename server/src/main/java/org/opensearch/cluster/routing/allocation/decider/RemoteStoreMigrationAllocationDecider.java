@@ -39,6 +39,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
 import org.opensearch.node.remotestore.RemoteStoreNodeService.Direction;
@@ -130,15 +131,20 @@ public class RemoteStoreMigrationAllocationDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, getDecisionDetails(true, primaryShardRouting, targetNode, ""));
     }
 
+    // Checks if primary shard is on a remote node.
+    static boolean isPrimaryOnRemote(ShardId shardId, RoutingAllocation allocation) {
+        ShardRouting primaryShardRouting = allocation.routingNodes().activePrimary(shardId);
+        if (primaryShardRouting != null) {
+            DiscoveryNode primaryShardNode = allocation.nodes().getNodes().get(primaryShardRouting.currentNodeId());
+            return primaryShardNode.isRemoteStoreNode();
+        }
+        return false;
+    }
+
     private Decision replicaShardDecision(ShardRouting replicaShardRouting, DiscoveryNode targetNode, RoutingAllocation allocation) {
         if (targetNode.isRemoteStoreNode()) {
-            ShardRouting primaryShardRouting = allocation.routingNodes().activePrimary(replicaShardRouting.shardId());
-            boolean primaryHasMigratedToRemote = false;
-            if (primaryShardRouting != null) {
-                DiscoveryNode primaryShardNode = allocation.nodes().getNodes().get(primaryShardRouting.currentNodeId());
-                primaryHasMigratedToRemote = primaryShardNode.isRemoteStoreNode();
-            }
-            if (primaryHasMigratedToRemote == false) {
+            boolean primaryOnRemote = RemoteStoreMigrationAllocationDecider.isPrimaryOnRemote(replicaShardRouting.shardId(), allocation);
+            if (primaryOnRemote == false) {
                 return allocation.decision(
                     Decision.NO,
                     NAME,
