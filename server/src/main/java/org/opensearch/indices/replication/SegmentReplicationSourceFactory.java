@@ -38,7 +38,7 @@ public class SegmentReplicationSourceFactory {
     }
 
     public SegmentReplicationSource get(IndexShard shard) {
-        if (shard.indexSettings().isRemoteNode()) {
+        if (shard.indexSettings().isAssignedOnRemoteNode()) {
             return new RemoteStoreReplicationSource(shard);
         } else {
             return new PrimaryShardReplicationSource(
