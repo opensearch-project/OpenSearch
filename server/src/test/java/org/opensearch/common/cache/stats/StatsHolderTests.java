@@ -26,16 +26,15 @@ public class StatsHolderTests extends OpenSearchTestCase {
         List<String> dimensionNames = List.of("dim1", "dim2");
         StatsHolder statsHolder = new StatsHolder(dimensionNames);
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
-        Map<List<CacheStatsDimension>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 100, 10);
+        Map<List<String>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 100, 10);
 
         statsHolder.reset();
 
-        for (List<CacheStatsDimension> dims : expected.keySet()) {
-            CacheStatsCounter originalCounter = expected.get(dims);
+        for (List<String> dimensionValues : expected.keySet()) {
+            CacheStatsCounter originalCounter = expected.get(dimensionValues);
             originalCounter.sizeInBytes = new CounterMetric();
             originalCounter.entries = new CounterMetric();
 
-            List<String> dimensionValues = StatsHolder.getDimensionValues(dims);
             CacheStatsCounter actual = statsHolder.getStatsRoot().getNode(dimensionValues).getStats();
             assertEquals(originalCounter, actual);
         }
@@ -46,12 +45,8 @@ public class StatsHolderTests extends OpenSearchTestCase {
         StatsHolder statsHolder = new StatsHolder(dimensionNames);
 
         // Create stats for the following dimension sets
-        List<List<CacheStatsDimension>> populatedStats = List.of(
-            List.of(new CacheStatsDimension("dim1", "A1"), new CacheStatsDimension("dim2", "B1")),
-            List.of(new CacheStatsDimension("dim1", "A2"), new CacheStatsDimension("dim2", "B2")),
-            List.of(new CacheStatsDimension("dim1", "A2"), new CacheStatsDimension("dim2", "B3"))
-        );
-        for (List<CacheStatsDimension> dims : populatedStats) {
+        List<List<String>> populatedStats = List.of(List.of("A1", "B1"), List.of("A2", "B2"), List.of("A2", "B3"));
+        for (List<String> dims : populatedStats) {
             statsHolder.incrementHits(dims);
         }
 
@@ -59,7 +54,7 @@ public class StatsHolderTests extends OpenSearchTestCase {
 
         // When we invalidate A1, B1, we should lose the nodes for B1 and also A1, as it has no more children.
 
-        statsHolder.removeDimensions(List.of(new CacheStatsDimension("dim1", "A1"), new CacheStatsDimension("dim2", "B1")));
+        statsHolder.removeDimensions(List.of("A1", "B1"));
 
         assertEquals(2, statsHolder.getStatsRoot().getStats().getHits());
         assertNull(statsHolder.getStatsRoot().getNode(List.of("A1", "B1")));
@@ -67,7 +62,7 @@ public class StatsHolderTests extends OpenSearchTestCase {
 
         // When we invalidate A2, B2, we should lose the node for B2, but not B3 or A2.
 
-        statsHolder.removeDimensions(List.of(new CacheStatsDimension("dim1", "A2"), new CacheStatsDimension("dim2", "B2")));
+        statsHolder.removeDimensions(List.of("A2", "B2"));
 
         assertEquals(1, statsHolder.getStatsRoot().getStats().getHits());
         assertNull(statsHolder.getStatsRoot().getNode(List.of("A2", "B2")));
@@ -76,7 +71,7 @@ public class StatsHolderTests extends OpenSearchTestCase {
 
         // When we invalidate the last node, all nodes should be deleted except the root node
 
-        statsHolder.removeDimensions(List.of(new CacheStatsDimension("dim1", "A2"), new CacheStatsDimension("dim2", "B3")));
+        statsHolder.removeDimensions(List.of("A2", "B3"));
         assertEquals(0, statsHolder.getStatsRoot().getStats().getHits());
         assertEquals(0, statsHolder.getStatsRoot().children.size());
     }

@@ -16,7 +16,6 @@ import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.settings.CacheSettings;
-import org.opensearch.common.cache.stats.CacheStatsDimension;
 import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
@@ -995,10 +994,10 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         assertEquals(validDuration, concreteSetting.get(validSettings));
     }
 
-    private List<CacheStatsDimension> getMockDimensions() {
-        List<CacheStatsDimension> dims = new ArrayList<>();
+    private List<String> getMockDimensions() {
+        List<String> dims = new ArrayList<>();
         for (String dimensionName : dimensionNames) {
-            dims.add(new CacheStatsDimension(dimensionName, "0"));
+            dims.add("0");
         }
         return dims;
     }

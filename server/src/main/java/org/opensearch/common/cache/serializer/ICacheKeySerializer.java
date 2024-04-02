@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.cache.ICacheKey;
-import org.opensearch.common.cache.stats.CacheStatsDimension;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
@@ -41,8 +40,8 @@ public class ICacheKeySerializer<K> implements Serializer<ICacheKey<K>, byte[]> 
             BytesStreamOutput os = new BytesStreamOutput();
             // First write the number of dimensions
             os.writeVInt(object.dimensions.size());
-            for (CacheStatsDimension dim : object.dimensions) {
-                dim.writeTo(os);
+            for (String dimValue : object.dimensions) {
+                os.writeString(dimValue);
             }
             os.writeVInt(serializedKey.length); // The read byte[] fn seems to not work as expected
             os.writeBytes(serializedKey);
@@ -59,12 +58,12 @@ public class ICacheKeySerializer<K> implements Serializer<ICacheKey<K>, byte[]> 
         if (bytes == null) {
             return null;
         }
-        List<CacheStatsDimension> dimensionList = new ArrayList<>();
+        List<String> dimensionList = new ArrayList<>();
         try {
             BytesStreamInput is = new BytesStreamInput(bytes, 0, bytes.length);
             int numDimensions = is.readVInt();
             for (int i = 0; i < numDimensions; i++) {
-                dimensionList.add(new CacheStatsDimension(is));
+                dimensionList.add(is.readString());
             }
 
             int length = is.readVInt();

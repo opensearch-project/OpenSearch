@@ -45,32 +45,32 @@ public class StatsHolder {
 
     // For all these increment functions, the dimensions list comes from the key, and contains all dimensions present in dimensionNames.
     // The order has to match the order given in dimensionNames.
-    public void incrementHits(List<CacheStatsDimension> dimensions) {
-        internalIncrement(dimensions, (counter, amount) -> counter.hits.inc(amount), 1);
+    public void incrementHits(List<String> dimensionValues) {
+        internalIncrement(dimensionValues, (counter, amount) -> counter.hits.inc(amount), 1);
     }
 
-    public void incrementMisses(List<CacheStatsDimension> dimensions) {
-        internalIncrement(dimensions, (counter, amount) -> counter.misses.inc(amount), 1);
+    public void incrementMisses(List<String> dimensionValues) {
+        internalIncrement(dimensionValues, (counter, amount) -> counter.misses.inc(amount), 1);
     }
 
-    public void incrementEvictions(List<CacheStatsDimension> dimensions) {
-        internalIncrement(dimensions, (counter, amount) -> counter.evictions.inc(amount), 1);
+    public void incrementEvictions(List<String> dimensionValues) {
+        internalIncrement(dimensionValues, (counter, amount) -> counter.evictions.inc(amount), 1);
     }
 
-    public void incrementSizeInBytes(List<CacheStatsDimension> dimensions, long amountBytes) {
-        internalIncrement(dimensions, (counter, amount) -> counter.sizeInBytes.inc(amount), amountBytes);
+    public void incrementSizeInBytes(List<String> dimensionValues, long amountBytes) {
+        internalIncrement(dimensionValues, (counter, amount) -> counter.sizeInBytes.inc(amount), amountBytes);
     }
 
-    public void decrementSizeInBytes(List<CacheStatsDimension> dimensions, long amountBytes) {
-        internalDecrement(dimensions, (counter, amount) -> counter.sizeInBytes.dec(amount), amountBytes);
+    public void decrementSizeInBytes(List<String> dimensionValues, long amountBytes) {
+        internalDecrement(dimensionValues, (counter, amount) -> counter.sizeInBytes.dec(amount), amountBytes);
     }
 
-    public void incrementEntries(List<CacheStatsDimension> dimensions) {
-        internalIncrement(dimensions, (counter, amount) -> counter.entries.inc(amount), 1);
+    public void incrementEntries(List<String> dimensionValues) {
+        internalIncrement(dimensionValues, (counter, amount) -> counter.entries.inc(amount), 1);
     }
 
-    public void decrementEntries(List<CacheStatsDimension> dimensions) {
-        internalDecrement(dimensions, (counter, amount) -> counter.entries.dec(amount), 1);
+    public void decrementEntries(List<String> dimensionValues) {
+        internalDecrement(dimensionValues, (counter, amount) -> counter.entries.dec(amount), 1);
     }
 
     // A helper function which traverses the whole stats tree and runs some function taking in the node and path at each node.
@@ -120,10 +120,10 @@ public class StatsHolder {
      * Use the incrementer function to increment a value in the stats for a set of dimensions. If there is no stats
      * for this set of dimensions, create one.
      */
-    private void internalIncrement(List<CacheStatsDimension> dimensions, BiConsumer<CacheStatsCounter, Long> incrementer, long amount) {
-        assert dimensions.size() == dimensionNames.size();
-        internalGetOrCreateStats(dimensions); // Pass through to ensure all nodes exist before we increment them
-        List<DimensionNode<CacheStatsCounter>> ancestors = statsRoot.getNodeAndAncestors(getDimensionValues(dimensions));
+    private void internalIncrement(List<String> dimensionValues, BiConsumer<CacheStatsCounter, Long> incrementer, long amount) {
+        assert dimensionValues.size() == dimensionNames.size();
+        internalGetOrCreateStats(dimensionValues); // Pass through to ensure all nodes exist before we increment them
+        List<DimensionNode<CacheStatsCounter>> ancestors = statsRoot.getNodeAndAncestors(dimensionValues);
         for (DimensionNode<CacheStatsCounter> ancestorNode : ancestors) {
             incrementer.accept(ancestorNode.getStats(), amount);
         }
@@ -133,24 +133,16 @@ public class StatsHolder {
      * This protects us from erroneously decrementing values for keys which have been entirely deleted,
      * for example in an async removal listener.
      */
-    private void internalDecrement(List<CacheStatsDimension> dimensions, BiConsumer<CacheStatsCounter, Long> decrementer, long amount) {
-        assert dimensions.size() == dimensionNames.size();
-        List<DimensionNode<CacheStatsCounter>> ancestors = statsRoot.getNodeAndAncestors(getDimensionValues(dimensions));
+    private void internalDecrement(List<String> dimensionValues, BiConsumer<CacheStatsCounter, Long> decrementer, long amount) {
+        assert dimensionValues.size() == dimensionNames.size();
+        List<DimensionNode<CacheStatsCounter>> ancestors = statsRoot.getNodeAndAncestors(dimensionValues);
         for (DimensionNode<CacheStatsCounter> ancestorNode : ancestors) {
             decrementer.accept(ancestorNode.getStats(), amount);
         }
     }
 
-    private CacheStatsCounter internalGetOrCreateStats(List<CacheStatsDimension> dimensions) {
-        return statsRoot.getOrCreateNode(getDimensionValues(dimensions), CacheStatsCounter::new).getStats();
-    }
-
-    static List<String> getDimensionValues(List<CacheStatsDimension> dimensions) {
-        List<String> result = new ArrayList<>();
-        for (CacheStatsDimension dim : dimensions) {
-            result.add(dim.dimensionValue);
-        }
-        return result;
+    private CacheStatsCounter internalGetOrCreateStats(List<String> dimensionValues) {
+        return statsRoot.getOrCreateNode(dimensionValues, CacheStatsCounter::new).getStats();
     }
 
     /**
@@ -175,11 +167,10 @@ public class StatsHolder {
 
     /**
      * Remove the stats for the nodes containing these dimension values in their path.
-     * The list of dimensions must have a value for every dimension in the stats holder.
+     * The list of dimension values must have a value for every dimension in the stats holder.
      */
-    public void removeDimensions(List<CacheStatsDimension> dims) {
-        assert dims.size() == dimensionNames.size();
-        List<String> dimensionValues = getDimensionValues(dims);
+    public void removeDimensions(List<String> dimensionValues) {
+        assert dimensionValues.size() == dimensionNames.size();
         List<DimensionNode<CacheStatsCounter>> ancestors = statsRoot.getNodeAndAncestors(dimensionValues);
         // Get the parent of the leaf node to remove
         DimensionNode<CacheStatsCounter> parentNode = ancestors.get(ancestors.size() - 2);

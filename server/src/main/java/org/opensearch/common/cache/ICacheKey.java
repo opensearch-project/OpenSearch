@@ -8,13 +8,11 @@
 
 package org.opensearch.common.cache;
 
-import org.opensearch.common.cache.stats.CacheStatsDimension;
-
 import java.util.List;
 
 public class ICacheKey<K> {
     public final K key; // K must implement equals()
-    public final List<CacheStatsDimension> dimensions;
+    public final List<String> dimensions; // Dimension values. The dimension names are implied.
     /**
      * If this key is invalidated and dropDimensions is true, the ICache implementation will also drop all stats,
      * including hits/misses/evictions, with this combination of dimension values.
@@ -24,7 +22,7 @@ public class ICacheKey<K> {
     /**
      * Constructor to use when specifying dimensions.
      */
-    public ICacheKey(K key, List<CacheStatsDimension> dimensions) {
+    public ICacheKey(K key, List<String> dimensions) {
         this.key = key;
         this.dimensions = dimensions;
     }
@@ -60,9 +58,17 @@ public class ICacheKey<K> {
     // As K might not be Accountable, directly pass in its memory usage to be added.
     public long ramBytesUsed(long underlyingKeyRamBytes) {
         long estimate = underlyingKeyRamBytes;
-        for (CacheStatsDimension dim : dimensions) {
-            estimate += dim.ramBytesUsed();
+        for (String dim : dimensions) {
+            estimate += dim.length();
         }
         return estimate;
+    }
+
+    public boolean getDropStatsForDimensions() {
+        return dropStatsForDimensions;
+    }
+
+    public void setDropStatsForDimensions(boolean newValue) {
+        dropStatsForDimensions = newValue;
     }
 }

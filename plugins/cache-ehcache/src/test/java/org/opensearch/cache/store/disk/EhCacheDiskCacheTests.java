@@ -20,7 +20,6 @@ import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.serializer.BytesReferenceSerializer;
 import org.opensearch.common.cache.serializer.Serializer;
-import org.opensearch.common.cache.stats.CacheStatsDimension;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Settings;
@@ -810,8 +809,8 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         return randomString.toString();
     }
 
-    private List<CacheStatsDimension> getMockDimensions() {
-        return List.of(new CacheStatsDimension(dimensionName, "0"));
+    private List<String> getMockDimensions() {
+        return List.of("0");
     }
 
     private ICacheKey<String> getICacheKey(String key) {
@@ -822,9 +821,8 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         return (iCacheKey, value) -> {
             // Size consumed by key
             long totalSize = iCacheKey.key.length();
-            for (CacheStatsDimension dim : iCacheKey.dimensions) {
-                totalSize += dim.dimensionName.length();
-                totalSize += dim.dimensionValue.length();
+            for (String dim : iCacheKey.dimensions) {
+                totalSize += dim.length();
             }
             totalSize += 10; // The ICacheKeySerializer writes 2 VInts to record array lengths, which can be 1-5 bytes each
             // Size consumed by value

@@ -19,7 +19,6 @@ import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.stats.CacheStats;
-import org.opensearch.common.cache.stats.CacheStatsDimension;
 import org.opensearch.common.cache.stats.StatsHolder;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
@@ -30,7 +29,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -102,16 +100,9 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
 
     @Override
     public void invalidate(ICacheKey<K> key) {
-        List<CacheStatsDimension> dimensionCombinationToDrop = new ArrayList<>();
-        for (CacheStatsDimension dim : key.dimensions) {
-            if (dim.getDropStatsOnInvalidation()) {
-                dimensionCombinationToDrop.add(dim);
-            }
+        if (key.getDropStatsForDimensions()) {
+            statsHolder.removeDimensions(key.dimensions);
         }
-        if (!dimensionCombinationToDrop.isEmpty()) {
-            statsHolder.removeDimensions(dimensionCombinationToDrop);
-        }
-
         if (key.key != null) {
             cache.invalidate(key);
         }

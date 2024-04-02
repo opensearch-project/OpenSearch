@@ -51,13 +51,12 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
         StatsHolder statsHolder = new StatsHolder(dimensionNames);
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
-        Map<List<CacheStatsDimension>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
+        Map<List<String>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
         MultiDimensionCacheStats stats = (MultiDimensionCacheStats) statsHolder.getCacheStats();
 
         // test the value in the map is as expected for each distinct combination of values
-        for (List<CacheStatsDimension> dims : expected.keySet()) {
-            CacheStatsCounter expectedCounter = expected.get(dims);
-            List<String> dimensionValues = StatsHolder.getDimensionValues(dims);
+        for (List<String> dimensionValues : expected.keySet()) {
+            CacheStatsCounter expectedCounter = expected.get(dimensionValues);
 
             CounterSnapshot actualStatsHolder = statsHolder.getStatsRoot().getNode(dimensionValues).getStats().snapshot();
             CounterSnapshot actualCacheStats = stats.getStatsRoot().getNode(dimensionValues).getStats();
@@ -68,7 +67,7 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
 
         // test gets for total (this also checks sum-of-children logic)
         CacheStatsCounter expectedTotal = new CacheStatsCounter();
-        for (List<CacheStatsDimension> dims : expected.keySet()) {
+        for (List<String> dims : expected.keySet()) {
             expectedTotal.add(expected.get(dims));
         }
         assertEquals(expectedTotal.snapshot(), stats.getTotalStats());
@@ -97,14 +96,14 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
         StatsHolder statsHolder = new StatsHolder(dimensionNames);
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
-        Map<List<CacheStatsDimension>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
+        Map<List<String>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
         MultiDimensionCacheStats stats = (MultiDimensionCacheStats) statsHolder.getCacheStats();
 
         DimensionNode<CounterSnapshot> aggregated = stats.aggregateByLevels(dimensionNames);
-        for (Map.Entry<List<CacheStatsDimension>, CacheStatsCounter> expectedEntry : expected.entrySet()) {
+        for (Map.Entry<List<String>, CacheStatsCounter> expectedEntry : expected.entrySet()) {
             List<String> dimensionValues = new ArrayList<>();
-            for (CacheStatsDimension dim : expectedEntry.getKey()) {
-                dimensionValues.add(dim.dimensionValue);
+            for (String dimValue : expectedEntry.getKey()) {
+                dimensionValues.add(dimValue);
             }
             assertEquals(expectedEntry.getValue().snapshot(), aggregated.getNode(dimensionValues).getStats());
         }
@@ -114,7 +113,7 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
         StatsHolder statsHolder = new StatsHolder(dimensionNames);
         Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
-        Map<List<CacheStatsDimension>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
+        Map<List<String>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
         MultiDimensionCacheStats stats = (MultiDimensionCacheStats) statsHolder.getCacheStats();
 
         for (int i = 0; i < (1 << dimensionNames.size()); i++) {
@@ -133,9 +132,8 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
 
                 for (Map.Entry<List<String>, DimensionNode<CounterSnapshot>> aggEntry : aggregatedLeafNodes.entrySet()) {
                     CacheStatsCounter expectedCounter = new CacheStatsCounter();
-                    for (List<CacheStatsDimension> expectedDims : expected.keySet()) {
-                        List<String> orderedDimValues = StatsHolder.getDimensionValues(expectedDims);
-                        if (orderedDimValues.containsAll(aggEntry.getKey())) {
+                    for (List<String> expectedDims : expected.keySet()) {
+                        if (expectedDims.containsAll(aggEntry.getKey())) {
                             expectedCounter.add(expected.get(expectedDims));
                         }
                     }
@@ -180,17 +178,17 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         return usedDimensionValues;
     }
 
-    static Map<List<CacheStatsDimension>, CacheStatsCounter> populateStats(
+    static Map<List<String>, CacheStatsCounter> populateStats(
         StatsHolder statsHolder,
         Map<String, List<String>> usedDimensionValues,
         int numDistinctValuePairs,
         int numRepetitionsPerValue
     ) {
-        Map<List<CacheStatsDimension>, CacheStatsCounter> expected = new HashMap<>();
+        Map<List<String>, CacheStatsCounter> expected = new HashMap<>();
 
         Random rand = Randomness.get();
         for (int i = 0; i < numDistinctValuePairs; i++) {
-            List<CacheStatsDimension> dimensions = getRandomDimList(statsHolder.getDimensionNames(), usedDimensionValues, true, rand);
+            List<String> dimensions = getRandomDimList(statsHolder.getDimensionNames(), usedDimensionValues, true, rand);
             if (expected.get(dimensions) == null) {
                 expected.put(dimensions, new CacheStatsCounter());
             }
@@ -239,22 +237,22 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         return expected;
     }
 
-    private static ICacheKey<String> getDummyKey(List<CacheStatsDimension> dims) {
+    private static ICacheKey<String> getDummyKey(List<String> dims) {
         return new ICacheKey<>(null, dims);
     }
 
-    private static List<CacheStatsDimension> getRandomDimList(
+    private static List<String> getRandomDimList(
         List<String> dimensionNames,
         Map<String, List<String>> usedDimensionValues,
         boolean pickValueForAllDims,
         Random rand
     ) {
-        List<CacheStatsDimension> result = new ArrayList<>();
+        List<String> result = new ArrayList<>();
         for (String dimName : dimensionNames) {
             if (pickValueForAllDims || rand.nextBoolean()) { // if pickValueForAllDims, always pick a value for each dimension, otherwise do
                 // so 50% of the time
                 int index = between(0, usedDimensionValues.get(dimName).size() - 1);
-                result.add(new CacheStatsDimension(dimName, usedDimensionValues.get(dimName).get(index)));
+                result.add(usedDimensionValues.get(dimName).get(index));
             }
         }
         return result;
