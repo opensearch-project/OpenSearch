@@ -61,6 +61,13 @@ public class CacheStatsCounter {
         internalAdd(snapshot.getHits(), snapshot.getMisses(), snapshot.getEvictions(), snapshot.getSizeInBytes(), snapshot.getEntries());
     }
 
+    public void subtract(CacheStatsCounter other) {
+        if (other == null) {
+            return;
+        }
+        internalAdd(-other.getHits(), -other.getMisses(), -other.getEvictions(), -other.getSizeInBytes(), -other.getEntries());
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o == null) {

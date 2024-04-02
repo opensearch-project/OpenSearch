@@ -8,14 +8,11 @@
 
 package org.opensearch.common.cache.stats;
 
-import org.opensearch.common.Randomness;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 import static org.opensearch.common.cache.stats.MultiDimensionCacheStatsTests.getUsedDimensionValues;
 import static org.opensearch.common.cache.stats.MultiDimensionCacheStatsTests.populateStats;
@@ -24,25 +21,6 @@ public class StatsHolderTests extends OpenSearchTestCase {
     // Since StatsHolder does not expose getter methods for aggregating stats,
     // we test the incrementing functionality in combination with MultiDimensionCacheStats,
     // in MultiDimensionCacheStatsTests.java.
-
-    public void testKeyEquality() throws Exception {
-        List<CacheStatsDimension> dims1 = List.of(
-            new CacheStatsDimension("A", "1"),
-            new CacheStatsDimension("B", "2"),
-            new CacheStatsDimension("C", "3")
-        );
-        StatsHolder.Key key1 = new StatsHolder.Key(dims1);
-
-        List<CacheStatsDimension> dims2 = List.of(
-            new CacheStatsDimension("A", "1"),
-            new CacheStatsDimension("B", "2"),
-            new CacheStatsDimension("C", "3")
-        );
-        StatsHolder.Key key2 = new StatsHolder.Key(dims2);
-
-        assertEquals(key1, key2);
-        assertEquals(key1.hashCode(), key2.hashCode());
-    }
 
     public void testReset() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2");
@@ -57,76 +35,49 @@ public class StatsHolderTests extends OpenSearchTestCase {
             originalCounter.sizeInBytes = new CounterMetric();
             originalCounter.entries = new CounterMetric();
 
-            StatsHolder.Key key = new StatsHolder.Key(StatsHolder.getOrderedDimensions(dims, dimensionNames));
-            CacheStatsCounter actual = statsHolder.getStatsMap().get(key);
+            List<String> dimensionValues = StatsHolder.getDimensionValues(dims);
+            CacheStatsCounter actual = statsHolder.getStatsRoot().getNode(dimensionValues).getStats();
             assertEquals(originalCounter, actual);
         }
-
-        CacheStatsCounter expectedTotal = new CacheStatsCounter();
-        for (List<CacheStatsDimension> dims : expected.keySet()) {
-            expectedTotal.add(expected.get(dims));
-        }
-        expectedTotal.sizeInBytes = new CounterMetric();
-        expectedTotal.entries = new CounterMetric();
-    }
-
-    public void testKeyContainsAllDimensions() throws Exception {
-        List<String> dimensionNames = List.of("dim1", "dim2", "dim3");
-        StatsHolder statsHolder = new StatsHolder(dimensionNames);
-
-        List<CacheStatsDimension> dims = List.of(new CacheStatsDimension("dim1", "A"), new CacheStatsDimension("dim2", "B"));
-
-        StatsHolder.Key matchingKey = new StatsHolder.Key(
-            List.of(new CacheStatsDimension("dim1", "A"), new CacheStatsDimension("dim2", "B"), new CacheStatsDimension("dim3", "C"))
-        );
-        StatsHolder.Key nonMatchingKey = new StatsHolder.Key(
-            List.of(new CacheStatsDimension("dim1", "A"), new CacheStatsDimension("dim2", "Z"), new CacheStatsDimension("dim3", "C"))
-        );
-
-        assertTrue(statsHolder.keyContainsAllDimensions(matchingKey, dims));
-        assertFalse(statsHolder.keyContainsAllDimensions(nonMatchingKey, dims));
-
-        List<CacheStatsDimension> emptyDims = List.of();
-        assertTrue(statsHolder.keyContainsAllDimensions(matchingKey, emptyDims));
-        assertTrue(statsHolder.keyContainsAllDimensions(nonMatchingKey, emptyDims));
-
-        List<CacheStatsDimension> illegalDims = List.of(new CacheStatsDimension("invalid_dim", "A"));
-        assertThrows(IllegalArgumentException.class, () -> statsHolder.keyContainsAllDimensions(matchingKey, illegalDims));
     }
 
     public void testDropStatsForDimensions() throws Exception {
-        List<String> dimensionNames = List.of("dim1", "dim2", "dim3");
+        List<String> dimensionNames = List.of("dim1", "dim2");
         StatsHolder statsHolder = new StatsHolder(dimensionNames);
-        Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
-        populateStats(statsHolder, usedDimensionValues, 100, 10);
 
-        List<CacheStatsDimension> dimsToRemove = getRandomUsedDimensions(usedDimensionValues);
-        int originalSize = statsHolder.getStatsMap().size();
-
-        int numKeysMatchingDimensions = 0;
-        for (StatsHolder.Key key : statsHolder.getStatsMap().keySet()) {
-            if (statsHolder.keyContainsAllDimensions(key, dimsToRemove)) {
-                numKeysMatchingDimensions++;
-            }
+        // Create stats for the following dimension sets
+        List<List<CacheStatsDimension>> populatedStats = List.of(
+            List.of(new CacheStatsDimension("dim1", "A1"), new CacheStatsDimension("dim2", "B1")),
+            List.of(new CacheStatsDimension("dim1", "A2"), new CacheStatsDimension("dim2", "B2")),
+            List.of(new CacheStatsDimension("dim1", "A2"), new CacheStatsDimension("dim2", "B3"))
+        );
+        for (List<CacheStatsDimension> dims : populatedStats) {
+            statsHolder.incrementHits(dims);
         }
 
-        statsHolder.removeDimensions(dimsToRemove);
-        for (StatsHolder.Key key : statsHolder.getStatsMap().keySet()) {
-            assertFalse(statsHolder.keyContainsAllDimensions(key, dimsToRemove));
-        }
-        assertEquals(originalSize - numKeysMatchingDimensions, statsHolder.getStatsMap().size());
-    }
+        assertEquals(3, statsHolder.getStatsRoot().getStats().getHits());
 
-    private List<CacheStatsDimension> getRandomUsedDimensions(Map<String, List<String>> usedDimensionValues) {
-        Random rand = Randomness.get();
-        List<CacheStatsDimension> result = new ArrayList<>();
-        for (String dimName : usedDimensionValues.keySet()) {
-            if (rand.nextBoolean()) {
-                List<String> dimValues = usedDimensionValues.get(dimName);
-                String dimValue = dimValues.get(rand.nextInt(dimValues.size()));
-                result.add(new CacheStatsDimension(dimName, dimValue));
-            }
-        }
-        return result;
+        // When we invalidate A1, B1, we should lose the nodes for B1 and also A1, as it has no more children.
+
+        statsHolder.removeDimensions(List.of(new CacheStatsDimension("dim1", "A1"), new CacheStatsDimension("dim2", "B1")));
+
+        assertEquals(2, statsHolder.getStatsRoot().getStats().getHits());
+        assertNull(statsHolder.getStatsRoot().getNode(List.of("A1", "B1")));
+        assertNull(statsHolder.getStatsRoot().getNode(List.of("A1")));
+
+        // When we invalidate A2, B2, we should lose the node for B2, but not B3 or A2.
+
+        statsHolder.removeDimensions(List.of(new CacheStatsDimension("dim1", "A2"), new CacheStatsDimension("dim2", "B2")));
+
+        assertEquals(1, statsHolder.getStatsRoot().getStats().getHits());
+        assertNull(statsHolder.getStatsRoot().getNode(List.of("A2", "B2")));
+        assertNotNull(statsHolder.getStatsRoot().getNode(List.of("A2")));
+        assertNotNull(statsHolder.getStatsRoot().getNode(List.of("A2", "B3")));
+
+        // When we invalidate the last node, all nodes should be deleted except the root node
+
+        statsHolder.removeDimensions(List.of(new CacheStatsDimension("dim1", "A2"), new CacheStatsDimension("dim2", "B3")));
+        assertEquals(0, statsHolder.getStatsRoot().getStats().getHits());
+        assertEquals(0, statsHolder.getStatsRoot().children.size());
     }
 }

@@ -279,9 +279,9 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
             throw new OpenSearchException("Exception occurred while trying to fetch item from ehcache disk cache");
         }
         if (value != null) {
-            statsHolder.incrementHits(key);
+            statsHolder.incrementHits(key.dimensions);
         } else {
-            statsHolder.incrementMisses(key);
+            statsHolder.incrementMisses(key.dimensions);
         }
         return value;
     }
@@ -317,9 +317,9 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
             value = compute(key, loader);
         }
         if (!loader.isLoaded()) {
-            statsHolder.incrementHits(key);
+            statsHolder.incrementHits(key.dimensions);
         } else {
-            statsHolder.incrementMisses(key);
+            statsHolder.incrementMisses(key.dimensions);
         }
         return value;
     }
@@ -516,39 +516,39 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         public void onEvent(CacheEvent<? extends ICacheKey<K>, ? extends ByteArrayWrapper> event) {
             switch (event.getType()) {
                 case CREATED:
-                    statsHolder.incrementEntries(event.getKey());
-                    statsHolder.incrementSizeInBytes(event.getKey(), getNewValuePairSize(event));
+                    statsHolder.incrementEntries(event.getKey().dimensions);
+                    statsHolder.incrementSizeInBytes(event.getKey().dimensions, getNewValuePairSize(event));
                     assert event.getOldValue() == null;
                     break;
                 case EVICTED:
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.EVICTED)
                     );
-                    statsHolder.decrementEntries(event.getKey());
-                    statsHolder.decrementSizeInBytes(event.getKey(), getOldValuePairSize(event));
-                    statsHolder.incrementEvictions(event.getKey());
+                    statsHolder.decrementEntries(event.getKey().dimensions);
+                    statsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
+                    statsHolder.incrementEvictions(event.getKey().dimensions);
                     assert event.getNewValue() == null;
                     break;
                 case REMOVED:
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.EXPLICIT)
                     );
-                    statsHolder.decrementEntries(event.getKey());
-                    statsHolder.decrementSizeInBytes(event.getKey(), getOldValuePairSize(event));
+                    statsHolder.decrementEntries(event.getKey().dimensions);
+                    statsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
                     assert event.getNewValue() == null;
                     break;
                 case EXPIRED:
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.INVALIDATED)
                     );
-                    statsHolder.decrementEntries(event.getKey());
-                    statsHolder.decrementSizeInBytes(event.getKey(), getOldValuePairSize(event));
+                    statsHolder.decrementEntries(event.getKey().dimensions);
+                    statsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
                     assert event.getNewValue() == null;
                     break;
                 case UPDATED:
                     long newSize = getNewValuePairSize(event);
                     long oldSize = getOldValuePairSize(event);
-                    statsHolder.incrementSizeInBytes(event.getKey(), newSize - oldSize);
+                    statsHolder.incrementSizeInBytes(event.getKey().dimensions, newSize - oldSize);
                     break;
                 default:
                     break;

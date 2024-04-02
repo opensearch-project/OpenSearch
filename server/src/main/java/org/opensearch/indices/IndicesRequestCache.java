@@ -652,16 +652,13 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
                 return;
             }
 
-            Set<CacheStatsDimension> closedShardDimensions = new HashSet<>();
+            Set<List<CacheStatsDimension>> dimensionListsToDrop = new HashSet<>();
 
-            // List<ICacheKey<Key>> keysToInvalidate = new ArrayList<>();
             for (Iterator<ICacheKey<Key>> iterator = cache.keys().iterator(); iterator.hasNext();) {
                 ICacheKey<Key> key = iterator.next();
                 if (cleanupKeysFromClosedShards.contains(key.key.shardId)) {
-                    // key.setDropStatsForDimensions(true);
-                    // keysToInvalidate.add(key); // Instead of directly removing from iterator, use invalidate() to allow dropping stats
                     // Since the shard is closed, the cache should drop stats for this shard.
-                    closedShardDimensions.add(getShardIdDimension(key));
+                    dimensionListsToDrop.add(key.dimensions);
                     iterator.remove();
                 } else {
                     CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.key.shardId).orElse(null), key.key.readerCacheKeyId);
@@ -670,10 +667,12 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
                     }
                 }
             }
-            for (CacheStatsDimension closedDimension : closedShardDimensions) {
-                // Invalidate a dummy key containing the dimension we need to drop stats for
-                closedDimension.setDropStatsOnInvalidation(true);
-                ICacheKey<Key> dummyKey = new ICacheKey<>(null, List.of(closedDimension));
+            for (List<CacheStatsDimension> closedDimensions : dimensionListsToDrop) {
+                // Invalidate a dummy key containing the dimensions we need to drop stats for
+                ICacheKey<Key> dummyKey = new ICacheKey<>(null, closedDimensions);
+                for (CacheStatsDimension dim : closedDimensions) {
+                    dim.setDropStatsOnInvalidation(true);
+                }
                 cache.invalidate(dummyKey);
             }
             cache.refresh();

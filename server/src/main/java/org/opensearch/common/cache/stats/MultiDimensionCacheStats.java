@@ -15,7 +15,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 
 /**
  * A CacheStats object supporting aggregation over multiple different dimensions.
@@ -26,41 +25,90 @@ import java.util.TreeMap;
 public class MultiDimensionCacheStats implements CacheStats {
     // A snapshot of a StatsHolder containing stats maintained by the cache.
     // Pkg-private for testing.
-    final Map<StatsHolder.Key, CounterSnapshot> snapshot;
+    final DimensionNode<CounterSnapshot> statsRoot;
     final List<String> dimensionNames;
 
-    public MultiDimensionCacheStats(Map<StatsHolder.Key, CounterSnapshot> snapshot, List<String> dimensionNames) {
-        this.snapshot = snapshot;
+    public MultiDimensionCacheStats(DimensionNode<CounterSnapshot> statsRoot, List<String> dimensionNames) {
+        this.statsRoot = statsRoot;
         this.dimensionNames = dimensionNames;
     }
 
     public MultiDimensionCacheStats(StreamInput in) throws IOException {
+        // Because we write in preorder order, the parent of the next node we read will always be one of the ancestors of the last node we
+        // read.
+        // This allows us to avoid ambiguity if nodes have the same dimension value, without having to serialize the whole path to each
+        // node.
         this.dimensionNames = List.of(in.readStringArray());
-        this.snapshot = in.readMap(
-            i -> new StatsHolder.Key(List.of(i.readArray(CacheStatsDimension::new, CacheStatsDimension[]::new))),
-            CounterSnapshot::new
-        );
+        this.statsRoot = new DimensionNode<>(StatsHolder.ROOT_DIMENSION_VALUE);
+        List<DimensionNode<CounterSnapshot>> ancestorsOfLastRead = List.of(statsRoot);
+        while (ancestorsOfLastRead != null) {
+            ancestorsOfLastRead = readAndAttachDimensionNode(in, ancestorsOfLastRead);
+        }
+        // Finally, update sum-of-children stats for the root node
+        CacheStatsCounter totalStats = new CacheStatsCounter();
+        for (DimensionNode<CounterSnapshot> child : statsRoot.children.values()) {
+            totalStats.add(child.getStats());
+        }
+        statsRoot.setStats(totalStats.snapshot());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        // Write each node in preorder order, along with its depth and the dimension value of its parent.
+        // Then, when rebuilding the tree from the stream, we can always find the correct parent to attach each node to.
+
         out.writeStringArray(dimensionNames.toArray(new String[0]));
-        out.writeMap(
-            snapshot,
-            (o, key) -> o.writeArray((o1, dim) -> ((CacheStatsDimension) dim).writeTo(o1), key.dimensions.toArray()),
-            (o, snapshot) -> snapshot.writeTo(o)
-        );
+        // writeDimensionNodeRecursive(out, statsRoot, 0, null);
+        for (DimensionNode<CounterSnapshot> child : statsRoot.children.values()) {
+            writeDimensionNodeRecursive(out, child, 1, statsRoot.getDimensionValue());
+        }
+        out.writeBoolean(false); // Write false to signal there are no more nodes
+    }
+
+    private void writeDimensionNodeRecursive(StreamOutput out, DimensionNode<CounterSnapshot> node, int depth, String parentDimensionValue)
+        throws IOException {
+        out.writeBoolean(true);
+        out.writeVInt(depth);
+        out.writeString(node.getDimensionValue());
+        node.getStats().writeTo(out);
+
+        if (!node.children.isEmpty()) {
+            // Not a leaf node
+            for (DimensionNode<CounterSnapshot> child : node.children.values()) {
+                writeDimensionNodeRecursive(out, child, depth + 1, node.getDimensionValue());
+            }
+        }
+    }
+
+    /**
+     * Reads a serialized dimension node, attaches it to its appropriate place in the tree, and returns the list of ancestors of the newly attached node.
+     */
+    private List<DimensionNode<CounterSnapshot>> readAndAttachDimensionNode(
+        StreamInput in,
+        List<DimensionNode<CounterSnapshot>> ancestorsOfLastRead
+    ) throws IOException {
+        boolean hasNextNode = in.readBoolean();
+        if (hasNextNode) {
+            int depth = in.readVInt();
+            String nodeDimensionValue = in.readString();
+            CounterSnapshot stats = new CounterSnapshot(in);
+
+            DimensionNode<CounterSnapshot> result = new DimensionNode<>(nodeDimensionValue);
+            result.setStats(stats);
+            DimensionNode<CounterSnapshot> parent = ancestorsOfLastRead.get(depth - 1);
+            parent.children.put(nodeDimensionValue, result);
+            List<DimensionNode<CounterSnapshot>> ancestors = new ArrayList<>(ancestorsOfLastRead.subList(0, depth));
+            ancestors.add(result);
+            return ancestors;
+        } else {
+            // No more nodes
+            return null;
+        }
     }
 
     @Override
     public CounterSnapshot getTotalStats() {
-        CacheStatsCounter counter = new CacheStatsCounter();
-        // To avoid making many Snapshot objects for the incremental sums, add to a mutable CacheStatsCounter and finally convert to
-        // Snapshot
-        for (CounterSnapshot snapshotValue : snapshot.values()) {
-            counter.add(snapshotValue);
-        }
-        return counter.snapshot();
+        return statsRoot.getStats();
     }
 
     @Override
@@ -88,89 +136,68 @@ public class MultiDimensionCacheStats implements CacheStats {
         return getTotalStats().getEntries();
     }
 
-    static class DimensionNode {
-        private final String dimensionValue;
-        // Storing dimensionValue is useful for producing XContent
-        final TreeMap<String, DimensionNode> children; // Map from dimensionValue to the DimensionNode for that dimension value
-        private CounterSnapshot snapshot;
-
-        DimensionNode(String dimensionValue) {
-            this.dimensionValue = dimensionValue;
-            this.children = new TreeMap<>();
-            this.snapshot = null;
-            // Only leaf nodes have non-null snapshots. Might make it be sum-of-children in future.
-        }
-
-        /**
-         * Increments the snapshot in this node.
-         */
-        void addSnapshot(CounterSnapshot newSnapshot) {
-            if (snapshot == null) {
-                snapshot = newSnapshot;
-            } else {
-                snapshot = CounterSnapshot.addSnapshots(snapshot, newSnapshot);
-            }
-        }
-
-        /**
-         * Returns the node found by following these dimension values down from the current node.
-         * If such a node does not exist, creates it.
-         */
-        DimensionNode getNode(List<String> dimensionValues) {
-            DimensionNode current = this;
-            for (String dimensionValue : dimensionValues) {
-                current.children.putIfAbsent(dimensionValue, new DimensionNode(dimensionValue));
-                current = current.children.get(dimensionValue);
-            }
-            return current;
-        }
-
-        CounterSnapshot getSnapshot() {
-            return snapshot;
-        }
-    }
-
     /**
-     * Returns a tree containing the stats aggregated by the levels passed in. The root node is a dummy node,
+     * Returns a new tree containing the stats aggregated by the levels passed in. The root node is a dummy node,
      * whose name and value are null.
      */
-    DimensionNode aggregateByLevels(List<String> levels) {
-        int[] levelPositions = getLevelsInSortedOrder(levels); // Check validity of levels and get their indices in dimensionNames
-
-        DimensionNode root = new DimensionNode(null);
-        for (Map.Entry<StatsHolder.Key, CounterSnapshot> entry : snapshot.entrySet()) {
-            List<String> levelValues = new ArrayList<>(); // This key's relevant dimension values, which match the levels
-            List<CacheStatsDimension> keyDimensions = entry.getKey().dimensions;
-            for (int levelPosition : levelPositions) {
-                levelValues.add(keyDimensions.get(levelPosition).dimensionValue);
-            }
-            DimensionNode leafNode = root.getNode(levelValues);
-            leafNode.addSnapshot(entry.getValue());
+    DimensionNode<CounterSnapshot> aggregateByLevels(List<String> levels) {
+        checkLevels(levels);
+        DimensionNode<CounterSnapshot> newRoot = new DimensionNode<>(null);
+        // aggregateByLevelsHelper(newRoot, statsRoot, levels, -1);
+        for (DimensionNode<CounterSnapshot> child : statsRoot.children.values()) {
+            aggregateByLevelsHelper(newRoot, child, levels, 0);
         }
-        return root;
+        return newRoot;
     }
 
-    private int[] getLevelsInSortedOrder(List<String> levels) {
-        // Levels must all be present in dimensionNames and also be in matching order, or they are invalid
-        // Return an array of each level's position within the list dimensionNames
+    void aggregateByLevelsHelper(
+        DimensionNode<CounterSnapshot> parentInNewTree,
+        DimensionNode<CounterSnapshot> currentInOriginalTree,
+        List<String> levels,
+        int depth
+    ) {
+        if (levels.contains(dimensionNames.get(depth))) {
+            // If this node is in a level we want to aggregate, create a new dimension node with the same value and stats, and connect it to
+            // the last parent node in the new tree.
+            // If it already exists, increment it instead.
+            String dimensionValue = currentInOriginalTree.getDimensionValue();
+            DimensionNode<CounterSnapshot> nodeInNewTree = parentInNewTree.children.get(dimensionValue);
+            if (nodeInNewTree == null) {
+                nodeInNewTree = new DimensionNode<>(dimensionValue);
+                nodeInNewTree.setStats(currentInOriginalTree.getStats());
+                parentInNewTree.children.put(dimensionValue, nodeInNewTree);
+            } else {
+                CounterSnapshot newStats = CounterSnapshot.addSnapshots(nodeInNewTree.getStats(), currentInOriginalTree.getStats());
+                nodeInNewTree.setStats(newStats);
+            }
+            // Finally set the parent node to be this node for the next callers of this function
+            parentInNewTree = nodeInNewTree;
+        }
+
+        if (!currentInOriginalTree.children.isEmpty()) {
+            // Not a leaf node
+            for (Map.Entry<String, DimensionNode<CounterSnapshot>> childEntry : currentInOriginalTree.children.entrySet()) {
+                String childValue = childEntry.getKey();
+                DimensionNode<CounterSnapshot> child = childEntry.getValue();
+                aggregateByLevelsHelper(parentInNewTree, child, levels, depth + 1);
+            }
+        }
+    }
+
+    private void checkLevels(List<String> levels) {
         if (levels.isEmpty()) {
             throw new IllegalArgumentException("Levels cannot have size 0");
         }
-        int[] result = new int[levels.size()];
-        for (int i = 0; i < levels.size(); i++) {
-            String level = levels.get(i);
-            int levelIndex = dimensionNames.indexOf(level);
-            if (levelIndex != -1) {
-                result[i] = levelIndex;
-            } else {
+        for (String level : levels) {
+            if (!dimensionNames.contains(level)) {
                 throw new IllegalArgumentException("Unrecognized level: " + level);
             }
-            if (i > 0 && result[i] < result[i - 1]) {
-                // If the levels passed in are out of order, they are invalid
-                throw new IllegalArgumentException("Invalid ordering for levels: " + levels);
-            }
         }
-        return result;
+    }
+
+    // pkg-private for testing
+    DimensionNode<CounterSnapshot> getStatsRoot() {
+        return statsRoot;
     }
 
     // TODO (in API PR): Produce XContent based on aggregateByLevels()
