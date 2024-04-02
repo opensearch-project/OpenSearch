@@ -9,44 +9,46 @@
 package org.opensearch.index.remote;
 
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.index.remote.RemoteStoreDataEnums.DataCategory;
-import org.opensearch.index.remote.RemoteStoreDataEnums.DataType;
+import org.opensearch.index.remote.RemoteStoreEnums.DataCategory;
+import org.opensearch.index.remote.RemoteStoreEnums.DataType;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import static org.opensearch.index.remote.RemoteStoreDataEnums.DataCategory.SEGMENTS;
-import static org.opensearch.index.remote.RemoteStoreDataEnums.DataCategory.TRANSLOG;
-import static org.opensearch.index.remote.RemoteStoreDataEnums.DataType.DATA;
-import static org.opensearch.index.remote.RemoteStoreDataEnums.DataType.LOCK_FILES;
-import static org.opensearch.index.remote.RemoteStoreDataEnums.DataType.METADATA;
-import static org.opensearch.index.remote.RemoteStorePathType.FIXED;
-import static org.opensearch.index.remote.RemoteStorePathType.parseString;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
+import static org.opensearch.index.remote.RemoteStoreEnums.PathType.FIXED;
+import static org.opensearch.index.remote.RemoteStoreEnums.PathType.parseString;
 
-public class RemoteStorePathTypeTests extends OpenSearchTestCase {
+public class RemoteStoreEnumsTests extends OpenSearchTestCase {
 
     private static final String SEPARATOR = "/";
 
     public void testParseString() {
         // Case 1 - Pass values from the enum.
         String typeString = FIXED.toString();
-        RemoteStorePathType type = parseString(randomFrom(typeString, typeString.toLowerCase(Locale.ROOT)));
+        PathType type = parseString(randomFrom(typeString, typeString.toLowerCase(Locale.ROOT)));
         assertEquals(FIXED, type);
 
-        typeString = RemoteStorePathType.HASHED_PREFIX.toString();
+        typeString = PathType.HASHED_PREFIX.toString();
         type = parseString(randomFrom(typeString, typeString.toLowerCase(Locale.ROOT)));
-        assertEquals(RemoteStorePathType.HASHED_PREFIX, type);
+        assertEquals(PathType.HASHED_PREFIX, type);
 
         // Case 2 - Pass random string
         String randomTypeString = randomAlphaOfLength(2);
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> parseString(randomTypeString));
-        assertEquals("Could not parse RemoteStorePathType for [" + randomTypeString + "]", ex.getMessage());
+        assertEquals("Could not parse PathType for [" + randomTypeString + "]", ex.getMessage());
 
         // Case 3 - Null string
         ex = assertThrows(IllegalArgumentException.class, () -> parseString(null));
-        assertEquals("Could not parse RemoteStorePathType for [null]", ex.getMessage());
+        assertEquals("Could not parse PathType for [null]", ex.getMessage());
     }
 
     public void testGeneratePathForFixedType() {
@@ -63,32 +65,74 @@ public class RemoteStorePathTypeTests extends OpenSearchTestCase {
 
         String basePath = getPath(pathList) + indexUUID + SEPARATOR + shardId + SEPARATOR;
         // Translog Data
-        BlobPath result = FIXED.path(blobPath, indexUUID, shardId, dataCategory, dataType);
+        PathInput pathInput = PathInput.builder()
+            .basePath(blobPath)
+            .indexUUID(indexUUID)
+            .shardId(shardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        BlobPath result = FIXED.path(pathInput, null);
         assertEquals(basePath + dataCategory.getName() + SEPARATOR + dataType.getName() + SEPARATOR, result.buildAsString());
 
         // Translog Metadata
         dataType = METADATA;
-        result = FIXED.path(blobPath, indexUUID, shardId, dataCategory, dataType);
+        pathInput = PathInput.builder()
+            .basePath(blobPath)
+            .indexUUID(indexUUID)
+            .shardId(shardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        result = FIXED.path(pathInput, null);
         assertEquals(basePath + dataCategory.getName() + SEPARATOR + dataType.getName() + SEPARATOR, result.buildAsString());
 
         // Translog Lock files - This is a negative case where the assertion will trip.
-        BlobPath finalBlobPath = blobPath;
-        assertThrows(AssertionError.class, () -> FIXED.path(finalBlobPath, indexUUID, shardId, TRANSLOG, LOCK_FILES));
+        dataType = LOCK_FILES;
+        PathInput finalPathInput = PathInput.builder()
+            .basePath(blobPath)
+            .indexUUID(indexUUID)
+            .shardId(shardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        assertThrows(AssertionError.class, () -> FIXED.path(finalPathInput, null));
 
         // Segment Data
         dataCategory = SEGMENTS;
         dataType = DATA;
-        result = FIXED.path(blobPath, indexUUID, shardId, dataCategory, dataType);
+        pathInput = PathInput.builder()
+            .basePath(blobPath)
+            .indexUUID(indexUUID)
+            .shardId(shardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        result = FIXED.path(pathInput, null);
         assertEquals(basePath + dataCategory.getName() + SEPARATOR + dataType.getName() + SEPARATOR, result.buildAsString());
 
         // Segment Metadata
         dataType = METADATA;
-        result = FIXED.path(blobPath, indexUUID, shardId, dataCategory, dataType);
+        pathInput = PathInput.builder()
+            .basePath(blobPath)
+            .indexUUID(indexUUID)
+            .shardId(shardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        result = FIXED.path(pathInput, null);
         assertEquals(basePath + dataCategory.getName() + SEPARATOR + dataType.getName() + SEPARATOR, result.buildAsString());
 
         // Segment Metadata
         dataType = LOCK_FILES;
-        result = FIXED.path(blobPath, indexUUID, shardId, dataCategory, dataType);
+        pathInput = PathInput.builder()
+            .basePath(blobPath)
+            .indexUUID(indexUUID)
+            .shardId(shardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        result = FIXED.path(pathInput, null);
         assertEquals(basePath + dataCategory.getName() + SEPARATOR + dataType.getName() + SEPARATOR, result.buildAsString());
     }
 
@@ -108,4 +152,5 @@ public class RemoteStorePathTypeTests extends OpenSearchTestCase {
         }
         return p + SEPARATOR;
     }
+
 }
