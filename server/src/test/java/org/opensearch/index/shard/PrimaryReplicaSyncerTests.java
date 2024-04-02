@@ -111,8 +111,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             null,
             1000L,
             Collections.singleton(allocationId),
-            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build(),
-            IndexShardTestUtils.getFakeDiscoveryNodes(shard.routingEntry())
+            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build()
         );
         shard.updateLocalCheckpointForShard(allocationId, globalCheckPoint);
         assertEquals(globalCheckPoint, shard.getLastKnownGlobalCheckpoint());
@@ -191,8 +190,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             null,
             1000L,
             Collections.singleton(allocationId),
-            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build(),
-            IndexShardTestUtils.getFakeDiscoveryNodes(shard.routingEntry())
+            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build()
         );
 
         CountDownLatch syncCalledLatch = new CountDownLatch(1);

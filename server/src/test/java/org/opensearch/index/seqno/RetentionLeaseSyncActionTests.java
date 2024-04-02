@@ -60,7 +60,6 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
-import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
@@ -216,15 +215,15 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
     public void testGetReplicationModeWithRemoteTranslog() {
         final RetentionLeaseSyncAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
         assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
         final RetentionLeaseSyncAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
-        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     private RetentionLeaseSyncAction createAction() {

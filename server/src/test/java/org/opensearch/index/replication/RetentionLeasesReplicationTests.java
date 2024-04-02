@@ -45,7 +45,6 @@ import org.opensearch.index.seqno.RetentionLeaseSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseUtils;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.IndexShardTestUtils;
 import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
@@ -183,8 +182,7 @@ public class RetentionLeasesReplicationTests extends OpenSearchIndexLevelReplica
                     null,
                     1L,
                     group.getPrimary().getReplicationGroup().getInSyncAllocationIds(),
-                    group.getPrimary().getReplicationGroup().getRoutingTable(),
-                    IndexShardTestUtils.getFakeDiscoveryNodes(shard.routingEntry())
+                    group.getPrimary().getReplicationGroup().getRoutingTable()
                 );
             }
             group.syncGlobalCheckpoint();

@@ -680,8 +680,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 retentionLeaseSyncer,
                 nodes.getLocalNode(),
                 sourceNode,
-                remoteStoreStatsTrackerFactory,
-                nodes
+                remoteStoreStatsTrackerFactory
             );
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
@@ -715,8 +714,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 primaryReplicaSyncer::resync,
                 clusterState.version(),
                 inSyncIds,
-                indexShardRoutingTable,
-                nodes
+                indexShardRoutingTable
             );
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e, clusterState);
@@ -924,8 +922,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
             long applyingClusterStateVersion,
             Set<String> inSyncAllocationIds,
-            IndexShardRoutingTable routingTable,
-            DiscoveryNodes discoveryNodes
+            IndexShardRoutingTable routingTable
         ) throws IOException;
     }
 
@@ -1043,8 +1040,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             RetentionLeaseSyncer retentionLeaseSyncer,
             DiscoveryNode targetNode,
             @Nullable DiscoveryNode sourceNode,
-            RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-            DiscoveryNodes discoveryNodes
+            RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
         ) throws IOException;
 
         /**

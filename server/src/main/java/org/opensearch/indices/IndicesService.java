@@ -54,7 +54,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
@@ -1022,8 +1021,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode targetNode,
         final DiscoveryNode sourceNode,
-        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-        final DiscoveryNodes discoveryNodes
+        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
@@ -1038,8 +1036,7 @@ public class IndicesService extends AbstractLifecycleComponent
             remoteStoreStatsTrackerFactory,
             repositoriesService,
             targetNode,
-            sourceNode,
-            discoveryNodes
+            sourceNode
         );
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {

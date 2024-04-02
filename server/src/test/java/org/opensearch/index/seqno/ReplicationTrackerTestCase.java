@@ -40,13 +40,11 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.SafeCommitInfo;
-import org.opensearch.index.remote.RemoteStoreTestsHelper;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -59,20 +57,18 @@ public abstract class ReplicationTrackerTestCase extends OpenSearchTestCase {
         final AllocationId allocationId,
         final LongConsumer updatedGlobalCheckpoint,
         final LongSupplier currentTimeMillisSupplier,
-        final Settings settings,
-        final boolean remote
+        final Settings settings
     ) {
         return new ReplicationTracker(
             new ShardId("test", "_na_", 0),
             allocationId.getId(),
-            remote ? RemoteStoreTestsHelper.createIndexSettings(true, settings) : IndexSettingsModule.newIndexSettings("test", settings),
+            IndexSettingsModule.newIndexSettings("test", settings),
             randomNonNegativeLong(),
             UNASSIGNED_SEQ_NO,
             updatedGlobalCheckpoint,
             currentTimeMillisSupplier,
             (leases, listener) -> {},
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
-            remote ? REMOTE_DISCOVERY_NODE : NON_REMOTE_DISCOVERY_NODE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
     }
 
@@ -84,20 +80,7 @@ public abstract class ReplicationTrackerTestCase extends OpenSearchTestCase {
         return newTracker(allocationId, updatedGlobalCheckpoint, currentTimeMillisSupplier, Settings.EMPTY);
     }
 
-    ReplicationTracker newTracker(
-        final AllocationId allocationId,
-        final LongConsumer updatedGlobalCheckpoint,
-        final LongSupplier currentTimeMillisSupplier,
-        final Settings settings
-    ) {
-        return newTracker(allocationId, updatedGlobalCheckpoint, currentTimeMillisSupplier, settings, false);
-    }
-
     static final Supplier<SafeCommitInfo> OPS_BASED_RECOVERY_ALWAYS_REASONABLE = () -> SafeCommitInfo.EMPTY;
-
-    static final Function<String, Boolean> NON_REMOTE_DISCOVERY_NODE = shardId -> false;
-
-    static final Function<String, Boolean> REMOTE_DISCOVERY_NODE = shardId -> true;
 
     static String nodeIdFromAllocationId(final AllocationId allocationId) {
         return "n-" + allocationId.getId().substring(0, 8);

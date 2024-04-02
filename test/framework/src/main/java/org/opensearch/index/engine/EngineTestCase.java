@@ -898,8 +898,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 update -> {},
                 () -> 0L,
                 (leases, listener) -> listener.onResponse(new ReplicationResponse()),
-                () -> SafeCommitInfo.EMPTY,
-                sId -> false
+                () -> SafeCommitInfo.EMPTY
             );
             globalCheckpointSupplier = replicationTracker;
             retentionLeasesSupplier = replicationTracker::getRetentionLeases;

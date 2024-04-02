@@ -44,7 +44,6 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
@@ -463,8 +462,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         final RepositoriesService repositoriesService,
         final DiscoveryNode targetNode,
-        @Nullable DiscoveryNode sourceNode,
-        DiscoveryNodes discoveryNodes
+        @Nullable DiscoveryNode sourceNode
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -555,8 +553,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 nodeEnv.nodeId(),
                 recoverySettings,
                 remoteStoreSettings,
-                seedRemote,
-                discoveryNodes
+                seedRemote
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

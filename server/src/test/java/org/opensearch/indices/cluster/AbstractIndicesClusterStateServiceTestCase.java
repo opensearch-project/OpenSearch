@@ -35,7 +35,6 @@ package org.opensearch.indices.cluster;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -265,8 +264,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
             final RetentionLeaseSyncer retentionLeaseSyncer,
             final DiscoveryNode targetNode,
             final DiscoveryNode sourceNode,
-            final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-            final DiscoveryNodes discoveryNodes
+            final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
         ) throws IOException {
             failRandomly();
             RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode);
@@ -389,8 +387,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
             BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
             long applyingClusterStateVersion,
             Set<String> inSyncAllocationIds,
-            IndexShardRoutingTable routingTable,
-            DiscoveryNodes discoveryNodes
+            IndexShardRoutingTable routingTable
         ) throws IOException {
             failRandomly();
             assertThat(this.shardId(), equalTo(shardRouting.shardId()));
