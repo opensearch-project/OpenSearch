@@ -1380,7 +1380,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final ShardRouting primaryShard = routingTable.primaryShard();
         final String leaseId = getPeerRecoveryRetentionLeaseId(primaryShard);
         if (retentionLeases.get(leaseId) == null) {
-            if (replicationGroup.getReplicationTargets().equals(Collections.singletonList(primaryShard)) || indexSettings.isRemoteNode()) {
+            if (replicationGroup.getReplicationTargets().equals(Collections.singletonList(primaryShard))
+                || indexSettings.isAssignedOnRemoteNode()) {
                 assert primaryShard.allocationId().getId().equals(shardAllocationId) : routingTable.assignedShards()
                     + " vs "
                     + shardAllocationId;

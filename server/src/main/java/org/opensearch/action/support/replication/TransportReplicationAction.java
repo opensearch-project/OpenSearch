@@ -356,7 +356,7 @@ public abstract class TransportReplicationAction<
      * @return the overridden replication mode.
      */
     public ReplicationMode getReplicationMode(IndexShard indexShard) {
-        if (indexShard.indexSettings().isRemoteNode()) {
+        if (indexShard.indexSettings().isAssignedOnRemoteNode()) {
             return ReplicationMode.NO_REPLICATION;
         }
         return ReplicationMode.FULL_REPLICATION;
@@ -642,7 +642,7 @@ public abstract class TransportReplicationAction<
                         primaryRequest.getPrimaryTerm(),
                         initialRetryBackoffBound,
                         retryTimeout,
-                        indexShard.indexSettings().isRemoteNode()
+                        indexShard.indexSettings().isAssignedOnRemoteNode()
                             ? new ReplicationModeAwareProxy<>(
                                 getReplicationMode(indexShard),
                                 clusterState.getNodes(),
