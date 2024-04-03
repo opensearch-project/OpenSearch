@@ -36,9 +36,14 @@ public class RemoteStorePathStrategy {
     }
 
     public RemoteStorePathStrategy(PathType type, PathHashAlgorithm hashAlgorithm) {
-        assert (type.requiresHashAlgorithm() == false && Objects.isNull(hashAlgorithm)) || Objects.nonNull(hashAlgorithm);
+        assert isCompatible(type, hashAlgorithm);
         this.type = Objects.requireNonNull(type);
         this.hashAlgorithm = hashAlgorithm;
+    }
+
+    public static boolean isCompatible(PathType type, PathHashAlgorithm hashAlgorithm) {
+        return (type.requiresHashAlgorithm() == false && Objects.isNull(hashAlgorithm))
+            || (type.requiresHashAlgorithm() && Objects.nonNull(hashAlgorithm));
     }
 
     public PathType getType() {

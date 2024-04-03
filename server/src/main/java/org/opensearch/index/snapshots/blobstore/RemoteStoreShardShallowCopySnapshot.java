@@ -8,6 +8,7 @@
 
 package org.opensearch.index.snapshots.blobstore;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
@@ -194,7 +195,7 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
         );
     }
 
-    private RemoteStoreShardShallowCopySnapshot(
+    public RemoteStoreShardShallowCopySnapshot(
         String version,
         String snapshot,
         long indexVersion,
@@ -219,7 +220,9 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
             commitGeneration,
             indexUUID,
             remoteStoreRepository,
-            repositoryBasePath
+            repositoryBasePath,
+            pathType,
+            pathHashAlgorithm
         );
         this.version = version;
         this.snapshot = snapshot;
@@ -443,35 +446,44 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
         long commitGeneration,
         String indexUUID,
         String remoteStoreRepository,
-        String repositoryBasePath
+        String repositoryBasePath,
+        PathType pathType,
+        PathHashAlgorithm pathHashAlgorithm
     ) {
-        String exceptionStr = null;
-        if (version == null) {
-            exceptionStr = "Invalid Version Provided";
-        }
-        if (snapshot == null) {
-            exceptionStr = "Invalid/Missing Snapshot Name";
-        }
-        if (indexVersion < 0) {
-            exceptionStr = "Invalid Index Version";
-        }
-        if (primaryTerm < 0) {
-            exceptionStr = "Invalid Primary Term";
-        }
-        if (commitGeneration < 0) {
-            exceptionStr = "Invalid Commit Generation";
-        }
-        if (indexUUID == null) {
-            exceptionStr = "Invalid/Missing Index UUID";
-        }
-        if (remoteStoreRepository == null) {
-            exceptionStr = "Invalid/Missing Remote Store Repository";
-        }
-        if (repositoryBasePath == null) {
-            exceptionStr = "Invalid/Missing Repository Base Path";
-        }
-        if (exceptionStr != null) {
+
+        throwExceptionIfInvalid(Objects.isNull(version), "Invalid Version Provided");
+        throwExceptionIfInvalid(Objects.isNull(snapshot), "Invalid/Missing Snapshot Name");
+        throwExceptionIfInvalid(indexVersion < 0, "Invalid Index Version");
+        throwExceptionIfInvalid(primaryTerm < 0, "Invalid Primary Term");
+        throwExceptionIfInvalid(commitGeneration < 0, "Invalid Commit Generation");
+        throwExceptionIfInvalid(Objects.isNull(indexUUID), "Invalid/Missing Index UUID");
+        throwExceptionIfInvalid(Objects.isNull(remoteStoreRepository), "Invalid/Missing Remote Store Repository");
+        throwExceptionIfInvalid(Objects.isNull(repositoryBasePath), "Invalid/Missing Repository Base Path");
+        throwExceptionIfInvalid(
+            !isValidRemotePathConfiguration(version, pathType, pathHashAlgorithm),
+            new ParameterizedMessage(
+                "Invalid combination of pathType={} pathHashAlgorithm={} for version={}",
+                pathType,
+                pathHashAlgorithm,
+                version
+            ).getFormattedMessage()
+        );
+    }
+
+    private void throwExceptionIfInvalid(boolean isValid, String exceptionStr) {
+        if (isValid) {
             throw new IllegalArgumentException(exceptionStr);
+        }
+    }
+
+    private boolean isValidRemotePathConfiguration(String version, PathType pathType, PathHashAlgorithm pathHashAlgorithm) {
+        switch (version) {
+            case "1":
+                return Objects.isNull(pathType) && Objects.isNull(pathHashAlgorithm);
+            case "2":
+                return Objects.nonNull(pathType) && RemoteStorePathStrategy.isCompatible(pathType, pathHashAlgorithm);
+            default:
+                return false;
         }
     }
 
@@ -520,5 +532,49 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
             return new RemoteStorePathStrategy(pathType, pathHashAlgorithm);
         }
         return new RemoteStorePathStrategy(PathType.FIXED);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        RemoteStoreShardShallowCopySnapshot that = (RemoteStoreShardShallowCopySnapshot) obj;
+
+        return Objects.equals(this.snapshot, that.snapshot)
+            && Objects.equals(this.version, that.version)
+            && this.indexVersion == that.indexVersion
+            && this.startTime == that.startTime
+            && this.time == that.time
+            && this.totalFileCount == that.totalFileCount
+            && this.totalSize == that.totalSize
+            && this.primaryTerm == that.primaryTerm
+            && this.commitGeneration == that.commitGeneration
+            && Objects.equals(this.remoteStoreRepository, that.remoteStoreRepository)
+            && Objects.equals(this.repositoryBasePath, that.repositoryBasePath)
+            && Objects.equals(this.indexUUID, that.indexUUID)
+            && Objects.equals(this.fileNames, that.fileNames)
+            && Objects.equals(this.pathType, that.pathType)
+            && Objects.equals(this.pathHashAlgorithm, that.pathHashAlgorithm);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            snapshot,
+            version,
+            indexVersion,
+            startTime,
+            time,
+            totalFileCount,
+            totalSize,
+            primaryTerm,
+            commitGeneration,
+            remoteStoreRepository,
+            repositoryBasePath,
+            indexUUID,
+            fileNames,
+            pathType,
+            pathHashAlgorithm
+        );
     }
 }
