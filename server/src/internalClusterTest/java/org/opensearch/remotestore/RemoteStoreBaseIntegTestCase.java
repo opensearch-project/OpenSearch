@@ -63,6 +63,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected static final String REPOSITORY_NAME = "test-remote-store-repo";
+    protected static final String SEGMENT_METADATA_REPOSITORY_NAME = "test-remote-segment-metadata-repo";
     protected static final String REPOSITORY_2_NAME = "test-remote-store-repo-2";
     protected static final int SHARD_COUNT = 1;
     protected static int REPLICA_COUNT = 1;
@@ -72,6 +73,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected static final String MAX_SEQ_NO_REFRESHED_OR_FLUSHED = "max-seq-no-refreshed-or-flushed";
 
     protected Path segmentRepoPath;
+    protected Path segmentMetadataRepoPath;
     protected Path translogRepoPath;
     protected boolean clusterSettingsSuppliedByTest = false;
     private final List<String> documentKeys = List.of(
@@ -133,15 +135,29 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         if (segmentRepoPath == null || translogRepoPath == null) {
             segmentRepoPath = randomRepoPath().toAbsolutePath();
+            segmentMetadataRepoPath = randomRepoPath().toAbsolutePath();
             translogRepoPath = randomRepoPath().toAbsolutePath();
         }
         if (clusterSettingsSuppliedByTest) {
             return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
         } else {
-            return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(remoteStoreClusterSettings(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, translogRepoPath))
-                .build();
+            Settings.Builder settingsBuilder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+            if (randomBoolean()) {
+                settingsBuilder.put(remoteStoreClusterSettings(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, translogRepoPath));
+            } else {
+                // Use a separate segment metadata repository
+                settingsBuilder.put(
+                    remoteStoreClusterSettings(
+                        REPOSITORY_NAME,
+                        segmentRepoPath,
+                        SEGMENT_METADATA_REPOSITORY_NAME,
+                        segmentMetadataRepoPath,
+                        REPOSITORY_2_NAME,
+                        translogRepoPath
+                    )
+                );
+            }
+            return settingsBuilder.build();
         }
     }
 
