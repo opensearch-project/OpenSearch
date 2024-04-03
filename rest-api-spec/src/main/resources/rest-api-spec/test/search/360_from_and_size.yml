@@ -6,23 +6,23 @@ setup:
       index:
           index:  test_1
           id:     1
-          body:   { foo: bar1 }
+          body:   { foo: bar }
   - do:
       index:
           index:  test_1
           id:     2
-          body:   { foo: bar2 }
+          body:   { foo: bar }
   - do:
       index:
           index:  test_1
           id:     3
-          body:   { foo: bar3 }
+          body:   { foo: bar }
 
   - do:
       index:
           index:  test_1
           id:     4
-          body:   { foo: bar4 }
+          body:   { foo: bar }
   - do:
       indices.refresh:
           index: [test_1]
