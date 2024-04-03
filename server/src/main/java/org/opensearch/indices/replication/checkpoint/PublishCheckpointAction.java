@@ -98,7 +98,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
 
     @Override
     public ReplicationMode getReplicationMode(IndexShard indexShard) {
-        if (indexShard.isRemoteTranslogEnabled()) {
+        if (indexShard.indexSettings().isAssignedOnRemoteNode()) {
             return ReplicationMode.FULL_REPLICATION;
         }
         return super.getReplicationMode(indexShard);
@@ -199,6 +199,12 @@ public class PublishCheckpointAction extends TransportReplicationAction<
         Objects.requireNonNull(replica);
         ActionListener.completeWith(listener, () -> {
             logger.trace(() -> new ParameterizedMessage("Checkpoint {} received on replica {}", request, replica.shardId()));
+            // Condition for ensuring that we ignore Segrep checkpoints received on Docrep shard copies.
+            // This case will hit iff the replica hosting node is not remote enabled and replication type != SEGMENT
+            if (replica.indexSettings().isAssignedOnRemoteNode() == false && replica.indexSettings().isSegRepLocalEnabled() == false) {
+                logger.trace("Received segrep checkpoint on a docrep shard copy during an ongoing remote migration. NoOp.");
+                return new ReplicaResult();
+            }
             if (request.getCheckpoint().getShardId().equals(replica.shardId())) {
                 replicationService.onNewCheckpoint(request.getCheckpoint(), replica);
             }
