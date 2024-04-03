@@ -63,6 +63,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -1910,12 +1911,11 @@ public final class IndexSettings {
 
     public RemoteStorePathStrategy getRemoteStorePathStrategy() {
         Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
-        if (remoteCustomData != null
-            && remoteCustomData.containsKey(PathType.NAME)
-            && remoteCustomData.containsKey(PathHashAlgorithm.NAME)) {
+        if (remoteCustomData != null && remoteCustomData.containsKey(PathType.NAME)) {
             PathType pathType = PathType.parseString(remoteCustomData.get(PathType.NAME));
-            PathHashAlgorithm pathHashAlgorithm = PathHashAlgorithm.parseString(remoteCustomData.get(PathHashAlgorithm.NAME));
-            return new RemoteStorePathStrategy(pathType, pathHashAlgorithm);
+            String hashAlgoStr = remoteCustomData.get(PathHashAlgorithm.NAME);
+            PathHashAlgorithm hashAlgorithm = Objects.nonNull(hashAlgoStr) ? PathHashAlgorithm.parseString(hashAlgoStr) : null;
+            return new RemoteStorePathStrategy(pathType, hashAlgorithm);
         }
         return new RemoteStorePathStrategy(PathType.FIXED);
     }

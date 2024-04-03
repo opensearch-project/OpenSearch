@@ -206,8 +206,9 @@ public class MetadataCreateIndexService {
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         createIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_KEY, true);
+        Supplier<Version> minNodeVersionSupplier = () -> clusterService.state().nodes().getMinNodeVersion();
         remoteStorePathStrategyResolver = isRemoteDataAttributePresent(settings)
-            ? new RemoteStorePathStrategyResolver(clusterService.getClusterSettings())
+            ? new RemoteStorePathStrategyResolver(clusterService.getClusterSettings(), minNodeVersionSupplier)
             : null;
     }
 
@@ -575,22 +576,18 @@ public class MetadataCreateIndexService {
         if (remoteStorePathStrategyResolver != null) {
             // It is possible that remote custom data exists already. In such cases, we need to only update the path type
             // in the remote store custom data map.
-            Map<String, String> existingRemoteCustomData = tmpImdBuilder.removeCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
-            Map<String, String> remoteCustomData = existingRemoteCustomData == null
-                ? new HashMap<>()
-                : new HashMap<>(existingRemoteCustomData);
+            Map<String, String> existingCustomData = tmpImdBuilder.removeCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+            assert assertNullOldType == false || Objects.isNull(existingCustomData);
+
             // Determine the path type for use using the remoteStorePathResolver.
             RemoteStorePathStrategy newPathStrategy = remoteStorePathStrategyResolver.get();
-            String oldPathType = remoteCustomData.put(PathType.NAME, newPathStrategy.getType().name());
-            String oldHashAlgorithm = remoteCustomData.put(PathHashAlgorithm.NAME, newPathStrategy.getHashAlgorithm().name());
-            assert !assertNullOldType || (Objects.isNull(oldPathType) && Objects.isNull(oldHashAlgorithm));
+            Map<String, String> remoteCustomData = new HashMap<>();
+            remoteCustomData.put(PathType.NAME, newPathStrategy.getType().name());
+            if (Objects.nonNull(newPathStrategy.getHashAlgorithm())) {
+                remoteCustomData.put(PathHashAlgorithm.NAME, newPathStrategy.getHashAlgorithm().name());
+            }
             logger.trace(
-                () -> new ParameterizedMessage(
-                    "Added newPathStrategy={}, replaced oldPathType={} oldHashAlgorithm={}",
-                    newPathStrategy,
-                    oldPathType,
-                    oldHashAlgorithm
-                )
+                () -> new ParameterizedMessage("Added newStrategy={}, replaced oldStrategy={}", remoteCustomData, existingCustomData)
             );
             tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, remoteCustomData);
         }

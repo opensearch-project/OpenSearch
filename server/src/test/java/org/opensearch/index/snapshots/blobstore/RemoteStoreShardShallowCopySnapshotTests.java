@@ -14,6 +14,8 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -52,7 +54,9 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             indexUUID,
             remoteStoreRepository,
             repositoryBasePath,
-            fileNames
+            fileNames,
+            PathType.FIXED,
+            PathHashAlgorithm.FNV_1A
         );
         String actual;
         try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
@@ -61,10 +65,11 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             builder.endObject();
             actual = builder.toString();
         }
-        String expectedXContent = "{\"version\":\"1\",\"name\":\"test-snapshot\",\"index_version\":1,\"start_time\":123,\"time\":123,"
+        String expectedXContent = "{\"version\":\"2\",\"name\":\"test-snapshot\",\"index_version\":1,\"start_time\":123,\"time\":123,"
             + "\"number_of_files\":5,\"total_size\":5,\"index_uuid\":\"syzhajds-ashdlfj\",\"remote_store_repository\":"
             + "\"test-rs-repository\",\"commit_generation\":5,\"primary_term\":3,\"remote_store_repository_base_path\":"
-            + "\"test-repo-basepath\",\"file_names\":[\"file1\",\"file2\",\"file3\",\"file4\",\"file5\"]}";
+            + "\"test-repo-basepath\",\"file_names\":[\"file1\",\"file2\",\"file3\",\"file4\",\"file5\"],\"path_type\":"
+            + "0,\"path_hash_algorithm\":0}";
         assert Objects.equals(actual, expectedXContent) : "xContent is " + actual;
     }
 
@@ -94,7 +99,9 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             indexUUID,
             remoteStoreRepository,
             repositoryBasePath,
-            fileNames
+            fileNames,
+            PathType.FIXED,
+            PathHashAlgorithm.FNV_1A
         );
         String xContent = "{\"version\":\"1\",\"name\":\"test-snapshot\",\"index_version\":1,\"start_time\":123,\"time\":123,"
             + "\"number_of_files\":5,\"total_size\":5,\"index_uuid\":\"syzhajds-ashdlfj\",\"remote_store_repository\":"

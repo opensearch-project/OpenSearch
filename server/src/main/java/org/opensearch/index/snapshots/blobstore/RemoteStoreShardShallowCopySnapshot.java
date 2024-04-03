@@ -14,11 +14,15 @@ import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Remote Store based Shard snapshot metadata
@@ -41,8 +45,10 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
     private final String repositoryBasePath;
     private final String indexUUID;
     private final List<String> fileNames;
+    private final PathType pathType;
+    private final PathHashAlgorithm pathHashAlgorithm;
 
-    static final String DEFAULT_VERSION = "1";
+    static final String DEFAULT_VERSION = "2";
     static final String NAME = "name";
     static final String VERSION = "version";
     static final String INDEX_VERSION = "index_version";
@@ -61,6 +67,8 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
 
     static final String TOTAL_FILE_COUNT = "number_of_files";
     static final String TOTAL_SIZE = "total_size";
+    static final String PATH_TYPE = "path_type";
+    static final String PATH_HASH_ALGORITHM = "path_hash_algorithm";
 
     private static final ParseField PARSE_NAME = new ParseField(NAME);
     private static final ParseField PARSE_VERSION = new ParseField(VERSION);
@@ -75,6 +83,8 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
     private static final ParseField PARSE_REMOTE_STORE_REPOSITORY = new ParseField(REMOTE_STORE_REPOSITORY);
     private static final ParseField PARSE_REPOSITORY_BASE_PATH = new ParseField(REPOSITORY_BASE_PATH);
     private static final ParseField PARSE_FILE_NAMES = new ParseField(FILE_NAMES);
+    private static final ParseField PARSE_PATH_TYPE = new ParseField(PATH_TYPE);
+    private static final ParseField PARSE_PATH_HASH_ALGORITHM = new ParseField(PATH_HASH_ALGORITHM);
 
     /**
      * Serializes shard snapshot metadata info into JSON
@@ -101,9 +111,21 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
             builder.value(fileName);
         }
         builder.endArray();
+        // We are handling NP check since a cluster can have indexes created earlier which do not have remote store
+        // path type and path hash algorithm in its custom data in index metadata.
+        if (Objects.nonNull(pathType)) {
+            builder.field(PATH_TYPE, pathType.getCode());
+        }
+        if (Objects.nonNull(pathHashAlgorithm)) {
+            builder.field(PATH_HASH_ALGORITHM, pathHashAlgorithm.getCode());
+        }
         return builder;
     }
 
+    /**
+     * This is kept only to avoid breaking changes.
+     */
+    @Deprecated
     public RemoteStoreShardShallowCopySnapshot(
         String snapshot,
         long indexVersion,
@@ -118,29 +140,58 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
         String repositoryBasePath,
         List<String> fileNames
     ) {
-        this.version = DEFAULT_VERSION;
-        verifyParameters(
-            version,
+        this(
+            DEFAULT_VERSION,
             snapshot,
             indexVersion,
             primaryTerm,
             commitGeneration,
+            startTime,
+            time,
+            totalFileCount,
+            totalSize,
             indexUUID,
             remoteStoreRepository,
-            repositoryBasePath
+            repositoryBasePath,
+            fileNames,
+            null,
+            null
         );
-        this.snapshot = snapshot;
-        this.indexVersion = indexVersion;
-        this.primaryTerm = primaryTerm;
-        this.commitGeneration = commitGeneration;
-        this.startTime = startTime;
-        this.time = time;
-        this.totalFileCount = totalFileCount;
-        this.totalSize = totalSize;
-        this.indexUUID = indexUUID;
-        this.remoteStoreRepository = remoteStoreRepository;
-        this.repositoryBasePath = repositoryBasePath;
-        this.fileNames = fileNames;
+    }
+
+    public RemoteStoreShardShallowCopySnapshot(
+        String snapshot,
+        long indexVersion,
+        long primaryTerm,
+        long commitGeneration,
+        long startTime,
+        long time,
+        int totalFileCount,
+        long totalSize,
+        String indexUUID,
+        String remoteStoreRepository,
+        String repositoryBasePath,
+        List<String> fileNames,
+        PathType pathType,
+        PathHashAlgorithm pathHashAlgorithm
+    ) {
+        this(
+            DEFAULT_VERSION,
+            snapshot,
+            indexVersion,
+            primaryTerm,
+            commitGeneration,
+            startTime,
+            time,
+            totalFileCount,
+            totalSize,
+            indexUUID,
+            remoteStoreRepository,
+            repositoryBasePath,
+            fileNames,
+            pathType,
+            pathHashAlgorithm
+        );
     }
 
     private RemoteStoreShardShallowCopySnapshot(
@@ -156,7 +207,9 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
         String indexUUID,
         String remoteStoreRepository,
         String repositoryBasePath,
-        List<String> fileNames
+        List<String> fileNames,
+        PathType pathType,
+        PathHashAlgorithm pathHashAlgorithm
     ) {
         verifyParameters(
             version,
@@ -181,6 +234,8 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
         this.remoteStoreRepository = remoteStoreRepository;
         this.repositoryBasePath = repositoryBasePath;
         this.fileNames = fileNames;
+        this.pathType = pathType;
+        this.pathHashAlgorithm = pathHashAlgorithm;
     }
 
     /**
@@ -203,6 +258,8 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
         long primaryTerm = -1;
         long commitGeneration = -1;
         List<String> fileNames = new ArrayList<>();
+        PathType pathType = null;
+        PathHashAlgorithm pathHashAlgorithm = null;
 
         if (parser.currentToken() == null) { // fresh parser? move to the first token
             parser.nextToken();
@@ -237,6 +294,10 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
                     remoteStoreRepository = parser.text();
                 } else if (PARSE_REPOSITORY_BASE_PATH.match(currentFieldName, parser.getDeprecationHandler())) {
                     repositoryBasePath = parser.text();
+                } else if (PARSE_PATH_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    pathType = PathType.fromCode(parser.intValue());
+                } else if (PARSE_PATH_HASH_ALGORITHM.match(currentFieldName, parser.getDeprecationHandler())) {
+                    pathHashAlgorithm = PathHashAlgorithm.fromCode(parser.intValue());
                 } else {
                     throw new OpenSearchParseException("unknown parameter [{}]", currentFieldName);
                 }
@@ -266,7 +327,9 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
             indexUUID,
             remoteStoreRepository,
             repositoryBasePath,
-            fileNames
+            fileNames,
+            pathType,
+            pathHashAlgorithm
         );
     }
 
@@ -433,7 +496,9 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
             indexUUID,
             remoteStoreRepository,
             repositoryBasePath,
-            fileNames
+            fileNames,
+            pathType,
+            pathHashAlgorithm
         );
     }
 
@@ -448,5 +513,12 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
             totalSize,
             null
         ); // Not adding a real generation here as it doesn't matter to callers
+    }
+
+    public RemoteStorePathStrategy getRemoteStorePathStrategy() {
+        if (Objects.nonNull(pathType)) {
+            return new RemoteStorePathStrategy(pathType, pathHashAlgorithm);
+        }
+        return new RemoteStorePathStrategy(PathType.FIXED);
     }
 }

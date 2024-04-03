@@ -36,7 +36,7 @@ public class RemoteStorePathStrategy {
     }
 
     public RemoteStorePathStrategy(PathType type, PathHashAlgorithm hashAlgorithm) {
-        assert type.requiresHashAlgorithm() == false || Objects.nonNull(hashAlgorithm);
+        assert (type.requiresHashAlgorithm() == false && Objects.isNull(hashAlgorithm)) || Objects.nonNull(hashAlgorithm);
         this.type = Objects.requireNonNull(type);
         this.hashAlgorithm = hashAlgorithm;
     }
@@ -55,7 +55,7 @@ public class RemoteStorePathStrategy {
     }
 
     public BlobPath generatePath(PathInput pathInput) {
-        return type.generatePath(pathInput, hashAlgorithm);
+        return type.path(pathInput, hashAlgorithm);
     }
 
     /**
