@@ -1,7 +1,7 @@
 {
   "cat.master":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-master.html",
+      "url":"https://opensearch.org/docs/1.3/api-reference/cat/cat-cluster_manager/",
       "description":"Returns information about the master node."
     },
     "stability":"stable",
