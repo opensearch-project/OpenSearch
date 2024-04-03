@@ -76,8 +76,10 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING;
@@ -368,29 +370,17 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
-        if (randomBoolean()) {
-            writer.flush();
-            IOUtils.close(writer);
-            writer = new IndexWriter(dir, newIndexWriterConfig());
-        }
-        writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
         DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
 
         // Get 2 entries into the cache
         IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
         Loader loader = new Loader(reader, 0);
         cache.getOrCompute(entity, loader, reader, termBytes);
-
-        entity = new IndicesService.IndexShardCacheEntity(indexShard);
-        loader = new Loader(reader, 0);
-        cache.getOrCompute(entity, loader, reader, termBytes);
+        assertEquals(1, cache.count());
 
         IndicesService.IndexShardCacheEntity secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
         loader = new Loader(secondReader, 0);
-        cache.getOrCompute(entity, loader, secondReader, termBytes);
-
         secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
-        loader = new Loader(secondReader, 0);
         cache.getOrCompute(secondEntity, loader, secondReader, termBytes);
         assertEquals(2, cache.count());
 
@@ -429,47 +419,37 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
-        if (randomBoolean()) {
-            writer.flush();
-            IOUtils.close(writer);
-            writer = new IndexWriter(dir, newIndexWriterConfig());
-        }
-        writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
         DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
 
         // Get 2 entries into the cache
         IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
         Loader loader = new Loader(reader, 0);
         cache.getOrCompute(entity, loader, reader, termBytes);
-
-        entity = new IndicesService.IndexShardCacheEntity(indexShard);
-        loader = new Loader(reader, 0);
-        cache.getOrCompute(entity, loader, reader, termBytes);
+        assertEquals(1, cache.count());
 
         IndicesService.IndexShardCacheEntity secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
-        loader = new Loader(secondReader, 0);
-        cache.getOrCompute(entity, loader, secondReader, termBytes);
-
-        secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
         loader = new Loader(secondReader, 0);
         cache.getOrCompute(secondEntity, loader, secondReader, termBytes);
         assertEquals(2, cache.count());
 
         // Close the reader, to be enqueued for cleanup
-        // 1 out of 2 keys ie 50% are now stale.
         reader.close();
+        // 1 out of 2 keys ie 50% are now stale.
+        assertEquals(1, cache.cacheCleanupManager.getStaleKeysCount().get());
         // cache count should not be affected
         assertEquals(2, cache.count());
 
         // clean cache with 50% staleness threshold
         cache.cacheCleanupManager.cleanCache();
         // cleanup should have taken effect
+        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
         assertEquals(1, cache.count());
 
         IOUtils.close(secondReader, writer, dir, cache);
         terminate(threadPool);
     }
 
+    // when a cache entry that is Stale is evicted for any reason, we have to deduct the count from our staleness count
     public void testStaleCount_OnRemovalNotificationOfStaleKey_DecrementsStaleCount() throws Exception {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexShard indexShard = createIndex("test").getShard(0);
@@ -486,63 +466,49 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         }), new CacheModule(new ArrayList<>(), settings).getCacheService(), threadPool);
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+        ShardId shardId = new ShardId("foo", "bar", 1);
 
         writer.addDocument(newDoc(0, "foo"));
-        DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), shardId);
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
-        if (randomBoolean()) {
-            writer.flush();
-            IOUtils.close(writer);
-            writer = new IndexWriter(dir, newIndexWriterConfig());
-        }
-        writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
-        DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), shardId);
 
-        // Get 2 entries into the cache
+        // Get 2 entries into the cache from 2 different readers
         IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
         Loader loader = new Loader(reader, 0);
         cache.getOrCompute(entity, loader, reader, termBytes);
-
-        entity = new IndicesService.IndexShardCacheEntity(indexShard);
-        loader = new Loader(reader, 0);
-        cache.getOrCompute(entity, loader, reader, termBytes);
+        assertEquals(1, cache.count());
 
         IndicesService.IndexShardCacheEntity secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
-        loader = new Loader(secondReader, 0);
-        cache.getOrCompute(entity, loader, secondReader, termBytes);
-
-        secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
         loader = new Loader(secondReader, 0);
         cache.getOrCompute(secondEntity, loader, secondReader, termBytes);
         assertEquals(2, cache.count());
 
-        // Close the reader, to be enqueued for cleanup
+        // assert no stale keys are accounted so far
+        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
+        // Close the reader, this should create a stale key
         reader.close();
-        AtomicInteger staleKeysCount = cache.cacheCleanupManager.getStaleKeysCount();
         // 1 out of 2 keys ie 50% are now stale.
-        assertEquals(1, staleKeysCount.get());
+        assertEquals(1, cache.cacheCleanupManager.getStaleKeysCount().get());
         // cache count should not be affected
         assertEquals(2, cache.count());
 
-        OpenSearchDirectoryReader.DelegatingCacheHelper delegatingCacheHelper =
-            (OpenSearchDirectoryReader.DelegatingCacheHelper) secondReader.getReaderCacheHelper();
-        String readerCacheKeyId = delegatingCacheHelper.getDelegatingCacheKey().getId();
         IndicesRequestCache.Key key = new IndicesRequestCache.Key(
             ((IndexShard) secondEntity.getCacheIdentity()).shardId(),
             termBytes,
-            readerCacheKeyId
+            getReaderCacheKeyId(reader)
         );
 
         cache.onRemoval(new RemovalNotification<IndicesRequestCache.Key, BytesReference>(key, termBytes, RemovalReason.EVICTED));
-        staleKeysCount = cache.cacheCleanupManager.getStaleKeysCount();
         // eviction of previous stale key from the cache should decrement staleKeysCount in iRC
-        assertEquals(0, staleKeysCount.get());
+        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
 
         IOUtils.close(secondReader, writer, dir, cache);
         terminate(threadPool);
     }
 
+    // when a cache entry that is NOT Stale is evicted for any reason, we should NOT deduct it from staleness count
     public void testStaleCount_OnRemovalNotificationOfStaleKey_DoesNotDecrementsStaleCount() throws Exception {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexShard indexShard = createIndex("test").getShard(0);
@@ -564,28 +530,15 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
-        if (randomBoolean()) {
-            writer.flush();
-            IOUtils.close(writer);
-            writer = new IndexWriter(dir, newIndexWriterConfig());
-        }
-        writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
         DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
 
         // Get 2 entries into the cache
         IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
         Loader loader = new Loader(reader, 0);
         cache.getOrCompute(entity, loader, reader, termBytes);
-
-        entity = new IndicesService.IndexShardCacheEntity(indexShard);
-        loader = new Loader(reader, 0);
-        cache.getOrCompute(entity, loader, reader, termBytes);
+        assertEquals(1, cache.count());
 
         IndicesService.IndexShardCacheEntity secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
-        loader = new Loader(secondReader, 0);
-        cache.getOrCompute(entity, loader, secondReader, termBytes);
-
-        secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
         loader = new Loader(secondReader, 0);
         cache.getOrCompute(secondEntity, loader, secondReader, termBytes);
         assertEquals(2, cache.count());
@@ -598,9 +551,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         // cache count should not be affected
         assertEquals(2, cache.count());
 
-        OpenSearchDirectoryReader.DelegatingCacheHelper delegatingCacheHelper = (OpenSearchDirectoryReader.DelegatingCacheHelper) reader
-            .getReaderCacheHelper();
-        String readerCacheKeyId = delegatingCacheHelper.getDelegatingCacheKey().getId();
+        // evict entry from second reader (this reader is not closed)
+        String readerCacheKeyId = getReaderCacheKeyId(secondReader);
         IndicesRequestCache.Key key = new IndicesRequestCache.Key(
             ((IndexShard) secondEntity.getCacheIdentity()).shardId(),
             termBytes,
@@ -613,6 +565,55 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(1, staleKeysCount.get());
 
         IOUtils.close(secondReader, writer, dir, cache);
+        terminate(threadPool);
+    }
+
+    // when a cache entry that is NOT Stale is evicted WITHOUT its reader closing, we should NOT deduct it from staleness count
+    public void testStaleCount_WithoutReaderClosing_OnRemovalNotificationOfStaleKey_DecrementsStaleCount() throws Exception {
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexShard indexShard = createIndex("test").getShard(0);
+        ThreadPool threadPool = getThreadPool();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
+        IndicesRequestCache cache = new IndicesRequestCache(settings, (shardId -> {
+            IndexService indexService = null;
+            try {
+                indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            } catch (IndexNotFoundException ex) {
+                return Optional.empty();
+            }
+            return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
+        }), new CacheModule(new ArrayList<>(), settings).getCacheService(), threadPool);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
+        DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+
+        // Get 2 entries into the cache from 2 different readers
+        IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
+        Loader loader = new Loader(reader, 0);
+        cache.getOrCompute(entity, loader, reader, termBytes);
+
+        IndicesService.IndexShardCacheEntity secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
+        loader = new Loader(secondReader, 0);
+        cache.getOrCompute(secondEntity, loader, secondReader, termBytes);
+        assertEquals(2, cache.count());
+        // no keys are stale
+        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
+        // create notification for removal of non-stale entry
+        IndicesRequestCache.Key key = new IndicesRequestCache.Key(
+            ((IndexShard) secondEntity.getCacheIdentity()).shardId(),
+            termBytes,
+            getReaderCacheKeyId(reader)
+        );
+        cache.onRemoval(new RemovalNotification<IndicesRequestCache.Key, BytesReference>(key, termBytes, RemovalReason.EVICTED));
+        // stale keys count should stay zero
+        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
+
+        IOUtils.close(reader, secondReader, writer, dir, cache);
         terminate(threadPool);
     }
 
@@ -637,35 +638,25 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
-        if (randomBoolean()) {
-            writer.flush();
-            IOUtils.close(writer);
-            writer = new IndexWriter(dir, newIndexWriterConfig());
-        }
-        writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
         DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
 
         // Get 2 entries into the cache
         IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
         Loader loader = new Loader(reader, 0);
         cache.getOrCompute(entity, loader, reader, termBytes);
-
-        entity = new IndicesService.IndexShardCacheEntity(indexShard);
-        loader = new Loader(reader, 0);
-        cache.getOrCompute(entity, loader, reader, termBytes);
+        assertEquals(1, cache.count());
 
         IndicesService.IndexShardCacheEntity secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
-        loader = new Loader(secondReader, 0);
-        cache.getOrCompute(entity, loader, secondReader, termBytes);
-
-        secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
         loader = new Loader(secondReader, 0);
         cache.getOrCompute(secondEntity, loader, secondReader, termBytes);
         assertEquals(2, cache.count());
 
+        // no stale keys so far
+        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
         // Close the reader, to be enqueued for cleanup
-        // 1 out of 2 keys ie 50% are now stale.
         reader.close();
+        // 1 out of 2 keys ie 50% are now stale.
+        assertEquals(1, cache.cacheCleanupManager.getStaleKeysCount().get());
         // cache count should not be affected
         assertEquals(2, cache.count());
 
@@ -673,6 +664,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         cache.cacheCleanupManager.cleanCache();
         // cleanup should have taken effect with 49% threshold
         assertEquals(1, cache.count());
+        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
 
         IOUtils.close(secondReader, writer, dir, cache);
         terminate(threadPool);
@@ -699,45 +691,191 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
-        if (randomBoolean()) {
-            writer.flush();
-            IOUtils.close(writer);
-            writer = new IndexWriter(dir, newIndexWriterConfig());
-        }
-        writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
         DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
 
         // Get 2 entries into the cache
         IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
         Loader loader = new Loader(reader, 0);
         cache.getOrCompute(entity, loader, reader, termBytes);
-
-        entity = new IndicesService.IndexShardCacheEntity(indexShard);
-        loader = new Loader(reader, 0);
-        cache.getOrCompute(entity, loader, reader, termBytes);
+        assertEquals(1, cache.count());
 
         IndicesService.IndexShardCacheEntity secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
-        loader = new Loader(secondReader, 0);
-        cache.getOrCompute(entity, loader, secondReader, termBytes);
-
-        secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
         loader = new Loader(secondReader, 0);
         cache.getOrCompute(secondEntity, loader, secondReader, termBytes);
         assertEquals(2, cache.count());
 
         // Close the reader, to be enqueued for cleanup
-        // 1 out of 2 keys ie 50% are now stale.
         reader.close();
+        // 1 out of 2 keys ie 50% are now stale.
+        assertEquals(1, cache.cacheCleanupManager.getStaleKeysCount().get());
         // cache count should not be affected
         assertEquals(2, cache.count());
 
         // clean cache with 51% staleness threshold
         cache.cacheCleanupManager.cleanCache();
         // cleanup should have been ignored
+        assertEquals(1, cache.cacheCleanupManager.getStaleKeysCount().get());
         assertEquals(2, cache.count());
 
         IOUtils.close(secondReader, writer, dir, cache);
         terminate(threadPool);
+    }
+
+    // test staleness count based on removal notifications
+    public void testStaleCount_OnRemovalNotifications() throws Exception {
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexShard indexShard = createIndex("test").getShard(0);
+        ThreadPool threadPool = getThreadPool();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
+        IndicesRequestCache cache = new IndicesRequestCache(settings, (shardId -> {
+            IndexService indexService = null;
+            try {
+                indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            } catch (IndexNotFoundException ex) {
+                return Optional.empty();
+            }
+            return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
+        }), new CacheModule(new ArrayList<>(), settings).getCacheService(), threadPool);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+
+        // Get 5 entries into the cache
+        int totalKeys = 5;
+        IndicesService.IndexShardCacheEntity entity = null;
+        TermQueryBuilder termQuery = null;
+        BytesReference termBytes = null;
+        for (int i = 1; i <= totalKeys; i++) {
+            termQuery = new TermQueryBuilder("id", "" + i);
+            termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
+            entity = new IndicesService.IndexShardCacheEntity(indexShard);
+            Loader loader = new Loader(reader, 0);
+            cache.getOrCompute(entity, loader, reader, termBytes);
+            assertEquals(i, cache.count());
+        }
+        // no keys are stale yet
+        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
+        // closing the reader should make all keys stale
+        reader.close();
+        assertEquals(totalKeys, cache.cacheCleanupManager.getStaleKeysCount().get());
+
+        String readerCacheKeyId = getReaderCacheKeyId(reader);
+        IndicesRequestCache.Key key = new IndicesRequestCache.Key(
+            ((IndexShard) entity.getCacheIdentity()).shardId(),
+            termBytes,
+            readerCacheKeyId
+        );
+
+        int staleCount = cache.cacheCleanupManager.getStaleKeysCount().get();
+        // Notification for Replaced should not deduct the staleCount
+        cache.onRemoval(new RemovalNotification<IndicesRequestCache.Key, BytesReference>(key, termBytes, RemovalReason.REPLACED));
+        // stale keys count should stay the same
+        assertEquals(staleCount, cache.cacheCleanupManager.getStaleKeysCount().get());
+
+        // Notification for all but Replaced should deduct the staleCount
+        RemovalReason[] reasons = { RemovalReason.INVALIDATED, RemovalReason.EVICTED, RemovalReason.EXPLICIT, RemovalReason.CAPACITY };
+        for (RemovalReason reason : reasons) {
+            cache.onRemoval(new RemovalNotification<IndicesRequestCache.Key, BytesReference>(key, termBytes, reason));
+            assertEquals(--staleCount, cache.cacheCleanupManager.getStaleKeysCount().get());
+        }
+
+        IOUtils.close(writer, dir, cache);
+        terminate(threadPool);
+    }
+
+    // test the cleanupKeyToCountMap are set appropriately when both readers are closed
+    public void testCleanupKeyToCountMapAreSetAppropriately() throws Exception {
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexShard indexShard = createIndex("test").getShard(0);
+        ShardId shardId = indexShard.shardId();
+        ThreadPool threadPool = getThreadPool();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
+        IndicesRequestCache cache = new IndicesRequestCache(settings, (currentShardId -> {
+            IndexService indexService = null;
+            try {
+                indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            } catch (IndexNotFoundException ex) {
+                return Optional.empty();
+            }
+            return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
+        }), new CacheModule(new ArrayList<>(), settings).getCacheService(), threadPool);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+        writer.addDocument(newDoc(0, "foo"));
+
+        DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
+        if (randomBoolean()) {
+            writer.flush();
+            IOUtils.close(writer);
+            writer = new IndexWriter(dir, newIndexWriterConfig());
+        }
+        writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
+
+        // Get 2 entries into the cache from 2 different readers
+        IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
+        Loader loader = new Loader(reader, 0);
+        cache.getOrCompute(entity, loader, reader, termBytes);
+        assertEquals(1, cache.count());
+        // test the mappings
+        String readerCacheKeyId = getReaderCacheKeyId(reader);
+        ConcurrentMap<
+            ShardId,
+            HashMap<String, IndicesRequestCache.IndicesRequestCacheCleanupManager.StalenessProperty>> cleanupKeyToCountMap =
+                cache.cacheCleanupManager.getCleanupKeyToCountMap();
+        assertEquals(1, cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getCount());
+        assertFalse(cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getIsAccounted());
+
+        IndicesService.IndexShardCacheEntity secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
+        loader = new Loader(secondReader, 0);
+        cache.getOrCompute(secondEntity, loader, secondReader, termBytes);
+        // test the mapping
+        readerCacheKeyId = getReaderCacheKeyId(secondReader);
+        assertEquals(2, cache.count());
+        assertEquals(1, cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getCount());
+        assertFalse(cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getIsAccounted());
+
+        // Close the reader, to create stale entries
+        reader.close();
+        // 1 out of 2 keys ie 50% are now stale.
+        assertEquals(1, cache.cacheCleanupManager.getStaleKeysCount().get());
+        // cache count should not be affected
+        assertEquals(2, cache.count());
+
+        // test the mapping
+        readerCacheKeyId = getReaderCacheKeyId(reader);
+        assertEquals(1, cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getCount());
+        assertTrue(cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getIsAccounted());
+
+        // second reader's mapping should not be affected
+        readerCacheKeyId = getReaderCacheKeyId(secondReader);
+        assertEquals(1, cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getCount());
+        assertFalse(cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getIsAccounted());
+
+        // Close the second reader
+        secondReader.close();
+        // both keys should now be stale
+        assertEquals(2, cache.cacheCleanupManager.getStaleKeysCount().get());
+        // cache count should not be affected
+        assertEquals(2, cache.count());
+
+        // test the mapping
+        readerCacheKeyId = getReaderCacheKeyId(secondReader);
+        assertEquals(1, cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getCount());
+        assertTrue(cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getIsAccounted());
+
+        IOUtils.close(writer, dir, cache);
+        terminate(threadPool);
+    }
+
+    private String getReaderCacheKeyId(DirectoryReader reader) {
+        OpenSearchDirectoryReader.DelegatingCacheHelper delegatingCacheHelper = (OpenSearchDirectoryReader.DelegatingCacheHelper) reader
+            .getReaderCacheHelper();
+        return delegatingCacheHelper.getDelegatingCacheKey().getId();
     }
 
     public void testEviction() throws Exception {
