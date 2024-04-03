@@ -794,14 +794,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    public static String determineTransportProtocol(BytesReference headerBuffer) {
-        if (headerBuffer.get(0) == 'O' && headerBuffer.get(1) == 'S' && headerBuffer.get(2) == 'P') {
-            return ProtocolInboundMessage.PROTOBUF_PROTOCOL;
-        } else {
-            return ProtocolInboundMessage.NATIVE_PROTOCOL;
-        }
-    }
-
     private static int readHeaderBuffer(BytesReference headerBuffer) throws IOException {
         if (headerBuffer.get(0) != 'E' || headerBuffer.get(1) != 'S') {
             if (appearsToBeHTTPRequest(headerBuffer)) {

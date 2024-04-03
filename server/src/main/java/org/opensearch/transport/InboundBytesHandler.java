@@ -18,4 +18,6 @@ import java.io.IOException;
 public interface InboundBytesHandler {
 
     public void doHandleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException;
+
+    public boolean canHandleBytes(ReleasableBytesReference reference);
 }

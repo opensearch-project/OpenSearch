@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.annotation.DeprecatedApi;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -44,7 +45,7 @@ import java.io.IOException;
  * This api is deprecated, please use {@link org.opensearch.transport.nativeprotocol.NativeInboundMessage} instead.
  * @opensearch.api
  */
-@Deprecated(since = "2.14.0")
+@DeprecatedApi(since = "2.14.0")
 public class InboundMessage implements Releasable, ProtocolInboundMessage {
 
     private final NativeInboundMessage nativeInboundMessage;

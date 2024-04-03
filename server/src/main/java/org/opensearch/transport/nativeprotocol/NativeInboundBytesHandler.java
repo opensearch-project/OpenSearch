@@ -58,6 +58,11 @@ public class NativeInboundBytesHandler implements InboundBytesHandler {
     }
 
     @Override
+    public boolean canHandleBytes(ReleasableBytesReference reference) {
+        return true;
+    }
+
+    @Override
     public void doHandleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
         final ArrayList<Object> fragments = fragmentList.get();
         boolean continueHandling = true;

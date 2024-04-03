@@ -42,8 +42,7 @@ import org.opensearch.transport.nativeprotocol.NativeInboundBytesHandler;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Map;
+import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -56,18 +55,14 @@ import java.util.function.Supplier;
  */
 public class InboundPipeline implements Releasable {
 
-    private static final ThreadLocal<ArrayList<Object>> fragmentList = ThreadLocal.withInitial(ArrayList::new);
-    private static final InboundMessage PING_MESSAGE = new InboundMessage(null, true);
-
     private final LongSupplier relativeTimeInMillis;
     private final StatsTracker statsTracker;
     private final InboundDecoder decoder;
     private final InboundAggregator aggregator;
-    private final BiConsumer<TcpChannel, ProtocolInboundMessage> messageHandler;
     private Exception uncaughtException;
     private final ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
-    private final Map<String, InboundBytesHandler> protocolBytesHandlers;
+    private final List<InboundBytesHandler> protocolBytesHandlers;
 
     public InboundPipeline(
         Version version,
@@ -98,9 +93,7 @@ public class InboundPipeline implements Releasable {
         this.statsTracker = statsTracker;
         this.decoder = decoder;
         this.aggregator = aggregator;
-        this.messageHandler = messageHandler;
-        this.protocolBytesHandlers = Map.of(
-            ProtocolInboundMessage.NATIVE_PROTOCOL,
+        this.protocolBytesHandlers = List.of(
             new NativeInboundBytesHandler(isClosed, pending, decoder, aggregator, statsTracker, messageHandler)
         );
     }
@@ -130,11 +123,12 @@ public class InboundPipeline implements Releasable {
         statsTracker.markBytesRead(reference.length());
         pending.add(reference.retain());
 
-        String incomingMessageProtocol = TcpTransport.determineTransportProtocol(reference);
-        InboundBytesHandler handler = protocolBytesHandlers.get(incomingMessageProtocol);
-        if (handler == null) {
-            throw new IllegalStateException("No bytes handler found for protocol: " + incomingMessageProtocol);
+        for (InboundBytesHandler handler : protocolBytesHandlers) {
+            if (handler.canHandleBytes(reference)) {
+                handler.doHandleBytes(channel, reference);
+                return;
+            }
         }
-        handler.doHandleBytes(channel, reference);
+        throw new IllegalStateException("No bytes handler found for the incoming transport protocol");
     }
 }
