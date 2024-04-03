@@ -6,6 +6,8 @@
  * compatible open source license.
  */
 
+apply plugin: 'opensearch.internal-cluster-test'
+
 opensearchplugin {
   description 'Module for caches which are optional and do not require additional security permission'
   classname 'org.opensearch.cache.common.tier.TieredSpilloverCachePlugin'

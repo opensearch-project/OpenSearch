@@ -48,16 +48,21 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.search.pipeline.SearchPipelineService;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -65,7 +70,6 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static org.opensearch.Version.V_2_7_0;
-import static org.opensearch.common.util.FeatureFlags.DOC_ID_FUZZY_SET_SETTING;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.index.codec.fuzzy.FuzzySetParameters.DEFAULT_FALSE_POSITIVE_PROBABILITY;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
@@ -625,6 +629,16 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    /**
+     * Expert: Makes indexing threads check for pending flushes on update in order to help out
+     * flushing indexing buffers to disk. This is an experimental Apache Lucene feature.
+     */
+    public static final Setting<Boolean> INDEX_CHECK_PENDING_FLUSH_ENABLED = Setting.boolSetting(
+        "index.check_pending_flush.enabled",
+        true,
+        Property.IndexScope
+    );
+
     public static final Setting<String> TIME_SERIES_INDEX_MERGE_POLICY = Setting.simpleString(
         "indices.time_series_index.default_index_merge_policy",
         DEFAULT_POLICY,
@@ -749,6 +763,7 @@ public final class IndexSettings {
 
     private volatile String defaultSearchPipeline;
     private final boolean widenIndexSortType;
+    private final boolean assignedOnRemoteNode;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -817,7 +832,10 @@ public final class IndexSettings {
      * Specialized merge-on-flush policy if provided
      */
     private volatile UnaryOperator<MergePolicy> mergeOnFlushPolicy;
-
+    /**
+     * Is flush check by write threads enabled or not
+     */
+    private final boolean checkPendingFlushEnabled;
     /**
      * Is fuzzy set enabled for doc id
      */
@@ -960,6 +978,7 @@ public final class IndexSettings {
         maxFullFlushMergeWaitTime = scopedSettings.get(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME);
         mergeOnFlushEnabled = scopedSettings.get(INDEX_MERGE_ON_FLUSH_ENABLED);
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
+        checkPendingFlushEnabled = scopedSettings.get(INDEX_CHECK_PENDING_FLUSH_ENABLED);
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
         /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
          * For indices created prior version (prior to 2.7) which has IndexSort type, they used to type cast the SortField.Type
@@ -968,12 +987,10 @@ public final class IndexSettings {
          * Now this sortField (IndexSort) is stored in SegmentInfo and we need to maintain backward compatibility for them.
          */
         widenIndexSortType = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).before(V_2_7_0);
+        assignedOnRemoteNode = RemoteStoreNodeAttribute.isRemoteDataAttributePresent(this.getNodeSettings());
 
-        boolean isOptimizeDocIdLookupUsingFuzzySetFeatureEnabled = FeatureFlags.isEnabled(DOC_ID_FUZZY_SET_SETTING);
-        if (isOptimizeDocIdLookupUsingFuzzySetFeatureEnabled) {
-            enableFuzzySetForDocId = scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING);
-            docIdFuzzySetFalsePositiveProbability = scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING);
-        }
+        setEnableFuzzySetForDocId(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING));
+        setDocIdFuzzySetFalsePositiveProbability(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING));
 
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING,
@@ -1211,17 +1228,16 @@ public final class IndexSettings {
 
     /**
      * Returns true if segment replication is enabled on the index.
+     *
+     * Every shard on a remote node would also have SegRep enabled even without
+     * proper index setting during the migration.
      */
-    public boolean isSegRepEnabled() {
-        return ReplicationType.SEGMENT.equals(replicationType);
+    public boolean isSegRepEnabledOrRemoteNode() {
+        return ReplicationType.SEGMENT.equals(replicationType) || isAssignedOnRemoteNode();
     }
 
     public boolean isSegRepLocalEnabled() {
-        return isSegRepEnabled() && !isRemoteStoreEnabled();
-    }
-
-    public boolean isSegRepWithRemoteEnabled() {
-        return isSegRepEnabled() && isRemoteStoreEnabled();
+        return ReplicationType.SEGMENT.equals(replicationType) && !isRemoteStoreEnabled();
     }
 
     /**
@@ -1229,6 +1245,10 @@ public final class IndexSettings {
      */
     public boolean isRemoteStoreEnabled() {
         return isRemoteStoreEnabled;
+    }
+
+    public boolean isAssignedOnRemoteNode() {
+        return assignedOnRemoteNode;
     }
 
     /**
@@ -1848,6 +1868,10 @@ public final class IndexSettings {
         }
     }
 
+    public boolean isCheckPendingFlushEnabled() {
+        return checkPendingFlushEnabled;
+    }
+
     public Optional<UnaryOperator<MergePolicy>> getMergeOnFlushPolicy() {
         return Optional.ofNullable(mergeOnFlushPolicy);
     }
@@ -1873,7 +1897,7 @@ public final class IndexSettings {
     }
 
     public void setEnableFuzzySetForDocId(boolean enableFuzzySetForDocId) {
-        verifyFeatureToSetDocIdFuzzySetSetting(enabled -> this.enableFuzzySetForDocId = enabled, enableFuzzySetForDocId);
+        this.enableFuzzySetForDocId = enableFuzzySetForDocId;
     }
 
     public double getDocIdFuzzySetFalsePositiveProbability() {
@@ -1881,22 +1905,18 @@ public final class IndexSettings {
     }
 
     public void setDocIdFuzzySetFalsePositiveProbability(double docIdFuzzySetFalsePositiveProbability) {
-        verifyFeatureToSetDocIdFuzzySetSetting(
-            fpp -> this.docIdFuzzySetFalsePositiveProbability = fpp,
-            docIdFuzzySetFalsePositiveProbability
-        );
+        this.docIdFuzzySetFalsePositiveProbability = docIdFuzzySetFalsePositiveProbability;
     }
 
-    private static <T> void verifyFeatureToSetDocIdFuzzySetSetting(Consumer<T> settingUpdater, T val) {
-        if (FeatureFlags.isEnabled(DOC_ID_FUZZY_SET_SETTING)) {
-            settingUpdater.accept(val);
-        } else {
-            throw new IllegalArgumentException(
-                "Fuzzy set for optimizing doc id lookup "
-                    + "cannot be enabled with feature flag ["
-                    + FeatureFlags.DOC_ID_FUZZY_SET
-                    + "] set to false"
-            );
+    public RemoteStorePathStrategy getRemoteStorePathStrategy() {
+        Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        if (remoteCustomData != null
+            && remoteCustomData.containsKey(PathType.NAME)
+            && remoteCustomData.containsKey(PathHashAlgorithm.NAME)) {
+            PathType pathType = PathType.parseString(remoteCustomData.get(PathType.NAME));
+            PathHashAlgorithm pathHashAlgorithm = PathHashAlgorithm.parseString(remoteCustomData.get(PathHashAlgorithm.NAME));
+            return new RemoteStorePathStrategy(pathType, pathHashAlgorithm);
         }
+        return new RemoteStorePathStrategy(PathType.FIXED);
     }
 }
