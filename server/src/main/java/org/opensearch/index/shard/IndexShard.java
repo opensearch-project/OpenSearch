@@ -4489,7 +4489,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * threshold count determined by {@code index.translog.max_uncommitted_files_threshold}
      * @return {@code true} if the shard should be Refreshed
      */
-    boolean shouldRefreshShard(){
+    boolean shouldRefreshShard() {
         final Engine engine = getEngineOrNull();
         if (engine != null) {
             try {
@@ -4504,16 +4504,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicBoolean isRefreshRunning = new AtomicBoolean();
 
     /**
-     * Will Call a blocking Refresh and then Trim the Unreferenced Translog files
-     */
-    private void refreshAndTrimTranslogfiles(String source) throws IOException {
-        refresh(source);
-        getEngine().translogManager().trimUnreferencedTranslogFiles();
-    }
-
-    /**
      * Schedules a flush or translog generation roll if needed but will not schedule more than one concurrently. The operation will be
      * executed asynchronously on the flush thread pool.
+     * Also Schedules a refresh if Number of Translog files breaches the threshold count determined by
+     * {@code index.translog.max_uncommitted_files_threshold}
      */
     public void afterWriteOperation() {
         if (shouldPeriodicallyFlush() || shouldRollTranslogGeneration()) {
@@ -4579,7 +4573,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
             if (shouldRefreshShard()) {
                 logger.info("submitting async Refresh request");
-                final AbstractRunnable refreshAndTrimTranslog = new AbstractRunnable() {
+                final AbstractRunnable _refresh = new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
                         logger.warn("forced refresh failed after number of uncommited translog files breached limit", e);
@@ -4587,7 +4581,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                     @Override
                     protected void doRun() throws Exception {
-                        refreshAndTrimTranslogfiles("Too many uncommited Translog files");
+                        refresh("Too many uncommited Translog files");
                     }
 
                     @Override
@@ -4600,7 +4594,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         isRefreshRunning.compareAndSet(true, false);
                     }
                 };
-                threadPool.executor(ThreadPool.Names.REFRESH).execute(refreshAndTrimTranslog);
+                threadPool.executor(ThreadPool.Names.REFRESH).execute(_refresh);
             } else {
                 isRefreshRunning.compareAndSet(true, false);
             }

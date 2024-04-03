@@ -1119,7 +1119,7 @@ public final class IndexSettings {
             INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,
             this::setDocIdFuzzySetFalsePositiveProbability
         );
-        scopedSettings.addSettingsUpdateConsumer(INDEX_MAX_UNCOMMITTED_TRANSLOG_FILES,this::setMaxUncommittedTranslogFiles);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAX_UNCOMMITTED_TRANSLOG_FILES, this::setMaxUncommittedTranslogFiles);
     }
 
     private void setMaxUncommittedTranslogFiles(int maxUncommittedTranslogFiles) {
