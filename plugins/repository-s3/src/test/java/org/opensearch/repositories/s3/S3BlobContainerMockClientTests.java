@@ -483,7 +483,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             if (throwExceptionOnFinalizeUpload) {
                 throw new RuntimeException();
             }
-        }, false, null), completionListener);
+        }, false, null, null), completionListener);
 
         assertTrue(countDownLatch.await(5000, TimeUnit.SECONDS));
         // wait for completableFuture to finish
@@ -533,7 +533,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             if (throwExceptionOnFinalizeUpload) {
                 throw new RuntimeException();
             }
-        }, false, null), completionListener);
+        }, false, null, null), completionListener);
 
         assertTrue(countDownLatch.await(5000, TimeUnit.SECONDS));
         if (expectException || throwExceptionOnFinalizeUpload) {
@@ -644,7 +644,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
                     }
                 }, partSize, calculateLastPartSize(blobSize, partSize), calculateNumberOfParts(blobSize, partSize));
             }
-        }, blobSize, false, WritePriority.HIGH, uploadSuccess -> { assertTrue(uploadSuccess); }, false, null), completionListener);
+        }, blobSize, false, WritePriority.HIGH, uploadSuccess -> { assertTrue(uploadSuccess); }, false, null, null), completionListener);
 
         assertTrue(countDownLatch.await(5000, TimeUnit.SECONDS));
         if (expectException) {

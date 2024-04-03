@@ -344,7 +344,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     }
                 }, partSize, calculateLastPartSize(bytes.length, partSize), calculateNumberOfParts(bytes.length, partSize));
             }
-        }, bytes.length, false, WritePriority.NORMAL, Assert::assertTrue, false, null), completionListener);
+        }, bytes.length, false, WritePriority.NORMAL, Assert::assertTrue, false, null, null), completionListener);
 
         assertTrue(countDownLatch.await(5000, TimeUnit.SECONDS));
 
