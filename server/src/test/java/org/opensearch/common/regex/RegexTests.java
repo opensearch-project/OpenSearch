@@ -96,6 +96,7 @@ public class RegexTests extends OpenSearchTestCase {
         assertFalse(Regex.simpleMatch("fff**ddd", "fffabcdd"));
         assertTrue(Regex.simpleMatch("fff*******ddd", "fffabcddd"));
         assertTrue(Regex.simpleMatch("fff*******ddd", "FffAbcdDd", true));
+        assertFalse(Regex.simpleMatch("fff*******ddd", "FffAbcdDd", false));
         assertFalse(Regex.simpleMatch("fff******ddd", "fffabcdd"));
         assertFalse(Regex.simpleMatch("fff*******ddd", "FffAbcdDd", false));
         assertTrue(Regex.simpleMatch("abCDefGH******ddd", "abCDefGHddd", false));
