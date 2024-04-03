@@ -92,13 +92,20 @@ class OngoingSegmentReplications {
      * @return {@link SegmentReplicationSourceHandler} the built CopyState for this replication event.
      */
     SegmentReplicationSourceHandler prepareForReplication(CheckpointInfoRequest request, FileChunkWriter fileChunkWriter) {
-        // From the checkpoint's shard ID, fetch the IndexShard
-        final ShardId shardId = request.getCheckpoint().getShardId();
-        final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        final IndexShard indexShard = indexService.getShard(shardId.id());
         return allocationIdToHandlers.computeIfAbsent(request.getTargetAllocationId(), aId -> {
             try {
-                return createTargetHandler(request.getTargetNode(), indexShard, request.getTargetAllocationId(), fileChunkWriter);
+                // From the checkpoint's shard ID, fetch the IndexShard
+                final ShardId shardId = request.getCheckpoint().getShardId();
+                final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+                final IndexShard indexShard = indexService.getShard(shardId.id());
+                return new SegmentReplicationSourceHandler(
+                    request.getTargetNode(),
+                    fileChunkWriter,
+                    indexShard,
+                    request.getTargetAllocationId(),
+                    Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
+                    recoverySettings.getMaxConcurrentFileChunks()
+                );
             } catch (IOException e) {
                 throw new UncheckedIOException("Error creating replication handler", e);
             }
@@ -144,22 +151,6 @@ class OngoingSegmentReplications {
     // Visible for tests.
     Map<String, SegmentReplicationSourceHandler> getHandlers() {
         return allocationIdToHandlers;
-    }
-
-    private SegmentReplicationSourceHandler createTargetHandler(
-        DiscoveryNode node,
-        IndexShard shard,
-        String allocationId,
-        FileChunkWriter fileChunkWriter
-    ) throws IOException {
-        return new SegmentReplicationSourceHandler(
-            node,
-            fileChunkWriter,
-            shard,
-            allocationId,
-            Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
-            recoverySettings.getMaxConcurrentFileChunks()
-        );
     }
 
     /**
