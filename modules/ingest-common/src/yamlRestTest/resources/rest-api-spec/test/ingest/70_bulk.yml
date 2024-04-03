@@ -149,8 +149,8 @@ teardown:
 ---
 "Test bulk honors pipeline in update action with upsert":
   - skip:
-      version: " - 2.99.99"
-      reason: "fixed in 3.0.0"
+      version: " - 2.13.99"
+      reason: "fixed in 2.14.0"
 
   - do:
       bulk:
