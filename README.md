@@ -1,7 +1,7 @@
 <img src="https://opensearch.org/assets/img/opensearch-logo-themed.svg" height="64px">
 
 [![Chat](https://img.shields.io/badge/chat-on%20forums-blue)](https://forum.opensearch.org/c/opensearch/)
-[![Documentation](https://img.shields.io/badge/documentation-reference-blue)](https://opensearch.org/docs/latest/opensearch/index/)
+[![Documentation](https://img.shields.io/badge/documentation-reference-blue)](https://opensearch.org/docs/1.3/opensearch/index/)
 [![codecov](https://codecov.io/gh/opensearch-project/OpenSearch/branch/1.x/graph/badge.svg)](https://codecov.io/gh/opensearch-project/OpenSearch)
 [![GHA gradle check](https://github.com/opensearch-project/OpenSearch/actions/workflows/gradle-check.yml/badge.svg)](https://github.com/opensearch-project/OpenSearch/actions/workflows/gradle-check.yml)
 [![GHA validate pull request](https://github.com/opensearch-project/OpenSearch/actions/workflows/wrapper.yml/badge.svg)](https://github.com/opensearch-project/OpenSearch/actions/workflows/wrapper.yml)
