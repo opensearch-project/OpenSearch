@@ -99,7 +99,7 @@ import java.util.zip.CheckedInputStream;
 
 import static org.opensearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING;
-import static org.opensearch.index.remote.RemoteStoreDataEnums.DataCategory.TRANSLOG;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
 import static org.opensearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.contains;

@@ -893,7 +893,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @throws IOException when there is an IO error committing.
      */
     public void commitSegmentInfos(SegmentInfos latestSegmentInfos, long maxSeqNo, long processedCheckpoint) throws IOException {
-        assert indexSettings.isSegRepEnabledOrRemoteNode() || indexSettings.isRemoteNode();
+        assert indexSettings.isSegRepEnabledOrRemoteNode() || indexSettings.isAssignedOnRemoteNode();
         metadataLock.writeLock().lock();
         try {
             final Map<String, String> userData = new HashMap<>(latestSegmentInfos.getUserData());

@@ -48,7 +48,9 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
-import org.opensearch.index.remote.RemoteStorePathType;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
@@ -761,6 +763,7 @@ public final class IndexSettings {
 
     private volatile String defaultSearchPipeline;
     private final boolean widenIndexSortType;
+    private final boolean assignedOnRemoteNode;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -984,6 +987,7 @@ public final class IndexSettings {
          * Now this sortField (IndexSort) is stored in SegmentInfo and we need to maintain backward compatibility for them.
          */
         widenIndexSortType = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).before(V_2_7_0);
+        assignedOnRemoteNode = RemoteStoreNodeAttribute.isRemoteDataAttributePresent(this.getNodeSettings());
 
         setEnableFuzzySetForDocId(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING));
         setDocIdFuzzySetFalsePositiveProbability(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING));
@@ -1229,15 +1233,11 @@ public final class IndexSettings {
      * proper index setting during the migration.
      */
     public boolean isSegRepEnabledOrRemoteNode() {
-        return ReplicationType.SEGMENT.equals(replicationType) || isRemoteNode();
+        return ReplicationType.SEGMENT.equals(replicationType) || isAssignedOnRemoteNode();
     }
 
     public boolean isSegRepLocalEnabled() {
-        return isSegRepEnabledOrRemoteNode() && !isRemoteStoreEnabled();
-    }
-
-    public boolean isSegRepWithRemoteEnabled() {
-        return isSegRepEnabledOrRemoteNode() && isRemoteStoreEnabled();
+        return ReplicationType.SEGMENT.equals(replicationType) && !isRemoteStoreEnabled();
     }
 
     /**
@@ -1247,8 +1247,8 @@ public final class IndexSettings {
         return isRemoteStoreEnabled;
     }
 
-    public boolean isRemoteNode() {
-        return RemoteStoreNodeAttribute.isRemoteDataAttributePresent(this.getNodeSettings());
+    public boolean isAssignedOnRemoteNode() {
+        return assignedOnRemoteNode;
     }
 
     /**
@@ -1908,10 +1908,15 @@ public final class IndexSettings {
         this.docIdFuzzySetFalsePositiveProbability = docIdFuzzySetFalsePositiveProbability;
     }
 
-    public RemoteStorePathType getRemoteStorePathType() {
+    public RemoteStorePathStrategy getRemoteStorePathStrategy() {
         Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
-        return remoteCustomData != null && remoteCustomData.containsKey(RemoteStorePathType.NAME)
-            ? RemoteStorePathType.parseString(remoteCustomData.get(RemoteStorePathType.NAME))
-            : RemoteStorePathType.FIXED;
+        if (remoteCustomData != null
+            && remoteCustomData.containsKey(PathType.NAME)
+            && remoteCustomData.containsKey(PathHashAlgorithm.NAME)) {
+            PathType pathType = PathType.parseString(remoteCustomData.get(PathType.NAME));
+            PathHashAlgorithm pathHashAlgorithm = PathHashAlgorithm.parseString(remoteCustomData.get(PathHashAlgorithm.NAME));
+            return new RemoteStorePathStrategy(pathType, pathHashAlgorithm);
+        }
+        return new RemoteStorePathStrategy(PathType.FIXED);
     }
 }
