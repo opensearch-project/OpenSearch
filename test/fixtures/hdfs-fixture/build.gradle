@@ -39,9 +39,13 @@ dependencies {
     exclude module: 'protobuf-java'
     exclude group: 'org.codehaus.jackson'
     exclude group: "org.bouncycastle"
+    exclude group: "com.squareup.okhttp3"
+    exclude group: "org.xerial.snappy"
+    exclude module: "json-io"
     exclude module: "logback-core"
     exclude module: "logback-classic"
     exclude module: "avro"
+    exclude group: 'org.apache.kerby'
   }
 
   api "org.codehaus.jettison:jettison:${versions.jettison}"
@@ -55,12 +59,18 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
   api 'net.minidev:json-smart:2.4.10'
+  api 'org.apache.zookeeper:zookeeper:3.8.3'
   api "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
-  api 'org.apache.zookeeper:zookeeper:3.8.3'
   api "org.eclipse.jetty:jetty-server:${versions.jetty}"
   api "org.eclipse.jetty.websocket:javax-websocket-server-impl:${versions.jetty}"
   api "ch.qos.logback:logback-core:1.2.13"
   api "ch.qos.logback:logback-classic:1.2.13"
+  api 'org.apache.kerby:kerb-admin:2.0.3'
   runtimeOnly "com.google.guava:guava:${versions.guava}"
+  runtimeOnly("com.squareup.okhttp3:okhttp:4.11.0") {
+    exclude group: "com.squareup.okio"
+  }
+  runtimeOnly "com.squareup.okio:okio:3.5.0"
+  runtimeOnly "org.xerial.snappy:snappy-java:1.1.10.3"
 }

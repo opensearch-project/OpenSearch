@@ -149,6 +149,20 @@ dependencies {
   integTestImplementation('org.spockframework:spock-core:2.3-groovy-2.5') {
     exclude module: "groovy"
   }
+  constraints {
+    runtimeOnly("org.apache.logging.log4j:log4j-core:${props.getProperty('log4j')}") {
+      because 'log4j CVE'
+    }
+    runtimeOnly("org.jdom:jdom2:${props.getProperty('jdom2')}") {
+      because 'CVE-2021-33813 violation'
+    }
+  }
+}
+
+configurations.all {
+  resolutionStrategy {
+    force "com.google.guava:guava:${props.getProperty('guava')}"
+  }
 }
 
 /*****************************************************************************

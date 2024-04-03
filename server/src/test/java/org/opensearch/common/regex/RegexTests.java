@@ -96,8 +96,12 @@ public class RegexTests extends OpenSearchTestCase {
         assertFalse(Regex.simpleMatch("fff**ddd", "fffabcdd"));
         assertTrue(Regex.simpleMatch("fff*******ddd", "fffabcddd"));
         assertTrue(Regex.simpleMatch("fff*******ddd", "FffAbcdDd", true));
-        assertFalse(Regex.simpleMatch("fff******ddd", "fffabcdd"));
         assertFalse(Regex.simpleMatch("fff*******ddd", "FffAbcdDd", false));
+        assertFalse(Regex.simpleMatch("fff******ddd", "fffabcdd"));
+// <<<<<<< HEAD
+        assertFalse(Regex.simpleMatch("fff*******ddd", "FffAbcdDd", false));
+// =======
+// >>>>>>> origin/1.3
         assertTrue(Regex.simpleMatch("abCDefGH******ddd", "abCDefGHddd", false));
         assertTrue(Regex.simpleMatch("******", "a"));
         assertTrue(Regex.simpleMatch("***WILDcard***", "aaaaaaaaWILDcardZZZZZZ", false));

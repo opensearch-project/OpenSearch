@@ -124,13 +124,17 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
         // We also have some shared ram usage that we try to distribute to
         // proportionally to their number of cache entries of each shard
-        long totalSize = 0;
-        for (QueryCacheStats s : stats.values()) {
-            totalSize += s.getCacheSize();
+        if (stats.isEmpty()) {
+            shardStats.add(new QueryCacheStats(sharedRamBytesUsed, 0, 0, 0, 0));
+        } else {
+            long totalSize = 0;
+            for (QueryCacheStats s : stats.values()) {
+                totalSize += s.getCacheSize();
+            }
+            final double weight = totalSize == 0 ? 1d / stats.size() : ((double) shardStats.getCacheSize()) / totalSize;
+            final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
+            shardStats.add(new QueryCacheStats(additionalRamBytesUsed, 0, 0, 0, 0));
         }
-        final double weight = totalSize == 0 ? 1d / stats.size() : ((double) shardStats.getCacheSize()) / totalSize;
-        final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
-        shardStats.add(new QueryCacheStats(additionalRamBytesUsed, 0, 0, 0, 0));
         return shardStats;
     }
 
