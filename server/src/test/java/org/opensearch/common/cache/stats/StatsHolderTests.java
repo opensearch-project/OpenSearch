@@ -35,8 +35,12 @@ public class StatsHolderTests extends OpenSearchTestCase {
             originalCounter.sizeInBytes = new CounterMetric();
             originalCounter.entries = new CounterMetric();
 
-            CacheStatsCounter actual = statsHolder.getStatsRoot().getNode(dimensionValues).getStats();
-            assertEquals(originalCounter, actual);
+            StatsHolder.StatsHolderDimensionNode node = (StatsHolder.StatsHolderDimensionNode) StatsHolder.getNode(
+                dimensionValues,
+                statsHolder.getStatsRoot()
+            );
+            CacheStatsCounter actual = node.getStats();
+            assertEquals(originalCounter.snapshot(), actual.snapshot());
         }
     }
 
@@ -57,17 +61,17 @@ public class StatsHolderTests extends OpenSearchTestCase {
         statsHolder.removeDimensions(List.of("A1", "B1"));
 
         assertEquals(2, statsHolder.getStatsRoot().getStats().getHits());
-        assertNull(statsHolder.getStatsRoot().getNode(List.of("A1", "B1")));
-        assertNull(statsHolder.getStatsRoot().getNode(List.of("A1")));
+        assertNull(StatsHolder.getNode(List.of("A1", "B1"), statsHolder.getStatsRoot()));
+        assertNull(StatsHolder.getNode(List.of("A1"), statsHolder.getStatsRoot()));
 
         // When we invalidate A2, B2, we should lose the node for B2, but not B3 or A2.
 
         statsHolder.removeDimensions(List.of("A2", "B2"));
 
         assertEquals(1, statsHolder.getStatsRoot().getStats().getHits());
-        assertNull(statsHolder.getStatsRoot().getNode(List.of("A2", "B2")));
-        assertNotNull(statsHolder.getStatsRoot().getNode(List.of("A2")));
-        assertNotNull(statsHolder.getStatsRoot().getNode(List.of("A2", "B3")));
+        assertNull(StatsHolder.getNode(List.of("A2", "B2"), statsHolder.getStatsRoot()));
+        assertNotNull(StatsHolder.getNode(List.of("A2"), statsHolder.getStatsRoot()));
+        assertNotNull(StatsHolder.getNode(List.of("A2", "B3"), statsHolder.getStatsRoot()));
 
         // When we invalidate the last node, all nodes should be deleted except the root node
 

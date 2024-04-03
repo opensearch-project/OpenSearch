@@ -18,14 +18,14 @@ import java.util.Objects;
 /**
  * An immutable snapshot of CacheStatsCounter.
  */
-public class CounterSnapshot implements Writeable { // TODO: Make this extend ToXContent (in API PR)
+public class CacheStatsCounterSnapshot implements Writeable { // TODO: Make this extend ToXContent (in API PR)
     private final long hits;
     private final long misses;
     private final long evictions;
     private final long sizeInBytes;
     private final long entries;
 
-    public CounterSnapshot(long hits, long misses, long evictions, long sizeInBytes, long entries) {
+    public CacheStatsCounterSnapshot(long hits, long misses, long evictions, long sizeInBytes, long entries) {
         this.hits = hits;
         this.misses = misses;
         this.evictions = evictions;
@@ -33,12 +33,12 @@ public class CounterSnapshot implements Writeable { // TODO: Make this extend To
         this.entries = entries;
     }
 
-    public CounterSnapshot(StreamInput in) throws IOException {
+    public CacheStatsCounterSnapshot(StreamInput in) throws IOException {
         this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
     }
 
-    public static CounterSnapshot addSnapshots(CounterSnapshot s1, CounterSnapshot s2) {
-        return new CounterSnapshot(
+    public static CacheStatsCounterSnapshot addSnapshots(CacheStatsCounterSnapshot s1, CacheStatsCounterSnapshot s2) {
+        return new CacheStatsCounterSnapshot(
             s1.hits + s2.hits,
             s1.misses + s2.misses,
             s1.evictions + s2.evictions,
@@ -81,10 +81,10 @@ public class CounterSnapshot implements Writeable { // TODO: Make this extend To
         if (o == null) {
             return false;
         }
-        if (o.getClass() != CounterSnapshot.class) {
+        if (o.getClass() != CacheStatsCounterSnapshot.class) {
             return false;
         }
-        CounterSnapshot other = (CounterSnapshot) o;
+        CacheStatsCounterSnapshot other = (CacheStatsCounterSnapshot) o;
         return (hits == other.hits)
             && (misses == other.misses)
             && (evictions == other.evictions)

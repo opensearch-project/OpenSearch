@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * A CacheStats object supporting aggregation over multiple different dimensions.
@@ -25,10 +26,10 @@ import java.util.Map;
 public class MultiDimensionCacheStats implements CacheStats {
     // A snapshot of a StatsHolder containing stats maintained by the cache.
     // Pkg-private for testing.
-    final DimensionNode<CounterSnapshot> statsRoot;
+    final MDCSDimensionNode statsRoot;
     final List<String> dimensionNames;
 
-    public MultiDimensionCacheStats(DimensionNode<CounterSnapshot> statsRoot, List<String> dimensionNames) {
+    public MultiDimensionCacheStats(MDCSDimensionNode statsRoot, List<String> dimensionNames) {
         this.statsRoot = statsRoot;
         this.dimensionNames = dimensionNames;
     }
@@ -39,14 +40,15 @@ public class MultiDimensionCacheStats implements CacheStats {
         // This allows us to avoid ambiguity if nodes have the same dimension value, without having to serialize the whole path to each
         // node.
         this.dimensionNames = List.of(in.readStringArray());
-        this.statsRoot = new DimensionNode<>(null);
-        List<DimensionNode<CounterSnapshot>> ancestorsOfLastRead = List.of(statsRoot);
+        this.statsRoot = new MDCSDimensionNode(null);
+        statsRoot.createChildrenMap();
+        List<MDCSDimensionNode> ancestorsOfLastRead = List.of(statsRoot);
         while (ancestorsOfLastRead != null) {
             ancestorsOfLastRead = readAndAttachDimensionNode(in, ancestorsOfLastRead);
         }
         // Finally, update sum-of-children stats for the root node
         CacheStatsCounter totalStats = new CacheStatsCounter();
-        for (DimensionNode<CounterSnapshot> child : statsRoot.children.values()) {
+        for (MDCSDimensionNode child : statsRoot.children.values()) {
             totalStats.add(child.getStats());
         }
         statsRoot.setStats(totalStats.snapshot());
@@ -58,45 +60,49 @@ public class MultiDimensionCacheStats implements CacheStats {
         // Then, when rebuilding the tree from the stream, we can always find the correct parent to attach each node to.
 
         out.writeStringArray(dimensionNames.toArray(new String[0]));
-        for (DimensionNode<CounterSnapshot> child : statsRoot.children.values()) {
+        for (MDCSDimensionNode child : statsRoot.children.values()) {
             writeDimensionNodeRecursive(out, child, 1);
         }
         out.writeBoolean(false); // Write false to signal there are no more nodes
     }
 
-    private void writeDimensionNodeRecursive(StreamOutput out, DimensionNode<CounterSnapshot> node, int depth)
-        throws IOException {
+    private void writeDimensionNodeRecursive(StreamOutput out, MDCSDimensionNode node, int depth) throws IOException {
         out.writeBoolean(true);
         out.writeVInt(depth);
         out.writeString(node.getDimensionValue());
         node.getStats().writeTo(out);
 
-        if (!node.children.isEmpty()) {
+        if (node.hasChildren()) {
             // Not a leaf node
-            for (DimensionNode<CounterSnapshot> child : node.children.values()) {
+            out.writeBoolean(true); // Write true to indicate we should re-create a map on deserialization
+            for (MDCSDimensionNode child : node.children.values()) {
                 writeDimensionNodeRecursive(out, child, depth + 1);
             }
+        } else {
+            out.writeBoolean(false); // Write false to indicate we should not re-create a map on deserialization
         }
     }
 
     /**
      * Reads a serialized dimension node, attaches it to its appropriate place in the tree, and returns the list of ancestors of the newly attached node.
      */
-    private List<DimensionNode<CounterSnapshot>> readAndAttachDimensionNode(
-        StreamInput in,
-        List<DimensionNode<CounterSnapshot>> ancestorsOfLastRead
-    ) throws IOException {
+    private List<MDCSDimensionNode> readAndAttachDimensionNode(StreamInput in, List<MDCSDimensionNode> ancestorsOfLastRead)
+        throws IOException {
         boolean hasNextNode = in.readBoolean();
         if (hasNextNode) {
             int depth = in.readVInt();
             String nodeDimensionValue = in.readString();
-            CounterSnapshot stats = new CounterSnapshot(in);
+            CacheStatsCounterSnapshot stats = new CacheStatsCounterSnapshot(in);
+            boolean doRecreateMap = in.readBoolean();
 
-            DimensionNode<CounterSnapshot> result = new DimensionNode<>(nodeDimensionValue);
+            MDCSDimensionNode result = new MDCSDimensionNode(nodeDimensionValue);
+            if (doRecreateMap) {
+                result.createChildrenMap();
+            }
             result.setStats(stats);
-            DimensionNode<CounterSnapshot> parent = ancestorsOfLastRead.get(depth - 1);
-            parent.children.put(nodeDimensionValue, result);
-            List<DimensionNode<CounterSnapshot>> ancestors = new ArrayList<>(ancestorsOfLastRead.subList(0, depth));
+            MDCSDimensionNode parent = ancestorsOfLastRead.get(depth - 1);
+            parent.getChildren().put(nodeDimensionValue, result);
+            List<MDCSDimensionNode> ancestors = new ArrayList<>(ancestorsOfLastRead.subList(0, depth));
             ancestors.add(result);
             return ancestors;
         } else {
@@ -106,7 +112,7 @@ public class MultiDimensionCacheStats implements CacheStats {
     }
 
     @Override
-    public CounterSnapshot getTotalStats() {
+    public CacheStatsCounterSnapshot getTotalStats() {
         return statsRoot.getStats();
     }
 
@@ -139,18 +145,19 @@ public class MultiDimensionCacheStats implements CacheStats {
      * Returns a new tree containing the stats aggregated by the levels passed in. The root node is a dummy node,
      * whose name and value are null.
      */
-    DimensionNode<CounterSnapshot> aggregateByLevels(List<String> levels) {
+    MDCSDimensionNode aggregateByLevels(List<String> levels) {
         checkLevels(levels);
-        DimensionNode<CounterSnapshot> newRoot = new DimensionNode<>(null);
-        for (DimensionNode<CounterSnapshot> child : statsRoot.children.values()) {
+        MDCSDimensionNode newRoot = new MDCSDimensionNode(null);
+        newRoot.createChildrenMap();
+        for (MDCSDimensionNode child : statsRoot.children.values()) {
             aggregateByLevelsHelper(newRoot, child, levels, 0);
         }
         return newRoot;
     }
 
     void aggregateByLevelsHelper(
-        DimensionNode<CounterSnapshot> parentInNewTree,
-        DimensionNode<CounterSnapshot> currentInOriginalTree,
+        MDCSDimensionNode parentInNewTree,
+        MDCSDimensionNode currentInOriginalTree,
         List<String> levels,
         int depth
     ) {
@@ -159,23 +166,29 @@ public class MultiDimensionCacheStats implements CacheStats {
             // the last parent node in the new tree.
             // If it already exists, increment it instead.
             String dimensionValue = currentInOriginalTree.getDimensionValue();
-            DimensionNode<CounterSnapshot> nodeInNewTree = parentInNewTree.children.get(dimensionValue);
+            if (parentInNewTree.getChildren() == null) {
+                parentInNewTree.createChildrenMap();
+            }
+            MDCSDimensionNode nodeInNewTree = parentInNewTree.children.get(dimensionValue);
             if (nodeInNewTree == null) {
-                nodeInNewTree = new DimensionNode<>(dimensionValue);
+                nodeInNewTree = new MDCSDimensionNode(dimensionValue);
                 nodeInNewTree.setStats(currentInOriginalTree.getStats());
                 parentInNewTree.children.put(dimensionValue, nodeInNewTree);
             } else {
-                CounterSnapshot newStats = CounterSnapshot.addSnapshots(nodeInNewTree.getStats(), currentInOriginalTree.getStats());
+                CacheStatsCounterSnapshot newStats = CacheStatsCounterSnapshot.addSnapshots(
+                    nodeInNewTree.getStats(),
+                    currentInOriginalTree.getStats()
+                );
                 nodeInNewTree.setStats(newStats);
             }
             // Finally set the parent node to be this node for the next callers of this function
             parentInNewTree = nodeInNewTree;
         }
 
-        if (!currentInOriginalTree.children.isEmpty()) {
+        if (currentInOriginalTree.hasChildren()) {
             // Not a leaf node
-            for (Map.Entry<String, DimensionNode<CounterSnapshot>> childEntry : currentInOriginalTree.children.entrySet()) {
-                DimensionNode<CounterSnapshot> child = childEntry.getValue();
+            for (Map.Entry<String, MDCSDimensionNode> childEntry : currentInOriginalTree.children.entrySet()) {
+                MDCSDimensionNode child = childEntry.getValue();
                 aggregateByLevelsHelper(parentInNewTree, child, levels, depth + 1);
             }
         }
@@ -192,8 +205,40 @@ public class MultiDimensionCacheStats implements CacheStats {
         }
     }
 
+    static class MDCSDimensionNode extends DimensionNode {
+        TreeMap<String, MDCSDimensionNode> children; // Ordered map from dimensionValue to the DimensionNode for that dimension value
+
+        // The stats for this node. If a leaf node, corresponds to the stats for this combination of dimensions; if not,
+        // contains the sum of its children's stats.
+        private CacheStatsCounterSnapshot stats;
+
+        MDCSDimensionNode(String dimensionValue) {
+            super(dimensionValue);
+            this.children = null; // Lazy load this as needed
+            this.stats = null;
+        }
+
+        @Override
+        protected void createChildrenMap() {
+            children = new TreeMap<>();
+        }
+
+        @Override
+        protected Map<String, MDCSDimensionNode> getChildren() {
+            return children;
+        }
+
+        public CacheStatsCounterSnapshot getStats() {
+            return stats;
+        }
+
+        public void setStats(CacheStatsCounterSnapshot stats) {
+            this.stats = stats;
+        }
+    }
+
     // pkg-private for testing
-    DimensionNode<CounterSnapshot> getStatsRoot() {
+    MDCSDimensionNode getStatsRoot() {
         return statsRoot;
     }
 

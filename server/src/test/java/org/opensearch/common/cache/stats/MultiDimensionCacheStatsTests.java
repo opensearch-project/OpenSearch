@@ -37,10 +37,10 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
 
         assertEquals(stats.dimensionNames, deserialized.dimensionNames);
         List<List<String>> pathsInOriginal = new ArrayList<>();
-        StatsHolder.traverseStatsTreeHelper(stats.getStatsRoot(), new ArrayList<>(), (node, path) -> pathsInOriginal.add(path));
+        getAllPathsInTree(stats.getStatsRoot(), new ArrayList<>(), pathsInOriginal);
         for (List<String> path : pathsInOriginal) {
-            DimensionNode<CounterSnapshot> originalNode = stats.statsRoot.getNode(path);
-            DimensionNode<CounterSnapshot> deserializedNode = deserialized.statsRoot.getNode(path);
+            MultiDimensionCacheStats.MDCSDimensionNode originalNode = getNode(path, stats.statsRoot);
+            MultiDimensionCacheStats.MDCSDimensionNode deserializedNode = getNode(path, deserialized.statsRoot);
             assertNotNull(deserializedNode);
             assertEquals(originalNode.getDimensionValue(), deserializedNode.getDimensionValue());
             assertEquals(originalNode.getStats(), deserializedNode.getStats());
@@ -58,8 +58,11 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         for (List<String> dimensionValues : expected.keySet()) {
             CacheStatsCounter expectedCounter = expected.get(dimensionValues);
 
-            CounterSnapshot actualStatsHolder = statsHolder.getStatsRoot().getNode(dimensionValues).getStats().snapshot();
-            CounterSnapshot actualCacheStats = stats.getStatsRoot().getNode(dimensionValues).getStats();
+            CacheStatsCounterSnapshot actualStatsHolder = ((StatsHolder.StatsHolderDimensionNode) StatsHolder.getNode(
+                dimensionValues,
+                statsHolder.getStatsRoot()
+            )).getStats().snapshot();
+            CacheStatsCounterSnapshot actualCacheStats = getNode(dimensionValues, stats.getStatsRoot()).getStats();
 
             assertEquals(expectedCounter.snapshot(), actualStatsHolder);
             assertEquals(expectedCounter.snapshot(), actualCacheStats);
@@ -86,7 +89,7 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         populateStats(statsHolder, usedDimensionValues, 10, 100);
         MultiDimensionCacheStats stats = (MultiDimensionCacheStats) statsHolder.getCacheStats();
 
-        DimensionNode<CounterSnapshot> statsRoot = stats.getStatsRoot();
+        MultiDimensionCacheStats.MDCSDimensionNode statsRoot = stats.getStatsRoot();
         assertEquals(0, statsRoot.children.size());
         assertEquals(stats.getTotalStats(), statsRoot.getStats());
     }
@@ -99,13 +102,13 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         Map<List<String>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 1000, 10);
         MultiDimensionCacheStats stats = (MultiDimensionCacheStats) statsHolder.getCacheStats();
 
-        DimensionNode<CounterSnapshot> aggregated = stats.aggregateByLevels(dimensionNames);
+        MultiDimensionCacheStats.MDCSDimensionNode aggregated = stats.aggregateByLevels(dimensionNames);
         for (Map.Entry<List<String>, CacheStatsCounter> expectedEntry : expected.entrySet()) {
             List<String> dimensionValues = new ArrayList<>();
             for (String dimValue : expectedEntry.getKey()) {
                 dimensionValues.add(dimValue);
             }
-            assertEquals(expectedEntry.getValue().snapshot(), aggregated.getNode(dimensionValues).getStats());
+            assertEquals(expectedEntry.getValue().snapshot(), getNode(dimensionValues, aggregated).getStats());
         }
     }
 
@@ -127,10 +130,10 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
             if (levels.size() == 0) {
                 assertThrows(IllegalArgumentException.class, () -> stats.aggregateByLevels(levels));
             } else {
-                DimensionNode<CounterSnapshot> aggregated = stats.aggregateByLevels(levels);
-                Map<List<String>, DimensionNode<CounterSnapshot>> aggregatedLeafNodes = getAllLeafNodes(aggregated);
+                MultiDimensionCacheStats.MDCSDimensionNode aggregated = stats.aggregateByLevels(levels);
+                Map<List<String>, MultiDimensionCacheStats.MDCSDimensionNode> aggregatedLeafNodes = getAllLeafNodes(aggregated);
 
-                for (Map.Entry<List<String>, DimensionNode<CounterSnapshot>> aggEntry : aggregatedLeafNodes.entrySet()) {
+                for (Map.Entry<List<String>, MultiDimensionCacheStats.MDCSDimensionNode> aggEntry : aggregatedLeafNodes.entrySet()) {
                     CacheStatsCounter expectedCounter = new CacheStatsCounter();
                     for (List<String> expectedDims : expected.keySet()) {
                         if (expectedDims.containsAll(aggEntry.getKey())) {
@@ -144,21 +147,21 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
     }
 
     // Get a map from the list of dimension values to the corresponding leaf node.
-    private Map<List<String>, DimensionNode<CounterSnapshot>> getAllLeafNodes(DimensionNode<CounterSnapshot> root) {
-        Map<List<String>, DimensionNode<CounterSnapshot>> result = new HashMap<>();
+    private Map<List<String>, MultiDimensionCacheStats.MDCSDimensionNode> getAllLeafNodes(MultiDimensionCacheStats.MDCSDimensionNode root) {
+        Map<List<String>, MultiDimensionCacheStats.MDCSDimensionNode> result = new HashMap<>();
         getAllLeafNodesHelper(result, root, new ArrayList<>());
         return result;
     }
 
     private void getAllLeafNodesHelper(
-        Map<List<String>, DimensionNode<CounterSnapshot>> result,
-        DimensionNode<CounterSnapshot> current,
+        Map<List<String>, MultiDimensionCacheStats.MDCSDimensionNode> result,
+        MultiDimensionCacheStats.MDCSDimensionNode current,
         List<String> pathToCurrent
     ) {
-        if (current.children.isEmpty()) {
+        if (!current.hasChildren()) {
             result.put(pathToCurrent, current);
         } else {
-            for (Map.Entry<String, DimensionNode<CounterSnapshot>> entry : current.children.entrySet()) {
+            for (Map.Entry<String, MultiDimensionCacheStats.MDCSDimensionNode> entry : current.children.entrySet()) {
                 List<String> newPath = new ArrayList<>(pathToCurrent);
                 newPath.add(entry.getKey());
                 getAllLeafNodesHelper(result, entry.getValue(), newPath);
@@ -256,5 +259,24 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
             }
         }
         return result;
+    }
+
+    private void getAllPathsInTree(DimensionNode currentNode, List<String> pathToCurrentNode, List<List<String>> allPaths) {
+        allPaths.add(pathToCurrentNode);
+        if (currentNode.getChildren() != null && !currentNode.getChildren().isEmpty()) {
+            // not a leaf node
+            for (DimensionNode child : currentNode.getChildren().values()) {
+                List<String> pathToChild = new ArrayList<>(pathToCurrentNode);
+                pathToChild.add(child.getDimensionValue());
+                getAllPathsInTree(child, pathToChild, allPaths);
+            }
+        }
+    }
+
+    private MultiDimensionCacheStats.MDCSDimensionNode getNode(
+        List<String> dimensionValues,
+        MultiDimensionCacheStats.MDCSDimensionNode root
+    ) {
+        return (MultiDimensionCacheStats.MDCSDimensionNode) StatsHolder.getNode(dimensionValues, root);
     }
 }
