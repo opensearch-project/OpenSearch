@@ -697,7 +697,8 @@ public class IndexShardTests extends IndexShardTestCase {
             (shard, listener) -> {},
             0L,
             Collections.singleton(primaryRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build()
+            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build(),
+            IndexShardTestUtils.getFakeDiscoveryNodes(primaryRouting)
         );
 
         /*
@@ -764,7 +765,8 @@ public class IndexShardTests extends IndexShardTestCase {
             },
                 0L,
                 Collections.singleton(indexShard.routingEntry().allocationId().getId()),
-                new IndexShardRoutingTable.Builder(indexShard.shardId()).addShard(primaryRouting).build()
+                new IndexShardRoutingTable.Builder(indexShard.shardId()).addShard(primaryRouting).build(),
+                IndexShardTestUtils.getFakeDiscoveryNodes(primaryRouting)
             );
             latch.await();
             assertThat(indexShard.getActiveOperationsCount(), is(oneOf(0, IndexShard.OPERATIONS_BLOCKED)));
@@ -1446,7 +1448,8 @@ public class IndexShardTests extends IndexShardTestCase {
             (s, r) -> resyncLatch.countDown(),
             1L,
             Collections.singleton(newRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(newRouting.shardId()).addShard(newRouting).build()
+            new IndexShardRoutingTable.Builder(newRouting.shardId()).addShard(newRouting).build(),
+            IndexShardTestUtils.getFakeDiscoveryNodes(newRouting)
         );
         resyncLatch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
@@ -3208,7 +3211,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         IndexShard replica = newShard(primary.shardId(), false, "n2", metadata, null);
-        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, recoveryListener) {
+        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, recoveryListener, threadPool) {
             @Override
             public void indexTranslogOperations(
                 final List<Translog.Operation> operations,
@@ -3284,7 +3287,7 @@ public class IndexShardTests extends IndexShardTestCase {
         Translog.Snapshot snapshot = TestTranslog.newSnapshotFromOperations(operations);
         primary.markAsRecovering(
             "store",
-            new RecoveryState(primary.routingEntry(), getFakeDiscoNode(primary.routingEntry().currentNodeId()), null)
+            new RecoveryState(primary.routingEntry(), IndexShardTestUtils.getFakeDiscoNode(primary.routingEntry().currentNodeId()), null)
         );
         recoverFromStore(primary);
 
@@ -3340,7 +3343,7 @@ public class IndexShardTests extends IndexShardTestCase {
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(replica.isActive());
-        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, recoveryListener) {
+        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, recoveryListener, threadPool) {
             @Override
             public void indexTranslogOperations(
                 final List<Translog.Operation> operations,
@@ -3397,7 +3400,7 @@ public class IndexShardTests extends IndexShardTestCase {
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         assertListenerCalled.accept(replica);
-        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, recoveryListener) {
+        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, recoveryListener, threadPool) {
             // we're only checking that listeners are called when the engine is open, before there is no point
             @Override
             public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
@@ -4029,15 +4032,19 @@ public class IndexShardTests extends IndexShardTestCase {
         if (isPrimary) {
             newShard.markAsRecovering(
                 "store",
-                new RecoveryState(newShard.routingEntry(), getFakeDiscoNode(newShard.routingEntry().currentNodeId()), null)
+                new RecoveryState(
+                    newShard.routingEntry(),
+                    IndexShardTestUtils.getFakeDiscoNode(newShard.routingEntry().currentNodeId()),
+                    null
+                )
             );
         } else {
             newShard.markAsRecovering(
                 "peer",
                 new RecoveryState(
                     newShard.routingEntry(),
-                    getFakeDiscoNode(newShard.routingEntry().currentNodeId()),
-                    getFakeDiscoNode(newShard.routingEntry().currentNodeId())
+                    IndexShardTestUtils.getFakeDiscoNode(newShard.routingEntry().currentNodeId()),
+                    IndexShardTestUtils.getFakeDiscoNode(newShard.routingEntry().currentNodeId())
                 )
             );
         }

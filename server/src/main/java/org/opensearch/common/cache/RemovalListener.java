@@ -32,11 +32,14 @@
 
 package org.opensearch.common.cache;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Listener for removing an element from the cache
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
+@ExperimentalApi
 @FunctionalInterface
 public interface RemovalListener<K, V> {
     void onRemoval(RemovalNotification<K, V> notification);

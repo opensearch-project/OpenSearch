@@ -142,7 +142,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
             IndexShard replica = shards.addReplica();
             Future<Void> future = shards.asyncRecoverReplica(
                 replica,
-                (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener) {
+                (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener, threadPool) {
                     @Override
                     public void cleanFiles(
                         int totalTranslogOps,
@@ -223,17 +223,20 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
             });
             thread.start();
             IndexShard replica = shards.addReplica();
-            Future<Void> fut = shards.asyncRecoverReplica(replica, (shard, node) -> new RecoveryTarget(shard, node, recoveryListener) {
-                @Override
-                public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
-                    try {
-                        indexedOnPrimary.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
+            Future<Void> fut = shards.asyncRecoverReplica(
+                replica,
+                (shard, node) -> new RecoveryTarget(shard, node, recoveryListener, threadPool) {
+                    @Override
+                    public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
+                        try {
+                            indexedOnPrimary.await();
+                        } catch (InterruptedException e) {
+                            throw new AssertionError(e);
+                        }
+                        super.prepareForTranslogOperations(totalTranslogOps, listener);
                     }
-                    super.prepareForTranslogOperations(totalTranslogOps, listener);
                 }
-            });
+            );
             fut.get();
             recoveryDone.countDown();
             thread.join();
