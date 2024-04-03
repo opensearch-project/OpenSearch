@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.io.InputStreamContainer;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
@@ -25,21 +26,28 @@ public class ReadContext {
     private final long blobSize;
     private final List<StreamPartCreator> asyncPartStreams;
     private final String blobChecksum;
+    private Map<String, String> metadata;
 
-    public ReadContext(long blobSize, List<StreamPartCreator> asyncPartStreams, String blobChecksum) {
+    public ReadContext(long blobSize, List<StreamPartCreator> asyncPartStreams, String blobChecksum, Map<String, String> metadata) {
         this.blobSize = blobSize;
         this.asyncPartStreams = asyncPartStreams;
         this.blobChecksum = blobChecksum;
+        this.metadata = metadata;
     }
 
     public ReadContext(ReadContext readContext) {
         this.blobSize = readContext.blobSize;
         this.asyncPartStreams = readContext.asyncPartStreams;
         this.blobChecksum = readContext.blobChecksum;
+        this.metadata = readContext.metadata;
     }
 
     public String getBlobChecksum() {
         return blobChecksum;
+    }
+
+    public Map<String, String> getMetadata() {
+        return metadata;
     }
 
     public int getNumberOfParts() {
