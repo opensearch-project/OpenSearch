@@ -12,19 +12,26 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.Randomness;
+import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Random;
 import java.util.function.Function;
+
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
 
 public class TookTimePolicyTests extends OpenSearchTestCase {
     private final Function<BytesReference, CachedQueryResult.PolicyValues> transformationFunction = (data) -> {
@@ -35,8 +42,17 @@ public class TookTimePolicyTests extends OpenSearchTestCase {
         }
     };
 
+    private ClusterSettings clusterSettings;
+
+    @Before
+    public void setup() {
+        Settings settings = Settings.EMPTY;
+        clusterSettings = new ClusterSettings(settings, new HashSet<>());
+        clusterSettings.registerSetting(TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE));
+    }
+
     private TookTimePolicy<BytesReference> getTookTimePolicy(TimeValue threshold) {
-        return new TookTimePolicy<>(threshold, transformationFunction);
+        return new TookTimePolicy<>(threshold, transformationFunction, clusterSettings, CacheType.INDICES_REQUEST_CACHE);
     }
 
     public void testTookTimePolicy() throws Exception {
