@@ -79,4 +79,17 @@ public class StatsHolderTests extends OpenSearchTestCase {
         assertEquals(0, statsHolder.getStatsRoot().getStats().getHits());
         assertEquals(0, statsHolder.getStatsRoot().children.size());
     }
+
+    public void testCount() throws Exception {
+        List<String> dimensionNames = List.of("dim1", "dim2");
+        StatsHolder statsHolder = new StatsHolder(dimensionNames);
+        Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
+        Map<List<String>, CacheStatsCounter> expected = populateStats(statsHolder, usedDimensionValues, 100, 10);
+
+        long expectedCount = 0L;
+        for (CacheStatsCounter counter : expected.values()) {
+            expectedCount += counter.getEntries();
+        }
+        assertEquals(expectedCount, statsHolder.count());
+    }
 }

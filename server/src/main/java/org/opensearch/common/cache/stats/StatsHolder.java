@@ -111,7 +111,7 @@ public class StatsHolder {
         // Include this here so caches don't have to create an entire CacheStats object to run count().
         final CounterMetric count = new CounterMetric();
         traverseStatsTreeHelper(statsRoot, new ArrayList<>(), (node, path) -> {
-            if (node.children.isEmpty()) {
+            if (!node.hasChildren()) {
                 // Only increment on leaf nodes to avoid double-counting, as non-leaf nodes contain stats too
                 count.inc(node.getStats().getEntries());
             }
