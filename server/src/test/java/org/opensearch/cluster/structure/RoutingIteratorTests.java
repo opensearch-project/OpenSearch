@@ -1026,7 +1026,6 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
                 shardRouting = shardIterator.nextOrNull();
                 assertNotNull(shardRouting);
                 requestCount.put(shardRouting.currentNodeId(), requestCount.getOrDefault(shardRouting.currentNodeId(), 0) + 1);
-
             }
             assertEquals(3, requestCount.get("node1").intValue());
             assertEquals(2, requestCount.get("node2").intValue());
