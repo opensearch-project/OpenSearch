@@ -70,6 +70,9 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
         RemoteStorePathStrategy pathStrategy
     ) throws IOException {
         assert Objects.nonNull(pathStrategy);
+        if (metadataRepositoryName == null) {
+            metadataRepositoryName = dataRepositoryName;
+        }
         try (
             Repository dataRepository = repositoriesService.get().repository(dataRepositoryName);
             Repository metadataRepository = repositoriesService.get().repository(metadataRepositoryName)
