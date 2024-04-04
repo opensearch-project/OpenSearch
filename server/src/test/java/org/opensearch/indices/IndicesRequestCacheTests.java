@@ -508,7 +508,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         terminate(threadPool);
     }
 
-    // when a cache entry that is NOT Stale is evicted for any reason, we should NOT deduct it from staleness count
+    // when a cache entry that is NOT Stale is evicted for any reason, staleness count should NOT be deducted
     public void testStaleCount_OnRemovalNotificationOfStaleKey_DoesNotDecrementsStaleCount() throws Exception {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexShard indexShard = createIndex("test").getShard(0);
