@@ -143,7 +143,7 @@ public interface BlobContainer {
 
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name, and metadata.
-     * This method assumes the container does not already contain a blob of the same blobName.  If a blob by the
+     * This method assumes the container does not already contain a blob of the same blobName. If a blob by the
      * same name already exists, the operation will fail and an {@link IOException} will be thrown.
      *
      * @param   blobName
@@ -190,10 +190,10 @@ public interface BlobContainer {
     void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
 
     /**
-     * Reads blob content from the input stream and writes it to the container in a new blob with the given name,and metadata
+     * Reads blob content from the input stream and writes it to the container in a new blob with the given name, and metadata
      * using an atomic write operation if the implementation supports it.
      * <p>
-     * This method assumes the container does not already contain a blob of the same blobName.  If a blob by the
+     * This method assumes the container does not already contain a blob of the same blobName. If a blob by the
      * same name already exists, the operation will fail and an {@link IOException} will be thrown.
      *
      * @param   blobName

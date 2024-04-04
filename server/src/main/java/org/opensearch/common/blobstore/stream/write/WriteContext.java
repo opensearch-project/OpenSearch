@@ -77,7 +77,7 @@ public class WriteContext {
         this.uploadFinalizer = writeContext.uploadFinalizer;
         this.doRemoteDataIntegrityCheck = writeContext.doRemoteDataIntegrityCheck;
         this.expectedChecksum = writeContext.expectedChecksum;
-        this.metadata = writeContext.getMetadata();
+        this.metadata = writeContext.metadata;
     }
 
     /**
