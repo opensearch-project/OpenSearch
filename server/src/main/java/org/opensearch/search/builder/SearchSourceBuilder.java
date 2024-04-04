@@ -254,12 +254,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (in.readBoolean()) {
             scriptFields = in.readList(ScriptField::new);
         }
-        if (in.readBoolean()) {
-            derivedFieldsObject = in.readMap();
-        }
-        if (in.readBoolean()) {
-            derivedFields = in.readList(DerivedField::new);
-        }
         size = in.readVInt();
         if (in.readBoolean()) {
             int size = in.readVInt();
@@ -295,6 +289,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (in.getVersion().onOrAfter(Version.V_2_13_0)) {
             includeNamedQueriesScore = in.readOptionalBoolean();
         }
+        if (in.getVersion().onOrAfter(Version.V_2_13_1)) {
+            if (in.readBoolean()) {
+                derivedFieldsObject = in.readMap();
+            }
+            if (in.readBoolean()) {
+                derivedFields = in.readList(DerivedField::new);
+            }
+        }
     }
 
     @Override
@@ -322,16 +324,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeBoolean(hasScriptFields);
         if (hasScriptFields) {
             out.writeList(scriptFields);
-        }
-        boolean hasDerivedFieldsObject = derivedFieldsObject != null;
-        out.writeBoolean(hasDerivedFieldsObject);
-        if (hasDerivedFieldsObject) {
-            out.writeMap(derivedFieldsObject);
-        }
-        boolean hasDerivedFields = derivedFields != null;
-        out.writeBoolean(hasDerivedFields);
-        if (hasDerivedFields) {
-            out.writeList(derivedFields);
         }
         out.writeVInt(size);
         boolean hasSorts = sorts != null;
@@ -372,6 +364,18 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         if (out.getVersion().onOrAfter(Version.V_2_13_0)) {
             out.writeOptionalBoolean(includeNamedQueriesScore);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_13_1)) {
+            boolean hasDerivedFieldsObject = derivedFieldsObject != null;
+            out.writeBoolean(hasDerivedFieldsObject);
+            if (hasDerivedFieldsObject) {
+                out.writeMap(derivedFieldsObject);
+            }
+            boolean hasDerivedFields = derivedFields != null;
+            out.writeBoolean(hasDerivedFields);
+            if (hasDerivedFields) {
+                out.writeList(derivedFields);
+            }
         }
     }
 
@@ -1164,8 +1168,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.queryBuilder = queryBuilder;
         rewrittenBuilder.rescoreBuilders = rescoreBuilders;
         rewrittenBuilder.scriptFields = scriptFields;
-        rewrittenBuilder.derivedFieldsObject = derivedFieldsObject;
-        rewrittenBuilder.derivedFields = derivedFields;
         rewrittenBuilder.searchAfterBuilder = searchAfterBuilder;
         rewrittenBuilder.sliceBuilder = slice;
         rewrittenBuilder.size = size;
@@ -1181,6 +1183,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
         rewrittenBuilder.collapse = collapse;
         rewrittenBuilder.pointInTimeBuilder = pointInTimeBuilder;
+        rewrittenBuilder.derivedFieldsObject = derivedFieldsObject;
+        rewrittenBuilder.derivedFields = derivedFields;
         return rewrittenBuilder;
     }
 
@@ -1267,8 +1271,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         scriptFields.add(new ScriptField(parser));
                     }
-                } else if (DERIVED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    derivedFieldsObject = parser.map();
                 } else if (INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     deprecationLogger.deprecate(
                         "indices_boost_object_format",
@@ -1330,6 +1332,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         pointInTimeBuilder = PointInTimeBuilder.fromXContent(parser);
                     } else if (SEARCH_PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
                         searchPipelineSource = parser.mapOrdered();
+                    } else if (DERIVED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        derivedFieldsObject = parser.map();
                     } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
@@ -1483,19 +1487,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.endObject();
         }
 
-        if (derivedFieldsObject != null || derivedFields != null) {
-            builder.startObject(DERIVED_FIELDS_FIELD.getPreferredName());
-            if (derivedFieldsObject != null) {
-                builder.map(derivedFieldsObject);
-            }
-            if (derivedFields != null) {
-                for (DerivedField derivedField : derivedFields) {
-                    derivedField.toXContent(builder, params);
-                }
-            }
-            builder.endObject();
-        }
-
         if (sorts != null) {
             builder.startArray(SORT_FIELD.getPreferredName());
             for (SortBuilder<?> sort : sorts) {
@@ -1575,6 +1566,20 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (searchPipelineSource != null) {
             builder.field(SEARCH_PIPELINE.getPreferredName(), searchPipelineSource);
         }
+
+        if (derivedFieldsObject != null || derivedFields != null) {
+            builder.startObject(DERIVED_FIELDS_FIELD.getPreferredName());
+            if (derivedFieldsObject != null) {
+                builder.map(derivedFieldsObject);
+            }
+            if (derivedFields != null) {
+                for (DerivedField derivedField : derivedFields) {
+                    derivedField.toXContent(builder, params);
+                }
+            }
+            builder.endObject();
+        }
+
         return builder;
     }
 
@@ -1834,8 +1839,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             queryBuilder,
             rescoreBuilders,
             scriptFields,
-            derivedFieldsObject,
-            derivedFields,
             size,
             sorts,
             searchAfterBuilder,
@@ -1852,7 +1855,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             extBuilders,
             collapse,
             trackTotalHitsUpTo,
-            pointInTimeBuilder
+            pointInTimeBuilder,
+            derivedFieldsObject,
+            derivedFields
         );
     }
 
@@ -1879,8 +1884,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(queryBuilder, other.queryBuilder)
             && Objects.equals(rescoreBuilders, other.rescoreBuilders)
             && Objects.equals(scriptFields, other.scriptFields)
-            && Objects.equals(derivedFieldsObject, other.derivedFieldsObject)
-            && Objects.equals(derivedFields, other.derivedFields)
             && Objects.equals(size, other.size)
             && Objects.equals(sorts, other.sorts)
             && Objects.equals(searchAfterBuilder, other.searchAfterBuilder)
@@ -1897,7 +1900,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(extBuilders, other.extBuilders)
             && Objects.equals(collapse, other.collapse)
             && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)
-            && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder);
+            && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder)
+            && Objects.equals(derivedFieldsObject, other.derivedFieldsObject)
+            && Objects.equals(derivedFields, other.derivedFields);
     }
 
     @Override
