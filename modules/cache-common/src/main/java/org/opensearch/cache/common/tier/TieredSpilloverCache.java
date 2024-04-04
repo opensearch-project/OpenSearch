@@ -50,7 +50,7 @@ import java.util.function.Predicate;
 public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
     // Used to avoid caching stale entries in lower tiers.
-    private static final List<RemovalReason> REMOVAL_REASONS_FOR_EVICTION = List.of(RemovalReason.EVICTED, RemovalReason.CAPACITY);
+    private static final List<RemovalReason> SPILLOVER_REMOVAL_REASONS = List.of(RemovalReason.EVICTED, RemovalReason.CAPACITY);
 
     private final ICache<K, V> diskCache;
     private final ICache<K, V> onHeapCache;
@@ -74,7 +74,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 @Override
                 public void onRemoval(RemovalNotification<K, V> notification) {
                     try (ReleasableLock ignore = writeLock.acquire()) {
-                        if (REMOVAL_REASONS_FOR_EVICTION.contains(notification.getRemovalReason())
+                        if (SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason())
                             && evaluatePolicies(notification.getValue())) {
                             diskCache.put(notification.getKey(), notification.getValue());
                         } else {
@@ -165,10 +165,11 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
      * Provides an iteration over both onHeap and disk keys. This is not protected from any mutations to the cache.
      * @return An iterable over (onHeap + disk) keys
      */
-    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @SuppressWarnings({ "unchecked" })
     @Override
     public Iterable<K> keys() {
-        return new ConcatenatedIterables<K>(new Iterable[] { onHeapCache.keys(), diskCache.keys() });
+        Iterable<K>[] iterables = (Iterable<K>[]) new Iterable<?>[] { onHeapCache.keys(), diskCache.keys() };
+        return new ConcatenatedIterables<K>(iterables);
     }
 
     @Override
@@ -227,7 +228,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
      * iterator supports it.
      * @param <K> Type of key.
      */
-    class ConcatenatedIterables<K> implements Iterable<K> {
+    static class ConcatenatedIterables<K> implements Iterable<K> {
 
         final Iterable<K>[] iterables;
 
@@ -245,7 +246,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             return new ConcatenatedIterator<>(iterators);
         }
 
-        class ConcatenatedIterator<T> implements Iterator<T> {
+        static class ConcatenatedIterator<T> implements Iterator<T> {
             private final Iterator<T>[] iterators;
             private int currentIteratorIndex;
             private Iterator<T> currentIterator;
@@ -258,18 +259,14 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
             @Override
             public boolean hasNext() {
-                // Check if the current iterator has next element
-                while (currentIterator.hasNext()) {
-                    return true;
-                }
-                // If the current iterator is exhausted, switch to the next iterator
-                currentIteratorIndex++;
-                if (currentIteratorIndex < iterators.length) {
+                while (!currentIterator.hasNext()) {
+                    currentIteratorIndex++;
+                    if (currentIteratorIndex == iterators.length) {
+                        return false;
+                    }
                     currentIterator = iterators[currentIteratorIndex];
-                    // Check if the switched iterator has next element
-                    return hasNext();
                 }
-                return false;
+                return true;
             }
 
             @Override
