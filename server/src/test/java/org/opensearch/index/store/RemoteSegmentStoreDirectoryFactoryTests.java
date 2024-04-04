@@ -103,7 +103,7 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
                 eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC),
                 any()
             );
-            verify(repositoriesService, times(2)).repository("remote_store_repository");
+            verify(repositoriesService, times(3)).repository("remote_store_repository");
         }
     }
 
