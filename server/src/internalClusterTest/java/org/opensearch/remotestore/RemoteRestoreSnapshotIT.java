@@ -330,6 +330,34 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // Validating that custom data has not changed for indexes which were created before the cluster setting got updated
         validatePathType(indexName1, PathType.FIXED);
+
+        // Create Snapshot of index 2
+        String snapshotName2 = "test-restore-snapshot2";
+        snapshotInfo = createSnapshot(snapshotRepoName, snapshotName2, new ArrayList<>(List.of(indexName2)));
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertTrue(snapshotInfo.successfulShards() > 0);
+        assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
+
+        // Update cluster settings to FIXED
+        client(clusterManagerNode).admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING.getKey(), PathType.FIXED))
+            .get();
+
+        // Close index 2
+        assertAcked(client().admin().indices().prepareClose(indexName2));
+        restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName2)
+            .setWaitForCompletion(false)
+            .setIndices(indexName2)
+            .get();
+        assertEquals(RestStatus.ACCEPTED, restoreSnapshotResponse.status());
+        ensureGreen(indexName2);
+
+        // Validating that custom data has not changed for testindex2 which was created before the cluster setting got updated
+        validatePathType(indexName2, PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A);
     }
 
     private void validatePathType(String index, PathType pathType) {
