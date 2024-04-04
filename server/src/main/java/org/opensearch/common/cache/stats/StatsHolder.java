@@ -172,12 +172,13 @@ public class StatsHolder {
         }
 
         // Now for all nodes that were ancestors of the removed node, decrement their stats, and check if they now have no children. If so,
-        // remove them.
+        // remove them, making sure they have all-0 stats.
         for (int i = dimensionValues.size() - 1; i >= 1; i--) {
             StatsHolderDimensionNode currentNode = ancestors.get(i);
             parentNode = ancestors.get(i - 1);
             currentNode.getStats().subtract(statsToDecrement);
             if (currentNode.children.isEmpty()) {
+                assert currentNode.getStats().snapshot().equals(new CacheStatsCounterSnapshot(0, 0, 0, 0, 0));
                 parentNode.children.remove(currentNode.getDimensionValue());
             }
         }
