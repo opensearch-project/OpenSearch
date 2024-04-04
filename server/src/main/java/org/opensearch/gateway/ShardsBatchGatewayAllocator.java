@@ -234,6 +234,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         }
 
         Set<ShardRouting> shardsToBatch = Sets.newHashSet();
+        Set<ShardId> batchedShardsToAssign = Sets.newHashSet();
         // add all unassigned shards to the batch if they are not already in a batch
         unassigned.forEach(shardRouting -> {
             if ((currentBatchShards.containsKey(shardRouting.shardId()) == false) && (shardRouting.primary() == primary)) {
@@ -251,8 +252,12 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                 String batchId = currentBatchShards.get(shardRouting.shardId());
                 batchesToBeAssigned.add(batchId);
                 currentBatches.get(batchId).batchInfo.get(shardRouting.shardId()).setShardRouting(shardRouting);
+                batchedShardsToAssign.add(shardRouting.shardId());
             }
         });
+
+        refreshShardBatches(currentBatches, batchedShardsToAssign);
+
         Iterator<ShardRouting> iterator = shardsToBatch.iterator();
         assert maxBatchSize > 0 : "Shards batch size must be greater than 0";
 
@@ -281,6 +286,23 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
             }
         }
         return batchesToBeAssigned;
+    }
+
+    private void refreshShardBatches(ConcurrentMap<String, ShardsBatch> currentBatches, Set<ShardId> batchedShardsToAssign) {
+        // cleanup shard from batches if they are not present in unassigned list from allocation object. This is
+        // needed as AllocationService.reroute can also be called directly by API flows for example DeleteIndices.
+        // So, as part of calling reroute, those shards will be removed from allocation object. It'll handle the
+        // scenarios where shards can be removed from unassigned list without "start" or "failed" event.
+        for (Map.Entry<String, ShardsBatch> batchEntry : currentBatches.entrySet()) {
+            Iterator<ShardId> shardIdIterator = batchEntry.getValue().getBatchedShards().iterator();
+            while (shardIdIterator.hasNext()) {
+                ShardId shardId = shardIdIterator.next();
+                if (batchedShardsToAssign.contains(shardId) == false) {
+                    shardIdIterator.remove();
+                    batchEntry.getValue().clearShardFromCache(shardId);
+                }
+            }
+        }
     }
 
     private void addBatch(ShardsBatch shardsBatch, boolean primary) {
@@ -640,9 +662,13 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
         private void removeFromBatch(ShardRouting shard) {
             removeShard(shard.shardId());
-            asyncBatch.clearShard(shard.shardId());
+            clearShardFromCache(shard.shardId());
             // assert that fetcher and shards are the same as batched shards
             assert batchInfo.size() == asyncBatch.shardAttributesMap.size() : "Shards size is not equal to fetcher size";
+        }
+
+        private void clearShardFromCache(ShardId shardId) {
+            asyncBatch.clearShard(shardId);
         }
 
         public List<ShardRouting> getBatchedShardRoutings() {

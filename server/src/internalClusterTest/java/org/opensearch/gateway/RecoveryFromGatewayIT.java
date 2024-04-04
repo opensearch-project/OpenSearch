@@ -32,50 +32,57 @@
 
 package org.opensearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.lucene.index.CorruptIndexException;
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteResponse;
+import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
+import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.support.ActionTestUtils;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.ElectionSchedulerFactory;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.Index;
+import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayStartedShard;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.MergePolicyConfig;
+import org.opensearch.index.MergePolicyProvider;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
+import org.opensearch.indices.store.ShardAttributes;
+import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch;
+import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.InternalTestCluster.RestartCallback;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.InternalSettingsPlugin;
-import org.opensearch.test.InternalTestCluster.RestartCallback;
 import org.opensearch.test.store.MockFSIndexStore;
 
 import java.nio.file.DirectoryStream;
@@ -89,14 +96,20 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.IntStream;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.cluster.health.ClusterHealthStatus.GREEN;
 import static org.opensearch.cluster.health.ClusterHealthStatus.RED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.gateway.GatewayRecoveryTestUtils.corruptShard;
+import static org.opensearch.gateway.GatewayRecoveryTestUtils.getDiscoveryNodes;
+import static org.opensearch.gateway.GatewayRecoveryTestUtils.prepareRequestMap;
 import static org.opensearch.gateway.GatewayService.RECOVER_AFTER_NODES_SETTING;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
@@ -121,16 +134,15 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
         internalCluster().startNode();
 
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("appAccountIds")
-                .field("type", "text")
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("appAccountIds")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         assertAcked(prepareCreate("test").setMapping(mapping));
 
         client().prepareIndex("test")
@@ -190,8 +202,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         }
         final Map<String, long[]> result = new HashMap<>();
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        for (ObjectCursor<IndexMetadata> cursor : state.metadata().indices().values()) {
-            final IndexMetadata indexMetadata = cursor.value;
+        for (final IndexMetadata indexMetadata : state.metadata().indices().values()) {
             final String index = indexMetadata.getIndex().getName();
             final long[] previous = previousTerms.get(index);
             final long[] current = IntStream.range(0, indexMetadata.getNumberOfShards()).mapToLong(indexMetadata::primaryTerm).toArray();
@@ -216,19 +227,18 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
     public void testSingleNodeNoFlush() throws Exception {
         internalCluster().startNode();
 
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "text")
-                .endObject()
-                .startObject("num")
-                .field("type", "integer")
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .endObject()
+            .startObject("num")
+            .field("type", "integer")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         // note: default replica settings are tied to #data nodes-1 which is 0 here. We can do with 1 in this test.
         int numberOfShards = numberOfShards();
         assertAcked(
@@ -534,7 +544,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
                     .put("number_of_replicas", 1)
 
                     // disable merges to keep segments the same
-                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                    .put(MergePolicyProvider.INDEX_MERGE_ENABLED, false)
 
                     // expire retention leases quickly
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
@@ -721,11 +731,11 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         );
 
         assertThat(response.getNodes(), hasSize(1));
-        assertThat(response.getNodes().get(0).allocationId(), notNullValue());
+        assertThat(response.getNodes().get(0).getGatewayShardStarted().allocationId(), notNullValue());
         if (corrupt) {
-            assertThat(response.getNodes().get(0).storeException(), notNullValue());
+            assertThat(response.getNodes().get(0).getGatewayShardStarted().storeException(), notNullValue());
         } else {
-            assertThat(response.getNodes().get(0).storeException(), nullValue());
+            assertThat(response.getNodes().get(0).getGatewayShardStarted().storeException(), nullValue());
         }
 
         // start another node so cluster consistency checks won't time out due to the lack of state
@@ -1017,5 +1027,218 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             client().prepareIndex(prefix + i).setId("2").setSource("foo2", "bar2").get();
             ensureGreen(prefix + i);
         }
+    }
+
+    public void testSingleShardFetchUsingBatchAction() {
+        String indexName = "test";
+        int numOfShards = 1;
+        prepareIndex(indexName, numOfShards);
+        Map<ShardId, ShardAttributes> shardIdShardAttributesMap = prepareRequestMap(new String[] { indexName }, numOfShards);
+
+        ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards(indexName).get();
+
+        TransportNodesListGatewayStartedShardsBatch.NodesGatewayStartedShardsBatch response;
+        response = ActionTestUtils.executeBlocking(
+            internalCluster().getInstance(TransportNodesListGatewayStartedShardsBatch.class),
+            new TransportNodesListGatewayStartedShardsBatch.Request(searchShardsResponse.getNodes(), shardIdShardAttributesMap)
+        );
+        final Index index = resolveIndex(indexName);
+        final ShardId shardId = new ShardId(index, 0);
+        GatewayStartedShard gatewayStartedShard = response.getNodesMap()
+            .get(searchShardsResponse.getNodes()[0].getId())
+            .getNodeGatewayStartedShardsBatch()
+            .get(shardId);
+        assertNodeGatewayStartedShardsHappyCase(gatewayStartedShard);
+    }
+
+    public void testShardFetchMultiNodeMultiIndexesUsingBatchAction() {
+        // start node
+        internalCluster().startNode();
+        String indexName1 = "test1";
+        String indexName2 = "test2";
+        int numShards = internalCluster().numDataNodes();
+        // assign one primary shard each to the data nodes
+        prepareIndex(indexName1, numShards);
+        prepareIndex(indexName2, numShards);
+        Map<ShardId, ShardAttributes> shardIdShardAttributesMap = prepareRequestMap(new String[] { indexName1, indexName2 }, numShards);
+        ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards(indexName1, indexName2).get();
+        assertEquals(internalCluster().numDataNodes(), searchShardsResponse.getNodes().length);
+        TransportNodesListGatewayStartedShardsBatch.NodesGatewayStartedShardsBatch response;
+        response = ActionTestUtils.executeBlocking(
+            internalCluster().getInstance(TransportNodesListGatewayStartedShardsBatch.class),
+            new TransportNodesListGatewayStartedShardsBatch.Request(searchShardsResponse.getNodes(), shardIdShardAttributesMap)
+        );
+        for (ClusterSearchShardsGroup clusterSearchShardsGroup : searchShardsResponse.getGroups()) {
+            ShardId shardId = clusterSearchShardsGroup.getShardId();
+            assertEquals(1, clusterSearchShardsGroup.getShards().length);
+            String nodeId = clusterSearchShardsGroup.getShards()[0].currentNodeId();
+            GatewayStartedShard gatewayStartedShard = response.getNodesMap().get(nodeId).getNodeGatewayStartedShardsBatch().get(shardId);
+            assertNodeGatewayStartedShardsHappyCase(gatewayStartedShard);
+        }
+    }
+
+    public void testShardFetchCorruptedShardsUsingBatchAction() throws Exception {
+        String indexName = "test";
+        int numOfShards = 1;
+        prepareIndex(indexName, numOfShards);
+        Map<ShardId, ShardAttributes> shardIdShardAttributesMap = prepareRequestMap(new String[] { indexName }, numOfShards);
+        ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards(indexName).get();
+        final Index index = resolveIndex(indexName);
+        final ShardId shardId = new ShardId(index, 0);
+        corruptShard(searchShardsResponse.getNodes()[0].getName(), shardId);
+        TransportNodesListGatewayStartedShardsBatch.NodesGatewayStartedShardsBatch response;
+        internalCluster().restartNode(searchShardsResponse.getNodes()[0].getName());
+        response = ActionTestUtils.executeBlocking(
+            internalCluster().getInstance(TransportNodesListGatewayStartedShardsBatch.class),
+            new TransportNodesListGatewayStartedShardsBatch.Request(getDiscoveryNodes(), shardIdShardAttributesMap)
+        );
+        DiscoveryNode[] discoveryNodes = getDiscoveryNodes();
+        GatewayStartedShard gatewayStartedShard = response.getNodesMap()
+            .get(discoveryNodes[0].getId())
+            .getNodeGatewayStartedShardsBatch()
+            .get(shardId);
+        assertNotNull(gatewayStartedShard.storeException());
+        assertNotNull(gatewayStartedShard.allocationId());
+        assertTrue(gatewayStartedShard.primary());
+    }
+
+    public void testSingleShardStoreFetchUsingBatchAction() throws ExecutionException, InterruptedException {
+        String indexName = "test";
+        DiscoveryNode[] nodes = getDiscoveryNodes();
+        TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch response = prepareAndSendRequest(
+            new String[] { indexName },
+            nodes
+        );
+        Index index = resolveIndex(indexName);
+        ShardId shardId = new ShardId(index, 0);
+        TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata nodeStoreFilesMetadata = response.getNodesMap()
+            .get(nodes[0].getId())
+            .getNodeStoreFilesMetadataBatch()
+            .get(shardId);
+        assertNodeStoreFilesMetadataSuccessCase(nodeStoreFilesMetadata, shardId);
+    }
+
+    public void testShardStoreFetchMultiNodeMultiIndexesUsingBatchAction() throws Exception {
+        internalCluster().startNodes(2);
+        String indexName1 = "test1";
+        String indexName2 = "test2";
+        DiscoveryNode[] nodes = getDiscoveryNodes();
+        TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch response = prepareAndSendRequest(
+            new String[] { indexName1, indexName2 },
+            nodes
+        );
+        ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards(indexName1, indexName2).get();
+        for (ClusterSearchShardsGroup clusterSearchShardsGroup : searchShardsResponse.getGroups()) {
+            ShardId shardId = clusterSearchShardsGroup.getShardId();
+            ShardRouting[] shardRoutings = clusterSearchShardsGroup.getShards();
+            assertEquals(2, shardRoutings.length);
+            for (ShardRouting shardRouting : shardRoutings) {
+                TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata nodeStoreFilesMetadata = response.getNodesMap()
+                    .get(shardRouting.currentNodeId())
+                    .getNodeStoreFilesMetadataBatch()
+                    .get(shardId);
+                assertNodeStoreFilesMetadataSuccessCase(nodeStoreFilesMetadata, shardId);
+            }
+        }
+    }
+
+    public void testShardStoreFetchNodeNotConnectedUsingBatchAction() {
+        DiscoveryNode nonExistingNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        String indexName = "test";
+        TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch response = prepareAndSendRequest(
+            new String[] { indexName },
+            new DiscoveryNode[] { nonExistingNode }
+        );
+        assertTrue(response.hasFailures());
+        assertEquals(1, response.failures().size());
+        assertEquals(nonExistingNode.getId(), response.failures().get(0).nodeId());
+    }
+
+    public void testShardStoreFetchCorruptedIndexUsingBatchAction() throws Exception {
+        internalCluster().startNodes(2);
+        String index1Name = "test1";
+        String index2Name = "test2";
+        prepareIndices(new String[] { index1Name, index2Name }, 1, 1);
+        Map<ShardId, ShardAttributes> shardAttributesMap = prepareRequestMap(new String[] { index1Name, index2Name }, 1);
+        Index index1 = resolveIndex(index1Name);
+        ShardId shardId1 = new ShardId(index1, 0);
+        ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards(index1Name).get();
+        assertEquals(2, searchShardsResponse.getNodes().length);
+
+        // corrupt test1 index shards
+        corruptShard(searchShardsResponse.getNodes()[0].getName(), shardId1);
+        corruptShard(searchShardsResponse.getNodes()[1].getName(), shardId1);
+        ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setRetryFailed(false).get();
+        DiscoveryNode[] discoveryNodes = getDiscoveryNodes();
+        TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch response;
+        response = ActionTestUtils.executeBlocking(
+            internalCluster().getInstance(TransportNodesListShardStoreMetadataBatch.class),
+            new TransportNodesListShardStoreMetadataBatch.Request(shardAttributesMap, discoveryNodes)
+        );
+        Map<ShardId, TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata> nodeStoreFilesMetadata = response.getNodesMap()
+            .get(discoveryNodes[0].getId())
+            .getNodeStoreFilesMetadataBatch();
+        // We don't store exception in case of corrupt index, rather just return an empty response
+        assertNull(nodeStoreFilesMetadata.get(shardId1).getStoreFileFetchException());
+        assertEquals(shardId1, nodeStoreFilesMetadata.get(shardId1).storeFilesMetadata().shardId());
+        assertTrue(nodeStoreFilesMetadata.get(shardId1).storeFilesMetadata().isEmpty());
+
+        Index index2 = resolveIndex(index2Name);
+        ShardId shardId2 = new ShardId(index2, 0);
+        assertNodeStoreFilesMetadataSuccessCase(nodeStoreFilesMetadata.get(shardId2), shardId2);
+    }
+
+    private void prepareIndices(String[] indices, int numberOfPrimaryShards, int numberOfReplicaShards) {
+        for (String index : indices) {
+            createIndex(
+                index,
+                Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, numberOfPrimaryShards)
+                    .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicaShards)
+                    .build()
+            );
+            index(index, "type", "1", Collections.emptyMap());
+            flush(index);
+        }
+    }
+
+    private TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch prepareAndSendRequest(
+        String[] indices,
+        DiscoveryNode[] nodes
+    ) {
+        Map<ShardId, ShardAttributes> shardAttributesMap = null;
+        prepareIndices(indices, 1, 1);
+        shardAttributesMap = prepareRequestMap(indices, 1);
+        TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch response;
+        return ActionTestUtils.executeBlocking(
+            internalCluster().getInstance(TransportNodesListShardStoreMetadataBatch.class),
+            new TransportNodesListShardStoreMetadataBatch.Request(shardAttributesMap, nodes)
+        );
+    }
+
+    private void assertNodeStoreFilesMetadataSuccessCase(
+        TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata nodeStoreFilesMetadata,
+        ShardId shardId
+    ) {
+        assertNull(nodeStoreFilesMetadata.getStoreFileFetchException());
+        TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata storeFileMetadata = nodeStoreFilesMetadata.storeFilesMetadata();
+        assertFalse(storeFileMetadata.isEmpty());
+        assertEquals(shardId, storeFileMetadata.shardId());
+        assertNotNull(storeFileMetadata.peerRecoveryRetentionLeases());
+    }
+
+    private void assertNodeGatewayStartedShardsHappyCase(GatewayStartedShard gatewayStartedShard) {
+        assertNull(gatewayStartedShard.storeException());
+        assertNotNull(gatewayStartedShard.allocationId());
+        assertTrue(gatewayStartedShard.primary());
+    }
+
+    private void prepareIndex(String indexName, int numberOfPrimaryShards) {
+        createIndex(
+            indexName,
+            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numberOfPrimaryShards).put(SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        index(indexName, "type", "1", Collections.emptyMap());
+        flush(indexName);
     }
 }
