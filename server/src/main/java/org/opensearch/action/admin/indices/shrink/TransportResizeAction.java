@@ -397,11 +397,13 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         if (compatibilityMode == CompatibilityMode.MIXED) {
             boolean isRemoteStoreEnabled = sourceIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false);
             Direction migrationDirection = clusterSettings.get(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING);
-            boolean invalidConfiguration = (migrationDirection == Direction.REMOTE_STORE &&  isRemoteStoreEnabled == false)
+            boolean invalidConfiguration = (migrationDirection == Direction.REMOTE_STORE && isRemoteStoreEnabled == false)
                 || (migrationDirection == Direction.DOCREP && isRemoteStoreEnabled);
             if (invalidConfiguration) {
                 throw new IllegalStateException(
-                    "Index " + type +" is not allowed as remote migration mode is mixed"
+                    "Index "
+                        + type
+                        + " is not allowed as remote migration mode is mixed"
                         + " and index is remote store "
                         + (isRemoteStoreEnabled ? "enabled" : "disabled")
                 );

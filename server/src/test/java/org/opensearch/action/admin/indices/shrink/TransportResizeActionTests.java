@@ -683,7 +683,9 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
                 );
                 assertEquals(
                     ise.getMessage(),
-                    "Index " + resizeType +" is not allowed as remote migration mode is mixed"
+                    "Index "
+                        + resizeType
+                        + " is not allowed as remote migration mode is mixed"
                         + " and index is remote store "
                         + (isRemoteStoreEnabled ? "enabled" : "disabled")
                 );

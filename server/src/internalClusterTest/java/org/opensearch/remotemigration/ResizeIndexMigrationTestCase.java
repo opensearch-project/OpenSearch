@@ -115,8 +115,7 @@ public class ResizeIndexMigrationTestCase extends MigrationBaseTestCase {
         );
         assertEquals(
             ex.getMessage(),
-            "Index " + resizeType +" is not allowed as remote migration mode is mixed"
-                + " and index is remote store disabled"
+            "Index " + resizeType + " is not allowed as remote migration mode is mixed" + " and index is remote store disabled"
         );
     }
 
@@ -203,8 +202,7 @@ public class ResizeIndexMigrationTestCase extends MigrationBaseTestCase {
         );
         assertEquals(
             ex.getMessage(),
-            "Index " + resizeType +" is not allowed as remote migration mode is mixed"
-                + " and index is remote store enabled"
+            "Index " + resizeType + " is not allowed as remote migration mode is mixed" + " and index is remote store enabled"
         );
     }
 }
