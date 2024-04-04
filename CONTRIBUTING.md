@@ -171,7 +171,7 @@ We have a lot of mechanisms to help expedite towards an accepted PR. Here are so
 2. *Do not copy non-compliant code*: Ensure that code is APLv2 compatible. This means that you have not copied any code from other sources unless that code is also APLv2 compatible.
 3. *Utilize feature flags*: Features that are safeguarded behind feature flags are more likely to be merged and backported, as they come with an additional layer of protection. Refer to this [example PR](https://github.com/opensearch-project/OpenSearch/pull/4959) for implementation details.
 4. *Use appropriate Java tags*:
-    - `@opensearch.internal`: Marks internal classes that may change rapidly.
+    - `@opensearch.internal`: Marks internal classes subject to rapid changes.
     - `@opensearch.api`: Marks public facing API classes that provide bwc guarantees.
     - `@opensearch.experimental`: Mark rapidly changing [experimental code](./DEVELOPER_GUIDE.md#experimental-development).
 5. *Use sandbox for big core changes*: Any new features or enhancements that make changes to core classes (e.g., search phases, codecs, or specialized lucene APIs) are more likely to. be merged if they are sandboxed. This can only be enabled on the java CLI (`-Dsandbox.enabled=true`).
