@@ -94,11 +94,10 @@ public class MultiDimensionCacheStats implements CacheStats {
             CacheStatsCounterSnapshot stats = new CacheStatsCounterSnapshot(in);
             boolean doRecreateMap = in.readBoolean();
 
-            MDCSDimensionNode result = new MDCSDimensionNode(nodeDimensionValue);
+            MDCSDimensionNode result = new MDCSDimensionNode(nodeDimensionValue, stats);
             if (doRecreateMap) {
                 result.createChildrenMap();
             }
-            result.setStats(stats);
             MDCSDimensionNode parent = ancestorsOfLastRead.get(depth - 1);
             parent.getChildren().put(nodeDimensionValue, result);
             List<MDCSDimensionNode> ancestors = new ArrayList<>(ancestorsOfLastRead.subList(0, depth));
