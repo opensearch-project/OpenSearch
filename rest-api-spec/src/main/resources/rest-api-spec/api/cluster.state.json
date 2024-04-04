@@ -1,7 +1,7 @@
 {
   "cluster.state":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-state.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/count/",
       "description":"Returns a comprehensive information about the state of the cluster."
     },
     "stability":"stable",

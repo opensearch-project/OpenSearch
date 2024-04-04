@@ -1,7 +1,7 @@
 {
   "ingest.delete_pipeline":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-pipeline-api.html",
+      "url":"https://opensearch.org/docs/latest/ingest-pipelines/delete-ingest/",
       "description":"Deletes a pipeline."
     },
     "stability":"stable",
