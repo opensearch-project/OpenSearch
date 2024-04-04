@@ -153,6 +153,7 @@ import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
@@ -202,6 +203,7 @@ import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
+import org.opensearch.plugins.SecureSettingsFactory;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
@@ -787,6 +789,8 @@ public class Node implements Closeable {
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
 
+            final RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, settingsModule.getClusterSettings());
+
             final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
                 repositoriesServiceReference::get,
                 threadPool
@@ -824,7 +828,8 @@ public class Node implements Closeable {
                 searchRequestStats,
                 remoteStoreStatsTrackerFactory,
                 recoverySettings,
-                cacheService
+                cacheService,
+                remoteStoreSettings
             );
 
             final IngestService ingestService = new IngestService(
@@ -945,6 +950,13 @@ public class Node implements Closeable {
                 admissionControlService
             );
 
+            final Collection<SecureSettingsFactory> secureSettingsFactories = pluginsService.filterPlugins(Plugin.class)
+                .stream()
+                .map(p -> p.getSecureSettingFactory(settings))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
+
             List<TransportInterceptor> transportInterceptors = List.of(admissionControlTransportInterceptor);
             final NetworkModule networkModule = new NetworkModule(
                 settings,
@@ -959,7 +971,8 @@ public class Node implements Closeable {
                 restController,
                 clusterService.getClusterSettings(),
                 tracer,
-                transportInterceptors
+                transportInterceptors,
+                secureSettingsFactories
             );
 
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.filterPlugins(

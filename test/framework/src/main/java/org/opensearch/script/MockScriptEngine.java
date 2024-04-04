@@ -281,7 +281,22 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(IntervalFilterScript.class)) {
             IntervalFilterScript.Factory factory = mockCompiled::createIntervalFilterScript;
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(DerivedFieldScript.class)) {
+            DerivedFieldScript.Factory factory = (derivedFieldsParams, lookup) -> ctx -> new DerivedFieldScript(
+                derivedFieldsParams,
+                lookup,
+                ctx
+            ) {
+                @Override
+                public void execute() {
+                    Map<String, Object> vars = new HashMap<>(derivedFieldsParams);
+                    vars.put("params", derivedFieldsParams);
+                    script.apply(vars);
+                }
+            };
+            return context.factoryClazz.cast(factory);
         }
+
         ContextCompiler compiler = contexts.get(context);
         if (compiler != null) {
             return context.factoryClazz.cast(compiler.compile(script::apply, params));

@@ -88,8 +88,10 @@ import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.remote.RemoteStorePathResolver;
-import org.opensearch.index.remote.RemoteStorePathType;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
+import org.opensearch.index.remote.RemoteStorePathStrategyResolver;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexCreationException;
@@ -113,6 +115,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -170,7 +173,7 @@ public class MetadataCreateIndexService {
     private AwarenessReplicaBalance awarenessReplicaBalance;
 
     @Nullable
-    private final RemoteStorePathResolver remoteStorePathResolver;
+    private final RemoteStorePathStrategyResolver remoteStorePathStrategyResolver;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -203,8 +206,8 @@ public class MetadataCreateIndexService {
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         createIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_KEY, true);
-        remoteStorePathResolver = isRemoteDataAttributePresent(settings)
-            ? new RemoteStorePathResolver(clusterService.getClusterSettings())
+        remoteStorePathStrategyResolver = isRemoteDataAttributePresent(settings)
+            ? new RemoteStorePathStrategyResolver(clusterService.getClusterSettings())
             : null;
     }
 
@@ -553,17 +556,44 @@ public class MetadataCreateIndexService {
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(indexSettings);
         tmpImdBuilder.system(isSystem);
-
-        if (remoteStorePathResolver != null) {
-            String pathType = remoteStorePathResolver.resolveType().toString();
-            tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, Map.of(RemoteStorePathType.NAME, pathType));
-        }
+        addRemoteStorePathStrategyInCustomData(tmpImdBuilder, true);
 
         // Set up everything, now locally create the index to see that things are ok, and apply
         IndexMetadata tempMetadata = tmpImdBuilder.build();
         validateActiveShardCount(request.waitForActiveShards(), tempMetadata);
 
         return tempMetadata;
+    }
+
+    /**
+     * Adds the remote store path type information in custom data of index metadata.
+     *
+     * @param tmpImdBuilder     index metadata builder.
+     * @param assertNullOldType flag to verify that the old remote store path type is null
+     */
+    public void addRemoteStorePathStrategyInCustomData(IndexMetadata.Builder tmpImdBuilder, boolean assertNullOldType) {
+        if (remoteStorePathStrategyResolver != null) {
+            // It is possible that remote custom data exists already. In such cases, we need to only update the path type
+            // in the remote store custom data map.
+            Map<String, String> existingRemoteCustomData = tmpImdBuilder.removeCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+            Map<String, String> remoteCustomData = existingRemoteCustomData == null
+                ? new HashMap<>()
+                : new HashMap<>(existingRemoteCustomData);
+            // Determine the path type for use using the remoteStorePathResolver.
+            RemoteStorePathStrategy newPathStrategy = remoteStorePathStrategyResolver.get();
+            String oldPathType = remoteCustomData.put(PathType.NAME, newPathStrategy.getType().name());
+            String oldHashAlgorithm = remoteCustomData.put(PathHashAlgorithm.NAME, newPathStrategy.getHashAlgorithm().name());
+            assert !assertNullOldType || (Objects.isNull(oldPathType) && Objects.isNull(oldHashAlgorithm));
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "Added newPathStrategy={}, replaced oldPathType={} oldHashAlgorithm={}",
+                    newPathStrategy,
+                    oldPathType,
+                    oldHashAlgorithm
+                )
+            );
+            tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, remoteCustomData);
+        }
     }
 
     private ClusterState applyCreateIndexRequestWithV1Templates(

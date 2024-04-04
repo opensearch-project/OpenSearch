@@ -175,7 +175,7 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
         // we need to ensure its state has cleared up in ongoing replications.
         if (event.routingTableChanged()) {
             for (IndexService indexService : indicesService) {
-                if (indexService.getIndexSettings().isSegRepEnabled()) {
+                if (indexService.getIndexSettings().isSegRepEnabledOrRemoteNode()) {
                     for (IndexShard indexShard : indexService) {
                         if (indexShard.routingEntry().primary()) {
                             final IndexMetadata indexMetadata = indexService.getIndexSettings().getIndexMetadata();
@@ -221,7 +221,7 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
      */
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
-        if (indexShard != null && indexShard.indexSettings().isSegRepEnabled()) {
+        if (indexShard != null && indexShard.indexSettings().isSegRepEnabledOrRemoteNode()) {
             ongoingSegmentReplications.cancel(indexShard, "shard is closed");
         }
     }
@@ -231,7 +231,10 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
      */
     @Override
     public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
-        if (indexShard != null && indexShard.indexSettings().isSegRepEnabled() && oldRouting.primary() == false && newRouting.primary()) {
+        if (indexShard != null
+            && indexShard.indexSettings().isSegRepEnabledOrRemoteNode()
+            && oldRouting.primary() == false
+            && newRouting.primary()) {
             ongoingSegmentReplications.cancel(indexShard.routingEntry().allocationId().getId(), "Relocating primary shard.");
         }
     }

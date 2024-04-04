@@ -216,7 +216,6 @@ public class RestoreService implements ClusterStateApplier {
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         restoreSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.RESTORE_SNAPSHOT_KEY, true);
-
     }
 
     /**
@@ -452,6 +451,7 @@ public class RestoreService implements ClusterStateApplier {
                                             .put(snapshotIndexMetadata.getSettings())
                                             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                                     );
+                                    createIndexService.addRemoteStorePathStrategyInCustomData(indexMdBuilder, false);
                                     shardLimitValidator.validateShardLimit(
                                         renamedIndexName,
                                         snapshotIndexMetadata.getSettings(),
