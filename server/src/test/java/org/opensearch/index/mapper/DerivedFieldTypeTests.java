@@ -28,9 +28,7 @@ public class DerivedFieldTypeTests extends FieldTypeTestCase {
         Mapper.BuilderContext context = mock(Mapper.BuilderContext.class);
         when(context.path()).thenReturn(new ContentPath());
         return new DerivedFieldType(
-            type + " _derived_field",
-            type,
-            new Script(""),
+            new DerivedField(type + " _derived_field", type, new Script("")),
             DerivedFieldSupportedTypes.getFieldMapperFromType(type, type + "_derived_field", context),
             DerivedFieldSupportedTypes.getIndexableFieldGeneratorType(type, type + "_derived_field")
         );

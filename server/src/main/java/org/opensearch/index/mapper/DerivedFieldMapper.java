@@ -72,9 +72,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
                 name
             );
             DerivedFieldType ft = new DerivedFieldType(
-                buildFullName(context),
-                type.getValue(),
-                script.getValue(),
+                new DerivedField(buildFullName(context), type.getValue(), script.getValue()),
                 fieldMapper,
                 fieldFunction
             );

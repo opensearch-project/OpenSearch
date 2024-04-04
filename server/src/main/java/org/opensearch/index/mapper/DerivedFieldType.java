@@ -23,7 +23,6 @@ import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.query.DerivedFieldQuery;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.DerivedFieldScript;
-import org.opensearch.script.Script;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -40,18 +39,15 @@ import java.util.function.Function;
  */
 @PublicApi(since = "2.14.0")
 public final class DerivedFieldType extends MappedFieldType {
-    private final String type;
 
-    private final Script script;
+    private final DerivedField derivedField;
 
     FieldMapper typeFieldMapper;
 
     final Function<Object, IndexableField> indexableFieldGenerator;
 
     public DerivedFieldType(
-        String name,
-        String type,
-        Script script,
+        DerivedField derivedField,
         boolean isIndexed,
         boolean isStored,
         boolean hasDocValues,
@@ -59,21 +55,14 @@ public final class DerivedFieldType extends MappedFieldType {
         FieldMapper typeFieldMapper,
         Function<Object, IndexableField> fieldFunction
     ) {
-        super(name, isIndexed, isStored, hasDocValues, typeFieldMapper.fieldType().getTextSearchInfo(), meta);
-        this.type = type;
-        this.script = script;
+        super(derivedField.getName(), isIndexed, isStored, hasDocValues, typeFieldMapper.fieldType().getTextSearchInfo(), meta);
+        this.derivedField = derivedField;
         this.typeFieldMapper = typeFieldMapper;
         this.indexableFieldGenerator = fieldFunction;
     }
 
-    public DerivedFieldType(
-        String name,
-        String type,
-        Script script,
-        FieldMapper typeFieldMapper,
-        Function<Object, IndexableField> fieldFunction
-    ) {
-        this(name, type, script, false, false, false, Collections.emptyMap(), typeFieldMapper, fieldFunction);
+    public DerivedFieldType(DerivedField derivedField, FieldMapper typeFieldMapper, Function<Object, IndexableField> fieldFunction) {
+        this(derivedField, false, false, false, Collections.emptyMap(), typeFieldMapper, fieldFunction);
     }
 
     @Override
@@ -82,7 +71,7 @@ public final class DerivedFieldType extends MappedFieldType {
     }
 
     public String getType() {
-        return type;
+        return derivedField.getType();
     }
 
     public NamedAnalyzer getIndexAnalyzer() {
@@ -280,7 +269,7 @@ public final class DerivedFieldType extends MappedFieldType {
                     + "]"
             );
         }
-        DerivedFieldScript.Factory factory = context.compile(script, DerivedFieldScript.CONTEXT);
-        return factory.newFactory(script.getParams(), context.lookup());
+        DerivedFieldScript.Factory factory = context.compile(derivedField.getScript(), DerivedFieldScript.CONTEXT);
+        return factory.newFactory(derivedField.getScript().getParams(), context.lookup());
     }
 }
