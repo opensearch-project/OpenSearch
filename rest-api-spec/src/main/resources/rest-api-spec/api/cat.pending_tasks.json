@@ -1,7 +1,7 @@
 {
   "cat.pending_tasks":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-pending-tasks.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/cat/cat-pending-tasks/",
       "description":"Returns a concise representation of the cluster pending tasks."
     },
     "stability":"stable",

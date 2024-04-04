@@ -37,7 +37,9 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
-import org.opensearch.index.remote.RemoteStorePathType;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -702,16 +704,19 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         String repositoryName = "test-repository";
         String indexUUID = "test-idx-uuid";
         ShardId shardId = new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt("0"));
-        RemoteStorePathType pathType = randomFrom(RemoteStorePathType.values());
+        RemoteStorePathStrategy pathStrategy = new RemoteStorePathStrategy(
+            randomFrom(PathType.values()),
+            randomFrom(PathHashAlgorithm.values())
+        );
 
         RemoteSegmentStoreDirectory.remoteDirectoryCleanup(
             remoteSegmentStoreDirectoryFactory,
             repositoryName,
             indexUUID,
             shardId,
-            pathType
+            pathStrategy
         );
-        verify(remoteSegmentStoreDirectoryFactory).newDirectory(repositoryName, indexUUID, shardId, pathType);
+        verify(remoteSegmentStoreDirectoryFactory).newDirectory(repositoryName, indexUUID, shardId, pathStrategy);
         verify(threadPool, times(0)).executor(ThreadPool.Names.REMOTE_PURGE);
         verify(remoteMetadataDirectory).delete();
         verify(remoteDataDirectory).delete();

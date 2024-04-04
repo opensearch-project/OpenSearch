@@ -2538,7 +2538,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         );
     }
 
-    public static Settings buildRemoteStoreNodeAttributes(
+    private static Settings buildRemoteStoreNodeAttributes(
         String segmentRepoName,
         Path segmentRepoPath,
         String segmentRepoType,

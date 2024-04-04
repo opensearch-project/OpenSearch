@@ -19,7 +19,7 @@ import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.util.FileSystemUtils;
-import org.opensearch.index.remote.RemoteStorePathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
@@ -28,6 +28,7 @@ import org.opensearch.index.translog.transfer.TranslogCheckpointTransferSnapshot
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
@@ -50,9 +51,9 @@ import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
-import static org.opensearch.index.remote.RemoteStoreDataEnums.DataCategory.TRANSLOG;
-import static org.opensearch.index.remote.RemoteStoreDataEnums.DataType.DATA;
-import static org.opensearch.index.remote.RemoteStoreDataEnums.DataType.METADATA;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 
 /**
  * A Translog implementation which syncs local FS with a remote store
@@ -100,7 +101,8 @@ public class RemoteFsTranslog extends Translog {
         BlobStoreRepository blobStoreRepository,
         ThreadPool threadPool,
         BooleanSupplier startedPrimarySupplier,
-        RemoteTranslogTransferTracker remoteTranslogTransferTracker
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        RemoteStoreSettings remoteStoreSettings
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         logger = Loggers.getLogger(getClass(), shardId);
@@ -113,7 +115,8 @@ public class RemoteFsTranslog extends Translog {
             shardId,
             fileTransferTracker,
             remoteTranslogTransferTracker,
-            indexSettings().getRemoteStorePathType()
+            indexSettings().getRemoteStorePathStrategy(),
+            remoteStoreSettings
         );
         try {
             download(translogTransferManager, location, logger);
@@ -162,7 +165,8 @@ public class RemoteFsTranslog extends Translog {
         ShardId shardId,
         ThreadPool threadPool,
         Path location,
-        RemoteStorePathType pathType,
+        RemoteStorePathStrategy pathStrategy,
+        RemoteStoreSettings remoteStoreSettings,
         Logger logger
     ) throws IOException {
         assert repository instanceof BlobStoreRepository : String.format(
@@ -181,7 +185,8 @@ public class RemoteFsTranslog extends Translog {
             shardId,
             fileTransferTracker,
             remoteTranslogTransferTracker,
-            pathType
+            pathStrategy,
+            remoteStoreSettings
         );
         RemoteFsTranslog.download(translogTransferManager, location, logger);
         logger.trace(remoteTranslogTransferTracker.toString());
@@ -259,15 +264,30 @@ public class RemoteFsTranslog extends Translog {
         ShardId shardId,
         FileTransferTracker fileTransferTracker,
         RemoteTranslogTransferTracker tracker,
-        RemoteStorePathType pathType
+        RemoteStorePathStrategy pathStrategy,
+        RemoteStoreSettings remoteStoreSettings
     ) {
-        assert Objects.nonNull(pathType);
+        assert Objects.nonNull(pathStrategy);
         String indexUUID = shardId.getIndex().getUUID();
         String shardIdStr = String.valueOf(shardId.id());
-        BlobPath dataPath = pathType.path(blobStoreRepository.basePath(), indexUUID, shardIdStr, TRANSLOG, DATA);
-        BlobPath mdPath = pathType.path(blobStoreRepository.basePath(), indexUUID, shardIdStr, TRANSLOG, METADATA);
+        RemoteStorePathStrategy.PathInput dataPathInput = RemoteStorePathStrategy.PathInput.builder()
+            .basePath(blobStoreRepository.basePath())
+            .indexUUID(indexUUID)
+            .shardId(shardIdStr)
+            .dataCategory(TRANSLOG)
+            .dataType(DATA)
+            .build();
+        BlobPath dataPath = pathStrategy.generatePath(dataPathInput);
+        RemoteStorePathStrategy.PathInput mdPathInput = RemoteStorePathStrategy.PathInput.builder()
+            .basePath(blobStoreRepository.basePath())
+            .indexUUID(indexUUID)
+            .shardId(shardIdStr)
+            .dataCategory(TRANSLOG)
+            .dataType(METADATA)
+            .build();
+        BlobPath mdPath = pathStrategy.generatePath(mdPathInput);
         BlobStoreTransferService transferService = new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool);
-        return new TranslogTransferManager(shardId, transferService, dataPath, mdPath, fileTransferTracker, tracker);
+        return new TranslogTransferManager(shardId, transferService, dataPath, mdPath, fileTransferTracker, tracker, remoteStoreSettings);
     }
 
     @Override
@@ -539,8 +559,13 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
-    public static void cleanup(Repository repository, ShardId shardId, ThreadPool threadPool, RemoteStorePathType pathType)
-        throws IOException {
+    public static void cleanup(
+        Repository repository,
+        ShardId shardId,
+        ThreadPool threadPool,
+        RemoteStorePathStrategy pathStrategy,
+        RemoteStoreSettings remoteStoreSettings
+    ) throws IOException {
         assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
         BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
         // We use a dummy stats tracker to ensure the flow doesn't break.
@@ -553,7 +578,8 @@ public class RemoteFsTranslog extends Translog {
             shardId,
             fileTransferTracker,
             remoteTranslogTransferTracker,
-            pathType
+            pathStrategy,
+            remoteStoreSettings
         );
         // clean up all remote translog files
         translogTransferManager.deleteTranslogFiles();
