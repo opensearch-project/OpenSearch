@@ -61,7 +61,7 @@ public class CacheStatsCounter {
         internalAdd(snapshot.getHits(), snapshot.getMisses(), snapshot.getEvictions(), snapshot.getSizeInBytes(), snapshot.getEntries());
     }
 
-    public void subtract(CacheStatsCounter other) {
+    public void subtract(CacheStatsCounterSnapshot other) {
         if (other == null) {
             return;
         }
@@ -95,6 +95,10 @@ public class CacheStatsCounter {
 
     public CacheStatsCounterSnapshot snapshot() {
         return new CacheStatsCounterSnapshot(hits.count(), misses.count(), evictions.count(), sizeInBytes.count(), entries.count());
+    }
+
+    public boolean isZero() {
+        return getHits() == 0 && getMisses() == 0 && getEvictions() == 0 && getSizeInBytes() == 0 && getEntries() == 0;
     }
 
 }

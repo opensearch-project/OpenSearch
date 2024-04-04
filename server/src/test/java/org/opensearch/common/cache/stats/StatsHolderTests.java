@@ -56,22 +56,22 @@ public class StatsHolderTests extends OpenSearchTestCase {
 
         assertEquals(3, statsHolder.getStatsRoot().getStats().getHits());
 
-        // When we invalidate A1, B1, we should lose the nodes for B1 and also A1, as it has no more children.
-
-        statsHolder.removeDimensions(List.of("A1", "B1"));
-
-        assertEquals(2, statsHolder.getStatsRoot().getStats().getHits());
-        assertNull(StatsHolder.getNode(List.of("A1", "B1"), statsHolder.getStatsRoot()));
-        assertNull(StatsHolder.getNode(List.of("A1"), statsHolder.getStatsRoot()));
-
         // When we invalidate A2, B2, we should lose the node for B2, but not B3 or A2.
 
         statsHolder.removeDimensions(List.of("A2", "B2"));
 
-        assertEquals(1, statsHolder.getStatsRoot().getStats().getHits());
+        assertEquals(2, statsHolder.getStatsRoot().getStats().getHits());
         assertNull(StatsHolder.getNode(List.of("A2", "B2"), statsHolder.getStatsRoot()));
         assertNotNull(StatsHolder.getNode(List.of("A2"), statsHolder.getStatsRoot()));
         assertNotNull(StatsHolder.getNode(List.of("A2", "B3"), statsHolder.getStatsRoot()));
+
+        // When we invalidate A1, B1, we should lose the nodes for B1 and also A1, as it has no more children.
+
+        statsHolder.removeDimensions(List.of("A1", "B1"));
+
+        assertEquals(1, statsHolder.getStatsRoot().getStats().getHits());
+        assertNull(StatsHolder.getNode(List.of("A1", "B1"), statsHolder.getStatsRoot()));
+        assertNull(StatsHolder.getNode(List.of("A1"), statsHolder.getStatsRoot()));
 
         // When we invalidate the last node, all nodes should be deleted except the root node
 
