@@ -58,7 +58,7 @@ import static org.opensearch.cli.Terminal.Verbosity.VERBOSE;
 /**
  * A command for the plugin CLI to remove a plugin from OpenSearch.
  */
-class RemovePluginCommand extends EnvironmentAwareCommand {
+public class RemovePluginCommand extends EnvironmentAwareCommand {
 
     // exit codes for remove
     /** A plugin cannot be removed because it is extended by another plugin. */

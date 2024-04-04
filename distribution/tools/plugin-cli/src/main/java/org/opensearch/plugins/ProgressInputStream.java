@@ -38,13 +38,21 @@ import java.io.InputStream;
 
 /**
  * An input stream that allows to add a listener to monitor progress
+ * <ul>
+ * <li>
  * The listener is triggered whenever a full percent is increased
+ * </li>
+ * <li>
  * The listener is never triggered twice on the same percentage
+ * </li>
+ * <li>
  * The listener will always return 99 percent, if the expectedTotalSize is exceeded, until it is finished
+ * </li>
+ * </ul>
  * <p>
- * Only used by the InstallPluginCommand, thus package private here
+ * Only used by the InstallPluginCommand
  */
-abstract class ProgressInputStream extends FilterInputStream {
+public abstract class ProgressInputStream extends FilterInputStream {
 
     private final int expectedTotalSize;
     private int currentPercent;
@@ -92,5 +100,10 @@ abstract class ProgressInputStream extends FilterInputStream {
         }
     }
 
+    /**
+     * Listener to react to progress updates
+     *
+     * @param percent percent complete
+     */
     public void onProgress(int percent) {}
 }

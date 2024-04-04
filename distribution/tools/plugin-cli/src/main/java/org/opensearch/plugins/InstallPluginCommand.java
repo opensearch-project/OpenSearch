@@ -106,11 +106,11 @@ import java.util.stream.Collectors;
 import static org.opensearch.cli.Terminal.Verbosity.VERBOSE;
 
 /**
- * A command for the plugin cli to install a plugin into opensearch.
+ * A command for the plugin CLI to install a plugin into OpenSearch.
  * <p>
  * The install command takes a plugin id, which may be any of the following:
  * <ul>
- * <li>An official opensearch plugin name</li>
+ * <li>An official OpenSearch plugin name</li>
  * <li>Maven coordinates to a plugin zip</li>
  * <li>A URL to a plugin zip</li>
  * </ul>
@@ -121,21 +121,21 @@ import static org.opensearch.cli.Terminal.Verbosity.VERBOSE;
  * The installation process first extracts the plugin files into a temporary
  * directory in order to verify the plugin satisfies the following requirements:
  * <ul>
- * <li>Jar hell does not exist, either between the plugin's own jars, or with opensearch</li>
- * <li>The plugin is not a module already provided with opensearch</li>
+ * <li>Jar hell does not exist, either between the plugin's own jars, or with OpenSearch</li>
+ * <li>The plugin is not a module already provided with OpenSearch</li>
  * <li>If the plugin contains extra security permissions, the policy file is validated</li>
  * </ul>
  * <p>
  * A plugin may also contain an optional {@code bin} directory which contains scripts. The
- * scripts will be installed into a subdirectory of the opensearch bin directory, using
+ * scripts will be installed into a subdirectory of the OpenSearch bin directory, using
  * the name of the plugin, and the scripts will be marked executable.
  * <p>
  * A plugin may also contain an optional {@code config} directory which contains configuration
  * files specific to the plugin. The config files be installed into a subdirectory of the
- * opensearch config directory, using the name of the plugin. If any files to be installed
+ * OpenSearch config directory, using the name of the plugin. If any files to be installed
  * already exist, they will be skipped.
  */
-class InstallPluginCommand extends EnvironmentAwareCommand {
+public class InstallPluginCommand extends EnvironmentAwareCommand {
 
     private static final String PROPERTY_STAGING_ID = "opensearch.plugins.staging";
 

@@ -47,9 +47,9 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * A command for the plugin cli to list plugins installed in opensearch.
+ * A command for the plugin CLI to list plugins installed in OpenSearch.
  */
-class ListPluginsCommand extends EnvironmentAwareCommand {
+public class ListPluginsCommand extends EnvironmentAwareCommand {
 
     ListPluginsCommand() {
         super("Lists installed opensearch plugins");
