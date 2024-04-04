@@ -208,7 +208,10 @@ public class MultiDimensionCacheStats implements CacheStats {
         return filtered;
     }
 
-    static class MDCSDimensionNode extends DimensionNode {
+    // A version of DimensionNode which uses an ordered TreeMap and holds immutable CacheStatsCounterSnapshot as its stats.
+    // TODO: Make this extend from DimensionNode?
+    static class MDCSDimensionNode {
+        private final String dimensionValue;
         TreeMap<String, MDCSDimensionNode> children; // Ordered map from dimensionValue to the DimensionNode for that dimension value
 
         // The stats for this node. If a leaf node, corresponds to the stats for this combination of dimensions; if not,
@@ -216,23 +219,21 @@ public class MultiDimensionCacheStats implements CacheStats {
         private CacheStatsCounterSnapshot stats;
 
         MDCSDimensionNode(String dimensionValue) {
-            super(dimensionValue);
+            this.dimensionValue = dimensionValue;
             this.children = null; // Lazy load this as needed
             this.stats = null;
         }
 
         MDCSDimensionNode(String dimensionValue, CacheStatsCounterSnapshot stats) {
-            super(dimensionValue);
+            this.dimensionValue = dimensionValue;
             this.children = null;
             this.stats = stats;
         }
 
-        @Override
         protected void createChildrenMap() {
             children = new TreeMap<>();
         }
 
-        @Override
         protected Map<String, MDCSDimensionNode> getChildren() {
             return children;
         }
@@ -243,6 +244,14 @@ public class MultiDimensionCacheStats implements CacheStats {
 
         public void setStats(CacheStatsCounterSnapshot stats) {
             this.stats = stats;
+        }
+
+        public String getDimensionValue() {
+            return dimensionValue;
+        }
+
+        public boolean hasChildren() {
+            return getChildren() != null && !getChildren().isEmpty();
         }
     }
 

@@ -8,11 +8,7 @@
 
 package org.opensearch.common.cache.stats;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.opensearch.common.cache.stats.MultiDimensionCacheStats.MDCSDimensionNode;
@@ -32,11 +28,11 @@ public class StatsHolder {
 
     // A tree structure based on dimension values, which stores stats values in its leaf nodes.
     // Non-leaf nodes have stats matching the sum of their children.
-    private final StatsHolderDimensionNode statsRoot;
+    private final DimensionNode statsRoot;
 
     public StatsHolder(List<String> dimensionNames) {
         this.dimensionNames = dimensionNames;
-        this.statsRoot = new StatsHolderDimensionNode(null); // The root node has no dimension value associated with it, only children
+        this.statsRoot = new DimensionNode(null); // The root node has no dimension value associated with it, only children
         statsRoot.createChildrenMap();
     }
 
@@ -76,33 +72,24 @@ public class StatsHolder {
         internalIncrement(dimensionValues, (counter) -> counter.entries.dec(), false);
     }
 
-    // A helper function which traverses the whole stats tree and runs some function taking in the node and path at each node.
-    static void traverseStatsTreeHelper(
-        StatsHolderDimensionNode currentNode,
-        List<String> pathToCurrentNode,
-        BiConsumer<StatsHolderDimensionNode, List<String>> function
-    ) {
-        function.accept(currentNode, pathToCurrentNode);
-        if (currentNode.hasChildren()) {
-            // not a leaf node
-            for (StatsHolderDimensionNode child : currentNode.children.values()) {
-                List<String> pathToChild = new ArrayList<>(pathToCurrentNode);
-                pathToChild.add(child.getDimensionValue());
-                traverseStatsTreeHelper(child, pathToChild, function);
-            }
-        }
-    }
-
     /**
      * Reset number of entries and memory size when all keys leave the cache, but don't reset hit/miss/eviction numbers.
      * This is in line with the behavior of the existing API when caches are cleared.
      */
     public void reset() {
-        traverseStatsTreeHelper(statsRoot, new ArrayList<>(), (node, path) -> {
-            CacheStatsCounter counter = node.getStats();
-            counter.sizeInBytes.dec(counter.getSizeInBytes());
-            counter.entries.dec(counter.getEntries());
-        });
+        resetHelper(statsRoot);
+    }
+
+    private void resetHelper(DimensionNode current) {
+        CacheStatsCounter counter = current.getStats();
+        counter.sizeInBytes.dec(counter.getSizeInBytes());
+        counter.entries.dec(counter.getEntries());
+        if (current.hasChildren()) {
+            // not a leaf node
+            for (DimensionNode child : current.children.values()) {
+                resetHelper(child);
+            }
+        }
     }
 
     public long count() {
@@ -125,15 +112,15 @@ public class StatsHolder {
      */
     private boolean internalIncrementHelper(
         List<String> dimensionValues,
-        StatsHolderDimensionNode node,
-        int dimensionValuesIndex,
+        DimensionNode node,
+        int dimensionValuesIndex, // Pass in the relevant dimension index to avoid having to slice the list for each node.
         Consumer<CacheStatsCounter> adder,
         boolean createNodesIfAbsent
     ) {
         if (dimensionValuesIndex == dimensionValues.size()) {
             return true;
         }
-        StatsHolderDimensionNode child = node.getOrCreateChild(dimensionValues.get(dimensionValuesIndex), createNodesIfAbsent);
+        DimensionNode child = node.getOrCreateChild(dimensionValues.get(dimensionValuesIndex), createNodesIfAbsent);
         if (child == null) {
             return false;
         }
@@ -151,18 +138,24 @@ public class StatsHolder {
         MDCSDimensionNode snapshot = new MDCSDimensionNode(null, statsRoot.getStats().snapshot());
         snapshot.createChildrenMap();
         // Traverse the tree and build a corresponding tree of MDCSDimensionNode, to pass to MultiDimensionCacheStats.
-        traverseStatsTreeHelper(statsRoot, new ArrayList<>(), (node, path) -> {
-            if (path.size() > 0) {
-                MDCSDimensionNode newNode = createMatchingMDCSDimensionNode(node);
-                // Get the parent of this node in the new tree
-                MDCSDimensionNode parentNode = (MDCSDimensionNode) getNode(path.subList(0, path.size() - 1), snapshot);
-                parentNode.getChildren().put(node.getDimensionValue(), newNode);
-            }
-        });
+        for (DimensionNode child : statsRoot.getChildren().values()) {
+            getCacheStatsHelper(child, snapshot);
+        }
         return new MultiDimensionCacheStats(snapshot, dimensionNames);
     }
 
-    private MDCSDimensionNode createMatchingMDCSDimensionNode(StatsHolderDimensionNode node) {
+    private void getCacheStatsHelper(DimensionNode currentNodeInOriginalTree, MDCSDimensionNode parentInNewTree) {
+        MDCSDimensionNode newNode = createMatchingMDCSDimensionNode(currentNodeInOriginalTree);
+        parentInNewTree.getChildren().put(newNode.getDimensionValue(), newNode);
+        if (currentNodeInOriginalTree.hasChildren()) {
+            // not a leaf node
+            for (DimensionNode child : currentNodeInOriginalTree.children.values()) {
+                getCacheStatsHelper(child, newNode);
+            }
+        }
+    }
+
+    private MDCSDimensionNode createMatchingMDCSDimensionNode(DimensionNode node) {
         CacheStatsCounterSnapshot nodeSnapshot = node.getStats().snapshot();
         MDCSDimensionNode newNode = new MDCSDimensionNode(node.getDimensionValue(), nodeSnapshot);
         if (node.getChildren() != null) {
@@ -180,16 +173,12 @@ public class StatsHolder {
     }
 
     // Returns a CacheStatsCounter object for the stats to decrement if the removal happened, null otherwise.
-    private CacheStatsCounterSnapshot removeDimensionsHelper(
-        List<String> dimensionValues,
-        StatsHolderDimensionNode node,
-        int dimensionValuesIndex
-    ) {
+    private CacheStatsCounterSnapshot removeDimensionsHelper(List<String> dimensionValues, DimensionNode node, int dimensionValuesIndex) {
         if (dimensionValuesIndex == dimensionValues.size()) {
             // Pass up a snapshot of the original stats to avoid issues when the original is decremented by other fn invocations
             return node.getStats().snapshot();
         }
-        StatsHolderDimensionNode child = node.getOrCreateChild(dimensionValues.get(dimensionValuesIndex), false);
+        DimensionNode child = node.getOrCreateChild(dimensionValues.get(dimensionValuesIndex), false);
         if (child == null) {
             return null;
         }
@@ -197,67 +186,15 @@ public class StatsHolder {
         if (statsToDecrement != null) {
             // The removal took place, decrement values and remove this node from its parent if it's now empty
             child.getStats().subtract(statsToDecrement);
-            if (child.getStats().isZero()) {
+            if (child.getChildren() == null || child.getChildren().isEmpty()) {
                 node.children.remove(child.getDimensionValue());
             }
         }
         return statsToDecrement;
     }
 
-    static class StatsHolderDimensionNode extends DimensionNode {
-        // Map from dimensionValue to the DimensionNode for that dimension value
-        ConcurrentHashMap<String, StatsHolderDimensionNode> children;
-        // The stats for this node. If a leaf node, corresponds to the stats for this combination of dimensions; if not,
-        // contains the sum of its children's stats.
-        private CacheStatsCounter stats;
-
-        StatsHolderDimensionNode(String dimensionValue) {
-            super(dimensionValue);
-            this.children = null; // Lazy load this as needed
-            this.stats = new CacheStatsCounter();
-        }
-
-        @Override
-        protected void createChildrenMap() {
-            children = new ConcurrentHashMap<>();
-        }
-
-        @Override
-        protected Map<String, StatsHolderDimensionNode> getChildren() {
-            // We can safely iterate over ConcurrentHashMap without worrying about thread issues.
-            return children;
-        }
-
-        public CacheStatsCounter getStats() {
-            return stats;
-        }
-
-        StatsHolderDimensionNode getOrCreateChild(String dimensionValue, boolean createIfAbsent) {
-            if (children == null) {
-                createChildrenMap();
-            }
-            // If we are creating new nodes, put one in the map. Otherwise, the mapping function returns null to leave the map unchanged
-            return children.computeIfAbsent(dimensionValue, (key) -> createIfAbsent ? new StatsHolderDimensionNode(dimensionValue) : null);
-        }
-    }
-
-    /**
-     * Returns the node found by following these dimension values down from the root node.
-     * Returns null if no such node exists.
-     */
-    static DimensionNode getNode(List<String> dimensionValues, DimensionNode root) {
-        DimensionNode current = root;
-        for (String dimensionValue : dimensionValues) {
-            current = current.getChildren().get(dimensionValue);
-            if (current == null) {
-                return null;
-            }
-        }
-        return current;
-    }
-
     // pkg-private for testing
-    StatsHolderDimensionNode getStatsRoot() {
+    DimensionNode getStatsRoot() {
         return statsRoot;
     }
 }

@@ -35,10 +35,7 @@ public class StatsHolderTests extends OpenSearchTestCase {
             originalCounter.sizeInBytes = new CounterMetric();
             originalCounter.entries = new CounterMetric();
 
-            StatsHolder.StatsHolderDimensionNode node = (StatsHolder.StatsHolderDimensionNode) StatsHolder.getNode(
-                dimensionValues,
-                statsHolder.getStatsRoot()
-            );
+            DimensionNode node = getNode(dimensionValues, statsHolder.getStatsRoot());
             CacheStatsCounter actual = node.getStats();
             assertEquals(originalCounter.snapshot(), actual.snapshot());
         }
@@ -61,17 +58,17 @@ public class StatsHolderTests extends OpenSearchTestCase {
         statsHolder.removeDimensions(List.of("A2", "B2"));
 
         assertEquals(2, statsHolder.getStatsRoot().getStats().getHits());
-        assertNull(StatsHolder.getNode(List.of("A2", "B2"), statsHolder.getStatsRoot()));
-        assertNotNull(StatsHolder.getNode(List.of("A2"), statsHolder.getStatsRoot()));
-        assertNotNull(StatsHolder.getNode(List.of("A2", "B3"), statsHolder.getStatsRoot()));
+        assertNull(getNode(List.of("A2", "B2"), statsHolder.getStatsRoot()));
+        assertNotNull(getNode(List.of("A2"), statsHolder.getStatsRoot()));
+        assertNotNull(getNode(List.of("A2", "B3"), statsHolder.getStatsRoot()));
 
         // When we invalidate A1, B1, we should lose the nodes for B1 and also A1, as it has no more children.
 
         statsHolder.removeDimensions(List.of("A1", "B1"));
 
         assertEquals(1, statsHolder.getStatsRoot().getStats().getHits());
-        assertNull(StatsHolder.getNode(List.of("A1", "B1"), statsHolder.getStatsRoot()));
-        assertNull(StatsHolder.getNode(List.of("A1"), statsHolder.getStatsRoot()));
+        assertNull(getNode(List.of("A1", "B1"), statsHolder.getStatsRoot()));
+        assertNull(getNode(List.of("A1"), statsHolder.getStatsRoot()));
 
         // When we invalidate the last node, all nodes should be deleted except the root node
 
@@ -91,5 +88,20 @@ public class StatsHolderTests extends OpenSearchTestCase {
             expectedCount += counter.getEntries();
         }
         assertEquals(expectedCount, statsHolder.count());
+    }
+
+    /**
+     * Returns the node found by following these dimension values down from the root node.
+     * Returns null if no such node exists.
+     */
+    static DimensionNode getNode(List<String> dimensionValues, DimensionNode root) {
+        DimensionNode current = root;
+        for (String dimensionValue : dimensionValues) {
+            current = current.getChildren().get(dimensionValue);
+            if (current == null) {
+                return null;
+            }
+        }
+        return current;
     }
 }

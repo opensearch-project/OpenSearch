@@ -58,10 +58,9 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         for (List<String> dimensionValues : expected.keySet()) {
             CacheStatsCounter expectedCounter = expected.get(dimensionValues);
 
-            CacheStatsCounterSnapshot actualStatsHolder = ((StatsHolder.StatsHolderDimensionNode) StatsHolder.getNode(
-                dimensionValues,
-                statsHolder.getStatsRoot()
-            )).getStats().snapshot();
+            CacheStatsCounterSnapshot actualStatsHolder = StatsHolderTests.getNode(dimensionValues, statsHolder.getStatsRoot())
+                .getStats()
+                .snapshot();
             CacheStatsCounterSnapshot actualCacheStats = getNode(dimensionValues, stats.getStatsRoot()).getStats();
 
             assertEquals(expectedCounter.snapshot(), actualStatsHolder);
@@ -278,11 +277,15 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         return result;
     }
 
-    private void getAllPathsInTree(DimensionNode currentNode, List<String> pathToCurrentNode, List<List<String>> allPaths) {
+    private void getAllPathsInTree(
+        MultiDimensionCacheStats.MDCSDimensionNode currentNode,
+        List<String> pathToCurrentNode,
+        List<List<String>> allPaths
+    ) {
         allPaths.add(pathToCurrentNode);
         if (currentNode.getChildren() != null && !currentNode.getChildren().isEmpty()) {
             // not a leaf node
-            for (DimensionNode child : currentNode.getChildren().values()) {
+            for (MultiDimensionCacheStats.MDCSDimensionNode child : currentNode.getChildren().values()) {
                 List<String> pathToChild = new ArrayList<>(pathToCurrentNode);
                 pathToChild.add(child.getDimensionValue());
                 getAllPathsInTree(child, pathToChild, allPaths);
@@ -294,6 +297,13 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         List<String> dimensionValues,
         MultiDimensionCacheStats.MDCSDimensionNode root
     ) {
-        return (MultiDimensionCacheStats.MDCSDimensionNode) StatsHolder.getNode(dimensionValues, root);
+        MultiDimensionCacheStats.MDCSDimensionNode current = root;
+        for (String dimensionValue : dimensionValues) {
+            current = current.getChildren().get(dimensionValue);
+            if (current == null) {
+                return null;
+            }
+        }
+        return current;
     }
 }

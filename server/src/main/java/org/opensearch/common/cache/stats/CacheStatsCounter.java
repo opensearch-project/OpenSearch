@@ -96,9 +96,4 @@ public class CacheStatsCounter {
     public CacheStatsCounterSnapshot snapshot() {
         return new CacheStatsCounterSnapshot(hits.count(), misses.count(), evictions.count(), sizeInBytes.count(), entries.count());
     }
-
-    public boolean isZero() {
-        return getHits() == 0 && getMisses() == 0 && getEvictions() == 0 && getSizeInBytes() == 0 && getEntries() == 0;
-    }
-
 }
