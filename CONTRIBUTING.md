@@ -170,7 +170,7 @@ We have a lot of mechanisms to help expedite towards an accepted PR. Here are so
 1. *Minimize BWC guarantees*: The first PR review cycle heavily focuses on the public facing APIs. This is what we have to "guarantee" as non-breaking for [bwc across major versions](./DEVELOPER_GUIDE.md#backwards-compatibility).
 2. *Do not copy non-compliant code*: Ensure that code is APLv2 compatible. This means that you have not copied any code from other sources unless that code is also APLv2 compatible.
 3. *Utilize feature flags*: Features that are safeguarded behind feature flags are more likely to be merged and backported, as they come with an additional layer of protection. Refer to this [example PR](https://github.com/opensearch-project/OpenSearch/pull/4959) for implementation details.
-4. *Use appropriate java tags*:
+4. *Use appropriate Java tags*:
     - `@opensearch.internal`: Marks internal classes that may change rapidly.
     - `@opensearch.api`: Marks public facing API classes that provide bwc guarantees.
     - `@opensearch.experimental`: Mark rapidly changing [experimental code](./DEVELOPER_GUIDE.md#experimental-development).
