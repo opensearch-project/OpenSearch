@@ -449,23 +449,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
      * If Staleness threshold is 0, we do not keep track of stale keys in the cache
      * */
     class IndicesRequestCacheCleanupManager implements Closeable {
-        class StalenessProperty {
-            private int count;
-            private boolean isAccounted;
-
-            // for testing
-            int getCount() {
-                return count;
-            }
-
-            // for testing
-            boolean getIsAccounted() {
-                return isAccounted;
-            }
-        }
-
         private final Set<CleanupKey> keysToClean;
-        private final ConcurrentMap<ShardId, HashMap<String, StalenessProperty>> cleanupKeyToCountMap;
+        private final ConcurrentMap<ShardId, HashMap<String, Integer>> cleanupKeyToCountMap;
         private final AtomicInteger staleKeysCount;
         private final double stalenessThreshold;
         private final IndicesRequestCacheCleaner cacheCleaner;
@@ -514,19 +499,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
             // If the key doesn't exist, it's added with a value of 1.
             // If the key exists, its value is incremented by 1.
-            cleanupKeyToCountMap.compute(shardId, (currentShardId, stalenessPropertyMap) -> {
-                if (stalenessPropertyMap == null) {
-                    stalenessPropertyMap = new HashMap<>();
-                }
-                stalenessPropertyMap.compute(cleanupKey.readerCacheKeyId, (readerCacheKey, stalenessProperty) -> {
-                    if (stalenessProperty == null) {
-                        stalenessProperty = new StalenessProperty();
-                    }
-                    stalenessProperty.count += 1;
-                    return stalenessProperty;
-                });
-                return stalenessPropertyMap;
-            });
+            cleanupKeyToCountMap.computeIfAbsent(shardId, k -> new HashMap<>()).merge(cleanupKey.readerCacheKeyId, 1, Integer::sum);
         }
 
         /**
@@ -550,17 +523,15 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             }
             ShardId shardId = indexShard.shardId();
 
-            cleanupKeyToCountMap.computeIfPresent(shardId, (shard, stalenessPropertyMap) -> {
-                stalenessPropertyMap.computeIfPresent(cleanupKey.readerCacheKeyId, (readerCacheKey, stalenessProperty) -> {
-                    if (stalenessProperty.isAccounted) {
-                        staleKeysCount.decrementAndGet();
-                    }
-                    stalenessProperty.count -= 1;
+            cleanupKeyToCountMap.computeIfPresent(shardId, (shard, keyCountMap) -> {
+                keyCountMap.computeIfPresent(cleanupKey.readerCacheKeyId, (key, currentValue) -> {
+                    // decrement the stale key count
+                    staleKeysCount.decrementAndGet();
+                    int newValue = currentValue - 1;
                     // Remove the key if the new value is zero by returning null; otherwise, update with the new value.
-                    return stalenessProperty.count == 0 ? null : stalenessProperty;
+                    return newValue == 0 ? null : newValue;
                 });
-                // If stalenessPropertyMap is empty after removal, return null to remove the entry for shardId
-                return stalenessPropertyMap.isEmpty() ? null : stalenessPropertyMap;
+                return keyCountMap;
             });
         }
 
@@ -586,26 +557,27 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             ShardId shardId = indexShard.shardId();
 
             // Using computeIfPresent to atomically operate on the countMap for a given shardId
-            cleanupKeyToCountMap.computeIfPresent(shardId, (currentShardId, stalenessPropertyMap) -> {
+            cleanupKeyToCountMap.computeIfPresent(shardId, (currentShardId, countMap) -> {
                 if (cleanupKey.readerCacheKeyId == null) {
                     // Aggregate and add to staleKeysCount atomically if readerCacheKeyId is null
-                    int totalSum = stalenessPropertyMap.values().stream().mapToInt(stalenessProperty -> stalenessProperty.count).sum();
+                    int totalSum = countMap.values().stream().mapToInt(Integer::intValue).sum();
                     staleKeysCount.addAndGet(totalSum);
-                    // Set isAccounted to true for all StalenessProperty in the map
-                    stalenessPropertyMap.values().forEach(stalenessProperty -> stalenessProperty.isAccounted = true);
                     // return the updated map
-                    return stalenessPropertyMap;
+                    return countMap;
                 } else {
                     // Update staleKeysCount based on specific readerCacheKeyId, then remove it from the countMap
-                    stalenessPropertyMap.computeIfPresent(cleanupKey.readerCacheKeyId, (readerCacheKey, stalenessProperty) -> {
-                        staleKeysCount.addAndGet(stalenessProperty.count);
-                        stalenessProperty.isAccounted = true;
-                        // return the updated stalenessProperty
-                        return stalenessProperty;
+                    countMap.computeIfPresent(cleanupKey.readerCacheKeyId, (readerCacheKey, count) -> {
+                        staleKeysCount.addAndGet(count);
+                        // Return null to remove the key after updating staleKeysCount
+                        return null;
                     });
+                    // Check if countMap is empty after removal to decide if we need to remove the shardId entry
+                    if (countMap.isEmpty()) {
+                        return null; // Returning null removes the entry for shardId
+                    }
                 }
-                // Return the modified stalenessPropertyMap
-                return stalenessPropertyMap;
+                // Return the modified countMap
+                return countMap;
             });
         }
 
@@ -720,7 +692,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             this.cacheCleaner.close();
         }
 
-        public ConcurrentMap<ShardId, HashMap<String, StalenessProperty>> getCleanupKeyToCountMap() {
+        public ConcurrentMap<ShardId, HashMap<String, Integer>> getCleanupKeyToCountMap() {
             return cleanupKeyToCountMap;
         }
 
