@@ -51,10 +51,9 @@ public class ShardBatchCacheTests extends OpenSearchAllocationTestCase {
             shardAttributesMap,
             "BatchID=[" + batchId + "]",
             GatewayStartedShard.class,
-            NodeGatewayStartedShardsBatch::new,
-            NodeGatewayStartedShardsBatch::getNodeGatewayStartedShardsBatch,
             new GatewayStartedShard(null, false, null, null),
-            GatewayStartedShard::isEmpty
+            GatewayStartedShard::isEmpty,
+            new ShardBatchResponseFactory<>(true)
         );
     }
 

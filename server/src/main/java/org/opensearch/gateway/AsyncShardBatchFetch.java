@@ -20,7 +20,6 @@ import java.lang.reflect.Array;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
@@ -45,10 +44,9 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extend
         AsyncShardFetch.Lister<? extends BaseNodesResponse<T>, T> action,
         String batchId,
         Class<V> clazz,
-        BiFunction<DiscoveryNode, Map<ShardId, V>, T> responseGetter,
-        Function<T, Map<ShardId, V>> shardsBatchDataGetter,
         V emptyResponse,
-        Function<V, Boolean> isEmptyResponse
+        Function<V, Boolean> isEmptyResponse,
+        ShardBatchResponseFactory<T, V> responseFactory
     ) {
         super(
             logger,
@@ -62,10 +60,9 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extend
                 shardAttributesMap,
                 "BatchID=[" + batchId + "]",
                 clazz,
-                responseGetter,
-                shardsBatchDataGetter,
                 emptyResponse,
-                isEmptyResponse
+                isEmptyResponse,
+                responseFactory
             )
         );
     }
@@ -95,8 +92,7 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extend
         private final Map<ShardId, Integer> shardIdToArray;
         private final int batchSize;
         private final Class<V> shardResponseClass;
-        private final BiFunction<DiscoveryNode, Map<ShardId, V>, T> responseConstructor;
-        private final Function<T, Map<ShardId, V>> shardsBatchDataGetter;
+        private final ShardBatchResponseFactory<T, V> responseFactory;
         private final V emptyResponse;
         private final Function<V, Boolean> isEmpty;
         private final Logger logger;
@@ -107,10 +103,9 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extend
             Map<ShardId, ShardAttributes> shardAttributesMap,
             String logKey,
             Class<V> clazz,
-            BiFunction<DiscoveryNode, Map<ShardId, V>, T> responseGetter,
-            Function<T, Map<ShardId, V>> shardsBatchDataGetter,
             V emptyResponse,
-            Function<V, Boolean> isEmptyResponse
+            Function<V, Boolean> isEmptyResponse,
+            ShardBatchResponseFactory<T, V> responseFactory
         ) {
             super(Loggers.getLogger(logger, "_" + logKey), type);
             this.batchSize = shardAttributesMap.size();
@@ -119,10 +114,9 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extend
             shardIdToArray = new HashMap<>();
             fillShardIdKeys(shardAttributesMap.keySet());
             this.shardResponseClass = clazz;
-            this.responseConstructor = responseGetter;
-            this.shardsBatchDataGetter = shardsBatchDataGetter;
             this.emptyResponse = emptyResponse;
             this.logger = logger;
+            this.responseFactory = responseFactory;
         }
 
         @Override
@@ -156,13 +150,13 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extend
         @Override
         public void putData(DiscoveryNode node, T response) {
             NodeEntry<V> nodeEntry = cache.get(node.getId());
-            Map<ShardId, V> batchResponse = shardsBatchDataGetter.apply(response);
+            Map<ShardId, V> batchResponse = responseFactory.getShardBatchData(response);
             nodeEntry.doneFetching(batchResponse, shardIdToArray);
         }
 
         @Override
         public T getData(DiscoveryNode node) {
-            return this.responseConstructor.apply(node, getBatchData(cache.get(node.getId())));
+            return this.responseFactory.getNewResponse(node, getBatchData(cache.get(node.getId())));
         }
 
         private HashMap<ShardId, V> getBatchData(NodeEntry<V> nodeEntry) {
