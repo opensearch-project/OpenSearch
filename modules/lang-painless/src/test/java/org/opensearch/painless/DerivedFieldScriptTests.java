@@ -25,8 +25,8 @@ import org.opensearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
-import org.opensearch.painless.spi.Allowlist;
-import org.opensearch.painless.spi.AllowlistLoader;
+import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.WhitelistLoader;
 import org.opensearch.script.DerivedFieldScript;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptException;
@@ -53,9 +53,9 @@ public class DerivedFieldScriptTests extends ScriptTestCase {
         super.setUp();
 
         // Adding derived field script to the contexts for the script engine
-        Map<ScriptContext<?>, List<Allowlist>> contexts = newDefaultContexts();
-        List<Allowlist> allowlists = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
-        allowlists.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.derived.txt"));
+        Map<ScriptContext<?>, List<Whitelist>> contexts = newDefaultContexts();
+        List<Whitelist> allowlists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        allowlists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.derived.txt"));
         contexts.put(DerivedFieldScript.CONTEXT, allowlists);
 
         SCRIPT_ENGINE = new PainlessScriptEngine(Settings.EMPTY, contexts);

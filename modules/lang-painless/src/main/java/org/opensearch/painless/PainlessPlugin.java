@@ -110,8 +110,8 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         map.put(IngestScript.CONTEXT, ingest);
 
         // Functions available to derived fields
-        List<Allowlist> derived = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
-        derived.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.derived.txt"));
+        List<Whitelist> derived = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        derived.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.derived.txt"));
         map.put(DerivedFieldScript.CONTEXT, derived);
 
         allowlists = map;
