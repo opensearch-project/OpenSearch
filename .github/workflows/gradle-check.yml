@@ -27,8 +27,27 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
+      - uses: tj-actions/changed-files@v44
+        id: changed-files
+
+      - id: run-gradle-check
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          run_gradle_check=false
+
+          for filename in ${ALL_CHANGED_FILES}; do
+            # Run gradle check if file ends in [java/gradle/json]
+            if [[ $filename =~ \.(java|gradle|json)$ ]]; then
+              run_gradle_check=true
+              break
+            fi
+          done
+
+          echo "run_check=$run_gradle_check" >> $GITHUB_OUTPUT
+
       - name: Setup environment variables (PR)
-        if: github.event_name == 'pull_request_target'
+        if: github.event_name == 'pull_request_target' && steps.run-gradle-check.outputs.run_check == true
         run: |
           echo "pr_from_sha=$(jq --raw-output .pull_request.head.sha $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "pr_from_clone_url=$(jq --raw-output .pull_request.head.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
@@ -50,6 +69,7 @@ jobs:
           echo "pr_number=Null" >> $GITHUB_ENV
 
       - name: Checkout opensearch-build repo
+        if: steps.run-gradle-check.outputs.run_check == true
         uses: actions/checkout@v4
         with:
           repository: opensearch-project/opensearch-build
@@ -57,6 +77,7 @@ jobs:
           path: opensearch-build
 
       - name: Trigger jenkins workflow to run gradle check
+        if: steps.run-gradle-check.outputs.run_check == true
         run: |
           set -e
           set -o pipefail
