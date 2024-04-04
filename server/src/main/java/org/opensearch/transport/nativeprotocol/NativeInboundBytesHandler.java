@@ -39,22 +39,19 @@ public class NativeInboundBytesHandler implements InboundBytesHandler {
     private InboundDecoder decoder;
     private InboundAggregator aggregator;
     private StatsTracker statsTracker;
-    private BiConsumer<TcpChannel, ProtocolInboundMessage> messageHandler;
 
     public NativeInboundBytesHandler(
         boolean isClosed,
         ArrayDeque<ReleasableBytesReference> pending,
         InboundDecoder decoder,
         InboundAggregator aggregator,
-        StatsTracker statsTracker,
-        BiConsumer<TcpChannel, ProtocolInboundMessage> messageHandler
+        StatsTracker statsTracker
     ) {
         this.isClosed = isClosed;
         this.pending = pending;
         this.decoder = decoder;
         this.aggregator = aggregator;
         this.statsTracker = statsTracker;
-        this.messageHandler = messageHandler;
     }
 
     @Override
@@ -63,7 +60,11 @@ public class NativeInboundBytesHandler implements InboundBytesHandler {
     }
 
     @Override
-    public void doHandleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
+    public void doHandleBytes(
+        TcpChannel channel,
+        ReleasableBytesReference reference,
+        BiConsumer<TcpChannel, ProtocolInboundMessage> messageHandler
+    ) throws IOException {
         final ArrayList<Object> fragments = fragmentList.get();
         boolean continueHandling = true;
 
@@ -87,7 +88,7 @@ public class NativeInboundBytesHandler implements InboundBytesHandler {
                 continueHandling = false;
             } else {
                 try {
-                    forwardFragments(channel, fragments);
+                    forwardFragments(channel, fragments, messageHandler);
                 } finally {
                     for (Object fragment : fragments) {
                         if (fragment instanceof ReleasableBytesReference) {
@@ -134,7 +135,11 @@ public class NativeInboundBytesHandler implements InboundBytesHandler {
         return fragment == InboundDecoder.PING || fragment == InboundDecoder.END_CONTENT || fragment instanceof Exception;
     }
 
-    private void forwardFragments(TcpChannel channel, ArrayList<Object> fragments) throws IOException {
+    private void forwardFragments(
+        TcpChannel channel,
+        ArrayList<Object> fragments,
+        BiConsumer<TcpChannel, ProtocolInboundMessage> messageHandler
+    ) throws IOException {
         for (Object fragment : fragments) {
             if (fragment instanceof Header) {
                 assert aggregator.isAggregating() == false;

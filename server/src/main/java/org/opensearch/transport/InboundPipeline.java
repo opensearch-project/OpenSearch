@@ -62,7 +62,9 @@ public class InboundPipeline implements Releasable {
     private Exception uncaughtException;
     private final ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
+    private final BiConsumer<TcpChannel, ProtocolInboundMessage> messageHandler;
     private final List<InboundBytesHandler> protocolBytesHandlers;
+    private InboundBytesHandler currentHandler;
 
     public InboundPipeline(
         Version version,
@@ -93,9 +95,8 @@ public class InboundPipeline implements Releasable {
         this.statsTracker = statsTracker;
         this.decoder = decoder;
         this.aggregator = aggregator;
-        this.protocolBytesHandlers = List.of(
-            new NativeInboundBytesHandler(isClosed, pending, decoder, aggregator, statsTracker, messageHandler)
-        );
+        this.protocolBytesHandlers = List.of(new NativeInboundBytesHandler(isClosed, pending, decoder, aggregator, statsTracker));
+        this.messageHandler = messageHandler;
     }
 
     @Override
@@ -104,6 +105,7 @@ public class InboundPipeline implements Releasable {
         Releasables.closeWhileHandlingException(decoder, aggregator);
         Releasables.closeWhileHandlingException(pending);
         pending.clear();
+        currentHandler = null;
     }
 
     public void handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
@@ -123,9 +125,17 @@ public class InboundPipeline implements Releasable {
         statsTracker.markBytesRead(reference.length());
         pending.add(reference.retain());
 
+        // If we have a current handler determined based on protocol, we should continue to use it for the fragmented bytes.
+        if (currentHandler != null) {
+            currentHandler.doHandleBytes(channel, reference, messageHandler);
+            return;
+        }
+
+        // If we don't have a current handler, we should try to find one based on the protocol of the incoming bytes.
         for (InboundBytesHandler handler : protocolBytesHandlers) {
             if (handler.canHandleBytes(reference)) {
-                handler.doHandleBytes(channel, reference);
+                currentHandler = handler;
+                handler.doHandleBytes(channel, reference, messageHandler);
                 return;
             }
         }
