@@ -131,17 +131,16 @@ public class RemoteTransferContainer implements Closeable {
      * @return The {@link  WriteContext} for the current upload
      */
     public WriteContext createWriteContext() {
-        return new WriteContext(
-            remoteFileName,
-            this::supplyStreamContext,
-            contentLength,
-            failTransferIfFileExists,
-            writePriority,
-            this::finalizeUpload,
-            isRemoteDataIntegrityCheckPossible(),
-            isRemoteDataIntegrityCheckPossible() ? expectedChecksum : null,
-            metadata
-        );
+        return new WriteContext.Builder().fileName(remoteFileName)
+            .streamContextSupplier(this::supplyStreamContext)
+            .fileSize(contentLength)
+            .failIfAlreadyExists(failTransferIfFileExists)
+            .writePriority(writePriority)
+            .uploadFinalizer(this::finalizeUpload)
+            .doRemoteDataIntegrityCheck(isRemoteDataIntegrityCheckPossible())
+            .expectedChecksum(isRemoteDataIntegrityCheckPossible() ? expectedChecksum : null)
+            .metadata(metadata)
+            .build();
     }
 
     // package-private for testing

@@ -332,20 +332,34 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             exceptionRef.set(ex);
             countDownLatch.countDown();
         });
-        blobContainer.asyncBlobUpload(new WriteContext("write_blob_by_streams_max_retries", new StreamContextSupplier() {
-            @Override
-            public StreamContext supplyStreamContext(long partSize) {
-                return new StreamContext(new CheckedTriFunction<Integer, Long, Long, InputStreamContainer, IOException>() {
-                    @Override
-                    public InputStreamContainer apply(Integer partNo, Long size, Long position) throws IOException {
-                        InputStream inputStream = new OffsetRangeIndexInputStream(new ByteArrayIndexInput("desc", bytes), size, position);
-                        openInputStreams.add(inputStream);
-                        return new InputStreamContainer(inputStream, size, position);
-                    }
-                }, partSize, calculateLastPartSize(bytes.length, partSize), calculateNumberOfParts(bytes.length, partSize));
-            }
-        }, bytes.length, false, WritePriority.NORMAL, Assert::assertTrue, false, null, null), completionListener);
-
+        blobContainer.asyncBlobUpload(
+            new WriteContext.Builder().fileName("write_blob_by_streams_max_retries").streamContextSupplier(new StreamContextSupplier() {
+                @Override
+                public StreamContext supplyStreamContext(long partSize) {
+                    return new StreamContext(new CheckedTriFunction<Integer, Long, Long, InputStreamContainer, IOException>() {
+                        @Override
+                        public InputStreamContainer apply(Integer partNo, Long size, Long position) throws IOException {
+                            InputStream inputStream = new OffsetRangeIndexInputStream(
+                                new ByteArrayIndexInput("desc", bytes),
+                                size,
+                                position
+                            );
+                            openInputStreams.add(inputStream);
+                            return new InputStreamContainer(inputStream, size, position);
+                        }
+                    }, partSize, calculateLastPartSize(bytes.length, partSize), calculateNumberOfParts(bytes.length, partSize));
+                }
+            })
+                .fileSize(bytes.length)
+                .failIfAlreadyExists(false)
+                .writePriority(WritePriority.NORMAL)
+                .uploadFinalizer(Assert::assertTrue)
+                .doRemoteDataIntegrityCheck(false)
+                .expectedChecksum(null)
+                .metadata(null)
+                .build(),
+            completionListener
+        );
         assertTrue(countDownLatch.await(5000, TimeUnit.SECONDS));
 
         assertThat(countDown.isCountedDown(), is(true));

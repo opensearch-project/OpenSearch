@@ -143,4 +143,80 @@ public class WriteContext {
     public Map<String, String> getMetadata() {
         return metadata;
     }
+
+    /**
+     * Builder for {@link WriteContext}.
+     *
+     * @opensearch.internal
+     */
+    public static class Builder {
+        private String fileName;
+        private StreamContextSupplier streamContextSupplier;
+        private long fileSize;
+        private boolean failIfAlreadyExists;
+        private WritePriority writePriority;
+        private CheckedConsumer<Boolean, IOException> uploadFinalizer;
+        private boolean doRemoteDataIntegrityCheck;
+        private Long expectedChecksum;
+        private Map<String, String> metadata;
+
+        public Builder fileName(String fileName) {
+            this.fileName = fileName;
+            return this;
+        }
+
+        public Builder streamContextSupplier(StreamContextSupplier streamContextSupplier) {
+            this.streamContextSupplier = streamContextSupplier;
+            return this;
+        }
+
+        public Builder fileSize(long fileSize) {
+            this.fileSize = fileSize;
+            return this;
+        }
+
+        public Builder writePriority(WritePriority writePriority) {
+            this.writePriority = writePriority;
+            return this;
+        }
+
+        public Builder failIfAlreadyExists(boolean failIfAlreadyExists) {
+            this.failIfAlreadyExists = failIfAlreadyExists;
+            return this;
+        }
+
+        public Builder uploadFinalizer(CheckedConsumer<Boolean, IOException> uploadFinalizer) {
+            this.uploadFinalizer = uploadFinalizer;
+            return this;
+        }
+
+        public Builder doRemoteDataIntegrityCheck(boolean doRemoteDataIntegrityCheck) {
+            this.doRemoteDataIntegrityCheck = doRemoteDataIntegrityCheck;
+            return this;
+        }
+
+        public Builder expectedChecksum(Long expectedChecksum) {
+            this.expectedChecksum = expectedChecksum;
+            return this;
+        }
+
+        public Builder metadata(Map<String, String> metadata) {
+            this.metadata = metadata;
+            return this;
+        }
+
+        public WriteContext build() {
+            return new WriteContext(
+                fileName,
+                streamContextSupplier,
+                fileSize,
+                failIfAlreadyExists,
+                writePriority,
+                uploadFinalizer,
+                doRemoteDataIntegrityCheck,
+                expectedChecksum,
+                metadata
+            );
+        }
+    }
 }
