@@ -8,6 +8,7 @@
 
 package org.opensearch.index.translog.transfer;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.BlobDownloadResponse;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
@@ -133,6 +134,7 @@ public interface TransferService {
      * @return {@link BlobDownloadResponse} of the remote file
      * @throws IOException the exception while reading the data
      */
+    @ExperimentalApi
     BlobDownloadResponse downloadBlobWithMetadata(Iterable<String> path, String fileName) throws IOException;
 
     void listAllInSortedOrder(Iterable<String> path, String filenamePrefix, int limit, ActionListener<List<BlobMetadata>> listener);

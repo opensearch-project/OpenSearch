@@ -12,7 +12,8 @@ import java.io.InputStream;
 import java.util.Map;
 
 /**
- * A class for blob download response
+ * Represents the response from a blob download operation, containing both the
+ * input stream of the blob content and the associated metadata.
  *
  * @opensearch.internal
  */
@@ -21,12 +22,12 @@ public class BlobDownloadResponse {
     /**
      * Downloaded blob InputStream
      */
-    private InputStream inputStream;
+    private final InputStream inputStream;
 
     /**
      * Metadata of the downloaded blob
      */
-    private Map<String, String> metadata;
+    private final Map<String, String> metadata;
 
     public InputStream getInputStream() {
         return inputStream;

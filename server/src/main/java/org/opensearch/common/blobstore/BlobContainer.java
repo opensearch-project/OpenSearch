@@ -32,6 +32,7 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
 
 import java.io.IOException;
@@ -86,8 +87,9 @@ public interface BlobContainer {
      * @throws  NoSuchFileException if the blob does not exist
      * @throws  IOException if the blob can not be read.
      */
+    @ExperimentalApi
     default BlobDownloadResponse readBlobWithMetadata(String blobName) throws IOException {
-        return null;
+        throw new UnsupportedOperationException("readBlobWithMetadata is not implemented yet");
     };
 
     /**
@@ -160,13 +162,16 @@ public interface BlobContainer {
      * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
+    @ExperimentalApi
     default void writeBlobWithMetadata(
         String blobName,
         InputStream inputStream,
         Map<String, String> metadata,
         long blobSize,
         boolean failIfAlreadyExists
-    ) throws IOException {};
+    ) throws IOException {
+        throw new UnsupportedOperationException("writeBlobWithMetadata is not implemented yet");
+    };
 
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
@@ -210,13 +215,16 @@ public interface BlobContainer {
      * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
+    @ExperimentalApi
     default void writeBlobAtomicWithMetadata(
         String blobName,
         InputStream inputStream,
         Map<String, String> metadata,
         long blobSize,
         boolean failIfAlreadyExists
-    ) throws IOException {};
+    ) throws IOException {
+        throw new UnsupportedOperationException("writeBlobAtomicWithMetadata is not implemented yet");
+    };
 
     /**
      * Deletes this container and all its contents from the repository.
