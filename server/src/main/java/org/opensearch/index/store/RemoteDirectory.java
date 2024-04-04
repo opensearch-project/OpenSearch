@@ -28,9 +28,11 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
+import org.opensearch.index.store.remote.utils.BlockIOContext;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -199,10 +201,18 @@ public class RemoteDirectory extends Directory {
     public IndexInput openInput(String name, long fileLength, IOContext context) throws IOException {
         InputStream inputStream = null;
         try {
-            inputStream = blobContainer.readBlob(name);
-            return new RemoteIndexInput(name, downloadRateLimiter.apply(inputStream), fileLength);
+            if (context instanceof BlockIOContext) {
+                long position = ((BlockIOContext) context).getBlockStart();
+                long length = ((BlockIOContext) context).getBlockSize();
+                inputStream = blobContainer.readBlob(name, position, length);
+                byte[] bytes = downloadRateLimiter.apply(inputStream).readAllBytes();
+                return new ByteArrayIndexInput(name, bytes);
+            } else {
+                inputStream = blobContainer.readBlob(name);
+                return new RemoteIndexInput(name, downloadRateLimiter.apply(inputStream), fileLength);
+            }
         } catch (Exception e) {
-            // Incase the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
+            // In case the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
             if (inputStream != null) {
                 try {
                     inputStream.close();

@@ -74,7 +74,6 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.similarity.SimilarityService;
-import org.opensearch.index.store.CompositeDirectoryFactory;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -108,6 +107,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.apache.logging.log4j.util.Strings.toRootUpperCase;
+
 /**
  * IndexModule represents the central extension point for index level custom implementations like:
  * <ul>
@@ -138,6 +139,17 @@ public final class IndexModule {
         "index.store.type",
         "",
         Function.identity(),
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
+    /**
+     * Index setting which used to determine how the data is cached locally fully or partially
+     */
+    public static final Setting<DataLocalityType> INDEX_STORE_LOCALITY_SETTING = new Setting<>(
+        "index.store.data_locality",
+        DataLocalityType.FULL.name(),
+        DataLocalityType::getValueOf,
         Property.IndexScope,
         Property.NodeScope
     );
@@ -298,6 +310,7 @@ public final class IndexModule {
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
+    private final FileCache fileCache;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -316,7 +329,8 @@ public final class IndexModule {
         final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
-        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        final FileCache fileCache
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
@@ -328,6 +342,7 @@ public final class IndexModule {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.fileCache = fileCache;
     }
 
     /**
@@ -507,8 +522,7 @@ public final class IndexModule {
         MMAPFS("mmapfs"),
         SIMPLEFS("simplefs"),
         FS("fs"),
-        REMOTE_SNAPSHOT("remote_snapshot"),
-        COMPOSITEFS("compositefs");
+        REMOTE_SNAPSHOT("remote_snapshot");
 
         private final String settingsKey;
         private final boolean deprecated;
@@ -576,6 +590,40 @@ public final class IndexModule {
          */
         public boolean match(Settings settings) {
             return match(INDEX_STORE_TYPE_SETTING.get(settings));
+        }
+    }
+
+    /**
+     * Indicates the locality of the data - whether it will be cached fully or partially
+     */
+    public enum DataLocalityType {
+        /**
+         * Indicates that all the data will be cached locally
+         */
+        FULL,
+        /**
+         * Indicates that only a subset of the data will be cached locally
+         */
+        PARTIAL;
+
+        private static final Map<String, DataLocalityType> LOCALITY_TYPES;
+
+        static {
+            final Map<String, DataLocalityType> localityTypes = new HashMap<>(values().length);
+            for (final DataLocalityType dataLocalityType : values()) {
+                localityTypes.put(dataLocalityType.name(), dataLocalityType);
+            }
+            LOCALITY_TYPES = Collections.unmodifiableMap(localityTypes);
+        }
+
+        public static DataLocalityType getValueOf(final String localityType) {
+            Objects.requireNonNull(localityType, "No locality type given.");
+            final String localityTypeName = toRootUpperCase(localityType.trim());
+            final DataLocalityType type = LOCALITY_TYPES.get(localityTypeName);
+            if (type != null) {
+                return type;
+            }
+            throw new IllegalArgumentException("Unknown Locality Type constant [" + localityType + "].");
         }
     }
 
@@ -667,7 +715,8 @@ public final class IndexModule {
                 translogFactorySupplier,
                 clusterDefaultRefreshIntervalSupplier,
                 recoverySettings,
-                remoteStoreSettings
+                remoteStoreSettings,
+                fileCache
             );
             success = true;
             return indexService;
@@ -789,9 +838,6 @@ public final class IndexModule {
                         type.getSettingsKey(),
                         new RemoteSnapshotDirectoryFactory(repositoriesService, threadPool, remoteStoreFileCache)
                     );
-                    break;
-                case COMPOSITEFS:
-                    factories.put(type.getSettingsKey(), new CompositeDirectoryFactory(repositoriesService, remoteStoreFileCache));
                     break;
                 default:
                     throw new IllegalStateException("No directory factory mapping for built-in type " + type);

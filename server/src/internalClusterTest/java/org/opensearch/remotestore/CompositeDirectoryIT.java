@@ -14,6 +14,7 @@ import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
@@ -30,9 +31,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 public class CompositeDirectoryIT extends RemoteStoreBaseIntegTestCase {
     public void testCompositeDirectory() throws Exception {
         Settings settings = Settings.builder()
+            .put(super.featureFlagSettings())
+            .put(FeatureFlags.WRITEABLE_REMOTE_INDEX, "true")
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "compositefs")
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(), "partial")
             .build();
         assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
         GetIndexResponse getIndexResponse = client().admin()
@@ -57,7 +60,7 @@ public class CompositeDirectoryIT extends RemoteStoreBaseIntegTestCase {
         assertEquals("true", indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
         assertEquals(REPOSITORY_NAME, indexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
         assertEquals(REPOSITORY_2_NAME, indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
-        assertEquals("compositefs", indexSettings.get("index.store.type"));
+        assertEquals("partial", indexSettings.get("index.store.locality"));
 
         ensureGreen("test-idx-1");
         indexData(10, false, "test-idx-1");

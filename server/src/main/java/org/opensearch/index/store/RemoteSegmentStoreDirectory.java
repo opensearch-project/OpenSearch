@@ -25,7 +25,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.logging.Loggers;
@@ -135,10 +134,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         this.threadPool = threadPool;
         this.logger = Loggers.getLogger(getClass(), shardId);
         init();
-    }
-
-    public BlobContainer getDataDirectoryBlobContainer() {
-        return remoteDataDirectory.getBlobContainer();
     }
 
     /**
@@ -703,7 +698,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
     }
 
-    public String getExistingRemoteFilename(String localFilename) {
+    private String getExistingRemoteFilename(String localFilename) {
         if (segmentsUploadedToRemoteStore.containsKey(localFilename)) {
             return segmentsUploadedToRemoteStore.get(localFilename).uploadedFilename;
         } else {

@@ -188,6 +188,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING,
                 BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
                 IndexModule.INDEX_STORE_TYPE_SETTING,
+                IndexModule.INDEX_STORE_LOCALITY_SETTING,
                 IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
                 IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS,
                 IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS,

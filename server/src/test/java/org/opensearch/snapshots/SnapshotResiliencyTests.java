@@ -2078,7 +2078,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new RemoteStoreStatsTrackerFactory(clusterService, settings),
                     DefaultRecoverySettings.INSTANCE,
                     new CacheModule(new ArrayList<>(), settings).getCacheService(),
-                    DefaultRemoteStoreSettings.INSTANCE
+                    DefaultRemoteStoreSettings.INSTANCE,
+                    null
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(

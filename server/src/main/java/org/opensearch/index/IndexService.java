@@ -39,6 +39,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.Accountable;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -55,6 +56,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.io.IOUtils;
@@ -92,8 +94,10 @@ import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.CompositeDirectory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -189,6 +193,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier;
     private final RecoverySettings recoverySettings;
     private final RemoteStoreSettings remoteStoreSettings;
+    private final FileCache fileCache;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -224,7 +229,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
         RecoverySettings recoverySettings,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        FileCache fileCache
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -302,6 +308,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.translogFactorySupplier = translogFactorySupplier;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
+        this.fileCache = fileCache;
         updateFsyncTaskIfNecessary();
     }
 
@@ -531,10 +538,23 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             }
 
-            Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
-            if (directory instanceof CompositeDirectory) {
-                ((CompositeDirectory) directory).setRemoteDirectory(remoteDirectory);
+            Directory directory = null;
+            if (FeatureFlags.isEnabled(FeatureFlags.WRITEABLE_REMOTE_INDEX_SETTING) &&
+            // TODO : Need to remove this check after support for hot indices is added in Composite Directory
+                this.indexSettings.isStoreLocalityPartial()) {
+                /**
+                 * Currently Composite Directory only supports local directory to be of type FSDirectory
+                 * The reason is that FileCache currently has it key type as Path
+                 * Composite Directory currently uses FSDirectory's getDirectory() method to fetch and use the Path for operating on FileCache
+                 * TODO : Refactor FileCache to have key in form of String instead of Path. Once that is done we can remove this assertion
+                 */
+                Directory localDirectory = directoryFactory.newDirectory(this.indexSettings, path);
+                assert localDirectory instanceof FSDirectory : "For Composite Directory, local directory must be of type FSDirectory";
+                directory = new CompositeDirectory((FSDirectory) localDirectory, (RemoteSegmentStoreDirectory) remoteDirectory, fileCache);
+            } else {
+                directory = directoryFactory.newDirectory(this.indexSettings, path);
             }
+
             store = new Store(
                 shardId,
                 this.indexSettings,
