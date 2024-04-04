@@ -708,6 +708,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             this.cacheCleaner.close();
         }
 
+        // for testing
         public ConcurrentMap<ShardId, HashMap<String, Integer>> getCleanupKeyToCountMap() {
             return cleanupKeyToCountMap;
         }
