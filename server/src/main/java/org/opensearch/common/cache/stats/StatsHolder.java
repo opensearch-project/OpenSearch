@@ -113,18 +113,18 @@ public class StatsHolder {
     private boolean internalIncrementHelper(
         List<String> dimensionValues,
         DimensionNode node,
-        int dimensionValuesIndex, // Pass in the relevant dimension index to avoid having to slice the list for each node.
+        int depth, // Pass in the depth to avoid having to slice the list for each node.
         Consumer<CacheStatsCounter> adder,
         boolean createNodesIfAbsent
     ) {
-        if (dimensionValuesIndex == dimensionValues.size()) {
+        if (depth == dimensionValues.size()) {
             return true;
         }
-        DimensionNode child = node.getOrCreateChild(dimensionValues.get(dimensionValuesIndex), createNodesIfAbsent);
+        DimensionNode child = node.getOrCreateChild(dimensionValues.get(depth), createNodesIfAbsent);
         if (child == null) {
             return false;
         }
-        if (internalIncrementHelper(dimensionValues, child, dimensionValuesIndex + 1, adder, createNodesIfAbsent)) {
+        if (internalIncrementHelper(dimensionValues, child, depth + 1, adder, createNodesIfAbsent)) {
             adder.accept(child.getStats());
             return true;
         }
@@ -172,17 +172,17 @@ public class StatsHolder {
         }
     }
 
-    // Returns a CacheStatsCounter object for the stats to decrement if the removal happened, null otherwise.
-    private CacheStatsCounterSnapshot removeDimensionsHelper(List<String> dimensionValues, DimensionNode node, int dimensionValuesIndex) {
-        if (dimensionValuesIndex == dimensionValues.size()) {
+    // Returns a CacheStatsCounterSnapshot object for the stats to decrement if the removal happened, null otherwise.
+    private CacheStatsCounterSnapshot removeDimensionsHelper(List<String> dimensionValues, DimensionNode node, int depth) {
+        if (depth == dimensionValues.size()) {
             // Pass up a snapshot of the original stats to avoid issues when the original is decremented by other fn invocations
             return node.getStats().snapshot();
         }
-        DimensionNode child = node.getOrCreateChild(dimensionValues.get(dimensionValuesIndex), false);
+        DimensionNode child = node.getOrCreateChild(dimensionValues.get(depth), false);
         if (child == null) {
             return null;
         }
-        CacheStatsCounterSnapshot statsToDecrement = removeDimensionsHelper(dimensionValues, child, dimensionValuesIndex + 1);
+        CacheStatsCounterSnapshot statsToDecrement = removeDimensionsHelper(dimensionValues, child, depth + 1);
         if (statsToDecrement != null) {
             // The removal took place, decrement values and remove this node from its parent if it's now empty
             child.getStats().subtract(statsToDecrement);
