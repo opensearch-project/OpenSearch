@@ -936,7 +936,13 @@ final class DocumentParser {
                             context.indexSettings().getSettings(),
                             context.path()
                         );
-                        mapper = (ObjectMapper) builder.build(builderContext);
+                        Mapper tmp = builder.build(builderContext);
+                        if (tmp instanceof FlatObjectFieldMapper) {
+                            throw new MapperParsingException(
+                                "It is forbidden to create dynamic flat_object ([" + String.join(".", paths) + "]) with dots in field names"
+                            );
+                        }
+                        mapper = (ObjectMapper) tmp;
                         if (mapper.nested() != ObjectMapper.Nested.NO) {
                             throw new MapperParsingException(
                                 "It is forbidden to create dynamic nested objects (["

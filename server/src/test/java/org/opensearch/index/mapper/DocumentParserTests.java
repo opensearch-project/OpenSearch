@@ -217,6 +217,28 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertEquals("It is forbidden to create dynamic nested objects ([foo]) through `copy_to` or dots in field names", e.getMessage());
     }
 
+    public void testDotsWithDynamicFlatObjectMapper() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("nested_object_fields");
+                    {
+                        b.field("match_mapping_type", "object");
+                        b.startObject("mapping").field("type", "flat_object").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("foo.bar", 42))));
+        assertEquals("It is forbidden to create dynamic flat_object ([foo.bar]) with dots in field names", e.getMessage());
+    }
+
     public void testNestedHaveIdAndTypeFields() throws Exception {
 
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
