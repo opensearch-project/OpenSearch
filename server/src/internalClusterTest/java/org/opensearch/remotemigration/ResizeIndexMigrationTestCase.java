@@ -115,12 +115,8 @@ public class ResizeIndexMigrationTestCase extends MigrationBaseTestCase {
         );
         assertEquals(
             ex.getMessage(),
-            "index Resizing for type ["
-                + resizeType
-                + "] is not allowed as Cluster mode is [Mixed]"
-                + " and migration direction is [REMOTE_STORE]"
-                + " and index's SETTING_REMOTE_STORE_ENABLED = "
-                + "false"
+            "Index " + resizeType +" is not allowed as remote migration mode is mixed"
+                + " and index is remote store disabled"
         );
     }
 
@@ -207,12 +203,8 @@ public class ResizeIndexMigrationTestCase extends MigrationBaseTestCase {
         );
         assertEquals(
             ex.getMessage(),
-            "index Resizing for type ["
-                + resizeType
-                + "] is not allowed as Cluster mode is [Mixed]"
-                + " and migration direction is [DOCREP]"
-                + " and index's SETTING_REMOTE_STORE_ENABLED = "
-                + "true"
+            "Index " + resizeType +" is not allowed as remote migration mode is mixed"
+                + " and index is remote store enabled"
         );
     }
 }

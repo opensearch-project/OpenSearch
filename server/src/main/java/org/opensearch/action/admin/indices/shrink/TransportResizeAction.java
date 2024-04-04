@@ -59,6 +59,8 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
+import org.opensearch.node.remotestore.RemoteStoreNodeService.Direction;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -235,7 +237,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         if (metadata == null) {
             throw new IndexNotFoundException(sourceIndexName);
         }
-        validateClusterModeSettings(resizeRequest.getResizeType(), metadata, clusterSettings);
+        validateRemoteMigrationModeSettings(resizeRequest.getResizeType(), metadata, clusterSettings);
         final Settings.Builder targetIndexSettingsBuilder = Settings.builder()
             .put(targetIndex.settings())
             .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
@@ -386,28 +388,22 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
      *                               is false, then throw IllegalStateException. If migration direction is [DocRep] and
      *                               index's SETTING_REMOTE_STORE_ENABLED is true, then throw IllegalStateException.
      */
-    private static void validateClusterModeSettings(
+    private static void validateRemoteMigrationModeSettings(
         final ResizeType type,
         IndexMetadata sourceIndexMetadata,
         ClusterSettings clusterSettings
     ) {
-        if (clusterSettings.get(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING)
-            .equals(RemoteStoreNodeService.CompatibilityMode.MIXED)) {
+        CompatibilityMode compatibilityMode = clusterSettings.get(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING);
+        if (compatibilityMode == CompatibilityMode.MIXED) {
             boolean isRemoteStoreEnabled = sourceIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false);
-            if ((clusterSettings.get(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING)
-                .equals(RemoteStoreNodeService.Direction.REMOTE_STORE)
-                && isRemoteStoreEnabled == false)
-                || (clusterSettings.get(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING).equals(RemoteStoreNodeService.Direction.DOCREP)
-                    && isRemoteStoreEnabled == true)) {
+            Direction migrationDirection = clusterSettings.get(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING);
+            boolean invalidConfiguration = (migrationDirection == Direction.REMOTE_STORE &&  isRemoteStoreEnabled == false)
+                || (migrationDirection == Direction.DOCREP && isRemoteStoreEnabled);
+            if (invalidConfiguration) {
                 throw new IllegalStateException(
-                    "index Resizing for type ["
-                        + type
-                        + "] is not allowed as Cluster mode is [Mixed]"
-                        + " and migration direction is ["
-                        + clusterSettings.get(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING)
-                        + "]"
-                        + " and index's SETTING_REMOTE_STORE_ENABLED = "
-                        + isRemoteStoreEnabled
+                    "Index " + type +" is not allowed as remote migration mode is mixed"
+                        + " and index is remote store "
+                        + (isRemoteStoreEnabled ? "enabled" : "disabled")
                 );
             }
         }

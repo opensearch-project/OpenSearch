@@ -683,14 +683,9 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
                 );
                 assertEquals(
                     ise.getMessage(),
-                    "index Resizing for type ["
-                        + resizeType
-                        + "] is not allowed as Cluster mode is [Mixed]"
-                        + " and migration direction is ["
-                        + migrationDirection
-                        + "]"
-                        + " and index's SETTING_REMOTE_STORE_ENABLED = "
-                        + isRemoteStoreEnabled
+                    "Index " + resizeType +" is not allowed as remote migration mode is mixed"
+                        + " and index is remote store "
+                        + (isRemoteStoreEnabled ? "enabled" : "disabled")
                 );
             } else {
                 CreateIndexClusterStateUpdateRequest request = TransportResizeAction.prepareCreateIndexRequest(
