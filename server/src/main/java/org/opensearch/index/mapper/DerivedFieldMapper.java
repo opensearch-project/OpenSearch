@@ -39,7 +39,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
      */
     public static class Builder extends ParametrizedFieldMapper.Builder {
         // TODO: The type of parameter may change here if the actual underlying FieldType object is needed
-        private final Parameter<String> type = Parameter.stringParam("type", false, m -> toType(m).type, "keyword");
+        private final Parameter<String> type = Parameter.stringParam("type", false, m -> toType(m).type, "");
 
         private final Parameter<Script> script = new Parameter<>(
             "script",

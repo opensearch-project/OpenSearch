@@ -18,6 +18,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.script.Script;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * DerivedField representation: expects a name, type and script.
@@ -67,6 +68,23 @@ public class DerivedField implements Writeable, ToXContentFragment {
 
     public Script getScript() {
         return script;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, type, script);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        DerivedField other = (DerivedField) obj;
+        return Objects.equals(name, other.name) && Objects.equals(type, other.type) && Objects.equals(script, other.script);
     }
 
 }
