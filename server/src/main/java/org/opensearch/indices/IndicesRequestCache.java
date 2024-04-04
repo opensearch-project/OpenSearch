@@ -562,8 +562,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                     // Aggregate and add to staleKeysCount atomically if readerCacheKeyId is null
                     int totalSum = countMap.values().stream().mapToInt(Integer::intValue).sum();
                     staleKeysCount.addAndGet(totalSum);
-                    // return the updated map
-                    return countMap;
+                    // Return null to automatically remove the mapping for shardId
+                    return null;
                 } else {
                     // Update staleKeysCount based on specific readerCacheKeyId, then remove it from the countMap
                     countMap.computeIfPresent(cleanupKey.readerCacheKeyId, (readerCacheKey, count) -> {
@@ -573,7 +573,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                     });
                     // Check if countMap is empty after removal to decide if we need to remove the shardId entry
                     if (countMap.isEmpty()) {
-                        return null; // Returning null removes the entry for shardId
+                        // Returning null removes the entry for shardId
+                        return null;
                     }
                 }
                 // Return the modified countMap
