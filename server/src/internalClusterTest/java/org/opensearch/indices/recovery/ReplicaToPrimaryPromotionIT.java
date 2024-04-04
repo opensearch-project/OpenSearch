@@ -57,7 +57,7 @@ public class ReplicaToPrimaryPromotionIT extends OpenSearchIntegTestCase {
     }
 
     @Override
-    public boolean useRemoteBackedStorageRandomly() {
+    public boolean useRandomReplicationStrategy() {
         return true;
     }
 
