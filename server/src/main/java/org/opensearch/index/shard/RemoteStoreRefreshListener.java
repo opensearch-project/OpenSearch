@@ -224,7 +224,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
                 // This is done to avoid delete post each refresh.
                 if (isRefreshAfterCommit()) {
-                    remoteDirectory.deleteStaleSegmentsAsync(indexShard.getRecoverySettings().getMinRemoteSegmentMetadataFiles());
+                    remoteDirectory.deleteStaleSegmentsAsync(indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles());
                 }
 
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
@@ -528,7 +528,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      * @return true iff the shard is a started with primary mode true or it is local or snapshot recovery.
      */
     private boolean isReadyForUpload() {
-        boolean isReady = indexShard.isStartedPrimary() || isLocalOrSnapshotRecovery();
+        boolean isReady = indexShard.isStartedPrimary() || isLocalOrSnapshotRecovery() || indexShard.shouldSeedRemoteStore();
 
         if (isReady == false) {
             StringBuilder sb = new StringBuilder("Skipped syncing segments with");

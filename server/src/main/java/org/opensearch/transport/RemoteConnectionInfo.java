@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -46,8 +47,9 @@ import java.util.Objects;
  * This class encapsulates all remote cluster information to be rendered on
  * {@code _remote/info} requests.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class RemoteConnectionInfo implements ToXContentFragment, Writeable {
 
     final ModeInfo modeInfo;
@@ -132,8 +134,9 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     /**
      * Mode information
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface ModeInfo extends ToXContentFragment, Writeable {
 
         boolean isConnected();

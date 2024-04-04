@@ -9,6 +9,8 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.action.support.replication.ReplicationOperation.ReplicaResponse;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.core.action.ActionListener;
 
@@ -31,14 +33,22 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
      */
     private final ReplicationOperation.Replicas<ReplicaRequest> primaryTermValidationProxy;
 
+    private final DiscoveryNodes discoveryNodes;
+
+    private final boolean isRemoteEnabled;
+
     public ReplicationModeAwareProxy(
         ReplicationMode replicationModeOverride,
+        DiscoveryNodes discoveryNodes,
         ReplicationOperation.Replicas<ReplicaRequest> replicasProxy,
-        ReplicationOperation.Replicas<ReplicaRequest> primaryTermValidationProxy
+        ReplicationOperation.Replicas<ReplicaRequest> primaryTermValidationProxy,
+        boolean remoteIndexSettingsEnabled
     ) {
         super(replicasProxy);
         this.replicationModeOverride = Objects.requireNonNull(replicationModeOverride);
         this.primaryTermValidationProxy = Objects.requireNonNull(primaryTermValidationProxy);
+        this.discoveryNodes = discoveryNodes;
+        this.isRemoteEnabled = remoteIndexSettingsEnabled;
     }
 
     @Override
@@ -60,16 +70,26 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
 
     @Override
     ReplicationMode determineReplicationMode(ShardRouting shardRouting, ShardRouting primaryRouting) {
-
         // If the current routing is the primary, then it does not need to be replicated
         if (shardRouting.isSameAllocation(primaryRouting)) {
             return ReplicationMode.NO_REPLICATION;
         }
-
+        // Perform full replication during primary relocation
         if (primaryRouting.relocating() && shardRouting.isSameAllocation(primaryRouting.getTargetRelocatingShard())) {
             return ReplicationMode.FULL_REPLICATION;
         }
-
+        /*
+        Only applicable during remote store migration.
+        During the migration process, remote based index settings will not be enabled,
+        thus we will rely on node attributes to figure out the replication mode
+         */
+        if (isRemoteEnabled == false) {
+            DiscoveryNode targetNode = discoveryNodes.get(shardRouting.currentNodeId());
+            if (targetNode != null && targetNode.isRemoteStoreNode() == false) {
+                // Perform full replication if replica is hosted on a non-remote node.
+                return ReplicationMode.FULL_REPLICATION;
+            }
+        }
         return replicationModeOverride;
     }
 }

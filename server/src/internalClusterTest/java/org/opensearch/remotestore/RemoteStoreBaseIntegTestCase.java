@@ -187,7 +187,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         return client().bulk(bulkRequest).actionGet();
     }
 
-    private Settings defaultIndexSettings() {
+    Settings defaultIndexSettings() {
         return Settings.builder()
             .put(super.indexSettings())
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
