@@ -80,6 +80,8 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         assertEquals(expectedTotal.getEvictions(), stats.getTotalEvictions());
         assertEquals(expectedTotal.getSizeInBytes(), stats.getTotalSizeInBytes());
         assertEquals(expectedTotal.getEntries(), stats.getTotalEntries());
+
+        assertSumOfChildrenStats(stats.getStatsRoot());
     }
 
     public void testEmptyDimsList() throws Exception {
@@ -110,6 +112,7 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
             }
             assertEquals(expectedEntry.getValue().snapshot(), getNode(dimensionValues, aggregated).getStats());
         }
+        assertSumOfChildrenStats(aggregated);
     }
 
     public void testAggregateBySomeDimensions() throws Exception {
@@ -142,6 +145,7 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
                     }
                     assertEquals(expectedCounter.snapshot(), aggEntry.getValue().getStats());
                 }
+                assertSumOfChildrenStats(aggregated);
             }
         }
     }
@@ -165,6 +169,19 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
                 List<String> newPath = new ArrayList<>(pathToCurrent);
                 newPath.add(entry.getKey());
                 getAllLeafNodesHelper(result, entry.getValue(), newPath);
+            }
+        }
+    }
+
+    private void assertSumOfChildrenStats(MultiDimensionCacheStats.MDCSDimensionNode current) {
+        if (current.hasChildren()) {
+            CacheStatsCounter expectedTotal = new CacheStatsCounter();
+            for (MultiDimensionCacheStats.MDCSDimensionNode child : current.children.values()) {
+                expectedTotal.add(child.getStats());
+            }
+            assertEquals(expectedTotal.snapshot(), current.getStats());
+            for (MultiDimensionCacheStats.MDCSDimensionNode child : current.children.values()) {
+                assertSumOfChildrenStats(child);
             }
         }
     }

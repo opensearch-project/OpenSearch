@@ -8,8 +8,6 @@
 
 package org.opensearch.common.cache.stats;
 
-import org.opensearch.common.metrics.CounterMetric;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +30,7 @@ public class StatsHolder {
     private final List<String> dimensionNames;
 
     // A tree structure based on dimension values, which stores stats values in its leaf nodes.
+    // Non-leaf nodes have stats matching the sum of their children.
     private final StatsHolderDimensionNode statsRoot;
 
     public StatsHolder(List<String> dimensionNames) {
@@ -109,14 +108,7 @@ public class StatsHolder {
 
     public long count() {
         // Include this here so caches don't have to create an entire CacheStats object to run count().
-        final CounterMetric count = new CounterMetric();
-        traverseStatsTreeHelper(statsRoot, new ArrayList<>(), (node, path) -> {
-            if (!node.hasChildren()) {
-                // Only increment on leaf nodes to avoid double-counting, as non-leaf nodes contain stats too
-                count.inc(node.getStats().getEntries());
-            }
-        });
-        return count.count();
+        return statsRoot.getStats().getEntries();
     }
 
     /**
@@ -131,6 +123,7 @@ public class StatsHolder {
     ) {
         assert dimensionValues.size() == dimensionNames.size();
         List<StatsHolderDimensionNode> ancestors = getNodeAndAncestors(dimensionValues, createNewNodesIfAbsent);
+        // To maintain that each node's stats are the sum of its children, increment all the ancestors of the relevant node.
         for (StatsHolderDimensionNode ancestorNode : ancestors) {
             incrementer.accept(ancestorNode.getStats(), amount);
         }
@@ -140,32 +133,35 @@ public class StatsHolder {
      * Produce an immutable CacheStats representation of these stats.
      */
     public CacheStats getCacheStats() {
-        MDCSDimensionNode snapshot = new MDCSDimensionNode(null);
+        MDCSDimensionNode snapshot = new MDCSDimensionNode(null, statsRoot.getStats().snapshot());
         snapshot.createChildrenMap();
+        // Traverse the tree and build a corresponding tree of MDCSDimensionNode, to pass to MultiDimensionCacheStats.
         traverseStatsTreeHelper(statsRoot, new ArrayList<>(), (node, path) -> {
             if (path.size() > 0) {
-                CacheStatsCounterSnapshot nodeSnapshot = node.getStats().snapshot();
-                String dimensionValue = path.get(path.size() - 1);
-                MDCSDimensionNode newNode = new MDCSDimensionNode(dimensionValue);
-                if (node.getChildren() != null) {
-                    newNode.createChildrenMap();
-                }
-                newNode.setStats(nodeSnapshot);
+                MDCSDimensionNode newNode = createMatchingMDCSDimensionNode(node);
                 // Get the parent of this node in the new tree
-                DimensionNode parentNode = getNode(path.subList(0, path.size() - 1), snapshot);
-                ((Map<String, MDCSDimensionNode>) parentNode.getChildren()).put(dimensionValue, newNode);
+                MDCSDimensionNode parentNode = (MDCSDimensionNode) getNode(path.subList(0, path.size() - 1), snapshot);
+                parentNode.getChildren().put(node.getDimensionValue(), newNode);
             }
         });
-        snapshot.setStats(statsRoot.getStats().snapshot());
         return new MultiDimensionCacheStats(snapshot, dimensionNames);
+    }
+
+    private MDCSDimensionNode createMatchingMDCSDimensionNode(StatsHolderDimensionNode node) {
+        CacheStatsCounterSnapshot nodeSnapshot = node.getStats().snapshot();
+        MDCSDimensionNode newNode = new MDCSDimensionNode(node.getDimensionValue(), nodeSnapshot);
+        if (node.getChildren() != null) {
+            newNode.createChildrenMap();
+        }
+        return newNode;
     }
 
     /**
      * Remove the stats for the nodes containing these dimension values in their path.
-     * The list of dimension values must have a value for every dimension in the stats holder.
+     * The list of dimension values must have a value for every dimension.
      */
     public void removeDimensions(List<String> dimensionValues) {
-        assert dimensionValues.size() == dimensionNames.size();
+        assert dimensionValues.size() == dimensionNames.size() : "Must specify a value for every dimension when removing from StatsHolder";
         List<StatsHolderDimensionNode> ancestors = getNodeAndAncestors(dimensionValues, false);
         // Get the parent of the leaf node to remove
         StatsHolderDimensionNode parentNode = ancestors.get(ancestors.size() - 2);
@@ -190,11 +186,11 @@ public class StatsHolder {
     }
 
     static class StatsHolderDimensionNode extends DimensionNode {
-        ConcurrentHashMap<String, StatsHolderDimensionNode> children; // Map from dimensionValue to the DimensionNode for that dimension
-                                                                      // value
-        private CacheStatsCounter stats; // The stats for this node. If a leaf node, corresponds to the stats for this combination of
-                                         // dimensions; if not,
+        // Map from dimensionValue to the DimensionNode for that dimension value
+        ConcurrentHashMap<String, StatsHolderDimensionNode> children;
+        // The stats for this node. If a leaf node, corresponds to the stats for this combination of dimensions; if not,
         // contains the sum of its children's stats.
+        private CacheStatsCounter stats;
 
         StatsHolderDimensionNode(String dimensionValue) {
             super(dimensionValue);
@@ -221,6 +217,12 @@ public class StatsHolder {
         }
     }
 
+    /**
+     * Returns a list of nodes to reach the target, starting with the tree root, and going down in order
+     * @param dimensionValues the dimension values of the node we are interested in
+     * @param createNodesIfAbsent if true, create missing nodes while passing through the tree
+     * @return the list of ancestors and the target node
+     */
     List<StatsHolderDimensionNode> getNodeAndAncestors(List<String> dimensionValues, boolean createNodesIfAbsent) {
         List<StatsHolderDimensionNode> result = new ArrayList<>();
         result.add(statsRoot);
@@ -234,8 +236,8 @@ public class StatsHolder {
                 dimensionValue,
                 (key) -> createNodesIfAbsent ? new StatsHolderDimensionNode(dimensionValue) : null
             );
-            if (current == null) {
-                return new ArrayList<>(); // Return an empty list if the complete path doesn't exist
+            if (!createNodesIfAbsent && current == null) {
+                return null; // Return null if the path doesn't exist and we aren't creating new nodes
             }
             result.add(current);
         }
