@@ -32,14 +32,11 @@
 
 package org.opensearch.common.blobstore;
 
-import org.opensearch.common.annotation.PublicApi;
-
 /**
  * An interface for providing basic metadata about a blob.
  *
  * @opensearch.internal
  */
-@PublicApi(since = "2.3.0")
 public interface BlobMetadata {
 
     /**
