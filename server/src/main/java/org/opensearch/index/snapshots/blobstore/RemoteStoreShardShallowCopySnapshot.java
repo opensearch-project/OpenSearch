@@ -142,7 +142,6 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
         List<String> fileNames
     ) {
         this(
-            DEFAULT_VERSION,
             snapshot,
             indexVersion,
             primaryTerm,
@@ -525,6 +524,14 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
             totalSize,
             null
         ); // Not adding a real generation here as it doesn't matter to callers
+    }
+
+    public PathType getPathType() {
+        return pathType;
+    }
+
+    public PathHashAlgorithm getPathHashAlgorithm() {
+        return pathHashAlgorithm;
     }
 
     public RemoteStorePathStrategy getRemoteStorePathStrategy() {

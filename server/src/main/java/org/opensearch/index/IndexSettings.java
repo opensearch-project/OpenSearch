@@ -765,6 +765,7 @@ public final class IndexSettings {
     private volatile String defaultSearchPipeline;
     private final boolean widenIndexSortType;
     private final boolean assignedOnRemoteNode;
+    private final RemoteStorePathStrategy remoteStorePathStrategy;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -989,6 +990,7 @@ public final class IndexSettings {
          */
         widenIndexSortType = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).before(V_2_7_0);
         assignedOnRemoteNode = RemoteStoreNodeAttribute.isRemoteDataAttributePresent(this.getNodeSettings());
+        remoteStorePathStrategy = determineRemoteStorePathStrategy();
 
         setEnableFuzzySetForDocId(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING));
         setDocIdFuzzySetFalsePositiveProbability(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING));
@@ -1909,8 +1911,9 @@ public final class IndexSettings {
         this.docIdFuzzySetFalsePositiveProbability = docIdFuzzySetFalsePositiveProbability;
     }
 
-    public RemoteStorePathStrategy getRemoteStorePathStrategy() {
+    private RemoteStorePathStrategy determineRemoteStorePathStrategy() {
         Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        assert remoteCustomData == null || remoteCustomData.containsKey(PathType.NAME);
         if (remoteCustomData != null && remoteCustomData.containsKey(PathType.NAME)) {
             PathType pathType = PathType.parseString(remoteCustomData.get(PathType.NAME));
             String hashAlgoStr = remoteCustomData.get(PathHashAlgorithm.NAME);
@@ -1918,5 +1921,9 @@ public final class IndexSettings {
             return new RemoteStorePathStrategy(pathType, hashAlgorithm);
         }
         return new RemoteStorePathStrategy(PathType.FIXED);
+    }
+
+    public RemoteStorePathStrategy getRemoteStorePathStrategy() {
+        return remoteStorePathStrategy;
     }
 }

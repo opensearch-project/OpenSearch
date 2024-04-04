@@ -573,24 +573,23 @@ public class MetadataCreateIndexService {
      * @param assertNullOldType flag to verify that the old remote store path type is null
      */
     public void addRemoteStorePathStrategyInCustomData(IndexMetadata.Builder tmpImdBuilder, boolean assertNullOldType) {
-        if (remoteStorePathStrategyResolver != null) {
-            // It is possible that remote custom data exists already. In such cases, we need to only update the path type
-            // in the remote store custom data map.
-            Map<String, String> existingCustomData = tmpImdBuilder.removeCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
-            assert assertNullOldType == false || Objects.isNull(existingCustomData);
-
-            // Determine the path type for use using the remoteStorePathResolver.
-            RemoteStorePathStrategy newPathStrategy = remoteStorePathStrategyResolver.get();
-            Map<String, String> remoteCustomData = new HashMap<>();
-            remoteCustomData.put(PathType.NAME, newPathStrategy.getType().name());
-            if (Objects.nonNull(newPathStrategy.getHashAlgorithm())) {
-                remoteCustomData.put(PathHashAlgorithm.NAME, newPathStrategy.getHashAlgorithm().name());
-            }
-            logger.trace(
-                () -> new ParameterizedMessage("Added newStrategy={}, replaced oldStrategy={}", remoteCustomData, existingCustomData)
-            );
-            tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, remoteCustomData);
+        if (remoteStorePathStrategyResolver == null) {
+            return;
         }
+        // It is possible that remote custom data exists already. In such cases, we need to only update the path type
+        // in the remote store custom data map.
+        Map<String, String> existingCustomData = tmpImdBuilder.removeCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        assert assertNullOldType == false || Objects.isNull(existingCustomData);
+
+        // Determine the path type for use using the remoteStorePathResolver.
+        RemoteStorePathStrategy newPathStrategy = remoteStorePathStrategyResolver.get();
+        Map<String, String> remoteCustomData = new HashMap<>();
+        remoteCustomData.put(PathType.NAME, newPathStrategy.getType().name());
+        if (Objects.nonNull(newPathStrategy.getHashAlgorithm())) {
+            remoteCustomData.put(PathHashAlgorithm.NAME, newPathStrategy.getHashAlgorithm().name());
+        }
+        logger.trace(() -> new ParameterizedMessage("Added newStrategy={}, replaced oldStrategy={}", remoteCustomData, existingCustomData));
+        tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, remoteCustomData);
     }
 
     private ClusterState applyCreateIndexRequestWithV1Templates(

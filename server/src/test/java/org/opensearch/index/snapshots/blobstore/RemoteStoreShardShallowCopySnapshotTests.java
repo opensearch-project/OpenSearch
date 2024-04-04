@@ -360,7 +360,8 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
                 assertEquals(remoteStoreShardShallowCopySnapshot.startTime(), startTime);
                 assertEquals(remoteStoreShardShallowCopySnapshot.time(), time);
                 assertEquals(remoteStoreShardShallowCopySnapshot.totalSize(), totalSize);
-                assertEquals(remoteStoreShardShallowCopySnapshot.totalFileCount(), totalFileCount);
+                assertEquals(remoteStoreShardShallowCopySnapshot.getPathType(), pathType);
+                assertEquals(remoteStoreShardShallowCopySnapshot.getPathHashAlgorithm(), pathHashAlgorithm);
             } else {
                 try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
                     parser.nextToken();

@@ -8,6 +8,7 @@
 
 package org.opensearch.index.remote;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.hash.FNV1a;
@@ -128,11 +129,18 @@ public class RemoteStoreEnums {
         }
 
         private static final Map<Integer, PathType> CODE_TO_ENUM;
+
         static {
             PathType[] values = values();
             Map<Integer, PathType> codeToStatus = new HashMap<>(values.length);
             for (PathType value : values) {
-                codeToStatus.put(value.code, value);
+                int code = value.code;
+                if (codeToStatus.containsKey(code)) {
+                    throw new IllegalStateException(
+                        new ParameterizedMessage("{} has same code as {}", codeToStatus.get(code), value).getFormattedMessage()
+                    );
+                }
+                codeToStatus.put(code, value);
             }
             CODE_TO_ENUM = unmodifiableMap(codeToStatus);
         }
@@ -214,7 +222,13 @@ public class RemoteStoreEnums {
             PathHashAlgorithm[] values = values();
             Map<Integer, PathHashAlgorithm> codeToStatus = new HashMap<>(values.length);
             for (PathHashAlgorithm value : values) {
-                codeToStatus.put(value.code, value);
+                int code = value.code;
+                if (codeToStatus.containsKey(code)) {
+                    throw new IllegalStateException(
+                        new ParameterizedMessage("{} has same code as {}", codeToStatus.get(code), value).getFormattedMessage()
+                    );
+                }
+                codeToStatus.put(code, value);
             }
             CODE_TO_ENUM = unmodifiableMap(codeToStatus);
         }
