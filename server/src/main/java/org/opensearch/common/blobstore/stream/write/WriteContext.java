@@ -30,7 +30,7 @@ public class WriteContext {
     private final CheckedConsumer<Boolean, IOException> uploadFinalizer;
     private final boolean doRemoteDataIntegrityCheck;
     private final Long expectedChecksum;
-    private Map<String, String> metadata;
+    private final Map<String, String> metadata;
 
     /**
      * Construct a new WriteContext object
@@ -77,6 +77,7 @@ public class WriteContext {
         this.uploadFinalizer = writeContext.uploadFinalizer;
         this.doRemoteDataIntegrityCheck = writeContext.doRemoteDataIntegrityCheck;
         this.expectedChecksum = writeContext.expectedChecksum;
+        this.metadata = writeContext.getMetadata();
     }
 
     /**
