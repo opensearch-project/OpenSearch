@@ -478,6 +478,63 @@
 
   - match: { hits.total: 2 }
 
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            range: {
+              boolean: {
+                gte: true
+              },
+            }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: true
+              },
+            }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: true,
+                gte: false
+              },
+            }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: false,
+                gte: true
+              },
+            }
+
+  - match: { hits.total: 0 }
 ---
 "search on fields with only index enabled":
   - do:
@@ -958,6 +1015,64 @@
             }
 
   - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            range: {
+              boolean: {
+                gte: true
+              },
+            }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: true
+              },
+            }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: true,
+                gte: false
+              },
+            }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: false,
+                gte: true
+              },
+            }
+
+  - match: { hits.total: 0 }
 ---
 "search on fields with only doc_values enabled":
   - skip:
@@ -1429,3 +1544,61 @@
             }
 
   - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            range: {
+              boolean: {
+                gte: true
+              },
+            }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: true
+              },
+            }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: true,
+                gte: false
+              },
+            }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: false,
+                gte: true
+              },
+            }
+
+  - match: { hits.total: 0 }

@@ -35,6 +35,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 
@@ -103,6 +104,25 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false, false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termsQuery(terms, null));
         assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
+    }
+
+    public void testRangeQuery() {
+        BooleanFieldMapper.BooleanFieldType ft = new BooleanFieldMapper.BooleanFieldType("field");
+        assertEquals(new DocValuesFieldExistsQuery("field"), ft.rangeQuery(false, true, true, true, null));
+
+        assertEquals(new TermQuery(new Term("field", "T")), ft.rangeQuery(false, true, false, true, null));
+
+        assertEquals(new TermQuery(new Term("field", "F")), ft.rangeQuery(false, true, true, false, null));
+
+        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery(false, true, false, false, null));
+
+        assertEquals(new MatchNoDocsQuery(), ft.rangeQuery(false, true, false, false, null));
+
+        assertEquals(new TermQuery(new Term("field", "F")), ft.rangeQuery(false, false, true, true, null));
+
+        assertEquals(new TermQuery(new Term("field", "F")), ft.rangeQuery(null, false, true, true, null));
+
+        assertEquals(new DocValuesFieldExistsQuery("field"), ft.rangeQuery(false, null, true, true, null));
     }
 
     public void testFetchSourceValue() throws IOException {

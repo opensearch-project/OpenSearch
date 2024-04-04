@@ -39,12 +39,9 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
@@ -310,41 +307,37 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            if (isSearchable() && hasDocValues()) {
-                Query query = new TermRangeQuery(
-                    name(),
-                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                    includeLower,
-                    includeUpper
-                );
-                Query dvQuery = new TermRangeQuery(
-                    name(),
-                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                    includeLower,
-                    includeUpper,
-                    MultiTermQuery.DOC_VALUES_REWRITE
-                );
-                return new IndexOrDocValuesQuery(query, dvQuery);
+            if (lowerTerm == null) {
+                lowerTerm = false;
+                includeLower = true;
+
             }
-            if (hasDocValues()) {
-                return new TermRangeQuery(
-                    name(),
-                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                    includeLower,
-                    includeUpper,
-                    MultiTermQuery.DOC_VALUES_REWRITE
-                );
+            if (upperTerm == null) {
+                upperTerm = true;
+                includeUpper = true;
+
             }
-            return new TermRangeQuery(
-                name(),
-                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                includeLower,
-                includeUpper
-            );
+
+            if (lowerTerm == upperTerm) {
+                if (!includeLower || !includeUpper) {
+                    return new MatchNoDocsQuery();
+                }
+                return termQuery(lowerTerm, context);
+            }
+
+            if ((boolean) lowerTerm) {
+                return new MatchNoDocsQuery();
+            }
+            if (!includeLower && !includeUpper) {
+                return new MatchNoDocsQuery();
+            } else if (!includeLower) {
+                return termQuery(true, context);
+            } else if (!includeUpper) {
+                return termQuery(false, context);
+            } else {
+                return this.existsQuery(context);
+            }
+
         }
     }
 
