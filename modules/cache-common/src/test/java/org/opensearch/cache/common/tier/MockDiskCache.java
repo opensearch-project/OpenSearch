@@ -81,12 +81,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
 
     @Override
     public Iterable<K> keys() {
-        return new Iterable<K>() {
-            @Override
-            public Iterator<K> iterator() {
-                return new CacheKeyIterator<>(cache, removalListener);
-            }
-        };
+        return () -> new CacheKeyIterator<>(cache, removalListener);
     }
 
     @Override
@@ -169,11 +164,11 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
      * @param <K> Type of key
      * @param <V> Type of value
      */
-    class CacheKeyIterator<K, V> implements Iterator<K> {
+    static class CacheKeyIterator<K, V> implements Iterator<K> {
         private final Iterator<Map.Entry<K, V>> entryIterator;
         private final Map<K, V> cache;
         private final RemovalListener<K, V> removalListener;
-        private K lastKey;
+        private K currentKey;
 
         public CacheKeyIterator(Map<K, V> cache, RemovalListener<K, V> removalListener) {
             this.entryIterator = cache.entrySet().iterator();
@@ -192,19 +187,19 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
                 throw new NoSuchElementException();
             }
             Map.Entry<K, V> entry = entryIterator.next();
-            lastKey = entry.getKey();
-            return lastKey;
+            currentKey = entry.getKey();
+            return currentKey;
         }
 
         @Override
         public void remove() {
-            if (lastKey == null) {
+            if (currentKey == null) {
                 throw new IllegalStateException("No element to remove");
             }
-            V value = cache.get(lastKey);
-            cache.remove(lastKey);
-            this.removalListener.onRemoval(new RemovalNotification<>(lastKey, value, RemovalReason.INVALIDATED));
-            lastKey = null;
+            V value = cache.get(currentKey);
+            cache.remove(currentKey);
+            this.removalListener.onRemoval(new RemovalNotification<>(currentKey, value, RemovalReason.INVALIDATED));
+            currentKey = null;
         }
     }
 }

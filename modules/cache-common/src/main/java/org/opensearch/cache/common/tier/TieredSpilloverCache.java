@@ -236,10 +236,10 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             this.iterables = iterables;
         }
 
-        @SuppressWarnings({ "rawtypes", "unchecked" })
+        @SuppressWarnings({ "unchecked" })
         @Override
         public Iterator<K> iterator() {
-            Iterator<K>[] iterators = (Iterator<K>[]) new Iterator[iterables.length];
+            Iterator<K>[] iterators = (Iterator<K>[]) new Iterator<?>[iterables.length];
             for (int i = 0; i < iterables.length; i++) {
                 iterators[i] = iterables[i].iterator();
             }
