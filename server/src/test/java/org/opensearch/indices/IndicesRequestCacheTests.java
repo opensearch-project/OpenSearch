@@ -809,12 +809,6 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
-        if (randomBoolean()) {
-            writer.flush();
-            IOUtils.close(writer);
-            writer = new IndexWriter(dir, newIndexWriterConfig());
-        }
-        writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
 
         // Get 2 entries into the cache from 2 different readers
         IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
@@ -823,12 +817,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(1, cache.count());
         // test the mappings
         String readerCacheKeyId = getReaderCacheKeyId(reader);
-        ConcurrentMap<
-            ShardId,
-            HashMap<String, IndicesRequestCache.IndicesRequestCacheCleanupManager.StalenessProperty>> cleanupKeyToCountMap =
-                cache.cacheCleanupManager.getCleanupKeyToCountMap();
-        assertEquals(1, cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getCount());
-        assertFalse(cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getIsAccounted());
+        ConcurrentMap<ShardId, HashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
+        assertEquals(1, (int) cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId));
 
         IndicesService.IndexShardCacheEntity secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
         loader = new Loader(secondReader, 0);
@@ -836,8 +826,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         // test the mapping
         readerCacheKeyId = getReaderCacheKeyId(secondReader);
         assertEquals(2, cache.count());
-        assertEquals(1, cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getCount());
-        assertFalse(cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getIsAccounted());
+        assertEquals(1, (int) cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId));
 
         // Close the reader, to create stale entries
         reader.close();
@@ -848,13 +837,11 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
         // test the mapping
         readerCacheKeyId = getReaderCacheKeyId(reader);
-        assertEquals(1, cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getCount());
-        assertTrue(cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getIsAccounted());
+        assertEquals(1, (int) cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId));
 
         // second reader's mapping should not be affected
         readerCacheKeyId = getReaderCacheKeyId(secondReader);
-        assertEquals(1, cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getCount());
-        assertFalse(cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getIsAccounted());
+        assertEquals(1, (int) cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId));
 
         // Close the second reader
         secondReader.close();
@@ -865,8 +852,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
         // test the mapping
         readerCacheKeyId = getReaderCacheKeyId(secondReader);
-        assertEquals(1, cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getCount());
-        assertTrue(cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId).getIsAccounted());
+        assertEquals(1, (int) cleanupKeyToCountMap.get(shardId).get(readerCacheKeyId));
 
         IOUtils.close(writer, dir, cache);
         terminate(threadPool);
