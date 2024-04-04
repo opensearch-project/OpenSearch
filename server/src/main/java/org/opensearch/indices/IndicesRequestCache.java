@@ -523,15 +523,30 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             }
             ShardId shardId = indexShard.shardId();
 
-            cleanupKeyToCountMap.computeIfPresent(shardId, (shard, keyCountMap) -> {
-                keyCountMap.computeIfPresent(cleanupKey.readerCacheKeyId, (key, currentValue) -> {
-                    // decrement the stale key count
-                    staleKeysCount.decrementAndGet();
-                    int newValue = currentValue - 1;
-                    // Remove the key if the new value is zero by returning null; otherwise, update with the new value.
+            cleanupKeyToCountMap.computeIfPresent(shardId, (id, stringIntegerConcurrentMap) -> {
+                stringIntegerConcurrentMap.compute(cleanupKey.readerCacheKeyId, (readerCacheKeyId, count) -> {
+                    // Check if the key is currently present
+                    if (count != null) {
+                        // The key does not exist, so this is already accounted in the staleKeysCount
+                        // and hence needs to be decremented
+                        staleKeysCount.decrementAndGet();
+                    }
+
+                    // Regardless of whether the key was initially present, we perform the decrement operation
+                    // Calculate the new value assuming a null count as zero to handle non-existent keys
+                    int newValue = (count == null ? 0 : count) - 1;
+
+                    // If the new value is 0, remove the entry by returning null
                     return newValue == 0 ? null : newValue;
                 });
-                return keyCountMap;
+
+                // return null and remove the shardId entry if the shardId has no other entries
+                if (stringIntegerConcurrentMap.isEmpty()) {
+                    return null;
+                }
+
+                // Return the modified map to ensure it gets updated
+                return stringIntegerConcurrentMap;
             });
         }
 
@@ -577,7 +592,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                         return null;
                     }
                 }
-                // Return the modified countMap
+                // Return the modified countMap to retain updates
                 return countMap;
             });
         }
