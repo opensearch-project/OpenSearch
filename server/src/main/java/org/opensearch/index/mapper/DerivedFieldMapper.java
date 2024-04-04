@@ -14,7 +14,9 @@ import org.opensearch.script.Script;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -49,6 +51,12 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
 
         public Builder(String name) {
             super(name);
+        }
+
+        public Builder(DerivedField derivedField) {
+            super(derivedField.getName());
+            this.type.setValue(derivedField.getType());
+            this.script.setValue(derivedField.getScript());
         }
 
         @Override
@@ -125,5 +133,28 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
 
     public Script getScript() {
         return script;
+    }
+
+    public static Map<String, DerivedFieldType> getAllDerivedFieldTypeFromObject(
+        Map<String, Object> derivedFieldObject,
+        MapperService mapperService
+    ) {
+        Map<String, DerivedFieldType> derivedFieldTypes = new HashMap<>();
+        DocumentMapper documentMapper = mapperService.documentMapperParser().parse(DerivedFieldMapper.CONTENT_TYPE, derivedFieldObject);
+        if (documentMapper != null && documentMapper.mappers() != null) {
+            for (Mapper mapper : documentMapper.mappers()) {
+                if (mapper instanceof DerivedFieldMapper) {
+                    DerivedFieldType derivedFieldType = ((DerivedFieldMapper) mapper).fieldType();
+                    derivedFieldTypes.put(derivedFieldType.name(), derivedFieldType);
+                }
+            }
+        }
+        return derivedFieldTypes;
+    }
+
+    public static DerivedFieldType getDerivedFieldType(DerivedField derivedField, MapperService mapperService) {
+        BuilderContext builderContext = new Mapper.BuilderContext(mapperService.getIndexSettings().getSettings(), new ContentPath(1));
+        Builder builder = new Builder(derivedField);
+        return builder.build(builderContext).fieldType();
     }
 }

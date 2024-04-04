@@ -35,8 +35,6 @@ package org.opensearch.search.fetch.subphase.highlight;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.regex.Regex;
-import org.opensearch.index.mapper.DerivedFieldMapper;
-import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.SourceFieldMapper;
@@ -147,11 +145,8 @@ public class HighlightPhase implements FetchSubPhase {
             boolean fieldNameContainsWildcards = field.field().contains("*");
             for (String fieldName : fieldNamesToHighlight) {
                 MappedFieldType fieldType = context.mapperService().fieldType(fieldName);
-                if (fieldType == null && context.getQueryShardContext().getDerivedFieldsMapper() != null) {
-                    DocumentMapper derivedFieldsMapper = context.getQueryShardContext().getDerivedFieldsMapper();
-                    if (derivedFieldsMapper.mappers() != null && derivedFieldsMapper.mappers().getMapper(fieldName) != null) {
-                        fieldType = ((DerivedFieldMapper) derivedFieldsMapper.mappers().getMapper(fieldName)).fieldType();
-                    }
+                if (fieldType == null && context.getQueryShardContext().getDerivedFieldType(fieldName) != null) {
+                    fieldType = context.getQueryShardContext().getDerivedFieldType(fieldName);
                 }
                 if (fieldType == null) {
                     continue;

@@ -9,6 +9,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.script.DerivedFieldScript;
 import org.opensearch.search.lookup.SourceLookup;
 
@@ -20,6 +21,7 @@ import java.util.List;
  * It expects DerivedFieldScript.LeafFactory as an input and sets the contract with consumer to call
  * {@link #setNextReader(LeafReaderContext)} whenever a segment is switched.
  */
+@PublicApi(since = "2.14.0")
 public final class DerivedFieldValueFetcher implements ValueFetcher {
     private DerivedFieldScript derivedFieldScript;
     private final DerivedFieldScript.LeafFactory derivedFieldScriptFactory;

@@ -311,6 +311,32 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testDerivedFieldsParsing() throws IOException {
+        {
+            String restContent = "{\n"
+                + "  \"derived\": {\n"
+                + "    \"duration\": {\n"
+                + "      \"type\": \"long\",\n"
+                + "      \"script\": \"emit(doc['test'])\"\n"
+                + "    },\n"
+                + "    \"ip_from_message\": {\n"
+                + "      \"type\": \"keyword\",\n"
+                + "      \"script\": \"emit(doc['message'])\"\n"
+                + "    }\n"
+                + "  },\n"
+                + "    \"query\" : {\n"
+                + "        \"match\": { \"content\": { \"query\": \"foo bar\" }}\n"
+                + "     }\n"
+                + "}";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                searchSourceBuilder = rewrite(searchSourceBuilder);
+                assertEquals(2, searchSourceBuilder.getDerivedFieldsObject().size());
+            }
+        }
+
+    }
+
     public void testAggsParsing() throws IOException {
         {
             String restContent = "{\n"

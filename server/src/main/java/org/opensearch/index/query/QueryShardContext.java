@@ -58,7 +58,7 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.mapper.ContentPath;
-import org.opensearch.index.mapper.DerivedFieldMapper;
+import org.opensearch.index.mapper.DerivedFieldType;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.Mapper;
@@ -120,7 +120,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final ValuesSourceRegistry valuesSourceRegistry;
     private BitSetProducer parentFilter;
 
-    private DocumentMapper derivedFieldMappers;
+    private Map<String, DerivedFieldType> derivedFieldTypeMap = new HashMap<>();
 
     public QueryShardContext(
         int shardId,
@@ -267,7 +267,6 @@ public class QueryShardContext extends QueryRewriteContext {
         this.fullyQualifiedIndex = fullyQualifiedIndex;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.valuesSourceRegistry = valuesSourceRegistry;
-        derivedFieldMappers = null;
     }
 
     private void reset() {
@@ -399,12 +398,12 @@ public class QueryShardContext extends QueryRewriteContext {
         return valuesSourceRegistry;
     }
 
-    public void setDerivedFieldMappers(DocumentMapper derivedFieldMappers) {
-        this.derivedFieldMappers = derivedFieldMappers;
+    public void setDerivedFieldTypes(Map<String, DerivedFieldType> derivedFieldTypeMap) {
+        this.derivedFieldTypeMap = derivedFieldTypeMap;
     }
 
-    public DocumentMapper getDerivedFieldsMapper() {
-        return derivedFieldMappers;
+    public DerivedFieldType getDerivedFieldType(String fieldName) {
+        return derivedFieldTypeMap == null ? null : derivedFieldTypeMap.get(fieldName);
     }
 
     public void setAllowUnmappedFields(boolean allowUnmappedFields) {
@@ -418,18 +417,16 @@ public class QueryShardContext extends QueryRewriteContext {
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
         if (fieldMapping != null) {
             return fieldMapping;
-        } else if (derivedFieldMappers != null
-            && derivedFieldMappers.mappers() != null
-            && derivedFieldMappers.mappers().getMapper(name) != null) {
-                return ((DerivedFieldMapper) derivedFieldMappers.mappers().getMapper(name)).fieldType();
-            } else if (allowUnmappedFields) {
-                return fieldMapping;
-            } else if (mapUnmappedFieldAsString) {
-                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, mapperService.getIndexAnalyzers());
-                return builder.build(new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1))).fieldType();
-            } else {
-                throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
-            }
+        } else if (getDerivedFieldType(name) != null) {
+            return getDerivedFieldType(name);
+        } else if (allowUnmappedFields) {
+            return fieldMapping;
+        } else if (mapUnmappedFieldAsString) {
+            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, mapperService.getIndexAnalyzers());
+            return builder.build(new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1))).fieldType();
+        } else {
+            throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
+        }
     }
 
     private SearchLookup lookup = null;

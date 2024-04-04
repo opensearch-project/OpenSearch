@@ -83,6 +83,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -127,6 +128,8 @@ public class QueryShardContextTests extends OpenSearchTestCase {
     public void testDerivedFieldMapping() {
         QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         assertNull(context.failIfFieldMappingNotFound("test_derived", null));
+        context.setDerivedFieldTypes(null);
+        assertNull(context.failIfFieldMappingNotFound("test_derived", null));
         DocumentMapper documentMapper = mock(DocumentMapper.class);
         Mapper.BuilderContext builderContext = new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0));
         DerivedFieldMapper derivedFieldMapper = new DerivedFieldMapper.Builder("test_derived").build(builderContext);
@@ -138,7 +141,7 @@ public class QueryShardContextTests extends OpenSearchTestCase {
             new StandardAnalyzer()
         );
         when(documentMapper.mappers()).thenReturn(mappingLookup);
-        context.setDerivedFieldMappers(documentMapper);
+        context.setDerivedFieldTypes(Map.of("test_derived", derivedFieldMapper.fieldType()));
         context.setAllowUnmappedFields(false);
         assertEquals(derivedFieldMapper.fieldType(), context.failIfFieldMappingNotFound("test_derived", null));
     }

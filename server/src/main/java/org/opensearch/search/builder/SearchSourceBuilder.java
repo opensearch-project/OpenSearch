@@ -51,6 +51,7 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.mapper.DerivedField;
 import org.opensearch.index.mapper.DerivedFieldMapper;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
@@ -194,7 +195,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private StoredFieldsContext storedFieldsContext;
     private List<FieldAndFormat> docValueFields;
     private List<ScriptField> scriptFields;
-    private Map<String, Object> derivedFields;
+    private Map<String, Object> derivedFieldsObject;
+
+    private List<DerivedField> derivedFields;
+
     private FetchSourceContext fetchSourceContext;
     private List<FieldAndFormat> fetchFields;
 
@@ -251,7 +255,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             scriptFields = in.readList(ScriptField::new);
         }
         if (in.readBoolean()) {
-            derivedFields = in.readMap();
+            derivedFieldsObject = in.readMap();
+        }
+        if (in.readBoolean()) {
+            derivedFields = in.readList(DerivedField::new);
         }
         size = in.readVInt();
         if (in.readBoolean()) {
@@ -316,10 +323,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (hasScriptFields) {
             out.writeList(scriptFields);
         }
+        boolean hasDerivedFieldsObject = derivedFieldsObject != null;
+        out.writeBoolean(hasDerivedFieldsObject);
+        if (hasDerivedFieldsObject) {
+            out.writeMap(derivedFieldsObject);
+        }
         boolean hasDerivedFields = derivedFields != null;
         out.writeBoolean(hasDerivedFields);
         if (hasDerivedFields) {
-            out.writeMap(derivedFields);
+            out.writeList(derivedFields);
         }
         out.writeVInt(size);
         boolean hasSorts = sorts != null;
@@ -966,8 +978,26 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return scriptFields;
     }
 
-    public Map<String, Object> derivedFields() {
+    public Map<String, Object> getDerivedFieldsObject() {
+        return derivedFieldsObject;
+    }
+
+    public List<DerivedField> getDerivedFields() {
         return derivedFields;
+    }
+
+    /**
+     * Adds a derived field with the given name with provided type and script
+     * @param name name of the derived field
+     * @param type type of the derived field
+     * @param script script associated with derived field
+     */
+    public SearchSourceBuilder derivedField(String name, String type, Script script) {
+        if (derivedFields == null) {
+            derivedFields = new ArrayList<>();
+        }
+        derivedFields.add(new DerivedField(name, type, script));
+        return this;
     }
 
     /**
@@ -1134,6 +1164,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.queryBuilder = queryBuilder;
         rewrittenBuilder.rescoreBuilders = rescoreBuilders;
         rewrittenBuilder.scriptFields = scriptFields;
+        rewrittenBuilder.derivedFieldsObject = derivedFieldsObject;
         rewrittenBuilder.derivedFields = derivedFields;
         rewrittenBuilder.searchAfterBuilder = searchAfterBuilder;
         rewrittenBuilder.sliceBuilder = slice;
@@ -1237,7 +1268,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         scriptFields.add(new ScriptField(parser));
                     }
                 } else if (DERIVED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    derivedFields = parser.map();
+                    derivedFieldsObject = parser.map();
                 } else if (INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     deprecationLogger.deprecate(
                         "indices_boost_object_format",
@@ -1452,8 +1483,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.endObject();
         }
 
-        if (derivedFields != null) {
-            builder.field(DERIVED_FIELDS_FIELD.getPreferredName(), derivedFields);
+        if (derivedFieldsObject != null || derivedFields != null) {
+            builder.startObject(DERIVED_FIELDS_FIELD.getPreferredName());
+            if (derivedFieldsObject != null) {
+                builder.map(derivedFieldsObject);
+            }
+            if (derivedFields != null) {
+                for (DerivedField derivedField : derivedFields) {
+                    derivedField.toXContent(builder, params);
+                }
+            }
+            builder.endObject();
         }
 
         if (sorts != null) {
@@ -1794,6 +1834,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             queryBuilder,
             rescoreBuilders,
             scriptFields,
+            derivedFieldsObject,
             derivedFields,
             size,
             sorts,
@@ -1838,6 +1879,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(queryBuilder, other.queryBuilder)
             && Objects.equals(rescoreBuilders, other.rescoreBuilders)
             && Objects.equals(scriptFields, other.scriptFields)
+            && Objects.equals(derivedFieldsObject, other.derivedFieldsObject)
             && Objects.equals(derivedFields, other.derivedFields)
             && Objects.equals(size, other.size)
             && Objects.equals(sorts, other.sorts)
