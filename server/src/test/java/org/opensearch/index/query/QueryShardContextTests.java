@@ -65,6 +65,7 @@ import org.opensearch.index.fielddata.LeafFieldData;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.opensearch.index.mapper.ContentPath;
+import org.opensearch.index.mapper.DerivedField;
 import org.opensearch.index.mapper.DerivedFieldMapper;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
@@ -73,6 +74,7 @@ import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MappingLookup;
 import org.opensearch.index.mapper.TextFieldMapper;
+import org.opensearch.script.Script;
 import org.opensearch.search.lookup.LeafDocLookup;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
@@ -132,7 +134,8 @@ public class QueryShardContextTests extends OpenSearchTestCase {
         assertNull(context.failIfFieldMappingNotFound("test_derived", null));
         DocumentMapper documentMapper = mock(DocumentMapper.class);
         Mapper.BuilderContext builderContext = new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0));
-        DerivedFieldMapper derivedFieldMapper = new DerivedFieldMapper.Builder("test_derived").build(builderContext);
+        DerivedFieldMapper derivedFieldMapper = new DerivedFieldMapper.Builder(new DerivedField("test_derived", "keyword", new Script("")))
+            .build(builderContext);
         MappingLookup mappingLookup = new MappingLookup(
             Collections.singletonList(derivedFieldMapper),
             Collections.emptyList(),
