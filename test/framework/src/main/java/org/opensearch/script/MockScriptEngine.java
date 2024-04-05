@@ -43,6 +43,7 @@ import org.opensearch.index.similarity.ScriptedSimilarity.Term;
 import org.opensearch.search.aggregations.pipeline.MovingFunctionScript;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -282,16 +283,22 @@ public class MockScriptEngine implements ScriptEngine {
             IntervalFilterScript.Factory factory = mockCompiled::createIntervalFilterScript;
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(DerivedFieldScript.class)) {
-            DerivedFieldScript.Factory factory = (derivedFieldsParams, lookup) -> ctx -> new DerivedFieldScript(
-                derivedFieldsParams,
+            DerivedFieldScript.Factory factory = (derivedFieldParams, lookup) -> ctx -> new DerivedFieldScript(
+                derivedFieldParams,
                 lookup,
                 ctx
             ) {
                 @Override
+                public void setDocument(int docid) {}
+
+                @Override
                 public void execute() {
-                    Map<String, Object> vars = new HashMap<>(derivedFieldsParams);
-                    vars.put("params", derivedFieldsParams);
-                    script.apply(vars);
+                    Map<String, Object> vars = new HashMap<>(derivedFieldParams);
+                    SourceLookup sourceLookup = lookup.source();
+                    vars.put("params", derivedFieldParams);
+                    vars.put("_source", sourceLookup.loadSourceIfNeeded());
+                    // currently supports adding one value, can be extended to emit multiple values too.
+                    addEmittedValue(script.apply(vars));
                 }
             };
             return context.factoryClazz.cast(factory);

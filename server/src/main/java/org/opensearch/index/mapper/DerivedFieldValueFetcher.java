@@ -37,6 +37,7 @@ public final class DerivedFieldValueFetcher implements ValueFetcher {
         return derivedFieldScript.getEmittedValues();
     }
 
+    @Override
     public void setNextReader(LeafReaderContext context) {
         try {
             derivedFieldScript = derivedFieldScriptFactory.newInstance(context);

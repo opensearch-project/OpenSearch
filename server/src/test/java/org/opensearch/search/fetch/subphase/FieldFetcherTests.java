@@ -43,19 +43,33 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.script.MockScriptEngine;
+import org.opensearch.script.ScriptEngine;
+import org.opensearch.script.ScriptModule;
+import org.opensearch.script.ScriptService;
+import org.opensearch.search.lookup.LeafSearchLookup;
+import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
+
+    private static String DERIVED_FIELD_SCRIPT_1 = "derived_field_script_1";
+    private static String DERIVED_FIELD_SCRIPT_2 = "derived_field_script_2";
 
     public void testLeafValues() throws IOException {
         MapperService mapperService = createMapperService();
@@ -435,6 +449,45 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    public void testDerivedFields() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("derived")
+            .startObject("derived_1")
+            .field("type", "keyword")
+            .startObject("script")
+            .field("source", DERIVED_FIELD_SCRIPT_1)
+            .field("lang", "mockscript")
+            .endObject()
+            .endObject()
+            .startObject("derived_2")
+            .field("type", "keyword")
+            .startObject("script")
+            .field("source", DERIVED_FIELD_SCRIPT_2)
+            .field("lang", "mockscript")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        IndexService indexService = createIndex("index", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
+        MapperService mapperService = indexService.mapperService();
+
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("field1", "some text 1")
+            .field("field2", "some text 2")
+            .endObject();
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "*");
+        assertThat(fields.size(), equalTo(2));
+        assertThat(fields.keySet(), containsInAnyOrder("derived_1", "derived_2"));
+        assertThat(fields.get("derived_1").getValues().size(), equalTo(1));
+        assertThat(fields.get("derived_2").getValues().size(), equalTo(1));
+        assertThat(fields.get("derived_1").getValue(), equalTo("some text 1"));
+        assertThat(fields.get("derived_2").getValue(), equalTo("some text 2"));
+    }
+
     private static Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, String fieldPattern)
         throws IOException {
 
@@ -448,7 +501,13 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(BytesReference.bytes(source));
 
-        FieldFetcher fieldFetcher = FieldFetcher.create(createQueryShardContext(mapperService), null, fields);
+        SearchLookup searchLookup = mock(SearchLookup.class);
+        LeafSearchLookup leafSearchLookup = mock(LeafSearchLookup.class);
+        when(searchLookup.source()).thenReturn(sourceLookup);
+        when(searchLookup.getLeafSearchLookup(any())).thenReturn(leafSearchLookup);
+        when(leafSearchLookup.source()).thenReturn(sourceLookup);
+        FieldFetcher fieldFetcher = FieldFetcher.create(createQueryShardContext(mapperService), searchLookup, fields);
+        fieldFetcher.setNextReader(null);
         return fieldFetcher.fetch(sourceLookup, Set.of());
     }
 
@@ -497,6 +556,19 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
             .build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+
+        final MockScriptEngine engine = new MockScriptEngine(
+            MockScriptEngine.NAME,
+            Map.of(
+                DERIVED_FIELD_SCRIPT_1,
+                (script) -> ((Map<String, Object>) script.get("_source")).get("field1"),
+                DERIVED_FIELD_SCRIPT_2,
+                (script) -> ((Map<String, Object>) script.get("_source")).get("field2")
+            ),
+            Collections.emptyMap()
+        );
+        final Map<String, ScriptEngine> engines = singletonMap(engine.getType(), engine);
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
         return new QueryShardContext(
             0,
             indexSettings,
@@ -505,7 +577,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
             null,
             mapperService,
             null,
-            null,
+            scriptService,
             null,
             null,
             null,
