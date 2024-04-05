@@ -73,6 +73,34 @@ public class CacheStatsCounter {
         return Objects.hash(hits.count(), misses.count(), evictions.count(), sizeInBytes.count(), entries.count());
     }
 
+    public void incrementHits() {
+        hits.inc();
+    }
+
+    public void incrementMisses() {
+        misses.inc();
+    }
+
+    public void incrementEvictions() {
+        evictions.inc();
+    }
+
+    public void incrementSizeInBytes(long amount) {
+        sizeInBytes.inc(amount);
+    }
+
+    public void decrementSizeInBytes(long amount) {
+        sizeInBytes.dec(amount);
+    }
+
+    public void incrementEntries() {
+        entries.inc();
+    }
+
+    public void decrementEntries() {
+        entries.dec();
+    }
+
     public long getHits() {
         return hits.count();
     }
@@ -91,6 +119,11 @@ public class CacheStatsCounter {
 
     public long getEntries() {
         return entries.count();
+    }
+
+    public void resetSizeAndEntries() {
+        sizeInBytes = new CounterMetric();
+        entries = new CounterMetric();
     }
 
     public CacheStatsCounterSnapshot snapshot() {

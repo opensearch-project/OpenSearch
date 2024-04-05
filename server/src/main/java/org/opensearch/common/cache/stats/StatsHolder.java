@@ -32,8 +32,7 @@ public class StatsHolder {
 
     public StatsHolder(List<String> dimensionNames) {
         this.dimensionNames = dimensionNames;
-        this.statsRoot = new DimensionNode(null); // The root node has no dimension value associated with it, only children
-        statsRoot.createChildrenMap();
+        this.statsRoot = new DimensionNode(null, true); // The root node has no dimension value associated with it, only children
     }
 
     public List<String> getDimensionNames() {
@@ -43,33 +42,33 @@ public class StatsHolder {
     // For all these increment functions, the dimensions list comes from the key, and contains all dimensions present in dimensionNames.
     // The order has to match the order given in dimensionNames.
     public void incrementHits(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, (counter) -> counter.hits.inc(), true);
+        internalIncrement(dimensionValues, (node) -> node.getStats().incrementHits(), true);
     }
 
     public void incrementMisses(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, (counter) -> counter.misses.inc(), true);
+        internalIncrement(dimensionValues, (node) -> node.getStats().incrementMisses(), true);
     }
 
     public void incrementEvictions(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, (counter) -> counter.evictions.inc(), true);
+        internalIncrement(dimensionValues, (node) -> node.getStats().incrementEvictions(), true);
     }
 
     public void incrementSizeInBytes(List<String> dimensionValues, long amountBytes) {
-        internalIncrement(dimensionValues, (counter) -> counter.sizeInBytes.inc(amountBytes), true);
+        internalIncrement(dimensionValues, (node) -> node.getStats().incrementSizeInBytes(amountBytes), true);
     }
 
     // For decrements, we should not create nodes if they are absent. This protects us from erroneously decrementing values for keys
     // which have been entirely deleted, for example in an async removal listener.
     public void decrementSizeInBytes(List<String> dimensionValues, long amountBytes) {
-        internalIncrement(dimensionValues, (counter) -> counter.sizeInBytes.dec(amountBytes), false);
+        internalIncrement(dimensionValues, (node) -> node.getStats().decrementSizeInBytes(amountBytes), false);
     }
 
     public void incrementEntries(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, (counter) -> counter.entries.inc(), true);
+        internalIncrement(dimensionValues, (node) -> node.getStats().incrementEntries(), true);
     }
 
     public void decrementEntries(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, (counter) -> counter.entries.dec(), false);
+        internalIncrement(dimensionValues, (node) -> node.getStats().decrementEntries(), false);
     }
 
     /**
@@ -81,9 +80,7 @@ public class StatsHolder {
     }
 
     private void resetHelper(DimensionNode current) {
-        CacheStatsCounter counter = current.getStats();
-        counter.sizeInBytes.dec(counter.getSizeInBytes());
-        counter.entries.dec(counter.getEntries());
+        current.getStats().resetSizeAndEntries();
         if (current.hasChildren()) {
             // not a leaf node
             for (DimensionNode child : current.children.values()) {
@@ -97,12 +94,9 @@ public class StatsHolder {
         return statsRoot.getStats().getEntries();
     }
 
-    private void internalIncrement(List<String> dimensionValues, Consumer<CacheStatsCounter> adder, boolean createNodesIfAbsent) {
+    private void internalIncrement(List<String> dimensionValues, Consumer<DimensionNode> adder, boolean createNodesIfAbsent) {
         assert dimensionValues.size() == dimensionNames.size();
-        boolean didIncrement = internalIncrementHelper(dimensionValues, statsRoot, 0, adder, createNodesIfAbsent);
-        if (didIncrement) {
-            adder.accept(statsRoot.getStats());
-        }
+        internalIncrementHelper(dimensionValues, statsRoot, 0, adder, createNodesIfAbsent);
     }
 
     /**
@@ -114,18 +108,21 @@ public class StatsHolder {
         List<String> dimensionValues,
         DimensionNode node,
         int depth, // Pass in the depth to avoid having to slice the list for each node.
-        Consumer<CacheStatsCounter> adder,
+        Consumer<DimensionNode> adder,
         boolean createNodesIfAbsent
     ) {
         if (depth == dimensionValues.size()) {
+            // This is the leaf node we are trying to reach
+            adder.accept(node);
             return true;
         }
-        DimensionNode child = node.getOrCreateChild(dimensionValues.get(depth), createNodesIfAbsent);
+        boolean createMapInChild = depth < dimensionValues.size() - 1; // Don't instantiate the children map if we are creating a leaf node
+        DimensionNode child = node.getOrCreateChild(dimensionValues.get(depth), createNodesIfAbsent, createMapInChild);
         if (child == null) {
             return false;
         }
         if (internalIncrementHelper(dimensionValues, child, depth + 1, adder, createNodesIfAbsent)) {
-            adder.accept(child.getStats());
+            adder.accept(node);
             return true;
         }
         return false;
@@ -138,8 +135,10 @@ public class StatsHolder {
         MDCSDimensionNode snapshot = new MDCSDimensionNode(null, statsRoot.getStats().snapshot());
         snapshot.createChildrenMap();
         // Traverse the tree and build a corresponding tree of MDCSDimensionNode, to pass to MultiDimensionCacheStats.
-        for (DimensionNode child : statsRoot.getChildren().values()) {
-            getCacheStatsHelper(child, snapshot);
+        if (statsRoot.getChildren() != null) {
+            for (DimensionNode child : statsRoot.getChildren().values()) {
+                getCacheStatsHelper(child, snapshot);
+            }
         }
         return new MultiDimensionCacheStats(snapshot, dimensionNames);
     }
@@ -166,10 +165,7 @@ public class StatsHolder {
 
     public void removeDimensions(List<String> dimensionValues) {
         assert dimensionValues.size() == dimensionNames.size() : "Must specify a value for every dimension when removing from StatsHolder";
-        CacheStatsCounterSnapshot statsToDecrement = removeDimensionsHelper(dimensionValues, statsRoot, 0);
-        if (statsToDecrement != null) {
-            statsRoot.getStats().subtract(statsToDecrement);
-        }
+        removeDimensionsHelper(dimensionValues, statsRoot, 0);
     }
 
     // Returns a CacheStatsCounterSnapshot object for the stats to decrement if the removal happened, null otherwise.
@@ -178,14 +174,15 @@ public class StatsHolder {
             // Pass up a snapshot of the original stats to avoid issues when the original is decremented by other fn invocations
             return node.getStats().snapshot();
         }
-        DimensionNode child = node.getOrCreateChild(dimensionValues.get(depth), false);
+        boolean createMapInChild = depth < dimensionValues.size() - 1; // Don't instantiate the children map if we are creating a leaf node
+        DimensionNode child = node.getOrCreateChild(dimensionValues.get(depth), false, createMapInChild);
         if (child == null) {
             return null;
         }
         CacheStatsCounterSnapshot statsToDecrement = removeDimensionsHelper(dimensionValues, child, depth + 1);
         if (statsToDecrement != null) {
             // The removal took place, decrement values and remove this node from its parent if it's now empty
-            child.getStats().subtract(statsToDecrement);
+            node.getStats().subtract(statsToDecrement);
             if (child.getChildren() == null || child.getChildren().isEmpty()) {
                 node.children.remove(child.getDimensionValue());
             }

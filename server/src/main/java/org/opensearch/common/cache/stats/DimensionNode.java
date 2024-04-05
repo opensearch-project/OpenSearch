@@ -16,24 +16,24 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 class DimensionNode {
     private final String dimensionValue;
-    // Map from dimensionValue to the DimensionNode for that dimension value
-    ConcurrentHashMap<String, DimensionNode> children;
+    // Map from dimensionValue to the DimensionNode for that dimension value. Null for leaf nodes. 
+    final ConcurrentHashMap<String, DimensionNode> children;
     // The stats for this node. If a leaf node, corresponds to the stats for this combination of dimensions; if not,
     // contains the sum of its children's stats.
     private CacheStatsCounter stats;
 
-    DimensionNode(String dimensionValue) {
+    DimensionNode(String dimensionValue, boolean createChildrenMap) {
         this.dimensionValue = dimensionValue;
-        this.children = null; // Lazy load this as needed
+        if (createChildrenMap) {
+            this.children = new ConcurrentHashMap<>();
+        } else {
+            this.children = null;
+        }
         this.stats = new CacheStatsCounter();
     }
 
     public String getDimensionValue() {
         return dimensionValue;
-    }
-
-    protected void createChildrenMap() {
-        children = new ConcurrentHashMap<>();
     }
 
     protected Map<String, DimensionNode> getChildren() {
@@ -45,12 +45,15 @@ class DimensionNode {
         return stats;
     }
 
-    DimensionNode getOrCreateChild(String dimensionValue, boolean createIfAbsent) {
+    DimensionNode getOrCreateChild(String dimensionValue, boolean createIfAbsent, boolean createMapInChild) {
         if (children == null) {
-            createChildrenMap();
+            return null;
         }
         // If we are creating new nodes, put one in the map. Otherwise, the mapping function returns null to leave the map unchanged
-        return children.computeIfAbsent(dimensionValue, (key) -> createIfAbsent ? new DimensionNode(dimensionValue) : null);
+        return children.computeIfAbsent(
+            dimensionValue,
+            (key) -> createIfAbsent ? new DimensionNode(dimensionValue, createMapInChild) : null
+        );
     }
 
     public boolean hasChildren() {
