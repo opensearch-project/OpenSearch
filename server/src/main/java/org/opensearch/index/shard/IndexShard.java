@@ -4485,8 +4485,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicBoolean flushOrRollRunning = new AtomicBoolean();
 
     /**
-     * Tests whether or not the shard should be Refreshed, if number of translog files breaches the
-     * threshold count determined by {@code index.translog.max_uncommitted_files_threshold}
+     * Checks if the shard need to be Refreshed depending on Translog constraints.
+     * Each Translog type can have it's own decider
      * @return {@code true} if the shard should be Refreshed
      */
     public boolean shouldRefreshShard() {

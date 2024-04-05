@@ -654,9 +654,9 @@ public class RemoteFsTranslog extends Translog {
     }
 
     /**
-     * Tests whether or not the shard should be Refreshed.
-     * This test is based on the number of Translog files compared to configured number of Translog files threshold
-     *
+     * Checks whether or not the shard should be Refreshed.
+     * This checks if number of translog files breaches the threshold count determined by
+     * {@code cluster.remote_store.max_referenced_translog_files} setting
      * @return {@code true} if the shard should be Refreshed
      */
     @Override
