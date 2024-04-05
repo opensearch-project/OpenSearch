@@ -80,4 +80,41 @@ public class ReadContext {
         @Override
         CompletableFuture<InputStreamContainer> get();
     }
+
+    /**
+     * Builder for {@link ReadContext}.
+     *
+     * @opensearch.experimental
+     */
+    public static class Builder {
+        private long blobSize;
+        private List<StreamPartCreator> asyncPartStreams;
+        private String blobChecksum;
+        private Map<String, String> metadata;
+
+        public Builder blobSize(long blobSize) {
+            this.blobSize = blobSize;
+            return this;
+        }
+
+        public Builder asyncPartStreams(List<StreamPartCreator> asyncPartStreams) {
+            this.asyncPartStreams = asyncPartStreams;
+            return this;
+        }
+
+        public Builder blobChecksum(String blobChecksum) {
+            this.blobChecksum = blobChecksum;
+            return this;
+        }
+
+        public Builder metadata(Map<String, String> metadata) {
+            this.metadata = metadata;
+            return this;
+        }
+
+        public ReadContext build() {
+            return new ReadContext(blobSize, asyncPartStreams, blobChecksum, metadata);
+        }
+
+    }
 }

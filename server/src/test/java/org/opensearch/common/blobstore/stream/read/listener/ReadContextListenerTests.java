@@ -78,7 +78,11 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
             UnaryOperator.identity(),
             MAX_CONCURRENT_STREAMS
         );
-        ReadContext readContext = new ReadContext((long) PART_SIZE * NUMBER_OF_PARTS, blobPartStreams, null, null);
+        ReadContext readContext = new ReadContext.Builder().blobSize((long) PART_SIZE * NUMBER_OF_PARTS)
+            .asyncPartStreams(blobPartStreams)
+            .blobChecksum(null)
+            .metadata(null)
+            .build();
         readContextListener.onResponse(readContext);
 
         countDownLatch.await();
@@ -125,7 +129,11 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
                 threadPool.generic()
             )
         );
-        ReadContext readContext = new ReadContext((long) (PART_SIZE + 1) * NUMBER_OF_PARTS, blobPartStreams, null, null);
+        ReadContext readContext = new ReadContext.Builder().blobSize((long) (PART_SIZE + 1) * NUMBER_OF_PARTS)
+            .asyncPartStreams(blobPartStreams)
+            .blobChecksum(null)
+            .metadata(null)
+            .build();
         readContextListener.onResponse(readContext);
 
         countDownLatch.await();
@@ -178,7 +186,11 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
                 threadPool.generic()
             )
         );
-        ReadContext readContext = new ReadContext((long) (PART_SIZE + 1) * NUMBER_OF_PARTS + 1, blobPartStreams, null, null);
+        ReadContext readContext = new ReadContext.Builder().blobSize((long) (PART_SIZE + 1) * NUMBER_OF_PARTS + 1)
+            .asyncPartStreams(blobPartStreams)
+            .blobChecksum(null)
+            .metadata(null)
+            .build();
         readContextListener.onResponse(readContext);
 
         countDownLatch.await();
@@ -203,7 +215,11 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
             UnaryOperator.identity(),
             MAX_CONCURRENT_STREAMS
         );
-        ReadContext readContext = new ReadContext((long) (PART_SIZE + 1) * NUMBER_OF_PARTS, blobPartStreams, null, null);
+        ReadContext readContext = new ReadContext.Builder().blobSize((long) (PART_SIZE + 1) * NUMBER_OF_PARTS)
+            .asyncPartStreams(blobPartStreams)
+            .blobChecksum(null)
+            .metadata(null)
+            .build();
         readContextListener.onResponse(readContext);
 
         countDownLatch.await();

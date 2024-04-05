@@ -57,7 +57,11 @@ public class AsyncMultiStreamEncryptedBlobContainerTests extends OpenSearchTestC
         final ListenerTestUtils.CountingCompletionListener<ReadContext> completionListener =
             new ListenerTestUtils.CountingCompletionListener<>();
         final CompletableFuture<InputStreamContainer> streamContainerFuture = CompletableFuture.completedFuture(inputStreamContainer);
-        final ReadContext readContext = new ReadContext(size, List.of(() -> streamContainerFuture), null, null);
+        final ReadContext readContext = new ReadContext.Builder().blobSize(size)
+            .asyncPartStreams(List.of(() -> streamContainerFuture))
+            .blobChecksum(null)
+            .metadata(null)
+            .build();
 
         Mockito.doAnswer(invocation -> {
             ActionListener<ReadContext> readContextActionListener = invocation.getArgument(1);
@@ -103,7 +107,11 @@ public class AsyncMultiStreamEncryptedBlobContainerTests extends OpenSearchTestC
         final ListenerTestUtils.CountingCompletionListener<ReadContext> completionListener =
             new ListenerTestUtils.CountingCompletionListener<>();
         final CompletableFuture<InputStreamContainer> streamContainerFuture = CompletableFuture.completedFuture(inputStreamContainer);
-        final ReadContext readContext = new ReadContext(size, List.of(() -> streamContainerFuture), null, null);
+        final ReadContext readContext = new ReadContext.Builder().blobSize(size)
+            .asyncPartStreams(List.of(() -> streamContainerFuture))
+            .blobChecksum(null)
+            .metadata(null)
+            .build();
 
         Mockito.doAnswer(invocation -> {
             ActionListener<ReadContext> readContextActionListener = invocation.getArgument(1);
