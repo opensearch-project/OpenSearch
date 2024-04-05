@@ -312,7 +312,7 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public static final Setting<PathType> CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING = new Setting<>(
         "cluster.remote_store.index.path.prefix.type",
-        PathType.FIXED.toString(),
+        PathType.HASHED_PREFIX.toString(),
         PathType::parseString,
         Property.NodeScope,
         Property.Dynamic

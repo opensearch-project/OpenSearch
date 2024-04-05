@@ -103,9 +103,24 @@ public class RemoteStoreEnums {
         HASHED_PREFIX(1) {
             @Override
             public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
-                // TODO - We need to implement this, keeping the same path as Fixed for sake of multiple tests that can fail otherwise.
-                // throw new UnsupportedOperationException("Not implemented"); --> Not using this for unblocking couple of tests.
+                assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
+                return addPrefix(pathInput.basePath(), hashAlgorithm.hash(pathInput)).add(pathInput.indexUUID())
+                    .add(pathInput.shardId())
+                    .add(pathInput.dataCategory().getName())
+                    .add(pathInput.dataType().getName());
+            }
+
+            @Override
+            boolean requiresHashAlgorithm() {
+                return true;
+            }
+        },
+        HASHED_INFIX(2) {
+            @Override
+            public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
+                assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
                 return pathInput.basePath()
+                    .add(hashAlgorithm.hash(pathInput))
                     .add(pathInput.indexUUID())
                     .add(pathInput.shardId())
                     .add(pathInput.dataCategory().getName())
@@ -200,10 +215,11 @@ public class RemoteStoreEnums {
 
         FNV_1A(0) {
             @Override
-            long hash(PathInput pathInput) {
+            String hash(PathInput pathInput) {
                 String input = pathInput.indexUUID() + pathInput.shardId() + pathInput.dataCategory().getName() + pathInput.dataType()
                     .getName();
-                return FNV1a.hash32(input);
+                long hash = FNV1a.hash64(input);
+                return RemoteStoreUtils.longToBase64(hash);
             }
         };
 
@@ -218,6 +234,7 @@ public class RemoteStoreEnums {
         }
 
         private static final Map<Integer, PathHashAlgorithm> CODE_TO_ENUM;
+
         static {
             PathHashAlgorithm[] values = values();
             Map<Integer, PathHashAlgorithm> codeToStatus = new HashMap<>(values.length);
@@ -240,7 +257,7 @@ public class RemoteStoreEnums {
             return CODE_TO_ENUM.get(code);
         }
 
-        abstract long hash(PathInput pathInput);
+        abstract String hash(PathInput pathInput);
 
         public static PathHashAlgorithm parseString(String pathHashAlgorithm) {
             try {
@@ -256,5 +273,14 @@ public class RemoteStoreEnums {
          * This string is used as key for storing information in the custom data in index settings.
          */
         public static final String NAME = "path_hash_algorithm";
+    }
+
+    static BlobPath addPrefix(BlobPath blobPath, String prefix) {
+        BlobPath updatedPath = BlobPath.cleanPath();
+        updatedPath = updatedPath.add(prefix);
+        for (String path : blobPath) {
+            updatedPath = updatedPath.add(path);
+        }
+        return updatedPath;
     }
 }
