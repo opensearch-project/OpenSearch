@@ -28,7 +28,7 @@ public class ReadContext {
     private final String blobChecksum;
     private final Map<String, String> metadata;
 
-    public ReadContext(long blobSize, List<StreamPartCreator> asyncPartStreams, String blobChecksum, Map<String, String> metadata) {
+    private ReadContext(long blobSize, List<StreamPartCreator> asyncPartStreams, String blobChecksum, Map<String, String> metadata) {
         this.blobSize = blobSize;
         this.asyncPartStreams = asyncPartStreams;
         this.blobChecksum = blobChecksum;

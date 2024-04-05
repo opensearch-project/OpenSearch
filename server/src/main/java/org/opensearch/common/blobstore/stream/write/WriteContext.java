@@ -43,7 +43,7 @@ public class WriteContext {
      * @param doRemoteDataIntegrityCheck A boolean to inform vendor plugins whether remote data integrity checks need to be done
      * @param expectedChecksum           This parameter expected only when the vendor plugin is expected to do server side data integrity verification
      */
-    public WriteContext(
+    private WriteContext(
         String fileName,
         StreamContextSupplier streamContextSupplier,
         long fileSize,
