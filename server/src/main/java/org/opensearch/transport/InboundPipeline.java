@@ -102,13 +102,13 @@ public class InboundPipeline implements Releasable {
     @Override
     public void close() {
         isClosed = true;
-        Releasables.closeWhileHandlingException(decoder, aggregator);
-        Releasables.closeWhileHandlingException(pending);
-        pending.clear();
         if (currentHandler != null) {
             currentHandler.close();
             currentHandler = null;
         }
+        Releasables.closeWhileHandlingException(decoder, aggregator);
+        Releasables.closeWhileHandlingException(pending);
+        pending.clear();
     }
 
     public void handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {

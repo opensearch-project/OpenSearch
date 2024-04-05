@@ -34,10 +34,10 @@ public class NativeInboundBytesHandler implements InboundBytesHandler {
     private static final ThreadLocal<ArrayList<Object>> fragmentList = ThreadLocal.withInitial(ArrayList::new);
     private static final InboundMessage PING_MESSAGE = new InboundMessage(null, true);
 
-    private ArrayDeque<ReleasableBytesReference> pending;
-    private InboundDecoder decoder;
-    private InboundAggregator aggregator;
-    private StatsTracker statsTracker;
+    private final ArrayDeque<ReleasableBytesReference> pending;
+    private final InboundDecoder decoder;
+    private final InboundAggregator aggregator;
+    private final StatsTracker statsTracker;
     private boolean isClosed = false;
 
     public NativeInboundBytesHandler(
