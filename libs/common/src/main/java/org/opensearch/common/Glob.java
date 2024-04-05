@@ -49,37 +49,35 @@ public class Glob {
      * @return whether the String matches the given pattern
      */
     public static boolean globMatch(String pattern, String str) {
-        if (pattern == null || str == null) {
-            return false;
-        }
-        int firstIndex = pattern.indexOf('*');
-        if (firstIndex == -1) {
-            return pattern.equals(str);
-        }
-        if (firstIndex == 0) {
-            if (pattern.length() == 1) {
-                return true;
+        int sIdx = 0, pIdx = 0, match = 0, wildcardIdx = -1;
+        while (sIdx < str.length()) {
+            // both chars matching, incrementing both pointers
+            if (pIdx < pattern.length() && str.charAt(sIdx) == pattern.charAt(pIdx)) {
+                sIdx++;
+                pIdx++;
+            } else if (pIdx < pattern.length() && pattern.charAt(pIdx) == '*') {
+                // wildcard found, only incrementing pattern pointer
+                wildcardIdx = pIdx;
+                match = sIdx;
+                pIdx++;
+            } else if (wildcardIdx != -1) {
+                // last pattern pointer was a wildcard, incrementing string pointer
+                pIdx = wildcardIdx + 1;
+                match++;
+                sIdx = match;
+            } else {
+                // current pattern pointer is not a wildcard, last pattern pointer was also not a wildcard
+                // characters do not match
+                return false;
             }
-            int nextIndex = pattern.indexOf('*', firstIndex + 1);
-            if (nextIndex == -1) {
-                return str.endsWith(pattern.substring(1));
-            } else if (nextIndex == 1) {
-                // Double wildcard "**" - skipping the first "*"
-                return globMatch(pattern.substring(1), str);
-            }
-            String part = pattern.substring(1, nextIndex);
-            int partIndex = str.indexOf(part);
-            while (partIndex != -1) {
-                if (globMatch(pattern.substring(nextIndex), str.substring(partIndex + part.length()))) {
-                    return true;
-                }
-                partIndex = str.indexOf(part, partIndex + 1);
-            }
-            return false;
         }
-        return (str.length() >= firstIndex
-            && pattern.substring(0, firstIndex).equals(str.substring(0, firstIndex))
-            && globMatch(pattern.substring(firstIndex), str.substring(firstIndex)));
+
+        // check for remaining characters in pattern
+        while (pIdx < pattern.length() && pattern.charAt(pIdx) == '*') {
+            pIdx++;
+        }
+
+        return pIdx == pattern.length();
     }
 
 }
