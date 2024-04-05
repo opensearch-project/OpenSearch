@@ -2059,7 +2059,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
      *
      * @return {@code true} if the shard should be Refreshed
      */
-    public boolean shouldRefreshShard(int maxUncommittedTranslogFilesThreshold) {
+    public boolean shouldRefreshShard() {
         return false;
     }
 }

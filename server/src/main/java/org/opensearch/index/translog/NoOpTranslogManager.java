@@ -136,7 +136,7 @@ public class NoOpTranslogManager implements TranslogManager {
     }
 
     @Override
-    public boolean shouldRefreshShard(int maxUncommittedTranslogFilesThreshold) {
+    public boolean shouldRefreshShard() {
         return false;
     }
 }

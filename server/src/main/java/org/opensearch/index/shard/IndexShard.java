@@ -4489,11 +4489,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * threshold count determined by {@code index.translog.max_uncommitted_files_threshold}
      * @return {@code true} if the shard should be Refreshed
      */
-    boolean shouldRefreshShard() {
+    public boolean shouldRefreshShard() {
         final Engine engine = getEngineOrNull();
         if (engine != null) {
             try {
-                return engine.translogManager().shouldRefreshShard(indexSettings.getMaxUncommittedTranslogFiles());
+                return engine.translogManager().shouldRefreshShard();
             } catch (final AlreadyClosedException e) {
                 // we are already closed, no need to Refresh
             }
@@ -4570,9 +4570,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             }
         } else if (shouldRefreshShard() && isRefreshRunning.compareAndSet(false, true)) {
-
             if (shouldRefreshShard()) {
-                logger.info("submitting async Refresh request");
+                logger.debug("submitting async Refresh request");
                 final AbstractRunnable _refresh = new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {

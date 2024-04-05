@@ -471,7 +471,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
     }
 
     @Override
-    public boolean shouldRefreshShard(int maxUncommittedTranslogFilesThreshold) {
-        return getTranslog(true).shouldRefreshShard(maxUncommittedTranslogFilesThreshold);
+    public boolean shouldRefreshShard() {
+        return getTranslog(true).shouldRefreshShard();
     }
 }

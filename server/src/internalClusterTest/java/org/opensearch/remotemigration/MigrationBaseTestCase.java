@@ -40,7 +40,7 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
 
     protected Path segmentRepoPath;
     protected Path translogRepoPath;
-    boolean addRemote = false;
+    protected boolean addRemote = false;
     Settings extraSettings = Settings.EMPTY;
 
     private final List<String> documentKeys = List.of(

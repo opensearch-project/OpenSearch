@@ -96,4 +96,24 @@ public class RemoteStoreSettingsDynamicUpdateTests extends OpenSearchTestCase {
         );
         assertEquals(TimeValue.timeValueSeconds(40), remoteStoreSettings.getClusterRemoteTranslogTransferTimeout());
     }
+
+    public void testMaxRemoteReferencedTranslogFiles() {
+        // Test default value
+        assertEquals(300, remoteStoreSettings.getMaxRemoteReferencedTranslogFiles());
+
+        // Test override with valid value
+        clusterSettings.applySettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_REFERENCED_TRANSLOG_FILES.getKey(), "100").build()
+        );
+        assertEquals(100, remoteStoreSettings.getMaxRemoteReferencedTranslogFiles());
+
+        // Test override with value less than minimum
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.applySettings(
+                Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_REFERENCED_TRANSLOG_FILES.getKey(), "0").build()
+            )
+        );
+        assertEquals(100, remoteStoreSettings.getMaxRemoteReferencedTranslogFiles());
+    }
 }

@@ -65,9 +65,21 @@ public class RemoteStoreSettings {
         Property.Dynamic
     );
 
+    /**
+     * Controls the maximum referenced remote translog files. If breached the shard will be Refreshed.
+     */
+    public static final Setting<Integer> CLUSTER_REMOTE_MAX_REFERENCED_TRANSLOG_FILES = Setting.intSetting(
+        "cluster.remote_store.max_referenced_translog_files",
+        300,
+        1,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     private volatile TimeValue clusterRemoteTranslogBufferInterval;
     private volatile int minRemoteSegmentMetadataFiles;
     private volatile TimeValue clusterRemoteTranslogTransferTimeout;
+    private volatile int maxRemoteReferencedTranslogFiles;
 
     public RemoteStoreSettings(Settings settings, ClusterSettings clusterSettings) {
         this.clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
@@ -87,6 +99,9 @@ public class RemoteStoreSettings {
             CLUSTER_REMOTE_TRANSLOG_TRANSFER_TIMEOUT_SETTING,
             this::setClusterRemoteTranslogTransferTimeout
         );
+
+        maxRemoteReferencedTranslogFiles = CLUSTER_REMOTE_MAX_REFERENCED_TRANSLOG_FILES.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_MAX_REFERENCED_TRANSLOG_FILES, this::setMaxRemoteReferencedTranslogFiles);
     }
 
     public TimeValue getClusterRemoteTranslogBufferInterval() {
@@ -111,5 +126,13 @@ public class RemoteStoreSettings {
 
     private void setClusterRemoteTranslogTransferTimeout(TimeValue clusterRemoteTranslogTransferTimeout) {
         this.clusterRemoteTranslogTransferTimeout = clusterRemoteTranslogTransferTimeout;
+    }
+
+    public int getMaxRemoteReferencedTranslogFiles() {
+        return maxRemoteReferencedTranslogFiles;
+    }
+
+    private void setMaxRemoteReferencedTranslogFiles(int maxRemoteReferencedTranslogFiles) {
+        this.maxRemoteReferencedTranslogFiles = maxRemoteReferencedTranslogFiles;
     }
 }

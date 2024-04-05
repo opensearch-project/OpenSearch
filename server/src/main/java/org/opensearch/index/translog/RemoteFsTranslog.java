@@ -660,7 +660,7 @@ public class RemoteFsTranslog extends Translog {
      * @return {@code true} if the shard should be Refreshed
      */
     @Override
-    public boolean shouldRefreshShard(int maxUncommittedTranslogFilesThreshold) {
-        return readers.size() > maxUncommittedTranslogFilesThreshold;
+    public boolean shouldRefreshShard() {
+        return readers.size() >= translogTransferManager.getMaxRemoteReferencedTranslogFilesSettings();
     }
 }

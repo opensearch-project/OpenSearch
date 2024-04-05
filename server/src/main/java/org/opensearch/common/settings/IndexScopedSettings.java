@@ -237,8 +237,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 // Settings for concurrent segment search
                 IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING,
 
-                IndexSettings.INDEX_MAX_UNCOMMITTED_TRANSLOG_FILES,
-
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
                     Map<String, Settings> groups = s.getAsGroups();

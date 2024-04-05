@@ -143,5 +143,5 @@ public interface TranslogManager {
 
     Translog.TranslogGeneration getTranslogGeneration();
 
-    boolean shouldRefreshShard(int maxUncommittedTranslogFilesThreshold);
+    boolean shouldRefreshShard();
 }
