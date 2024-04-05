@@ -123,42 +123,6 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
         return builder;
     }
 
-    /**
-     * This is kept only to avoid breaking changes.
-     */
-    @Deprecated
-    public RemoteStoreShardShallowCopySnapshot(
-        String snapshot,
-        long indexVersion,
-        long primaryTerm,
-        long commitGeneration,
-        long startTime,
-        long time,
-        int totalFileCount,
-        long totalSize,
-        String indexUUID,
-        String remoteStoreRepository,
-        String repositoryBasePath,
-        List<String> fileNames
-    ) {
-        this(
-            snapshot,
-            indexVersion,
-            primaryTerm,
-            commitGeneration,
-            startTime,
-            time,
-            totalFileCount,
-            totalSize,
-            indexUUID,
-            remoteStoreRepository,
-            repositoryBasePath,
-            fileNames,
-            null,
-            null
-        );
-    }
-
     public RemoteStoreShardShallowCopySnapshot(
         String snapshot,
         long indexVersion,
