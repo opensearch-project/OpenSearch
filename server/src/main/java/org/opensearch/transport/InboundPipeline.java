@@ -95,7 +95,7 @@ public class InboundPipeline implements Releasable {
         this.statsTracker = statsTracker;
         this.decoder = decoder;
         this.aggregator = aggregator;
-        this.protocolBytesHandlers = List.of(new NativeInboundBytesHandler(isClosed, pending, decoder, aggregator, statsTracker));
+        this.protocolBytesHandlers = List.of(new NativeInboundBytesHandler(pending, decoder, aggregator, statsTracker));
         this.messageHandler = messageHandler;
     }
 
@@ -105,7 +105,10 @@ public class InboundPipeline implements Releasable {
         Releasables.closeWhileHandlingException(decoder, aggregator);
         Releasables.closeWhileHandlingException(pending);
         pending.clear();
-        currentHandler = null;
+        if (currentHandler != null) {
+            currentHandler.close();
+            currentHandler = null;
+        }
     }
 
     public void handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
@@ -125,20 +128,21 @@ public class InboundPipeline implements Releasable {
         statsTracker.markBytesRead(reference.length());
         pending.add(reference.retain());
 
+        // If we don't have a current handler, we should try to find one based on the protocol of the incoming bytes.
+        if (currentHandler == null) {
+            for (InboundBytesHandler handler : protocolBytesHandlers) {
+                if (handler.canHandleBytes(reference)) {
+                    currentHandler = handler;
+                    break;
+                }
+            }
+        }
+
         // If we have a current handler determined based on protocol, we should continue to use it for the fragmented bytes.
         if (currentHandler != null) {
             currentHandler.doHandleBytes(channel, reference, messageHandler);
-            return;
+        } else {
+            throw new IllegalStateException("No bytes handler found for the incoming transport protocol");
         }
-
-        // If we don't have a current handler, we should try to find one based on the protocol of the incoming bytes.
-        for (InboundBytesHandler handler : protocolBytesHandlers) {
-            if (handler.canHandleBytes(reference)) {
-                currentHandler = handler;
-                handler.doHandleBytes(channel, reference, messageHandler);
-                return;
-            }
-        }
-        throw new IllegalStateException("No bytes handler found for the incoming transport protocol");
     }
 }

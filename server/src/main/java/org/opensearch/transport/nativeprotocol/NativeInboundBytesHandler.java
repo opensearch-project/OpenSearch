@@ -34,24 +34,27 @@ public class NativeInboundBytesHandler implements InboundBytesHandler {
     private static final ThreadLocal<ArrayList<Object>> fragmentList = ThreadLocal.withInitial(ArrayList::new);
     private static final InboundMessage PING_MESSAGE = new InboundMessage(null, true);
 
-    private boolean isClosed;
     private ArrayDeque<ReleasableBytesReference> pending;
     private InboundDecoder decoder;
     private InboundAggregator aggregator;
     private StatsTracker statsTracker;
+    private boolean isClosed = false;
 
     public NativeInboundBytesHandler(
-        boolean isClosed,
         ArrayDeque<ReleasableBytesReference> pending,
         InboundDecoder decoder,
         InboundAggregator aggregator,
         StatsTracker statsTracker
     ) {
-        this.isClosed = isClosed;
         this.pending = pending;
         this.decoder = decoder;
         this.aggregator = aggregator;
         this.statsTracker = statsTracker;
+    }
+
+    @Override
+    public void close() {
+        isClosed = true;
     }
 
     @Override
