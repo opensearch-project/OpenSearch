@@ -49,6 +49,9 @@ public class Glob {
      * @return whether the String matches the given pattern
      */
     public static boolean globMatch(String pattern, String str) {
+        if (pattern == null || str == null) {
+            return false;
+        }
         int sIdx = 0, pIdx = 0, match = 0, wildcardIdx = -1;
         while (sIdx < str.length()) {
             // both chars matching, incrementing both pointers
