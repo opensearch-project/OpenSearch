@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.common.bytes.BytesReference;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 /** test the FilterStreamInput using the same BaseStreamTests */
 public class FilterStreamInputTests extends BaseStreamTests {
@@ -20,5 +21,24 @@ public class FilterStreamInputTests extends BaseStreamTests {
         BytesRef br = bytesReference.toBytesRef();
         return new FilterStreamInput(StreamInput.wrap(br.bytes, br.offset, br.length)) {
         };
+    }
+
+    public void testMarkAndReset() throws IOException {
+        FilterStreamInputTests filterStreamInputTests = new FilterStreamInputTests();
+
+        ByteBuffer buffer = ByteBuffer.wrap(new byte[20]);
+        for (int i = 0; i < buffer.limit(); i++) {
+            buffer.put((byte) i);
+        }
+        buffer.rewind();
+        BytesReference bytesReference = BytesReference.fromByteBuffer(buffer);
+        StreamInput streamInput = filterStreamInputTests.getStreamInput(bytesReference);
+        streamInput.read();
+        streamInput.mark(-1);
+        int int1 = streamInput.read();
+        int int2 = streamInput.read();
+        streamInput.reset();
+        assertEquals(int1, streamInput.read());
+        assertEquals(int2, streamInput.read());
     }
 }
