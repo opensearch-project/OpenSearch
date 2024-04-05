@@ -86,6 +86,11 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
+    public boolean markSupported() {
+        return delegate.markSupported();
+    }
+
+    @Override
     public int read() throws IOException {
         return delegate.read();
     }
