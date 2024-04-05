@@ -675,12 +675,19 @@ public class RestoreService implements ClusterStateApplier {
 
                     private Settings getOverrideSettingsInternal() {
                         final Settings.Builder settingsBuilder = Settings.builder();
-                        MetadataCreateIndexService.updateReplicationStrategy(
-                            settingsBuilder,
-                            request.indexSettings(),
-                            clusterService.getSettings(),
-                            null
-                        );
+
+                        // We will use whatever replication strategy provided by user or from snapshot metadata unless
+                        // cluster is remote store enabled or user have restricted a specific replication type in the
+                        // cluster.
+                        if (RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(clusterService.getSettings()) == true
+                            || clusterSettings.get(IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING) == true) {
+                            MetadataCreateIndexService.updateReplicationStrategy(
+                                settingsBuilder,
+                                request.indexSettings(),
+                                clusterService.getSettings(),
+                                null
+                            );
+                        }
                         // remote store settings needs to be overridden if the remote store feature is enabled in the
                         // cluster where snapshot is being restored.
                         MetadataCreateIndexService.updateRemoteStoreSettings(settingsBuilder, clusterService.getSettings());

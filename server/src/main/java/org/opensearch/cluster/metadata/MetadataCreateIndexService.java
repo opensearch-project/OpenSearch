@@ -1026,7 +1026,7 @@ public class MetadataCreateIndexService {
      * @param nodeSettings node settings
      */
     public static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings nodeSettings) {
-        if (isRemoteStoreAttributePresent(nodeSettings)) {
+        if (RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(nodeSettings)) {
             settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
                 .put(
                     SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
