@@ -80,8 +80,6 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
         );
         ReadContext readContext = new ReadContext.Builder().blobSize((long) PART_SIZE * NUMBER_OF_PARTS)
             .asyncPartStreams(blobPartStreams)
-            .blobChecksum(null)
-            .metadata(null)
             .build();
         readContextListener.onResponse(readContext);
 
@@ -131,8 +129,6 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
         );
         ReadContext readContext = new ReadContext.Builder().blobSize((long) (PART_SIZE + 1) * NUMBER_OF_PARTS)
             .asyncPartStreams(blobPartStreams)
-            .blobChecksum(null)
-            .metadata(null)
             .build();
         readContextListener.onResponse(readContext);
 
@@ -188,8 +184,6 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
         );
         ReadContext readContext = new ReadContext.Builder().blobSize((long) (PART_SIZE + 1) * NUMBER_OF_PARTS + 1)
             .asyncPartStreams(blobPartStreams)
-            .blobChecksum(null)
-            .metadata(null)
             .build();
         readContextListener.onResponse(readContext);
 
@@ -217,8 +211,6 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
         );
         ReadContext readContext = new ReadContext.Builder().blobSize((long) (PART_SIZE + 1) * NUMBER_OF_PARTS)
             .asyncPartStreams(blobPartStreams)
-            .blobChecksum(null)
-            .metadata(null)
             .build();
         readContextListener.onResponse(readContext);
 

@@ -59,8 +59,6 @@ public class AsyncMultiStreamEncryptedBlobContainerTests extends OpenSearchTestC
         final CompletableFuture<InputStreamContainer> streamContainerFuture = CompletableFuture.completedFuture(inputStreamContainer);
         final ReadContext readContext = new ReadContext.Builder().blobSize(size)
             .asyncPartStreams(List.of(() -> streamContainerFuture))
-            .blobChecksum(null)
-            .metadata(null)
             .build();
 
         Mockito.doAnswer(invocation -> {
@@ -109,8 +107,6 @@ public class AsyncMultiStreamEncryptedBlobContainerTests extends OpenSearchTestC
         final CompletableFuture<InputStreamContainer> streamContainerFuture = CompletableFuture.completedFuture(inputStreamContainer);
         final ReadContext readContext = new ReadContext.Builder().blobSize(size)
             .asyncPartStreams(List.of(() -> streamContainerFuture))
-            .blobChecksum(null)
-            .metadata(null)
             .build();
 
         Mockito.doAnswer(invocation -> {

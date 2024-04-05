@@ -15,7 +15,7 @@ import java.util.Map;
  * Represents the response from a blob download operation, containing both the
  * input stream of the blob content and the associated metadata.
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
 public class BlobDownloadResponse {
 

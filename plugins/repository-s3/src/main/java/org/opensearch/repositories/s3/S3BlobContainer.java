@@ -289,7 +289,6 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                         new ReadContext.Builder().blobSize(blobSize)
                             .asyncPartStreams(blobPartInputStreamFutures)
                             .blobChecksum(blobChecksum)
-                            .metadata(null)
                             .build()
                     );
                 } catch (Exception ex) {
