@@ -100,4 +100,9 @@ public class InboundMessage implements Releasable, ProtocolInboundMessage {
         return this.nativeInboundMessage.toString();
     }
 
+    @Override
+    public String getProtocol() {
+        return this.nativeInboundMessage.getProtocol();
+    }
+
 }

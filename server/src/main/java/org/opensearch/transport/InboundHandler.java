@@ -36,6 +36,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
 
 import java.io.IOException;
 import java.util.Map;
@@ -67,7 +68,7 @@ public class InboundHandler {
     ) {
         this.threadPool = threadPool;
         this.protocolMessageHandlers = Map.of(
-            ProtocolInboundMessage.NATIVE_PROTOCOL,
+            NativeInboundMessage.NATIVE_PROTOCOL,
             new NativeMessageHandler(
                 threadPool,
                 outboundHandler,

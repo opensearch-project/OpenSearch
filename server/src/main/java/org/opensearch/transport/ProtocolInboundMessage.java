@@ -8,7 +8,7 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Base class for inbound data as a message.
@@ -16,19 +16,12 @@ import org.opensearch.common.annotation.ExperimentalApi;
  *
  * @opensearch.internal
  */
-@ExperimentalApi
+@PublicApi(since = "2.14.0")
 public interface ProtocolInboundMessage {
-
-    /**
-     * The protocol used to encode this message
-     */
-    static String NATIVE_PROTOCOL = "native";
-    static String PROTOBUF_PROTOCOL = "protobuf";
 
     /**
      * @return the protocol used to encode this message
      */
-    default public String getProtocol() {
-        return NATIVE_PROTOCOL;
-    }
+    public String getProtocol();
+
 }

@@ -48,8 +48,13 @@ import java.io.IOException;
  *
  * @opensearch.api
  */
-@PublicApi(since = "3.0.0")
+@PublicApi(since = "2.14.0")
 public class NativeInboundMessage implements Releasable, ProtocolInboundMessage {
+
+    /**
+     * The protocol used to encode this message
+     */
+    public static String NATIVE_PROTOCOL = "native";
 
     private final Header header;
     private final ReleasableBytesReference content;
@@ -80,6 +85,11 @@ public class NativeInboundMessage implements Releasable, ProtocolInboundMessage 
         this.breakerRelease = null;
         this.exception = null;
         this.isPing = isPing;
+    }
+
+    @Override
+    public String getProtocol() {
+        return NATIVE_PROTOCOL;
     }
 
     public Header getHeader() {
