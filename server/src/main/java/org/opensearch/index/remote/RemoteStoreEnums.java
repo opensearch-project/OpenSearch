@@ -8,14 +8,19 @@
 
 package org.opensearch.index.remote;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.hash.FNV1a;
 import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 
@@ -78,9 +83,10 @@ public class RemoteStoreEnums {
      */
     @PublicApi(since = "2.14.0")
     public enum PathType {
-        FIXED {
+        FIXED(0) {
             @Override
             public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
+                assert Objects.isNull(hashAlgorithm) : "hashAlgorithm is expected to be null with fixed remote store path type";
                 // Hash algorithm is not used in FIXED path type
                 return pathInput.basePath()
                     .add(pathInput.indexUUID())
@@ -94,7 +100,7 @@ public class RemoteStoreEnums {
                 return false;
             }
         },
-        HASHED_PREFIX {
+        HASHED_PREFIX(1) {
             @Override
             public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 // TODO - We need to implement this, keeping the same path as Fixed for sake of multiple tests that can fail otherwise.
@@ -111,6 +117,40 @@ public class RemoteStoreEnums {
                 return true;
             }
         };
+
+        private final int code;
+
+        PathType(int code) {
+            this.code = code;
+        }
+
+        public int getCode() {
+            return code;
+        }
+
+        private static final Map<Integer, PathType> CODE_TO_ENUM;
+
+        static {
+            PathType[] values = values();
+            Map<Integer, PathType> codeToStatus = new HashMap<>(values.length);
+            for (PathType value : values) {
+                int code = value.code;
+                if (codeToStatus.containsKey(code)) {
+                    throw new IllegalStateException(
+                        new ParameterizedMessage("{} has same code as {}", codeToStatus.get(code), value).getFormattedMessage()
+                    );
+                }
+                codeToStatus.put(code, value);
+            }
+            CODE_TO_ENUM = unmodifiableMap(codeToStatus);
+        }
+
+        /**
+         * Turn a status code into a {@link PathType}.
+         */
+        public static PathType fromCode(int code) {
+            return CODE_TO_ENUM.get(code);
+        }
 
         /**
          * This method generates the path for the given path input which constitutes multiple fields and characteristics
@@ -131,7 +171,7 @@ public class RemoteStoreEnums {
             return generatePath(pathInput, hashAlgorithm);
         }
 
-        abstract BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm);
+        protected abstract BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm);
 
         abstract boolean requiresHashAlgorithm();
 
@@ -158,7 +198,7 @@ public class RemoteStoreEnums {
     @PublicApi(since = "2.14.0")
     public enum PathHashAlgorithm {
 
-        FNV_1A {
+        FNV_1A(0) {
             @Override
             long hash(PathInput pathInput) {
                 String input = pathInput.indexUUID() + pathInput.shardId() + pathInput.dataCategory().getName() + pathInput.dataType()
@@ -166,6 +206,39 @@ public class RemoteStoreEnums {
                 return FNV1a.hash32(input);
             }
         };
+
+        private final int code;
+
+        PathHashAlgorithm(int code) {
+            this.code = code;
+        }
+
+        public int getCode() {
+            return code;
+        }
+
+        private static final Map<Integer, PathHashAlgorithm> CODE_TO_ENUM;
+        static {
+            PathHashAlgorithm[] values = values();
+            Map<Integer, PathHashAlgorithm> codeToStatus = new HashMap<>(values.length);
+            for (PathHashAlgorithm value : values) {
+                int code = value.code;
+                if (codeToStatus.containsKey(code)) {
+                    throw new IllegalStateException(
+                        new ParameterizedMessage("{} has same code as {}", codeToStatus.get(code), value).getFormattedMessage()
+                    );
+                }
+                codeToStatus.put(code, value);
+            }
+            CODE_TO_ENUM = unmodifiableMap(codeToStatus);
+        }
+
+        /**
+         * Turn a status code into a {@link PathHashAlgorithm}.
+         */
+        public static PathHashAlgorithm fromCode(int code) {
+            return CODE_TO_ENUM.get(code);
+        }
 
         abstract long hash(PathInput pathInput);
 
