@@ -194,7 +194,7 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
         );
     }
 
-    public RemoteStoreShardShallowCopySnapshot(
+    RemoteStoreShardShallowCopySnapshot(
         String version,
         String snapshot,
         long indexVersion,
@@ -459,7 +459,7 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
         throwExceptionIfInvalid(Objects.isNull(remoteStoreRepository), "Invalid/Missing Remote Store Repository");
         throwExceptionIfInvalid(Objects.isNull(repositoryBasePath), "Invalid/Missing Repository Base Path");
         throwExceptionIfInvalid(
-            !isValidRemotePathConfiguration(version, pathType, pathHashAlgorithm),
+            isValidRemotePathConfiguration(version, pathType, pathHashAlgorithm) == false,
             new ParameterizedMessage(
                 "Invalid combination of pathType={} pathHashAlgorithm={} for version={}",
                 pathType,
@@ -469,8 +469,8 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment, 
         );
     }
 
-    private void throwExceptionIfInvalid(boolean isValid, String exceptionStr) {
-        if (isValid) {
+    private void throwExceptionIfInvalid(boolean isInvalid, String exceptionStr) {
+        if (isInvalid) {
             throw new IllegalArgumentException(exceptionStr);
         }
     }
