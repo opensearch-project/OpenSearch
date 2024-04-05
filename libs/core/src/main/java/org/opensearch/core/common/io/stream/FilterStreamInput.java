@@ -81,6 +81,11 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
+    public void mark(int readlimit) {
+        delegate.mark(readlimit);
+    }
+
+    @Override
     public int read() throws IOException {
         return delegate.read();
     }
