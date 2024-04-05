@@ -56,7 +56,7 @@ public class RemoteTransferContainer implements Closeable {
     private final OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier;
     private final boolean isRemoteDataIntegritySupported;
     private final AtomicBoolean readBlock = new AtomicBoolean();
-    private Map<String, String> metadata = null;
+    private final Map<String, String> metadata;
 
     private static final Logger log = LogManager.getLogger(RemoteTransferContainer.class);
 
@@ -90,6 +90,7 @@ public class RemoteTransferContainer implements Closeable {
         this.offsetRangeInputStreamSupplier = offsetRangeInputStreamSupplier;
         this.expectedChecksum = expectedChecksum;
         this.isRemoteDataIntegritySupported = isRemoteDataIntegritySupported;
+        this.metadata = null;
     }
 
     /**

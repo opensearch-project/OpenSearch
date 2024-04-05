@@ -72,7 +72,7 @@ public class ReadContext {
     @ExperimentalApi
     public interface StreamPartCreator extends Supplier<CompletableFuture<InputStreamContainer>> {
         /**
-         * Kicks off a async process to start streaming.
+         * Kicks off an async process to start streaming.
          *
          * @return When the returned future is completed, streaming has
          * just begun. Clients must fully consume the resulting stream.
@@ -87,19 +87,14 @@ public class ReadContext {
      * @opensearch.experimental
      */
     public static class Builder {
-        private long blobSize;
-        private List<StreamPartCreator> asyncPartStreams;
+        private final long blobSize;
+        private final List<StreamPartCreator> asyncPartStreams;
         private String blobChecksum;
         private Map<String, String> metadata;
 
-        public Builder blobSize(long blobSize) {
+        public Builder(long blobSize, List<StreamPartCreator> asyncPartStreams) {
             this.blobSize = blobSize;
-            return this;
-        }
-
-        public Builder asyncPartStreams(List<StreamPartCreator> asyncPartStreams) {
             this.asyncPartStreams = asyncPartStreams;
-            return this;
         }
 
         public Builder blobChecksum(String blobChecksum) {

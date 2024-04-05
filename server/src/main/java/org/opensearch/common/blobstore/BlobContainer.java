@@ -83,7 +83,7 @@ public interface BlobContainer {
      *
      * @param   blobName
      *          The name of the blob to get an {@link InputStream} for.
-     * @return  The {@code InputStream} to read the blob.
+     * @return  The {@link BlobDownloadResponse} of the blob.
      * @throws  NoSuchFileException if the blob does not exist
      * @throws  IOException if the blob can not be read.
      */
