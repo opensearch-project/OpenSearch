@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * it is used to create an IndexableField for the provided type and object. It is useful when indexing into
  * lucene MemoryIndex in {@link org.opensearch.index.query.DerivedFieldQuery}.
  */
-enum DerivedFieldSupportedTypes {
+public enum DerivedFieldSupportedTypes {
 
     BOOLEAN("boolean", (name, context) -> {
         BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder(name);

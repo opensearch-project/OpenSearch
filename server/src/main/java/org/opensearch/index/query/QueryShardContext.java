@@ -45,6 +45,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.regex.Regex;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.ParsingException;
@@ -332,7 +333,15 @@ public class QueryShardContext extends QueryRewriteContext {
      * type then the fields will be returned with a type prefix.
      */
     public Set<String> simpleMatchToIndexNames(String pattern) {
-        return mapperService.simpleMatchToFullName(pattern);
+        Set<String> matchingFields = mapperService.simpleMatchToFullName(pattern);
+        if (derivedFieldTypeMap != null && !derivedFieldTypeMap.isEmpty()) {
+            for (String fieldName : derivedFieldTypeMap.keySet()) {
+                if (Regex.simpleMatch(pattern, fieldName)) {
+                    matchingFields.add(fieldName);
+                }
+            }
+        }
+        return matchingFields;
     }
 
     /**

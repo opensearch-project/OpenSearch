@@ -83,7 +83,7 @@ public final class DerivedFieldType extends MappedFieldType {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return new DerivedFieldValueFetcher(getDerivedFieldLeafFactory(context, searchLookup));
+        return new DerivedFieldValueFetcher(getDerivedFieldLeafFactory(context, searchLookup == null ? context.lookup() : searchLookup));
     }
 
     @Override

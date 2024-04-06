@@ -127,16 +127,12 @@ public final class DerivedFieldQuery extends Query {
             return false;
         }
         DerivedFieldQuery other = (DerivedFieldQuery) o;
-        return Objects.equals(this.query, other.query)
-            && Objects.equals(this.valueFetcher, other.valueFetcher)
-            && Objects.equals(this.searchLookup, other.searchLookup)
-            && Objects.equals(this.indexableFieldGenerator, other.indexableFieldGenerator)
-            && Objects.equals(this.indexAnalyzer, other.indexAnalyzer);
+        return Objects.equals(this.query, other.query) && Objects.equals(this.indexAnalyzer, other.indexAnalyzer);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), query, valueFetcher, searchLookup, indexableFieldGenerator, indexableFieldGenerator);
+        return Objects.hash(classHash(), query, indexAnalyzer);
     }
 
     @Override
