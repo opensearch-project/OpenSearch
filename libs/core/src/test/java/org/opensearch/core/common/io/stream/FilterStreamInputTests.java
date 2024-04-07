@@ -14,6 +14,8 @@ import org.opensearch.core.common.bytes.BytesReference;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import static org.hamcrest.Matchers.is;
+
 /** test the FilterStreamInput using the same BaseStreamTests */
 public class FilterStreamInputTests extends BaseStreamTests {
     @Override
@@ -34,6 +36,7 @@ public class FilterStreamInputTests extends BaseStreamTests {
         BytesReference bytesReference = BytesReference.fromByteBuffer(buffer);
         StreamInput streamInput = filterStreamInputTests.getStreamInput(bytesReference);
         streamInput.read();
+        assertThat(streamInput.markSupported(), is(true));
         streamInput.mark(-1);
         int int1 = streamInput.read();
         int int2 = streamInput.read();
