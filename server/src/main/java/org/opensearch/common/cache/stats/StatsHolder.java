@@ -81,7 +81,7 @@ public class StatsHolder {
 
     private void resetHelper(DimensionNode current) {
         current.getStats().resetSizeAndEntries();
-        if (current.hasChildren()) {
+        if (!current.getChildren().isEmpty()) {
             // not a leaf node
             for (DimensionNode child : current.children.values()) {
                 resetHelper(child);
@@ -146,7 +146,7 @@ public class StatsHolder {
     private void getCacheStatsHelper(DimensionNode currentNodeInOriginalTree, MDCSDimensionNode parentInNewTree) {
         MDCSDimensionNode newNode = createMatchingMDCSDimensionNode(currentNodeInOriginalTree);
         parentInNewTree.getChildren().put(newNode.getDimensionValue(), newNode);
-        if (currentNodeInOriginalTree.hasChildren()) {
+        if (!currentNodeInOriginalTree.getChildren().isEmpty()) {
             // not a leaf node
             for (DimensionNode child : currentNodeInOriginalTree.children.values()) {
                 getCacheStatsHelper(child, newNode);
@@ -188,6 +188,11 @@ public class StatsHolder {
             }
         }
         return statsToDecrement;
+    }
+
+    public void invalidateAll() {
+        // Efficiently invalidate all by directly resetting the root node
+        statsRoot.resetNode();
     }
 
     // pkg-private for testing

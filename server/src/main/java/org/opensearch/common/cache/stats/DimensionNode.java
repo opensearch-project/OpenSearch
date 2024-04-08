@@ -16,18 +16,21 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 class DimensionNode {
     private final String dimensionValue;
-    // Map from dimensionValue to the DimensionNode for that dimension value. Null for leaf nodes. 
+    // Map from dimensionValue to the DimensionNode for that dimension value.
     final ConcurrentHashMap<String, DimensionNode> children;
     // The stats for this node. If a leaf node, corresponds to the stats for this combination of dimensions; if not,
     // contains the sum of its children's stats.
     private CacheStatsCounter stats;
+
+    // Used for leaf nodes to avoid allocating many unnecessary maps
+    private static final ConcurrentHashMap<String, DimensionNode> EMPTY_CHILDREN_MAP = new ConcurrentHashMap<>();
 
     DimensionNode(String dimensionValue, boolean createChildrenMap) {
         this.dimensionValue = dimensionValue;
         if (createChildrenMap) {
             this.children = new ConcurrentHashMap<>();
         } else {
-            this.children = null;
+            this.children = EMPTY_CHILDREN_MAP;
         }
         this.stats = new CacheStatsCounter();
     }
@@ -46,9 +49,6 @@ class DimensionNode {
     }
 
     DimensionNode getOrCreateChild(String dimensionValue, boolean createIfAbsent, boolean createMapInChild) {
-        if (children == null) {
-            return null;
-        }
         // If we are creating new nodes, put one in the map. Otherwise, the mapping function returns null to leave the map unchanged
         return children.computeIfAbsent(
             dimensionValue,
@@ -56,7 +56,10 @@ class DimensionNode {
         );
     }
 
-    public boolean hasChildren() {
-        return getChildren() != null && !getChildren().isEmpty();
+    public void resetNode() {
+        for (String childDimensionValue : children.keySet()) {
+            children.remove(childDimensionValue);
+        }
+        stats = new CacheStatsCounter();
     }
 }

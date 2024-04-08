@@ -90,6 +90,15 @@ public class StatsHolderTests extends OpenSearchTestCase {
         assertEquals(expectedCount, statsHolder.count());
     }
 
+    public void testInvalidateAll() throws Exception {
+        List<String> dimensionNames = List.of("dim1", "dim2");
+        StatsHolder statsHolder = new StatsHolder(dimensionNames);
+        Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
+        populateStats(statsHolder, usedDimensionValues, 100, 10);
+
+        //assertNotEquals(statsHolder.getStatsRoot().getSnapshot());
+    }
+
     /**
      * Returns the node found by following these dimension values down from the root node.
      * Returns null if no such node exists.
