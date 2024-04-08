@@ -207,40 +207,44 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
 
         Thread[] threads = new Thread[numDistinctValuePairs];
         CountDownLatch countDownLatch = new CountDownLatch(numDistinctValuePairs);
+        Random rand = Randomness.get();
+        List<List<String>> dimensionsForThreads = new ArrayList<>();
         for (int i = 0; i < numDistinctValuePairs; i++) {
+            dimensionsForThreads.add(getRandomDimList(statsHolder.getDimensionNames(), usedDimensionValues, true, rand));
+            int finalI = i;
             threads[i] = new Thread(() -> {
-                Random rand = Randomness.get();
-                List<String> dimensions = getRandomDimList(statsHolder.getDimensionNames(), usedDimensionValues, true, rand);
+                Random threadRand = Randomness.get(); // TODO: This always has the same seed for each thread, causing only 1 set of values
+                List<String> dimensions = dimensionsForThreads.get(finalI);
                 expected.computeIfAbsent(dimensions, (key) -> new CacheStatsCounter());
 
                 for (int j = 0; j < numRepetitionsPerValue; j++) {
-                    int numHitIncrements = rand.nextInt(10);
+                    int numHitIncrements = threadRand.nextInt(10);
                     for (int k = 0; k < numHitIncrements; k++) {
                         statsHolder.incrementHits(dimensions);
                         expected.get(dimensions).hits.inc();
                     }
-                    int numMissIncrements = rand.nextInt(10);
+                    int numMissIncrements = threadRand.nextInt(10);
                     for (int k = 0; k < numMissIncrements; k++) {
                         statsHolder.incrementMisses(dimensions);
                         expected.get(dimensions).misses.inc();
                     }
-                    int numEvictionIncrements = rand.nextInt(10);
+                    int numEvictionIncrements = threadRand.nextInt(10);
                     for (int k = 0; k < numEvictionIncrements; k++) {
                         statsHolder.incrementEvictions(dimensions);
                         expected.get(dimensions).evictions.inc();
                     }
-                    int numMemorySizeIncrements = rand.nextInt(10);
+                    int numMemorySizeIncrements = threadRand.nextInt(10);
                     for (int k = 0; k < numMemorySizeIncrements; k++) {
-                        long memIncrementAmount = rand.nextInt(5000);
+                        long memIncrementAmount = threadRand.nextInt(5000);
                         statsHolder.incrementSizeInBytes(dimensions, memIncrementAmount);
                         expected.get(dimensions).sizeInBytes.inc(memIncrementAmount);
                     }
-                    int numEntryIncrements = rand.nextInt(9) + 1;
+                    int numEntryIncrements = threadRand.nextInt(9) + 1;
                     for (int k = 0; k < numEntryIncrements; k++) {
                         statsHolder.incrementEntries(dimensions);
                         expected.get(dimensions).entries.inc();
                     }
-                    int numEntryDecrements = rand.nextInt(numEntryIncrements);
+                    int numEntryDecrements = threadRand.nextInt(numEntryIncrements);
                     for (int k = 0; k < numEntryDecrements; k++) {
                         statsHolder.decrementEntries(dimensions);
                         expected.get(dimensions).entries.dec();

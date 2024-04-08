@@ -8,8 +8,17 @@
 
 package org.opensearch.common.cache;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.util.List;
 
+/**
+ * A key wrapper used for ICache implementations, which carries dimensions with it.
+ * @param <K> the type of the underlying key
+ *
+ * @opensearch.experimental
+ */
+@ExperimentalApi
 public class ICacheKey<K> {
     public final K key; // K must implement equals()
     public final List<String> dimensions; // Dimension values. The dimension names are implied.

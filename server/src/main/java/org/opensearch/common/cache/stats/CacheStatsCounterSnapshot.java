@@ -8,6 +8,7 @@
 
 package org.opensearch.common.cache.stats;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -17,7 +18,10 @@ import java.util.Objects;
 
 /**
  * An immutable snapshot of CacheStatsCounter.
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public class CacheStatsCounterSnapshot implements Writeable { // TODO: Make this extend ToXContent (in API PR)
     private final long hits;
     private final long misses;

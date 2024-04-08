@@ -8,12 +8,16 @@
 
 package org.opensearch.common.cache.stats;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.Writeable;
 
 /**
  * Interface for access to any cache stats. Allows accessing stats by dimension values.
  * Stores an immutable snapshot of stats for a cache. The cache maintains its own live counters.
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public interface CacheStats extends Writeable {// TODO: also extends ToXContentFragment (in API PR)
 
     // Method to get all 5 values at once
