@@ -208,17 +208,17 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         // shards as part of request cache.
         Key key = notification.getKey();
         cacheEntityLookup.apply(key.shardId).ifPresent(entity -> entity.onRemoval(notification));
-        if (notificationAffectsStaleness(notification)) {
-            CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId);
-            cacheCleanupManager.updateCleanupKeyToCountMapOnCacheEviction(cleanupKey);
-        }
+        CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId);
+        cacheCleanupManager.updateCleanupKeyCountOnKeyRemoval(cleanupKey, notification);
     }
 
     /**
      * This method checks if the removal reason of the notification is not REPLACED.
-     * The reason of the notification is REPLACED when a cache entry's value is updated.
-     * If the removal reason is anything other than REPLACED, it will return true.
-     * If the removal reason is REPLACED, it will return false.
+     * The reason of the notification is REPLACED when a cache entry's value is updated, since replacing an entry
+     * does not affect the staleness count, we skip such notifications.
+     *
+     * <p>If the removal reason is anything other than REPLACED, this will return true.
+     * If the removal reason is REPLACED, this will return false.
      */
     private boolean notificationAffectsStaleness(RemovalNotification<Key, BytesReference> notification) {
         return notification.getRemovalReason() != RemovalReason.REPLACED;
@@ -510,10 +510,14 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
          * It also decrements the staleKeysCount only if the entry was accounted.
          * If the count of the CleanupKey becomes zero, it removes the CleanupKey from the map.
          *
-         * @param cleanupKey the CleanupKey that has been evicted from the cache
+         * <p> We update the cleanupKeyToCountMap on every key removed from cache
+         * except for the keys removed with reason Replaced
+         *
+         * @param cleanupKey   the CleanupKey that has been evicted from the cache
+         * @param notification RemovalNotification of the cache entry evicted
          */
-        private void updateCleanupKeyToCountMapOnCacheEviction(CleanupKey cleanupKey) {
-            if (stalenessThreshold == 0.0 || cleanupKey.entity == null) {
+        private void updateCleanupKeyCountOnKeyRemoval(CleanupKey cleanupKey, RemovalNotification<Key, BytesReference> notification) {
+            if (!notificationAffectsStaleness(notification) || stalenessThreshold == 0.0 || cleanupKey.entity == null) {
                 return;
             }
             IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
@@ -523,30 +527,31 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             }
             ShardId shardId = indexShard.shardId();
 
-            cleanupKeyToCountMap.computeIfPresent(shardId, (id, stringIntegerConcurrentMap) -> {
-                stringIntegerConcurrentMap.compute(cleanupKey.readerCacheKeyId, (readerCacheKeyId, count) -> {
-                    // Check if the key is currently present
-                    if (count != null) {
-                        // The key does not exist, so this is already accounted in the staleKeysCount
-                        // and hence needs to be decremented
+            cleanupKeyToCountMap.compute(shardId, (key, readerCacheKeyMap) -> {
+                if (readerCacheKeyMap == null || !readerCacheKeyMap.containsKey(cleanupKey.readerCacheKeyId)) {
+                    // If ShardId is not present or readerCacheKeyId is not present, decrement staleKeysCount
+                    staleKeysCount.decrementAndGet();
+                    return null; // Returning null removes the entry for the shardId, if it exists
+                } else {
+                    // Proceed to adjust the count for the readerCacheKeyId
+                    Integer count = readerCacheKeyMap.get(cleanupKey.readerCacheKeyId);
+                    if (count == null) {
                         staleKeysCount.decrementAndGet();
+                    } else {
+                        // Reduce the count by 1
+                        int newCount = count - 1;
+                        if (newCount <= 0) {
+                            // Remove the readerCacheKeyId entry if new count is zero or less
+                            readerCacheKeyMap.remove(cleanupKey.readerCacheKeyId);
+                        } else {
+                            // Update the map with the new count
+                            readerCacheKeyMap.put(cleanupKey.readerCacheKeyId, newCount);
+                        }
                     }
 
-                    // Regardless of whether the key was initially present, we perform the decrement operation
-                    // Calculate the new value assuming a null count as zero to handle non-existent keys
-                    int newValue = (count == null ? 0 : count) - 1;
-
-                    // If the new value is 0, remove the entry by returning null
-                    return newValue == 0 ? null : newValue;
-                });
-
-                // return null and remove the shardId entry if the shardId has no other entries
-                if (stringIntegerConcurrentMap.isEmpty()) {
-                    return null;
+                    // If after modification, the readerCacheKeyMap is empty, we return null to remove the ShardId entry
+                    return readerCacheKeyMap.isEmpty() ? null : readerCacheKeyMap;
                 }
-
-                // Return the modified map to ensure it gets updated
-                return stringIntegerConcurrentMap;
             });
         }
 
@@ -709,7 +714,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         }
 
         // for testing
-        public ConcurrentMap<ShardId, HashMap<String, Integer>> getCleanupKeyToCountMap() {
+        ConcurrentMap<ShardId, HashMap<String, Integer>> getCleanupKeyToCountMap() {
             return cleanupKeyToCountMap;
         }
 
