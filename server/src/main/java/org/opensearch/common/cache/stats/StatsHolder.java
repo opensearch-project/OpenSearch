@@ -19,6 +19,9 @@ import static org.opensearch.common.cache.stats.MultiDimensionCacheStats.MDCSDim
  * A class caches use to internally keep track of their stats across multiple dimensions.
  * Not intended to be exposed outside the cache; for this, use statsHolder.getCacheStats() to create an immutable
  * copy of the current state of the stats.
+ * Currently, in the IRC, the stats tracked in a StatsHolder will not appear for empty shards that have had no cache
+ * operations done on them yet. This might be changed in the future, by exposing a method to add empty nodes to the
+ * tree in StatsHolder in the ICache interface.
  *
  * @opensearch.experimental
  */
@@ -30,6 +33,8 @@ public class StatsHolder {
     // A tree structure based on dimension values, which stores stats values in its leaf nodes.
     // Non-leaf nodes have stats matching the sum of their children.
     private final DimensionNode statsRoot;
+    // To avoid sync problems, obtain a lock before creating or removing nodes in the stats tree.
+    // No lock is needed to edit stats on existing nodes.
     private final Lock lock = new ReentrantLock();
 
     public StatsHolder(List<String> dimensionNames) {
@@ -172,11 +177,10 @@ public class StatsHolder {
     }
 
     public void removeDimensions(List<String> dimensionValues) {
+        assert dimensionValues.size() == dimensionNames.size() : "Must specify a value for every dimension when removing from StatsHolder";
         // As we are removing nodes from the tree, obtain the lock
         lock.lock();
         try {
-            assert dimensionValues.size() == dimensionNames.size()
-                : "Must specify a value for every dimension when removing from StatsHolder";
             removeDimensionsHelper(dimensionValues, statsRoot, 0);
         } finally {
             lock.unlock();
