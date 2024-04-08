@@ -8,6 +8,7 @@
 
 package org.opensearch.test.telemetry.tracing;
 
+import org.opensearch.common.Booleans;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansAreEndedProperly;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
@@ -29,10 +30,11 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
 
     private static Map<String, MockSpanData> spanMap = new ConcurrentHashMap<>();
 
-    // Update the flag to true if you want to see the stack trace for each spanData.
+    // If you want to see the stack trace for each spanData, then
+    // update the flag to true or set the corresponding system property to true
     // This is helpful in debugging the tests. Default value is false.
     // Note: Enabling this might lead to OOM issues while running ITs.
-    private static final boolean isStackTraceForSpanEnabled = false;
+    private static final boolean isStackTraceForSpanEnabled = Booleans.parseBoolean(System.getProperty("test.telemetry.span.stack_traces", "false"));
 
     @Override
     public void onStart(Span span) {
