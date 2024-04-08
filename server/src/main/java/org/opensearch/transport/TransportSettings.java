@@ -272,13 +272,13 @@ public final class TransportSettings {
     public static final Setting<Integer> CONNECTIONS_PER_NODE_RECOVERY = intSetting(
         "transport.connections_per_node.recovery",
         2,
-        1,
+        0,
         Setting.Property.NodeScope
     );
     public static final Setting<Integer> CONNECTIONS_PER_NODE_BULK = intSetting(
         "transport.connections_per_node.bulk",
         3,
-        1,
+        0,
         Setting.Property.NodeScope
     );
     public static final Setting<Integer> CONNECTIONS_PER_NODE_REG = intSetting(
@@ -290,7 +290,7 @@ public final class TransportSettings {
     public static final Setting<Integer> CONNECTIONS_PER_NODE_STATE = intSetting(
         "transport.connections_per_node.state",
         1,
-        1,
+        0,
         Setting.Property.NodeScope
     );
     public static final Setting<Integer> CONNECTIONS_PER_NODE_PING = intSetting(
