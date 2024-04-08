@@ -82,7 +82,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     protected final String type;
     protected final Map<ShardId, ShardAttributes> shardAttributesMap;
     private final Lister<BaseNodesResponse<T>, T> action;
-    protected AsyncShardFetchCache<T> cache;
+    protected final AsyncShardFetchCache<T> cache;
     private final AtomicLong round = new AtomicLong();
     private boolean closed;
     final String reroutingKey;

@@ -228,8 +228,9 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extend
                         if (isEmpty.apply(shardData.getValue())) {
                             this.emptyShardResponse[shardIdKey.get(shardId)] = true;
                             this.shardData[shardIdKey.get(shardId)] = null;
+                        } else {
+                            this.shardData[shardIdKey.get(shardId)] = shardData.getValue();
                         }
-                        this.shardData[shardIdKey.get(shardId)] = shardData.getValue();
                     }
                 }
             }

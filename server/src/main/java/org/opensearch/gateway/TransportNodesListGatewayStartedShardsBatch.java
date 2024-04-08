@@ -156,7 +156,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
                 );
             } catch (Exception e) {
                 // should return null in case of known exceptions being returned from getShardInfoOnLocalNode method.
-                if (e instanceof IllegalStateException || e.getMessage().contains(INDEX_NOT_FOUND)) {
+                if (e instanceof IllegalStateException || e.getMessage().contains(INDEX_NOT_FOUND) || e instanceof IOException) {
                     shardsOnNode.put(shardId, null);
                 } else {
                     // return actual exception as it is for unknown exceptions
