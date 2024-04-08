@@ -72,6 +72,7 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -83,6 +84,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -650,6 +653,56 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         // since all the readers of this shard is closed,
         // the cleanupKeyToCountMap should have no entries
         assertEquals(0, cleanupKeyToCountMap.size());
+    }
+
+    // when registering a closed listener raises an exception, we should
+    @Test(expected = Exception.class)
+    public void testAddReaderCloseListenerRaisingException_shouldTrackStaleCountAppropriately() throws Exception {
+        IndexReader.CacheHelper cacheHelper = mock(IndexReader.CacheHelper.class);
+        doThrow(new Exception("Mock exception")).when(cacheHelper).addClosedListener(any());
+        DirectoryReader reader = getReader(writer, indexShard.shardId());
+
+        // assert there are no other entries
+        assertEquals(0, cache.count());
+        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
+
+        cache.getOrCompute(getEntity(indexShard), getLoader(reader), reader, getTermBytes());
+        // the entry should be cached
+        assertEquals(1, cache.count());
+        // cacheCleanupManager should have incremented the stale keys count
+        assertEquals(1, cache.cacheCleanupManager.getStaleKeysCount().get());
+        // cacheCleanupManager should have removed the entry from the map
+        assertFalse(cache.cacheCleanupManager.getCleanupKeyToCountMap().containsKey(indexShard.shardId()));
+
+        IndicesRequestCache.Key key = new IndicesRequestCache.Key(indexShard.shardId(), getTermBytes(), getReaderCacheKeyId(reader));
+        cache.onRemoval(new RemovalNotification<IndicesRequestCache.Key, BytesReference>(key, getTermBytes(), RemovalReason.INVALIDATED));
+        // eviction of previous stale key from the cache should decrement staleKeysCount in iRC
+        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
+    }
+
+    @Test(expected = Exception.class)
+    public void testAddReaderCloseListenerRaisingException_shouldCleanupCacheCorrectly() throws Exception {
+        IndexReader.CacheHelper cacheHelper = mock(IndexReader.CacheHelper.class);
+        doThrow(new Exception("Mock exception")).when(cacheHelper).addClosedListener(any());
+        DirectoryReader reader = getReader(writer, indexShard.shardId());
+
+        // assert there are no other entries
+        assertEquals(0, cache.count());
+        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
+
+        cache.getOrCompute(getEntity(indexShard), getLoader(reader), reader, getTermBytes());
+        // the entry should be cached
+        assertEquals(1, cache.count());
+        // cacheCleanupManager should have incremented the stale keys count
+        assertEquals(1, cache.cacheCleanupManager.getStaleKeysCount().get());
+        // cacheCleanupManager should have removed the entry from the map
+        assertFalse(cache.cacheCleanupManager.getCleanupKeyToCountMap().containsKey(indexShard.shardId()));
+
+        cache.cacheCleanupManager.cleanCache();
+        // cache cleaner should have cleaned it up
+        assertEquals(0, cache.count());
+        // stale keys count should ne decremented.
+        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
     }
 
     private DirectoryReader getReader(IndexWriter writer, ShardId shardId) throws IOException {
