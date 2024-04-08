@@ -50,6 +50,7 @@ import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -99,7 +100,7 @@ import java.util.zip.CheckedInputStream;
 
 import static org.opensearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING;
-import static org.opensearch.index.translog.RemoteFsTranslog.TRANSLOG;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
 import static org.opensearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.contains;
@@ -188,7 +189,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             repository,
             threadPool,
             primaryMode::get,
-            new RemoteTranslogTransferTracker(shardId, 10)
+            new RemoteTranslogTransferTracker(shardId, 10),
+            DefaultRemoteStoreSettings.INSTANCE
         );
     }
 
@@ -219,8 +221,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             new ByteSizeValue(8, ByteSizeUnit.KB),
             new ByteSizeValue(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES)
         );
-
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings);
+        // To simulate that the node is remote backed
+        Settings nodeSettings = Settings.builder().put("node.attr.remote_store.translog.repository", "my-repo-1").build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings, nodeSettings);
         return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize, "");
     }
 
@@ -458,7 +461,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 repository,
                 threadPool,
                 () -> Boolean.TRUE,
-                new RemoteTranslogTransferTracker(shardId, 10)
+                new RemoteTranslogTransferTracker(shardId, 10),
+                DefaultRemoteStoreSettings.INSTANCE
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -906,7 +910,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     }
 
     private BlobPath getTranslogDirectory() {
-        return repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(TRANSLOG);
+        return repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(TRANSLOG.getName());
     }
 
     private Long populateTranslogOps(boolean withMissingOps) throws IOException {
@@ -1507,7 +1511,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 repository,
                 threadPool,
                 () -> Boolean.TRUE,
-                new RemoteTranslogTransferTracker(shardId, 10)
+                new RemoteTranslogTransferTracker(shardId, 10),
+                DefaultRemoteStoreSettings.INSTANCE
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1615,7 +1620,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 repository,
                 threadPool,
                 () -> Boolean.TRUE,
-                new RemoteTranslogTransferTracker(shardId, 10)
+                new RemoteTranslogTransferTracker(shardId, 10),
+                DefaultRemoteStoreSettings.INSTANCE
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {

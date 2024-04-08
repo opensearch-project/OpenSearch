@@ -256,7 +256,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     public void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
                         assertEquals(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), "Expected failure");
                     }
-                }),
+                }, threadPool),
                 true,
                 true,
                 replicatePrimaryFunction
