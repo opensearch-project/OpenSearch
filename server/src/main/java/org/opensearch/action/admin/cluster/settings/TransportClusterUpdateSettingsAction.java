@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
@@ -53,12 +54,19 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Transport action for updating cluster settings
@@ -137,6 +145,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
         final ClusterState state,
         final ActionListener<ClusterUpdateSettingsResponse> listener
     ) {
+        validateCompatibilityModeSettingRequest(request, state);
         final SettingsUpdater updater = new SettingsUpdater(clusterSettings);
         clusterService.submitStateUpdateTask(
             "cluster_update_settings",
@@ -262,6 +271,54 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
                 }
             }
         );
+    }
+
+    /**
+     * Runs various checks associated with changing cluster compatibility mode
+     * @param request cluster settings update request, for settings to be updated and new values
+     * @param clusterState current state of cluster, for information on nodes
+     */
+    public static void validateCompatibilityModeSettingRequest(ClusterUpdateSettingsRequest request, ClusterState clusterState) {
+        if (RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.exists(request.persistentSettings())) {
+            String value = request.persistentSettings()
+                .get(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey())
+                .toLowerCase();
+            List<DiscoveryNode> discoveryNodeList = new ArrayList<>(clusterState.nodes().getNodes().values());
+            validateAllNodesOfSameVersion(discoveryNodeList);
+            if (value.equals(RemoteStoreNodeService.CompatibilityMode.STRICT.mode)) {
+                validateAllNodesOfSameType(discoveryNodeList);
+            }
+        }
+    }
+
+    /**
+     * Verifies that while trying to change the compatibility mode, all nodes must have the same version.
+     * If not, it throws SettingsException error
+     * @param discoveryNodeList list of the current discovery nodes in the cluster
+     */
+    private static void validateAllNodesOfSameVersion(List<DiscoveryNode> discoveryNodeList) {
+        Set<Version> versions = discoveryNodeList.stream().map(DiscoveryNode::getVersion).collect(Collectors.toSet());
+        if (versions.size() != 1) {
+            throw new SettingsException(
+                "can not change the compatibility mode when all the nodes in cluster are not of the same version. Present versions: "
+                    + versions
+            );
+        }
+    }
+
+    /**
+     * Verifies that while trying to switch to STRICT compatibility mode, all nodes must be of the
+     * same type (all remote or all non-remote). If not, it throws SettingsException error
+     * @param discoveryNodeList list of the current discovery nodes in the cluster
+     */
+    private static void validateAllNodesOfSameType(List<DiscoveryNode> discoveryNodeList) {
+        Optional<DiscoveryNode> remoteNode = discoveryNodeList.stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
+        Optional<DiscoveryNode> nonRemoteNode = discoveryNodeList.stream().filter(dn -> dn.isRemoteStoreNode() == false).findFirst();
+        if (remoteNode.isPresent() && nonRemoteNode.isPresent()) {
+            throw new SettingsException(
+                "can not switch to STRICT compatibility mode when the cluster contains both remote and non-remote nodes"
+            );
+        }
     }
 
 }

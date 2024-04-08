@@ -12,9 +12,11 @@ import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResp
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -28,6 +30,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANS
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.MIXED;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.STRICT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.Direction.REMOTE_STORE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -153,6 +156,37 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationSh
 
         assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
         ensureGreen(restoredIndexName);
+    }
+
+    // compatibility mode setting test
+
+    public void testSwitchToStrictMode() throws Exception {
+        logger.info(" --> initialize cluster");
+        initializeCluster(false);
+
+        logger.info(" --> create a mixed mode cluster");
+        setClusterMode(MIXED.mode);
+        addRemote = true;
+        String remoteNodeName = internalCluster().startNode();
+        addRemote = false;
+        String nonRemoteNodeName = internalCluster().startNode();
+        internalCluster().validateClusterFormed();
+        assertNodeInCluster(remoteNodeName);
+        assertNodeInCluster(nonRemoteNodeName);
+
+        logger.info(" --> attempt switching to strict mode");
+        SettingsException exception = assertThrows(SettingsException.class, () -> setClusterMode(STRICT.mode));
+        assertEquals(
+            "can not switch to STRICT compatibility mode when the cluster contains both remote and non-remote nodes",
+            exception.getMessage()
+        );
+
+        logger.info(" --> stop remote node so that cluster had only non-remote nodes");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(remoteNodeName));
+        ensureStableCluster(2);
+
+        logger.info(" --> attempt switching to strict mode");
+        setClusterMode(STRICT.mode);
     }
 
     // verify that the created index is not remote store backed
