@@ -69,6 +69,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
@@ -76,16 +78,17 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.Matchers.*;
-import static org.opensearch.cluster.coordination.JoinTaskExecutorTests.*;
-import static org.opensearch.cluster.routing.allocation.RemoteStoreMigrationAllocationDeciderTests.getNonRemoteNode;
-import static org.opensearch.cluster.routing.allocation.RemoteStoreMigrationAllocationDeciderTests.getRemoteNode;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomOpenSearchVersion;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     private static ThreadPool threadPool;
@@ -722,8 +725,14 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         request.persistentSettings(intendedCompatibilityModeSettings);
 
         // mixed cluster (containing both remote and non-remote nodes)
-        DiscoveryNode nonRemoteNode1 = getNonRemoteNode();
-        DiscoveryNode remoteNode1 = getRemoteNode();
+        DiscoveryNode nonRemoteNode1 = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode remoteNode1 = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            getRemoteStoreNodeAttributes(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(nonRemoteNode1)
@@ -745,8 +754,14 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             exception.getMessage()
         );
 
-        DiscoveryNode nonRemoteNode2 = getNonRemoteNode();
-        DiscoveryNode remoteNode2 = getRemoteNode();
+        DiscoveryNode nonRemoteNode2 = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode remoteNode2 = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            getRemoteStoreNodeAttributes(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
 
         // cluster with only non-remote nodes
         discoveryNodes = DiscoveryNodes.builder()
@@ -779,7 +794,10 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.MIXED)
             .build();
         Settings intendedCompatibilityModeSettings = Settings.builder()
-            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), toStrictMode ? RemoteStoreNodeService.CompatibilityMode.STRICT : RemoteStoreNodeService.CompatibilityMode.MIXED)
+            .put(
+                REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(),
+                toStrictMode ? RemoteStoreNodeService.CompatibilityMode.STRICT : RemoteStoreNodeService.CompatibilityMode.MIXED
+            )
             .build();
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         request.persistentSettings(intendedCompatibilityModeSettings);
@@ -789,18 +807,17 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         final Version version2 = randomCompatibleVersion(random(), version1);
 
         assert version1.equals(version2) == false : "current nodes in the cluster must be of different versions";
-
         DiscoveryNode discoveryNode1 = new DiscoveryNode(
             UUIDs.base64UUID(),
             buildNewFakeTransportAddress(),
-            toStrictMode ? remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO) : Collections.emptyMap(),
+            toStrictMode ? getRemoteStoreNodeAttributes() : Collections.emptyMap(),
             DiscoveryNodeRole.BUILT_IN_ROLES,
             version1
         );
         DiscoveryNode discoveryNode2 = new DiscoveryNode(
             UUIDs.base64UUID(),
             buildNewFakeTransportAddress(),
-            toStrictMode ? remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO) : Collections.emptyMap(),
+            toStrictMode ? getRemoteStoreNodeAttributes() : Collections.emptyMap(),
             DiscoveryNodeRole.BUILT_IN_ROLES,
             version2 // not same as discoveryNode1
         );
@@ -826,16 +843,14 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         );
         assertThat(
             exception.getMessage(),
-            containsString(
-                "can not change the compatibility mode when all the nodes in cluster are not of the same version. Present versions: ["
-            )
+            containsString("can not change the compatibility mode when all the nodes in cluster are not of the same version")
         );
 
         // changing compatibility mode when all nodes are of the same version
         discoveryNode2 = new DiscoveryNode(
             UUIDs.base64UUID(),
             buildNewFakeTransportAddress(),
-            toStrictMode ? remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO) : Collections.emptyMap(),
+            toStrictMode ? getRemoteStoreNodeAttributes() : Collections.emptyMap(),
             DiscoveryNodeRole.BUILT_IN_ROLES,
             version1 // same as discoveryNode1
         );
@@ -850,4 +865,10 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         TransportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameVersionClusterState);
     }
 
+    private Map<String, String> getRemoteStoreNodeAttributes() {
+        Map<String, String> remoteStoreNodeAttributes = new HashMap<>();
+        remoteStoreNodeAttributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
+        remoteStoreNodeAttributes.put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
+        return remoteStoreNodeAttributes;
+    }
 }
