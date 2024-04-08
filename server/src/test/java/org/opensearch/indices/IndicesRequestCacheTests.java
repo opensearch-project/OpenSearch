@@ -656,7 +656,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         return OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), shardId);
     }
 
-    private IndicesRequestCache getIndicesRequestCache(Settings settings){
+    private IndicesRequestCache getIndicesRequestCache(Settings settings) {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         return new IndicesRequestCache(settings, (shardId -> {
             IndexService indexService = null;
