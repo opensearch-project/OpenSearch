@@ -247,7 +247,15 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
                 Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
                 if (previous == null) {
-                    OpenSearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
+                    try {
+                        OpenSearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
+                    } catch (Exception e) {
+                        logger.warn("cleanupKey in Indices Request Cache failed to register close listener due to : " + e.getCause());
+                        // On failing to register the cleanupkey, this cache entry is immediately stale and could live indefinitely
+                        // hence enqueuing it to clean-up
+                        cacheCleanupManager.enqueueCleanupKey(cleanupKey);
+                        throw e;
+                    }
                 }
             }
             cacheCleanupManager.updateCleanupKeyToCountMapOnCacheInsertion(cleanupKey);
@@ -517,7 +525,13 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
          * @param notification RemovalNotification of the cache entry evicted
          */
         private void updateCleanupKeyCountOnKeyRemoval(CleanupKey cleanupKey, RemovalNotification<Key, BytesReference> notification) {
-            if (!notificationAffectsStaleness(notification) || stalenessThreshold == 0.0 || cleanupKey.entity == null) {
+            if (cleanupKey.entity == null) {
+                // this will only happen when the index/shard is deleted.
+                // we would have accounted this in staleKeysCount when the deletion of index/shard would have closed the associated reader
+                staleKeysCount.decrementAndGet();
+                return;
+            }
+            if (!notificationAffectsStaleness(notification) || stalenessThreshold == 0.0) {
                 return;
             }
             IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
