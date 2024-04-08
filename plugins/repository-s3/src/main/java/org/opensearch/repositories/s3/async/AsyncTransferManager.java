@@ -129,6 +129,7 @@ public final class AsyncTransferManager {
 
         CreateMultipartUploadRequest.Builder createMultipartUploadRequestBuilder = CreateMultipartUploadRequest.builder()
             .bucket(uploadRequest.getBucket())
+            .metadata(uploadRequest.getMetadata())
             .key(uploadRequest.getKey())
             .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector));
         if (uploadRequest.doRemoteDataIntegrityCheck()) {
@@ -324,6 +325,7 @@ public final class AsyncTransferManager {
     ) {
         PutObjectRequest.Builder putObjectRequestBuilder = PutObjectRequest.builder()
             .bucket(uploadRequest.getBucket())
+            .metadata(uploadRequest.getMetadata())
             .key(uploadRequest.getKey())
             .contentLength(uploadRequest.getContentLength())
             .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.putObjectMetricPublisher));

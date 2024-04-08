@@ -121,7 +121,7 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
         blobPartStreams.add(
             NUMBER_OF_PARTS,
             () -> CompletableFuture.supplyAsync(
-                () -> new InputStreamContainer(badInputStream, PART_SIZE, PART_SIZE * NUMBER_OF_PARTS),
+                () -> new InputStreamContainer(badInputStream, PART_SIZE, PART_SIZE * NUMBER_OF_PARTS, null),
                 threadPool.generic()
             )
         );
@@ -174,7 +174,7 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
         blobPartStreams.add(
             NUMBER_OF_PARTS,
             () -> CompletableFuture.supplyAsync(
-                () -> new InputStreamContainer(assertingStream, PART_SIZE, PART_SIZE * NUMBER_OF_PARTS),
+                () -> new InputStreamContainer(assertingStream, PART_SIZE, PART_SIZE * NUMBER_OF_PARTS, null),
                 threadPool.generic()
             )
         );
@@ -219,7 +219,7 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
             int finalPartNumber = partNumber;
             blobPartStreams.add(
                 () -> CompletableFuture.supplyAsync(
-                    () -> new InputStreamContainer(testStream, PART_SIZE, (long) finalPartNumber * PART_SIZE),
+                    () -> new InputStreamContainer(testStream, PART_SIZE, (long) finalPartNumber * PART_SIZE, null),
                     threadPool.generic()
                 )
             );

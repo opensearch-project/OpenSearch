@@ -84,7 +84,7 @@ public class EncryptedBlobContainer<T, U> implements BlobContainer {
     private void executeWrite(InputStream inputStream, long blobSize, CheckedBiConsumer<InputStream, Long, IOException> writeConsumer)
         throws IOException {
         T cryptoContext = cryptoHandler.initEncryptionMetadata();
-        InputStreamContainer streamContainer = new InputStreamContainer(inputStream, blobSize, 0);
+        InputStreamContainer streamContainer = new InputStreamContainer(inputStream, blobSize, 0, null);
         InputStreamContainer encryptedStream = cryptoHandler.createEncryptingStream(cryptoContext, streamContainer);
         long cryptoLength = cryptoHandler.estimateEncryptedLengthOfEntireContent(cryptoContext, blobSize);
         writeConsumer.accept(encryptedStream.getInputStream(), cryptoLength);

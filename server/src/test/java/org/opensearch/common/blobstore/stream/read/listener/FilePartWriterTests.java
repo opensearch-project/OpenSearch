@@ -32,7 +32,7 @@ public class FilePartWriterTests extends OpenSearchTestCase {
         Path segmentFilePath = path.resolve(UUID.randomUUID().toString());
         int contentLength = 100;
         InputStream inputStream = new ByteArrayInputStream(randomByteArrayOfLength(contentLength));
-        InputStreamContainer inputStreamContainer = new InputStreamContainer(inputStream, inputStream.available(), 0);
+        InputStreamContainer inputStreamContainer = new InputStreamContainer(inputStream, inputStream.available(), 0, null);
 
         FilePartWriter.write(segmentFilePath, inputStreamContainer, UnaryOperator.identity());
 
@@ -45,7 +45,7 @@ public class FilePartWriterTests extends OpenSearchTestCase {
         int contentLength = 100;
         int offset = 10;
         InputStream inputStream = new ByteArrayInputStream(randomByteArrayOfLength(contentLength));
-        InputStreamContainer inputStreamContainer = new InputStreamContainer(inputStream, inputStream.available(), offset);
+        InputStreamContainer inputStreamContainer = new InputStreamContainer(inputStream, inputStream.available(), offset, null);
 
         FilePartWriter.write(segmentFilePath, inputStreamContainer, UnaryOperator.identity());
 
@@ -57,7 +57,7 @@ public class FilePartWriterTests extends OpenSearchTestCase {
         Path segmentFilePath = path.resolve(UUID.randomUUID().toString());
         int contentLength = 20 * 1024 * 1024;
         InputStream inputStream = new ByteArrayInputStream(randomByteArrayOfLength(contentLength));
-        InputStreamContainer inputStreamContainer = new InputStreamContainer(inputStream, contentLength, 0);
+        InputStreamContainer inputStreamContainer = new InputStreamContainer(inputStream, contentLength, 0, null);
 
         FilePartWriter.write(segmentFilePath, inputStreamContainer, UnaryOperator.identity());
 

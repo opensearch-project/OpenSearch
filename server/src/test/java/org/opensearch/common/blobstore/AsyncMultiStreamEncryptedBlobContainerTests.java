@@ -53,7 +53,7 @@ public class AsyncMultiStreamEncryptedBlobContainerTests extends OpenSearchTestC
         final byte[] data = new byte[size];
         Randomness.get().nextBytes(data);
 
-        final InputStreamContainer inputStreamContainer = new InputStreamContainer(new ByteArrayInputStream(data), data.length, 0);
+        final InputStreamContainer inputStreamContainer = new InputStreamContainer(new ByteArrayInputStream(data), data.length, 0, null);
         final ListenerTestUtils.CountingCompletionListener<ReadContext> completionListener =
             new ListenerTestUtils.CountingCompletionListener<>();
         final CompletableFuture<InputStreamContainer> streamContainerFuture = CompletableFuture.completedFuture(inputStreamContainer);
@@ -99,7 +99,7 @@ public class AsyncMultiStreamEncryptedBlobContainerTests extends OpenSearchTestC
         // Objects needed for API call
         final byte[] data = new byte[size];
         Randomness.get().nextBytes(data);
-        final InputStreamContainer inputStreamContainer = new InputStreamContainer(new ByteArrayInputStream(data), data.length, 0);
+        final InputStreamContainer inputStreamContainer = new InputStreamContainer(new ByteArrayInputStream(data), data.length, 0, null);
         final ListenerTestUtils.CountingCompletionListener<ReadContext> completionListener =
             new ListenerTestUtils.CountingCompletionListener<>();
         final CompletableFuture<InputStreamContainer> streamContainerFuture = CompletableFuture.completedFuture(inputStreamContainer);
