@@ -66,8 +66,8 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
         "node-2"
     );
     private final String metadataFilename2 = RemoteSegmentStoreDirectory.getMetadataFilename(
-        SEPARATOR,
-        METADATA_PREFIX,
+        RemoteSegmentStoreDirectory.MetadataFilenameUtils.SEPARATOR,
+        RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
         12,
         13,
         34,
