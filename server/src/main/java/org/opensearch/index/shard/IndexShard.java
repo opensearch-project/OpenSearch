@@ -4501,13 +4501,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return false;
     }
 
-    private final AtomicBoolean isRefreshRunning = new AtomicBoolean();
+    private void maybeRefreshShard(String source) {
+        verifyNotClosed();
+        getEngine().maybeRefresh(source);
+    }
 
     /**
      * Schedules a flush or translog generation roll if needed but will not schedule more than one concurrently. The operation will be
      * executed asynchronously on the flush thread pool.
-     * Also Schedules a refresh if Number of Translog files breaches the threshold count determined by
-     * {@code index.translog.max_uncommitted_files_threshold}
+     * Also Schedules a refresh if required, decided by Translog manager
      */
     public void afterWriteOperation() {
         if (shouldPeriodicallyFlush() || shouldRollTranslogGeneration()) {
@@ -4569,34 +4571,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     flushOrRollRunning.compareAndSet(true, false);
                 }
             }
-        } else if (shouldRefreshShard() && isRefreshRunning.compareAndSet(false, true)) {
-            if (shouldRefreshShard()) {
-                logger.debug("submitting async Refresh request");
-                final AbstractRunnable _refresh = new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn("forced refresh failed after number of uncommited translog files breached limit", e);
-                    }
+        } else if (shouldRefreshShard()) {
+            logger.debug("submitting async Refresh request");
+            final AbstractRunnable _refresh = new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("refresh failed after translog manager decided to refresh the shard", e);
+                }
 
-                    @Override
-                    protected void doRun() throws Exception {
-                        refresh("Too many uncommited Translog files");
-                    }
+                @Override
+                protected void doRun() throws Exception {
+                    maybeRefreshShard("Translog manager decided to refresh the shard");
+                }
 
-                    @Override
-                    public boolean isForceExecution() {
-                        return true;
-                    }
+                @Override
+                public boolean isForceExecution() {
+                    return true;
+                }
 
-                    @Override
-                    public void onAfter() {
-                        isRefreshRunning.compareAndSet(true, false);
-                    }
-                };
-                threadPool.executor(ThreadPool.Names.REFRESH).execute(_refresh);
-            } else {
-                isRefreshRunning.compareAndSet(true, false);
-            }
+            };
+            threadPool.executor(ThreadPool.Names.REFRESH).execute(_refresh);
         }
     }
 

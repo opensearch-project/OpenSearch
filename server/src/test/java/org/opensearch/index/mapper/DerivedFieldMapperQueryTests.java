@@ -197,8 +197,8 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
             }
 
             @Override
-            public Object execute() {
-                return raw_requests[docId][scriptIndex[0]];
+            public void execute() {
+                addEmittedValue(raw_requests[docId][scriptIndex[0]]);
             }
         };
 
