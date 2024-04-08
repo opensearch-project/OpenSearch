@@ -34,6 +34,7 @@ package org.opensearch.indices;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
@@ -164,7 +165,8 @@ public class IndicesLifecycleListenerSingleNodeTests extends OpenSearchSingleNod
                 null,
                 null,
                 localNode,
-                null
+                null,
+                DiscoveryNodes.builder().add(localNode).build()
             );
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(5, counter.get());

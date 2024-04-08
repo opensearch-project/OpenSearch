@@ -288,10 +288,10 @@ public class MockScriptEngine implements ScriptEngine {
                 ctx
             ) {
                 @Override
-                public Object execute() {
+                public void execute() {
                     Map<String, Object> vars = new HashMap<>(derivedFieldsParams);
                     vars.put("params", derivedFieldsParams);
-                    return script.apply(vars);
+                    script.apply(vars);
                 }
             };
             return context.factoryClazz.cast(factory);
