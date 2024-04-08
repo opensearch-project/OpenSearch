@@ -819,15 +819,17 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         ensureGreen(INDEX_NAME);
 
         // 2. Index docs
-        indexBulk(INDEX_NAME, 15);
-        refresh(INDEX_NAME);
-        indexBulk(INDEX_NAME, 15);
-        refresh(INDEX_NAME);
+        int searchableDocs = 0;
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            indexBulk(INDEX_NAME, 15);
+            refresh(INDEX_NAME);
+            searchableDocs += 15;
+        }
         indexBulk(INDEX_NAME, 15);
 
-        assertHitCount(client(dataNode).prepareSearch(INDEX_NAME).setSize(0).get(), 30);
+        assertHitCount(client(dataNode).prepareSearch(INDEX_NAME).setSize(0).get(), searchableDocs);
 
-        // 3. Delete data from remote segment store
+        // 3. Delete metadata from remote translog
         String indexUUID = client().admin()
             .indices()
             .prepareGetSettings(INDEX_NAME)
@@ -849,9 +851,9 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
         ensureGreen(INDEX_NAME);
 
-        assertHitCount(client(dataNode).prepareSearch(INDEX_NAME).setSize(0).get(), 30);
+        assertHitCount(client(dataNode).prepareSearch(INDEX_NAME).setSize(0).get(), searchableDocs);
         indexBulk(INDEX_NAME, 15);
         refresh(INDEX_NAME);
-        assertHitCount(client(dataNode).prepareSearch(INDEX_NAME).setSize(0).get(), 45);
+        assertHitCount(client(dataNode).prepareSearch(INDEX_NAME).setSize(0).get(), searchableDocs + 15);
     }
 }
