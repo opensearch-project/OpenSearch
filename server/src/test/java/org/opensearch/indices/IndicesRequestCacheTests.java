@@ -112,7 +112,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
     public void testBasicOperationsCache() throws Exception {
         threadPool = getThreadPool();
-        cache = getIndicesRequestCache(Settings.EMPTY, threadPool);
+        cache = getIndicesRequestCache(Settings.EMPTY);
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = getReader(writer, indexShard.shardId());
 
@@ -164,7 +164,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     public void testBasicOperationsCacheWithFeatureFlag() throws Exception {
         threadPool = getThreadPool();
         Settings settings = Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.PLUGGABLE_CACHE, "true").build();
-        cache = getIndicesRequestCache(settings, threadPool);
+        cache = getIndicesRequestCache(settings);
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = getReader(writer, indexShard.shardId());
 
@@ -215,7 +215,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
     public void testCacheDifferentReaders() throws Exception {
         threadPool = getThreadPool();
-        cache = getIndicesRequestCache(Settings.EMPTY, threadPool);
+        cache = getIndicesRequestCache(Settings.EMPTY);
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = getReader(writer, indexShard.shardId());
 
@@ -333,7 +333,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     public void testCacheCleanupBasedOnZeroThreshold() throws Exception {
         threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0%").build();
-        cache = getIndicesRequestCache(settings, threadPool);
+        cache = getIndicesRequestCache(settings);
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = getReader(writer, indexShard.shardId());
         DirectoryReader secondReader = getReader(writer, indexShard.shardId());
@@ -361,7 +361,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     public void testCacheCleanupBasedOnStaleThreshold_StalenessHigherThanThreshold() throws Exception {
         threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.49").build();
-        cache = getIndicesRequestCache(settings, threadPool);
+        cache = getIndicesRequestCache(settings);
 
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = getReader(writer, indexShard.shardId());
@@ -396,7 +396,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     public void testCacheCleanupBasedOnStaleThreshold_StalenessEqualToThreshold() throws Exception {
         threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.5").build();
-        cache = getIndicesRequestCache(settings, threadPool);
+        cache = getIndicesRequestCache(settings);
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = getReader(writer, indexShard.shardId());
         DirectoryReader secondReader = getReader(writer, indexShard.shardId());
@@ -428,7 +428,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     public void testStaleCount_OnRemovalNotificationOfStaleKey_DecrementsStaleCount() throws Exception {
         threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
-        cache = getIndicesRequestCache(settings, threadPool);
+        cache = getIndicesRequestCache(settings);
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = getReader(writer, indexShard.shardId());
         DirectoryReader secondReader = getReader(writer, indexShard.shardId());
@@ -462,7 +462,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     public void testStaleCount_OnRemovalNotificationOfStaleKey_DoesNotDecrementsStaleCount() throws Exception {
         threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
-        cache = getIndicesRequestCache(settings, threadPool);
+        cache = getIndicesRequestCache(settings);
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = getReader(writer, indexShard.shardId());
         DirectoryReader secondReader = getReader(writer, indexShard.shardId());
@@ -497,7 +497,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     public void testStaleCount_WithoutReaderClosing_DecrementsStaleCount() throws Exception {
         threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
-        cache = getIndicesRequestCache(settings, threadPool);
+        cache = getIndicesRequestCache(settings);
 
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = getReader(writer, indexShard.shardId());
@@ -525,7 +525,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     public void testStaleCount_OnRemovalNotifications() throws Exception {
         threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
-        cache = getIndicesRequestCache(settings, threadPool);
+        cache = getIndicesRequestCache(settings);
 
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = getReader(writer, indexShard.shardId());
@@ -574,7 +574,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     public void testCacheCleanupBasedOnStaleThreshold_StalenessLesserThanThreshold() throws Exception {
         threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%").build();
-        cache = getIndicesRequestCache(settings, threadPool);
+        cache = getIndicesRequestCache(settings);
 
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = getReader(writer, indexShard.shardId());
@@ -607,7 +607,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     public void testCleanupKeyToCountMapAreSetAppropriately() throws Exception {
         threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
-        cache = getIndicesRequestCache(settings, threadPool);
+        cache = getIndicesRequestCache(settings);
 
         writer.addDocument(newDoc(0, "foo"));
         ShardId shardId = indexShard.shardId();
@@ -656,7 +656,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         return OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), shardId);
     }
 
-    private IndicesRequestCache getIndicesRequestCache(Settings settings, ThreadPool threadPool) {
+    private IndicesRequestCache getIndicesRequestCache(Settings settings){
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         return new IndicesRequestCache(settings, (shardId -> {
             IndexService indexService = null;
@@ -692,7 +692,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         final ByteSizeValue size;
         {
             threadPool = getThreadPool();
-            cache = getIndicesRequestCache(Settings.EMPTY, threadPool);
+            cache = getIndicesRequestCache(Settings.EMPTY);
             writer.addDocument(newDoc(0, "foo"));
             DirectoryReader reader = getReader(writer, indexShard.shardId());
             writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
@@ -735,7 +735,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
     public void testClearAllEntityIdentity() throws Exception {
         threadPool = getThreadPool();
-        cache = getIndicesRequestCache(Settings.EMPTY, threadPool);
+        cache = getIndicesRequestCache(Settings.EMPTY);
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = getReader(writer, indexShard.shardId());
         IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
@@ -814,7 +814,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
     public void testInvalidate() throws Exception {
         threadPool = getThreadPool();
-        IndicesRequestCache cache = getIndicesRequestCache(Settings.EMPTY, threadPool);
+        IndicesRequestCache cache = getIndicesRequestCache(Settings.EMPTY);
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = getReader(writer, indexShard.shardId());
 
