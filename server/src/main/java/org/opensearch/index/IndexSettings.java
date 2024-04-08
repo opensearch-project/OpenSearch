@@ -48,6 +48,9 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
@@ -59,6 +62,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -759,6 +764,8 @@ public final class IndexSettings {
 
     private volatile String defaultSearchPipeline;
     private final boolean widenIndexSortType;
+    private final boolean assignedOnRemoteNode;
+    private final RemoteStorePathStrategy remoteStorePathStrategy;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -982,6 +989,8 @@ public final class IndexSettings {
          * Now this sortField (IndexSort) is stored in SegmentInfo and we need to maintain backward compatibility for them.
          */
         widenIndexSortType = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).before(V_2_7_0);
+        assignedOnRemoteNode = RemoteStoreNodeAttribute.isRemoteDataAttributePresent(this.getNodeSettings());
+        remoteStorePathStrategy = determineRemoteStorePathStrategy();
 
         setEnableFuzzySetForDocId(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING));
         setDocIdFuzzySetFalsePositiveProbability(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING));
@@ -1227,15 +1236,11 @@ public final class IndexSettings {
      * proper index setting during the migration.
      */
     public boolean isSegRepEnabledOrRemoteNode() {
-        return ReplicationType.SEGMENT.equals(replicationType) || isRemoteNode();
+        return ReplicationType.SEGMENT.equals(replicationType) || isAssignedOnRemoteNode();
     }
 
     public boolean isSegRepLocalEnabled() {
-        return isSegRepEnabledOrRemoteNode() && !isRemoteStoreEnabled();
-    }
-
-    public boolean isSegRepWithRemoteEnabled() {
-        return isSegRepEnabledOrRemoteNode() && isRemoteStoreEnabled();
+        return ReplicationType.SEGMENT.equals(replicationType) && !isRemoteStoreEnabled();
     }
 
     /**
@@ -1245,8 +1250,8 @@ public final class IndexSettings {
         return isRemoteStoreEnabled;
     }
 
-    public boolean isRemoteNode() {
-        return RemoteStoreNodeAttribute.isRemoteDataAttributePresent(this.getNodeSettings());
+    public boolean isAssignedOnRemoteNode() {
+        return assignedOnRemoteNode;
     }
 
     /**
@@ -1904,5 +1909,21 @@ public final class IndexSettings {
 
     public void setDocIdFuzzySetFalsePositiveProbability(double docIdFuzzySetFalsePositiveProbability) {
         this.docIdFuzzySetFalsePositiveProbability = docIdFuzzySetFalsePositiveProbability;
+    }
+
+    private RemoteStorePathStrategy determineRemoteStorePathStrategy() {
+        Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        assert remoteCustomData == null || remoteCustomData.containsKey(PathType.NAME);
+        if (remoteCustomData != null && remoteCustomData.containsKey(PathType.NAME)) {
+            PathType pathType = PathType.parseString(remoteCustomData.get(PathType.NAME));
+            String hashAlgoStr = remoteCustomData.get(PathHashAlgorithm.NAME);
+            PathHashAlgorithm hashAlgorithm = Objects.nonNull(hashAlgoStr) ? PathHashAlgorithm.parseString(hashAlgoStr) : null;
+            return new RemoteStorePathStrategy(pathType, hashAlgorithm);
+        }
+        return new RemoteStorePathStrategy(PathType.FIXED);
+    }
+
+    public RemoteStorePathStrategy getRemoteStorePathStrategy() {
+        return remoteStorePathStrategy;
     }
 }

@@ -1,7 +1,7 @@
 {
   "get":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/document-apis/get-documents/",
       "description":"Returns a document."
     },
     "stability":"stable",

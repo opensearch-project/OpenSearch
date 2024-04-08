@@ -33,6 +33,7 @@ package org.opensearch.transport;
 
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
@@ -49,8 +50,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * A connection profile describes how many connection are established to specific node for each of the available request types.
  * ({@link org.opensearch.transport.TransportRequestOptions.Type}). This allows to tailor a connection towards a specific usage.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class ConnectionProfile {
 
     /**

@@ -36,6 +36,7 @@ plugins {
   id('opensearch.publish')
   id('opensearch.internal-cluster-test')
   id('opensearch.optional-dependencies')
+  id('me.champeau.gradle.japicmp') version '0.4.2'
 }
 
 publishing {
@@ -141,7 +142,7 @@ tasks.withType(JavaCompile).configureEach {
 
 compileJava {
   options.compilerArgs += ['-processor', ['org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor',
-    'org.opensearch.common.annotation.processor.ApiAnnotationProcessor'].join(','), '-AcontinueOnFailingChecks']
+    'org.opensearch.common.annotation.processor.ApiAnnotationProcessor'].join(',')]
 }
 
 tasks.named("internalClusterTest").configure {
@@ -377,4 +378,82 @@ tasks.named("sourcesJar").configure {
   filesMatching("**/proto/*") {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
   }
+}
+
+/** Compares the current build against a snapshot build */
+tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
+    oldClasspath.from(files("${buildDir}/snapshot/opensearch-${version}.jar"))
+    newClasspath.from(tasks.named('jar'))
+    onlyModified = true
+    failOnModification = true
+    ignoreMissingClasses = true
+    annotationIncludes = ['@org.opensearch.common.annotation.PublicApi', '@org.opensearch.common.annotation.DeprecatedApi']
+    txtOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.txt")
+    htmlOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.html")
+    dependsOn downloadSnapshot
+}
+
+/** If the Java API Comparison task failed, print a hint if the change should be merged from its target branch */
+gradle.taskGraph.afterTask { Task task, TaskState state ->
+    if (task.name == 'japicmp' && state.failure != null) {
+        def sha = getGitShaFromJar("${buildDir}/snapshot/opensearch-${version}.jar")
+        logger.info("Incompatiable java api from snapshot jar built off of commit ${sha}")
+
+        if (!inHistory(sha)) {
+          logger.warn('\u001B[33mPlease merge from the target branch and run this task again.\u001B[0m')
+        }
+    }
+}
+
+/** Downloads latest snapshot from maven repository */
+tasks.register("downloadSnapshot", Copy) {
+    def mavenSnapshotRepoUrl = "https://aws.oss.sonatype.org/content/repositories/snapshots/"
+    def groupId = "org.opensearch"
+    def artifactId = "opensearch"
+
+    repositories {
+        maven {
+            url mavenSnapshotRepoUrl
+        }
+    }
+
+    configurations {
+        snapshotArtifact
+    }
+
+    dependencies {
+        snapshotArtifact("${groupId}:${artifactId}:${version}:")
+    }
+
+    from configurations.snapshotArtifact
+    into "$buildDir/snapshot"
+}
+
+/** Check if the sha is in the current history */
+def inHistory(String sha) {
+    try {
+      def commandCheckSha = "git merge-base --is-ancestor ${sha} HEAD"
+      commandCheckSha.execute()
+      return true
+    } catch (Exception) {
+      return false
+    }
+}
+
+/** Extracts the Git SHA used to build a jar from its manifest */
+def getGitShaFromJar(String jarPath) {
+    def sha = ''
+    try {
+        // Open the JAR file
+        def jarFile = new java.util.jar.JarFile(jarPath)
+        // Get the manifest from the JAR file
+        def manifest = jarFile.manifest
+        def attributes = manifest.mainAttributes
+        // Assuming the Git SHA is stored under an attribute named 'Git-SHA'
+        sha = attributes.getValue('Change')
+        jarFile.close()
+    } catch (IOException e) {
+        println "Failed to read the JAR file: $e.message"
+    }
+    return sha
 }

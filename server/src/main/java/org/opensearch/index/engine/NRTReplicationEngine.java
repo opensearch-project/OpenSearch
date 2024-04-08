@@ -437,7 +437,7 @@ public class NRTReplicationEngine extends Engine {
                  during promotion.
                  */
                 if (engineConfig.getIndexSettings().isRemoteStoreEnabled() == false
-                    && engineConfig.getIndexSettings().isRemoteNode() == false) {
+                    && engineConfig.getIndexSettings().isAssignedOnRemoteNode() == false) {
                     latestSegmentInfos.counter = latestSegmentInfos.counter + SI_COUNTER_INCREMENT;
                     latestSegmentInfos.changed();
                 }

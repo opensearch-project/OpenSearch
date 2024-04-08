@@ -253,6 +253,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
     private volatile ReplicationCheckpoint latestReplicationCheckpoint;
 
+    private final Function<String, Boolean> isShardOnRemoteEnabledNode;
+
     /**
      * Get all retention leases tracked on this shard.
      *
@@ -999,7 +1001,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final LongConsumer onGlobalCheckpointUpdated,
         final LongSupplier currentTimeMillisSupplier,
         final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
-        final Supplier<SafeCommitInfo> safeCommitInfoSupplier
+        final Supplier<SafeCommitInfo> safeCommitInfoSupplier,
+        final Function<String, Boolean> isShardOnRemoteEnabledNode
     ) {
         this(
             shardId,
@@ -1011,7 +1014,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             currentTimeMillisSupplier,
             onSyncRetentionLeases,
             safeCommitInfoSupplier,
-            x -> {}
+            x -> {},
+            isShardOnRemoteEnabledNode
         );
     }
 
@@ -1037,7 +1041,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final LongSupplier currentTimeMillisSupplier,
         final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
         final Supplier<SafeCommitInfo> safeCommitInfoSupplier,
-        final Consumer<ReplicationGroup> onReplicationGroupUpdated
+        final Consumer<ReplicationGroup> onReplicationGroupUpdated,
+        final Function<String, Boolean> isShardOnRemoteEnabledNode
     ) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
@@ -1060,6 +1065,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;
         this.onReplicationGroupUpdated = onReplicationGroupUpdated;
         this.latestReplicationCheckpoint = indexSettings.isSegRepEnabledOrRemoteNode() ? ReplicationCheckpoint.empty(shardId) : null;
+        this.isShardOnRemoteEnabledNode = isShardOnRemoteEnabledNode;
         assert Version.V_EMPTY.equals(indexSettings.getIndexVersionCreated()) == false;
         assert invariant();
     }
@@ -1088,8 +1094,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         } else {
             newVersion = replicationGroup.getVersion() + 1;
         }
-
-        assert indexSettings().isRemoteTranslogStoreEnabled()
+        assert indexSettings.isRemoteTranslogStoreEnabled()
+            // Handle migration cases. Ignore assertion if any of the shard copies in the replication group is assigned to a remote node
+            || (replicationGroup != null
+                && replicationGroup.getReplicationTargets()
+                    .stream()
+                    .anyMatch(shardRouting -> isShardOnRemoteEnabledNode.apply(shardRouting.currentNodeId())))
             || checkpoints.entrySet().stream().filter(e -> e.getValue().tracked).allMatch(e -> e.getValue().replicated)
             : "In absence of remote translog store, all tracked shards must have replication mode as LOGICAL_REPLICATION";
 
@@ -1248,7 +1258,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 if (cps.inSync
                     && replicationGroup.getUnavailableInSyncShards().contains(allocationId) == false
                     && isPrimaryRelocation(allocationId) == false
-                    && latestReplicationCheckpoint.isAheadOf(cps.visibleReplicationCheckpoint)) {
+                    && latestReplicationCheckpoint.isAheadOf(cps.visibleReplicationCheckpoint)
+                    && (indexSettings.isSegRepLocalEnabled() == true
+                        || isShardOnRemoteEnabledNode.apply(routingTable.getByAllocationId(allocationId).currentNodeId()))) {
                     cps.checkpointTimers.computeIfAbsent(latestReplicationCheckpoint, ignored -> new SegmentReplicationLagTimer());
                     logger.trace(
                         () -> new ParameterizedMessage(
@@ -1367,7 +1379,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final String leaseId = getPeerRecoveryRetentionLeaseId(primaryShard);
         if (retentionLeases.get(leaseId) == null) {
             if (replicationGroup.getReplicationTargets().equals(Collections.singletonList(primaryShard))
-                || indexSettings().isRemoteTranslogStoreEnabled()) {
+                || indexSettings.isAssignedOnRemoteNode()) {
                 assert primaryShard.allocationId().getId().equals(shardAllocationId) : routingTable.assignedShards()
                     + " vs "
                     + shardAllocationId;
@@ -1453,7 +1465,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                                 globalCheckpoint,
                                 inSync,
                                 inSync,
-                                isReplicated(initializingId, primaryAllocationId, primaryTargetAllocationId)
+                                isReplicated(
+                                    initializingId,
+                                    primaryAllocationId,
+                                    primaryTargetAllocationId,
+                                    assignedToRemoteStoreNode(routingTable, initializingId)
+                                )
                             )
                         );
                     }
@@ -1472,7 +1489,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                             globalCheckpoint,
                             false,
                             false,
-                            isReplicated(initializingId, primaryAllocationId, primaryTargetAllocationId)
+                            isReplicated(
+                                initializingId,
+                                primaryAllocationId,
+                                primaryTargetAllocationId,
+                                assignedToRemoteStoreNode(routingTable, initializingId)
+                            )
                         )
                     );
                 }
@@ -1486,7 +1508,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                             globalCheckpoint,
                             true,
                             true,
-                            isReplicated(inSyncId, primaryAllocationId, primaryTargetAllocationId)
+                            isReplicated(
+                                inSyncId,
+                                primaryAllocationId,
+                                primaryTargetAllocationId,
+                                assignedToRemoteStoreNode(routingTable, inSyncId)
+                            )
                         )
                     );
                 }
@@ -1503,6 +1530,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert invariant();
     }
 
+    private boolean assignedToRemoteStoreNode(IndexShardRoutingTable routingTable, String allocationId) {
+        return indexSettings().isRemoteStoreEnabled()
+            || (routingTable.getByAllocationId(allocationId) != null
+                && isShardOnRemoteEnabledNode.apply(routingTable.getByAllocationId(allocationId).currentNodeId()));
+    }
+
     /**
      * Returns whether the requests are replicated considering the remote translog existence, current/primary/primary target allocation ids.
      *
@@ -1511,13 +1544,16 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @param primaryTargetAllocationId primary target allocation id
      * @return the replication mode.
      */
-    private boolean isReplicated(String allocationId, String primaryAllocationId, String primaryTargetAllocationId) {
-        // If remote translog is enabled, then returns replication mode checking current allocation id against the
+    private boolean isReplicated(
+        String allocationId,
+        String primaryAllocationId,
+        String primaryTargetAllocationId,
+        boolean assignedToRemoteStoreNode
+    ) {
+        // If assigned to a remote node, returns true if given allocation id matches the primary or it's relocation target allocation
         // primary and primary target allocation id.
-        // If remote translog is enabled, then returns true if given allocation id matches the primary or it's relocation target allocation
-        // id.
-        if (indexSettings().isRemoteTranslogStoreEnabled()) {
-            return (allocationId.equals(primaryAllocationId) || allocationId.equals(primaryTargetAllocationId));
+        if (assignedToRemoteStoreNode == true) {
+            return allocationId.equals(primaryAllocationId) || allocationId.equals(primaryTargetAllocationId);
         }
         // For other case which is local translog, return true as the requests are replicated to all shards in the replication group.
         return true;
