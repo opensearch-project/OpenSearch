@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.opensearch.index.remote.RemoteStoreUtils.longToBase64;
+import static org.opensearch.index.remote.RemoteStoreUtils.longToUrlBase64;
 import static org.opensearch.index.remote.RemoteStoreUtils.verifyNoMultipleWriters;
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX;
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils.SEPARATOR;
@@ -205,7 +205,7 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
             "6kv3yZNv9kY"
         );
         for (Map.Entry<Long, String> entry : longToExpectedBase64String.entrySet()) {
-            assertEquals(entry.getValue(), longToBase64(entry.getKey()));
+            assertEquals(entry.getValue(), longToUrlBase64(entry.getKey()));
             assertEquals(11, entry.getValue().length());
         }
     }

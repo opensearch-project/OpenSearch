@@ -219,7 +219,7 @@ public class RemoteStoreEnums {
                 String input = pathInput.indexUUID() + pathInput.shardId() + pathInput.dataCategory().getName() + pathInput.dataType()
                     .getName();
                 long hash = FNV1a.hash64(input);
-                return RemoteStoreUtils.longToBase64(hash);
+                return RemoteStoreUtils.longToUrlBase64(hash);
             }
         };
 
