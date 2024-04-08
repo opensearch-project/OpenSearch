@@ -34,7 +34,9 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
     // update the flag to true or set the corresponding system property to true
     // This is helpful in debugging the tests. Default value is false.
     // Note: Enabling this might lead to OOM issues while running ITs.
-    private static final boolean isStackTraceForSpanEnabled = Booleans.parseBoolean(System.getProperty("test.telemetry.span.stack_traces", "false"));
+    private static final boolean isStackTraceForSpanEnabled = Booleans.parseBoolean(
+        System.getProperty("test.telemetry.span.stack_traces", "false")
+    );
 
     @Override
     public void onStart(Span span) {
