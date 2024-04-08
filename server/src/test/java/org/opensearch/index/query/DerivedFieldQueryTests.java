@@ -67,8 +67,8 @@ public class DerivedFieldQueryTests extends OpenSearchTestCase {
             when(searchLookup.getLeafSearchLookup(ctx)).thenReturn(leafLookup);
             return new DerivedFieldScript(params, lookup, ctx) {
                 @Override
-                public Object execute() {
-                    return raw_requests[sourceLookup.docId()][2];
+                public void execute() {
+                    addEmittedValue(raw_requests[sourceLookup.docId()][2]);
                 }
             };
         };

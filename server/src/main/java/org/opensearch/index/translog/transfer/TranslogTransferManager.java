@@ -28,6 +28,7 @@ import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -60,9 +61,7 @@ public class TranslogTransferManager {
     private final BlobPath remoteMetadataTransferPath;
     private final FileTransferTracker fileTransferTracker;
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
-
-    private static final long TRANSFER_TIMEOUT_IN_MILLIS = 30000;
-
+    private final RemoteStoreSettings remoteStoreSettings;
     private static final int METADATA_FILES_TO_FETCH = 10;
 
     private final Logger logger;
@@ -79,7 +78,8 @@ public class TranslogTransferManager {
         BlobPath remoteDataTransferPath,
         BlobPath remoteMetadataTransferPath,
         FileTransferTracker fileTransferTracker,
-        RemoteTranslogTransferTracker remoteTranslogTransferTracker
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        RemoteStoreSettings remoteStoreSettings
     ) {
         this.shardId = shardId;
         this.transferService = transferService;
@@ -88,6 +88,7 @@ public class TranslogTransferManager {
         this.fileTransferTracker = fileTransferTracker;
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
+        this.remoteStoreSettings = remoteStoreSettings;
     }
 
     public RemoteTranslogTransferTracker getRemoteTranslogTransferTracker() {
@@ -151,7 +152,7 @@ public class TranslogTransferManager {
             transferService.uploadBlobs(toUpload, blobPathMap, latchedActionListener, WritePriority.HIGH);
 
             try {
-                if (latch.await(TRANSFER_TIMEOUT_IN_MILLIS, TimeUnit.MILLISECONDS) == false) {
+                if (latch.await(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
                     Exception ex = new TranslogUploadFailedException(
                         "Timed out waiting for transfer of snapshot " + transferSnapshot + " to complete"
                     );

@@ -54,8 +54,20 @@ public class RemoteStoreSettings {
         Property.Dynamic
     );
 
+    /**
+     * Controls timeout value while uploading translog and checkpoint files to remote translog
+     */
+    public static final Setting<TimeValue> CLUSTER_REMOTE_TRANSLOG_TRANSFER_TIMEOUT_SETTING = Setting.timeSetting(
+        "cluster.remote_store.translog.transfer_timeout",
+        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueSeconds(30),
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     private volatile TimeValue clusterRemoteTranslogBufferInterval;
     private volatile int minRemoteSegmentMetadataFiles;
+    private volatile TimeValue clusterRemoteTranslogTransferTimeout;
 
     public RemoteStoreSettings(Settings settings, ClusterSettings clusterSettings) {
         this.clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
@@ -69,9 +81,14 @@ public class RemoteStoreSettings {
             CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING,
             this::setMinRemoteSegmentMetadataFiles
         );
+
+        this.clusterRemoteTranslogTransferTimeout = CLUSTER_REMOTE_TRANSLOG_TRANSFER_TIMEOUT_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_REMOTE_TRANSLOG_TRANSFER_TIMEOUT_SETTING,
+            this::setClusterRemoteTranslogTransferTimeout
+        );
     }
 
-    // Exclusively for testing, please do not use it elsewhere.
     public TimeValue getClusterRemoteTranslogBufferInterval() {
         return clusterRemoteTranslogBufferInterval;
     }
@@ -86,5 +103,13 @@ public class RemoteStoreSettings {
 
     public int getMinRemoteSegmentMetadataFiles() {
         return this.minRemoteSegmentMetadataFiles;
+    }
+
+    public TimeValue getClusterRemoteTranslogTransferTimeout() {
+        return clusterRemoteTranslogTransferTimeout;
+    }
+
+    private void setClusterRemoteTranslogTransferTimeout(TimeValue clusterRemoteTranslogTransferTimeout) {
+        this.clusterRemoteTranslogTransferTimeout = clusterRemoteTranslogTransferTimeout;
     }
 }
