@@ -82,15 +82,17 @@ public class RemoteTransferContainer implements Closeable {
         long expectedChecksum,
         boolean isRemoteDataIntegritySupported
     ) {
-        this.fileName = fileName;
-        this.remoteFileName = remoteFileName;
-        this.contentLength = contentLength;
-        this.failTransferIfFileExists = failTransferIfFileExists;
-        this.writePriority = writePriority;
-        this.offsetRangeInputStreamSupplier = offsetRangeInputStreamSupplier;
-        this.expectedChecksum = expectedChecksum;
-        this.isRemoteDataIntegritySupported = isRemoteDataIntegritySupported;
-        this.metadata = null;
+        this(
+            fileName,
+            remoteFileName,
+            contentLength,
+            failTransferIfFileExists,
+            writePriority,
+            offsetRangeInputStreamSupplier,
+            expectedChecksum,
+            isRemoteDataIntegritySupported,
+            null
+        );
     }
 
     /**
