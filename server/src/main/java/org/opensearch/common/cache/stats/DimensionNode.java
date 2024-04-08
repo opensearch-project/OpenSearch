@@ -44,16 +44,62 @@ class DimensionNode {
         return children;
     }
 
-    public CacheStatsCounter getStats() {
-        return stats;
+    // Functions for modifying internal CacheStatsCounter without callers having to be aware of CacheStatsCounter
+
+    void incrementHits() {
+        this.stats.incrementHits();
     }
 
-    DimensionNode getOrCreateChild(String dimensionValue, boolean createIfAbsent, boolean createMapInChild) {
-        // If we are creating new nodes, put one in the map. Otherwise, the mapping function returns null to leave the map unchanged
-        return children.computeIfAbsent(
+    void incrementMisses() {
+        this.stats.incrementMisses();
+    }
+
+    void incrementEvictions() {
+        this.stats.incrementEvictions();
+    }
+
+    void incrementSizeInBytes(long amountBytes) {
+        this.stats.incrementSizeInBytes(amountBytes);
+    }
+
+    void decrementSizeInBytes(long amountBytes) {
+        this.stats.decrementSizeInBytes(amountBytes);
+    }
+
+    void incrementEntries() {
+        this.stats.incrementEntries();
+    }
+
+    void decrementEntries() {
+        this.stats.decrementEntries();
+    }
+
+    long getEntries() {
+        return this.stats.getEntries();
+    }
+
+    CacheStatsCounterSnapshot getStatsSnapshot() {
+        return this.stats.snapshot();
+    }
+
+    void decrementBySnapshot(CacheStatsCounterSnapshot snapshot) {
+        this.stats.subtract(snapshot);
+    }
+
+    void resetSizeAndEntries() {
+        this.stats.resetSizeAndEntries();
+    }
+
+    DimensionNode getChild(String dimensionValue) { // , boolean createIfAbsent, boolean createMapInChild
+        /*return children.computeIfAbsent(
             dimensionValue,
             (key) -> createIfAbsent ? new DimensionNode(dimensionValue, createMapInChild) : null
-        );
+        );*/
+        return children.get(dimensionValue);
+    }
+
+    DimensionNode createChild(String dimensionValue, boolean createMapInChild) {
+        return children.computeIfAbsent(dimensionValue, (key) -> new DimensionNode(dimensionValue, createMapInChild));
     }
 
     public void resetNode() {

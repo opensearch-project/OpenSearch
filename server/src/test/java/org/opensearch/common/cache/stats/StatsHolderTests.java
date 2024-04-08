@@ -13,6 +13,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 import static org.opensearch.common.cache.stats.MultiDimensionCacheStatsTests.getUsedDimensionValues;
 import static org.opensearch.common.cache.stats.MultiDimensionCacheStatsTests.populateStats;
@@ -36,8 +37,8 @@ public class StatsHolderTests extends OpenSearchTestCase {
             originalCounter.entries = new CounterMetric();
 
             DimensionNode node = getNode(dimensionValues, statsHolder.getStatsRoot());
-            CacheStatsCounter actual = node.getStats();
-            assertEquals(originalCounter.snapshot(), actual.snapshot());
+            CacheStatsCounterSnapshot actual = node.getStatsSnapshot();
+            assertEquals(originalCounter.snapshot(), actual);
         }
     }
 
@@ -51,13 +52,13 @@ public class StatsHolderTests extends OpenSearchTestCase {
             statsHolder.incrementHits(dims);
         }
 
-        assertEquals(3, statsHolder.getStatsRoot().getStats().getHits());
+        assertEquals(3, statsHolder.getStatsRoot().getStatsSnapshot().getHits());
 
         // When we invalidate A2, B2, we should lose the node for B2, but not B3 or A2.
 
         statsHolder.removeDimensions(List.of("A2", "B2"));
 
-        assertEquals(2, statsHolder.getStatsRoot().getStats().getHits());
+        assertEquals(2, statsHolder.getStatsRoot().getStatsSnapshot().getHits());
         assertNull(getNode(List.of("A2", "B2"), statsHolder.getStatsRoot()));
         assertNotNull(getNode(List.of("A2"), statsHolder.getStatsRoot()));
         assertNotNull(getNode(List.of("A2", "B3"), statsHolder.getStatsRoot()));
@@ -66,14 +67,14 @@ public class StatsHolderTests extends OpenSearchTestCase {
 
         statsHolder.removeDimensions(List.of("A1", "B1"));
 
-        assertEquals(1, statsHolder.getStatsRoot().getStats().getHits());
+        assertEquals(1, statsHolder.getStatsRoot().getStatsSnapshot().getHits());
         assertNull(getNode(List.of("A1", "B1"), statsHolder.getStatsRoot()));
         assertNull(getNode(List.of("A1"), statsHolder.getStatsRoot()));
 
         // When we invalidate the last node, all nodes should be deleted except the root node
 
         statsHolder.removeDimensions(List.of("A2", "B3"));
-        assertEquals(0, statsHolder.getStatsRoot().getStats().getHits());
+        assertEquals(0, statsHolder.getStatsRoot().getStatsSnapshot().getHits());
         assertEquals(0, statsHolder.getStatsRoot().children.size());
     }
 
@@ -90,13 +91,50 @@ public class StatsHolderTests extends OpenSearchTestCase {
         assertEquals(expectedCount, statsHolder.count());
     }
 
-    public void testInvalidateAll() throws Exception {
+    public void testConcurrentRemoval() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2");
         StatsHolder statsHolder = new StatsHolder(dimensionNames);
-        Map<String, List<String>> usedDimensionValues = getUsedDimensionValues(statsHolder, 10);
-        populateStats(statsHolder, usedDimensionValues, 100, 10);
 
-        //assertNotEquals(statsHolder.getStatsRoot().getSnapshot());
+        // Create stats for the following dimension sets
+        List<List<String>> populatedStats = List.of(List.of("A1", "B1"), List.of("A2", "B2"), List.of("A2", "B3"));
+        for (List<String> dims : populatedStats) {
+            statsHolder.incrementHits(dims);
+        }
+
+        // Remove (A2, B2) and (A1, B1), before re-adding (A2, B2). At the end we should have stats for (A2, B2) but not (A1, B1).
+
+        Thread[] threads = new Thread[3];
+        CountDownLatch countDownLatch = new CountDownLatch(3);
+        threads[0] = new Thread(() -> {
+            statsHolder.removeDimensions(List.of("A2", "B2"));
+            countDownLatch.countDown();
+        });
+        threads[1] = new Thread(() -> {
+            statsHolder.removeDimensions(List.of("A1", "B1"));
+            countDownLatch.countDown();
+        });
+        threads[2] = new Thread(() -> {
+            statsHolder.incrementMisses(List.of("A2", "B2"));
+            statsHolder.incrementMisses(List.of("A2", "B3"));
+            countDownLatch.countDown();
+        });
+        for (Thread thread : threads) {
+            thread.start();
+            // Add short sleep to ensure threads start their functions in order (so that incrementing doesn't happen before removal)
+            Thread.sleep(1);
+        }
+        countDownLatch.await();
+        assertNull(getNode(List.of("A1", "B1"), statsHolder.getStatsRoot()));
+        assertNull(getNode(List.of("A1"), statsHolder.getStatsRoot()));
+        assertNotNull(getNode(List.of("A2", "B2"), statsHolder.getStatsRoot()));
+        assertEquals(
+            new CacheStatsCounterSnapshot(0, 1, 0, 0, 0),
+            getNode(List.of("A2", "B2"), statsHolder.getStatsRoot()).getStatsSnapshot()
+        );
+        assertEquals(
+            new CacheStatsCounterSnapshot(1, 1, 0, 0, 0),
+            getNode(List.of("A2", "B3"), statsHolder.getStatsRoot()).getStatsSnapshot()
+        );
     }
 
     /**

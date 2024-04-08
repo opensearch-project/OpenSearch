@@ -9,7 +9,6 @@
 package org.opensearch.common.cache.stats;
 
 import org.opensearch.common.Randomness;
-import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
@@ -21,6 +20,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 
 public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
     public void testSerialization() throws Exception {
@@ -59,8 +60,7 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
             CacheStatsCounter expectedCounter = expected.get(dimensionValues);
 
             CacheStatsCounterSnapshot actualStatsHolder = StatsHolderTests.getNode(dimensionValues, statsHolder.getStatsRoot())
-                .getStats()
-                .snapshot();
+                .getStatsSnapshot();
             CacheStatsCounterSnapshot actualCacheStats = getNode(dimensionValues, stats.getStatsRoot()).getStats();
 
             assertEquals(expectedCounter.snapshot(), actualStatsHolder);
@@ -202,62 +202,58 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         Map<String, List<String>> usedDimensionValues,
         int numDistinctValuePairs,
         int numRepetitionsPerValue
-    ) {
-        Map<List<String>, CacheStatsCounter> expected = new HashMap<>();
+    ) throws InterruptedException {
+        Map<List<String>, CacheStatsCounter> expected = new ConcurrentHashMap<>();
 
-        Random rand = Randomness.get();
+        Thread[] threads = new Thread[numDistinctValuePairs];
+        CountDownLatch countDownLatch = new CountDownLatch(numDistinctValuePairs);
         for (int i = 0; i < numDistinctValuePairs; i++) {
-            List<String> dimensions = getRandomDimList(statsHolder.getDimensionNames(), usedDimensionValues, true, rand);
-            if (expected.get(dimensions) == null) {
-                expected.put(dimensions, new CacheStatsCounter());
-            }
-            ICacheKey<String> dummyKey = getDummyKey(dimensions);
+            threads[i] = new Thread(() -> {
+                Random rand = Randomness.get();
+                List<String> dimensions = getRandomDimList(statsHolder.getDimensionNames(), usedDimensionValues, true, rand);
+                expected.computeIfAbsent(dimensions, (key) -> new CacheStatsCounter());
 
-            for (int j = 0; j < numRepetitionsPerValue; j++) {
-
-                int numHitIncrements = rand.nextInt(10);
-                for (int k = 0; k < numHitIncrements; k++) {
-                    statsHolder.incrementHits(dimensions);
-                    expected.get(dimensions).hits.inc();
+                for (int j = 0; j < numRepetitionsPerValue; j++) {
+                    int numHitIncrements = rand.nextInt(10);
+                    for (int k = 0; k < numHitIncrements; k++) {
+                        statsHolder.incrementHits(dimensions);
+                        expected.get(dimensions).hits.inc();
+                    }
+                    int numMissIncrements = rand.nextInt(10);
+                    for (int k = 0; k < numMissIncrements; k++) {
+                        statsHolder.incrementMisses(dimensions);
+                        expected.get(dimensions).misses.inc();
+                    }
+                    int numEvictionIncrements = rand.nextInt(10);
+                    for (int k = 0; k < numEvictionIncrements; k++) {
+                        statsHolder.incrementEvictions(dimensions);
+                        expected.get(dimensions).evictions.inc();
+                    }
+                    int numMemorySizeIncrements = rand.nextInt(10);
+                    for (int k = 0; k < numMemorySizeIncrements; k++) {
+                        long memIncrementAmount = rand.nextInt(5000);
+                        statsHolder.incrementSizeInBytes(dimensions, memIncrementAmount);
+                        expected.get(dimensions).sizeInBytes.inc(memIncrementAmount);
+                    }
+                    int numEntryIncrements = rand.nextInt(9) + 1;
+                    for (int k = 0; k < numEntryIncrements; k++) {
+                        statsHolder.incrementEntries(dimensions);
+                        expected.get(dimensions).entries.inc();
+                    }
+                    int numEntryDecrements = rand.nextInt(numEntryIncrements);
+                    for (int k = 0; k < numEntryDecrements; k++) {
+                        statsHolder.decrementEntries(dimensions);
+                        expected.get(dimensions).entries.dec();
+                    }
                 }
-
-                int numMissIncrements = rand.nextInt(10);
-                for (int k = 0; k < numMissIncrements; k++) {
-                    statsHolder.incrementMisses(dimensions);
-                    expected.get(dimensions).misses.inc();
-                }
-
-                int numEvictionIncrements = rand.nextInt(10);
-                for (int k = 0; k < numEvictionIncrements; k++) {
-                    statsHolder.incrementEvictions(dimensions);
-                    expected.get(dimensions).evictions.inc();
-                }
-
-                int numMemorySizeIncrements = rand.nextInt(10);
-                for (int k = 0; k < numMemorySizeIncrements; k++) {
-                    long memIncrementAmount = rand.nextInt(5000);
-                    statsHolder.incrementSizeInBytes(dimensions, memIncrementAmount);
-                    expected.get(dimensions).sizeInBytes.inc(memIncrementAmount);
-                }
-
-                int numEntryIncrements = rand.nextInt(9) + 1;
-                for (int k = 0; k < numEntryIncrements; k++) {
-                    statsHolder.incrementEntries(dimensions);
-                    expected.get(dimensions).entries.inc();
-                }
-
-                int numEntryDecrements = rand.nextInt(numEntryIncrements);
-                for (int k = 0; k < numEntryDecrements; k++) {
-                    statsHolder.decrementEntries(dimensions);
-                    expected.get(dimensions).entries.dec();
-                }
-            }
+                countDownLatch.countDown();
+            });
         }
+        for (Thread thread : threads) {
+            thread.start();
+        }
+        countDownLatch.await();
         return expected;
-    }
-
-    private static ICacheKey<String> getDummyKey(List<String> dims) {
-        return new ICacheKey<>(null, dims);
     }
 
     private static List<String> getRandomDimList(
