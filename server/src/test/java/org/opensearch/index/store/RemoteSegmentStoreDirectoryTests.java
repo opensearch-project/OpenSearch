@@ -37,6 +37,9 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -697,13 +700,23 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             threadPool,
             indexShard.shardId()
         );
-        when(remoteSegmentStoreDirectoryFactory.newDirectory(any(), any(), any())).thenReturn(remoteSegmentDirectory);
+        when(remoteSegmentStoreDirectoryFactory.newDirectory(any(), any(), any(), any())).thenReturn(remoteSegmentDirectory);
         String repositoryName = "test-repository";
         String indexUUID = "test-idx-uuid";
         ShardId shardId = new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt("0"));
+        RemoteStorePathStrategy pathStrategy = randomFrom(
+            new RemoteStorePathStrategy(PathType.FIXED),
+            new RemoteStorePathStrategy(PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A)
+        );
 
-        RemoteSegmentStoreDirectory.remoteDirectoryCleanup(remoteSegmentStoreDirectoryFactory, repositoryName, indexUUID, shardId);
-        verify(remoteSegmentStoreDirectoryFactory).newDirectory(repositoryName, indexUUID, shardId);
+        RemoteSegmentStoreDirectory.remoteDirectoryCleanup(
+            remoteSegmentStoreDirectoryFactory,
+            repositoryName,
+            indexUUID,
+            shardId,
+            pathStrategy
+        );
+        verify(remoteSegmentStoreDirectoryFactory).newDirectory(repositoryName, indexUUID, shardId, pathStrategy);
         verify(threadPool, times(0)).executor(ThreadPool.Names.REMOTE_PURGE);
         verify(remoteMetadataDirectory).delete();
         verify(remoteDataDirectory).delete();

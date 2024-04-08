@@ -1,7 +1,7 @@
 {
   "indices.get_field_mapping":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-field-mapping.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/index-apis/put-mapping/",
       "description":"Returns mapping for one or more fields."
     },
     "stability":"stable",
