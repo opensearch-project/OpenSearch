@@ -770,7 +770,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     @Deprecated(since = "2.14.0", forRemoval = true)
     public void inboundMessage(TcpChannel channel, InboundMessage message) {
-        inboundMessage(channel, message);
+        inboundMessage(channel, (ProtocolInboundMessage) message);
     }
 
     /**
