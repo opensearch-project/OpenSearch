@@ -329,6 +329,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertThrows(IllegalArgumentException.class, () -> { IndicesRequestCache.validateStalenessSetting("500%"); });
     }
 
+    // when staleness threshold is zero, stale keys should be cleaned up every time cache cleaner is invoked.
     public void testCacheCleanupBasedOnZeroThreshold() throws Exception {
         threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0%").build();
@@ -356,6 +357,42 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         IOUtils.close(secondReader);
     }
 
+    // when staleness count is higher than stale threshold, stale keys should be cleaned up.
+    public void testCacheCleanupBasedOnStaleThreshold_StalenessHigherThanThreshold() throws Exception {
+        threadPool = getThreadPool();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.49").build();
+        cache = getIndicesRequestCache(settings, threadPool);
+
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = getReader(writer, indexShard.shardId());
+        DirectoryReader secondReader = getReader(writer, indexShard.shardId());
+
+        // Get 2 entries into the cache
+        cache.getOrCompute(getEntity(indexShard), getLoader(reader), reader, getTermBytes());
+        assertEquals(1, cache.count());
+
+        cache.getOrCompute(getEntity(indexShard), getLoader(reader), secondReader, getTermBytes());
+        assertEquals(2, cache.count());
+
+        // no stale keys so far
+        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
+        // Close the reader, to be enqueued for cleanup
+        reader.close();
+        // 1 out of 2 keys ie 50% are now stale.
+        assertEquals(1, cache.cacheCleanupManager.getStaleKeysCount().get());
+        // cache count should not be affected
+        assertEquals(2, cache.count());
+
+        // clean cache with 49% staleness threshold
+        cache.cacheCleanupManager.cleanCache();
+        // cleanup should have taken effect with 49% threshold
+        assertEquals(1, cache.count());
+        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
+
+        IOUtils.close(secondReader);
+    }
+
+    // when staleness count equal to stale threshold, stale keys should be cleaned up.
     public void testCacheCleanupBasedOnStaleThreshold_StalenessEqualToThreshold() throws Exception {
         threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.5").build();
@@ -487,38 +524,53 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     // test staleness count based on removal notifications
     public void testStaleCount_OnRemovalNotifications() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.49").build();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
         cache = getIndicesRequestCache(settings, threadPool);
 
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = getReader(writer, indexShard.shardId());
-        DirectoryReader secondReader = getReader(writer, indexShard.shardId());
 
-        // Get 2 entries into the cache
-        cache.getOrCompute(getEntity(indexShard), getLoader(reader), reader, getTermBytes());
-        assertEquals(1, cache.count());
-
-        cache.getOrCompute(getEntity(indexShard), getLoader(reader), secondReader, getTermBytes());
-        assertEquals(2, cache.count());
-
-        // no stale keys so far
+        // Get 5 entries into the cache
+        int totalKeys = 5;
+        IndicesService.IndexShardCacheEntity entity = null;
+        TermQueryBuilder termQuery = null;
+        BytesReference termBytes = null;
+        for (int i = 1; i <= totalKeys; i++) {
+            termQuery = new TermQueryBuilder("id", "" + i);
+            termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
+            entity = new IndicesService.IndexShardCacheEntity(indexShard);
+            Loader loader = new Loader(reader, 0);
+            cache.getOrCompute(entity, loader, reader, termBytes);
+            assertEquals(i, cache.count());
+        }
+        // no keys are stale yet
         assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
-        // Close the reader, to be enqueued for cleanup
+        // closing the reader should make all keys stale
         reader.close();
-        // 1 out of 2 keys ie 50% are now stale.
-        assertEquals(1, cache.cacheCleanupManager.getStaleKeysCount().get());
-        // cache count should not be affected
-        assertEquals(2, cache.count());
+        assertEquals(totalKeys, cache.cacheCleanupManager.getStaleKeysCount().get());
 
-        // clean cache with 49% staleness threshold
-        cache.cacheCleanupManager.cleanCache();
-        // cleanup should have taken effect with 49% threshold
-        assertEquals(1, cache.count());
-        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
+        String readerCacheKeyId = getReaderCacheKeyId(reader);
+        IndicesRequestCache.Key key = new IndicesRequestCache.Key(
+            ((IndexShard) entity.getCacheIdentity()).shardId(),
+            termBytes,
+            readerCacheKeyId
+        );
 
-        IOUtils.close(secondReader);
+        int staleCount = cache.cacheCleanupManager.getStaleKeysCount().get();
+        // Notification for Replaced should not deduct the staleCount
+        cache.onRemoval(new RemovalNotification<IndicesRequestCache.Key, BytesReference>(key, termBytes, RemovalReason.REPLACED));
+        // stale keys count should stay the same
+        assertEquals(staleCount, cache.cacheCleanupManager.getStaleKeysCount().get());
+
+        // Notification for all but Replaced should deduct the staleCount
+        RemovalReason[] reasons = { RemovalReason.INVALIDATED, RemovalReason.EVICTED, RemovalReason.EXPLICIT, RemovalReason.CAPACITY };
+        for (RemovalReason reason : reasons) {
+            cache.onRemoval(new RemovalNotification<IndicesRequestCache.Key, BytesReference>(key, termBytes, reason));
+            assertEquals(--staleCount, cache.cacheCleanupManager.getStaleKeysCount().get());
+        }
     }
 
+    // when staleness count less than the stale threshold, stale keys should NOT be cleaned up.
     public void testCacheCleanupBasedOnStaleThreshold_StalenessLesserThanThreshold() throws Exception {
         threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%").build();
