@@ -99,47 +99,12 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     private SegmentInfos segmentInfos;
     private ThreadPool threadPool;
 
-    private final String metadataFilename = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        12,
-        23,
-        34,
-        1,
-        1,
-        "node-1"
-    );
+    private final String metadataFilename = RemoteSegmentStoreDirectory.getMetadataFilename(12, 23, 34, 1, 1, "node-1");
 
-    private final String metadataFilenameDup = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        12,
-        23,
-        34,
-        2,
-        1,
-        "node-2"
-    );
-    private final String metadataFilename2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        12,
-        13,
-        34,
-        1,
-        1,
-        "node-1"
-    );
-    private final String metadataFilename3 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        10,
-        38,
-        34,
-        1,
-        1,
-        "node-1"
-    );
-    private final String metadataFilename4 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        10,
-        36,
-        34,
-        1,
-        1,
-        "node-1"
-    );
+    private final String metadataFilenameDup = RemoteSegmentStoreDirectory.getMetadataFilename(12, 23, 34, 2, 1, "node-2");
+    private final String metadataFilename2 = RemoteSegmentStoreDirectory.getMetadataFilename(12, 13, 34, 1, 1, "node-1");
+    private final String metadataFilename3 = RemoteSegmentStoreDirectory.getMetadataFilename(10, 38, 34, 1, 1, "node-1");
+    private final String metadataFilename4 = RemoteSegmentStoreDirectory.getMetadataFilename(10, 36, 34, 1, 1, "node-1");
 
     @Before
     public void setup() throws IOException {
@@ -508,7 +473,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     private List<String> getDummyMetadataFiles(int count) {
         List<String> sortedMetadataFiles = new ArrayList<>();
         for (int counter = 0; counter < count; counter++) {
-            sortedMetadataFiles.add(RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(counter, 23, 34, 1, 1, "node-1"));
+            sortedMetadataFiles.add(RemoteSegmentStoreDirectory.getMetadataFilename(counter, 23, 34, 1, 1, "node-1"));
         }
         return sortedMetadataFiles;
     }
@@ -1273,12 +1238,12 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     }
 
     public void testMetadataFileNameOrder() {
-        String file1 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(15, 21, 23, 1, 1, "");
-        String file2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(15, 38, 38, 1, 1, "");
-        String file3 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(18, 12, 26, 1, 1, "");
-        String file4 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(15, 38, 32, 10, 1, "");
-        String file5 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(15, 38, 32, 1, 1, "");
-        String file6 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(15, 38, 32, 5, 1, "");
+        String file1 = RemoteSegmentStoreDirectory.getMetadataFilename(15, 21, 23, 1, 1, "");
+        String file2 = RemoteSegmentStoreDirectory.getMetadataFilename(15, 38, 38, 1, 1, "");
+        String file3 = RemoteSegmentStoreDirectory.getMetadataFilename(18, 12, 26, 1, 1, "");
+        String file4 = RemoteSegmentStoreDirectory.getMetadataFilename(15, 38, 32, 10, 1, "");
+        String file5 = RemoteSegmentStoreDirectory.getMetadataFilename(15, 38, 32, 1, 1, "");
+        String file6 = RemoteSegmentStoreDirectory.getMetadataFilename(15, 38, 32, 5, 1, "");
 
         List<String> actualList = new ArrayList<>(List.of(file1, file2, file3, file4, file5, file6));
         actualList.sort(String::compareTo);

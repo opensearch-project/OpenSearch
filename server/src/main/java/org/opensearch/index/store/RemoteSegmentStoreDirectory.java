@@ -136,6 +136,30 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         init();
     }
 
+    // Visible for testing
+    public static String getMetadataFilename(
+        String separator,
+        String prefix,
+        long primaryTerm,
+        long generation,
+        long translogGeneration,
+        long uploadCounter,
+        int metadataVersion,
+        String nodeId
+    ) {
+        return String.join(
+            separator,
+            prefix,
+            RemoteStoreUtils.invertLong(primaryTerm),
+            RemoteStoreUtils.invertLong(generation),
+            RemoteStoreUtils.invertLong(translogGeneration),
+            RemoteStoreUtils.invertLong(uploadCounter),
+            String.valueOf(Objects.hash(nodeId)),
+            RemoteStoreUtils.invertLong(System.currentTimeMillis()),
+            String.valueOf(metadataVersion)
+        );
+    }
+
     /**
      * Initializes the cache which keeps track of all the segment files uploaded to the remote segment store.
      * As this cache is specific to an instance of RemoteSegmentStoreDirectory, it is possible that cache becomes stale
@@ -314,28 +338,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 METADATA_PREFIX,
                 RemoteStoreUtils.invertLong(primaryTerm),
                 RemoteStoreUtils.invertLong(generation)
-            );
-        }
-
-        // Visible for testing
-        public static String getMetadataFilename(
-            long primaryTerm,
-            long generation,
-            long translogGeneration,
-            long uploadCounter,
-            int metadataVersion,
-            String nodeId
-        ) {
-            return String.join(
-                SEPARATOR,
-                METADATA_PREFIX,
-                RemoteStoreUtils.invertLong(primaryTerm),
-                RemoteStoreUtils.invertLong(generation),
-                RemoteStoreUtils.invertLong(translogGeneration),
-                RemoteStoreUtils.invertLong(uploadCounter),
-                String.valueOf(Objects.hash(nodeId)),
-                RemoteStoreUtils.invertLong(System.currentTimeMillis()),
-                String.valueOf(metadataVersion)
             );
         }
 
@@ -595,10 +597,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         Directory storeDirectory,
         long translogGeneration,
         ReplicationCheckpoint replicationCheckpoint,
-        String nodeId
+        String nodeId,
+        boolean separateSegmentInfos
     ) throws IOException {
         synchronized (this) {
-            String metadataFilename = MetadataFilenameUtils.getMetadataFilename(
+            String metadataFilename = getMetadataFilename(
+                MetadataFilenameUtils.SEPARATOR,
+                MetadataFilenameUtils.METADATA_PREFIX,
                 replicationCheckpoint.getPrimaryTerm(),
                 segmentInfosSnapshot.getGeneration(),
                 translogGeneration,
@@ -621,9 +626,44 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                     }
 
                     ByteBuffersDataOutput byteBuffersIndexOutput = new ByteBuffersDataOutput();
-                    segmentInfosSnapshot.write(
-                        new ByteBuffersIndexOutput(byteBuffersIndexOutput, "Snapshot of SegmentInfos", "SegmentInfos")
-                    );
+                    if (separateSegmentInfos == false) {
+                        segmentInfosSnapshot.write(
+                            new ByteBuffersIndexOutput(byteBuffersIndexOutput, "Snapshot of SegmentInfos", "SegmentInfos")
+                        );
+                    } else {
+                        String segmentInfoSnapshotFilename = getMetadataFilename(
+                            MetadataFilenameUtils.SEPARATOR,
+                            "segment_infos_snapshot",
+                            replicationCheckpoint.getPrimaryTerm(),
+                            segmentInfosSnapshot.getGeneration(),
+                            translogGeneration,
+                            metadataUploadCounter.incrementAndGet(),
+                            RemoteSegmentMetadata.CURRENT_VERSION,
+                            nodeId
+                        );
+                        try {
+                            try (
+                                IndexOutput segmentInfosIndexOutput = storeDirectory.createOutput(
+                                    segmentInfoSnapshotFilename,
+                                    IOContext.DEFAULT
+                                )
+                            ) {
+                                segmentInfosSnapshot.write(segmentInfosIndexOutput);
+                            }
+                            copyFrom(storeDirectory, segmentInfoSnapshotFilename, segmentInfoSnapshotFilename, IOContext.DEFAULT);
+                            String segmentInfosSnapshotChecksum = getChecksumOfLocalFile(storeDirectory, segmentInfoSnapshotFilename);
+                            UploadedSegmentMetadata segmentInfosSnapshotMetadata = new UploadedSegmentMetadata(
+                                segmentInfoSnapshotFilename,
+                                segmentInfoSnapshotFilename,
+                                segmentInfosSnapshotChecksum,
+                                storeDirectory.fileLength(segmentInfosSnapshotChecksum)
+                            );
+                            segmentInfosSnapshotMetadata.setWrittenByMajor(segmentInfosSnapshot.getCommitLuceneVersion().major);
+                            uploadedSegments.put(segmentInfoSnapshotFilename, segmentInfosSnapshotMetadata.toString());
+                        } finally {
+                            tryAndDeleteLocalFile(segmentInfoSnapshotFilename, storeDirectory);
+                        }
+                    }
                     byte[] segmentInfoSnapshotByteArray = byteBuffersIndexOutput.toArrayCopy();
 
                     metadataStreamWrapper.writeStream(

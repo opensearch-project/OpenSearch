@@ -5048,15 +5048,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal, onFileSync);
 
             if (remoteSegmentMetadata != null) {
-                final SegmentInfos infosSnapshot = store.buildSegmentInfos(
-                    remoteSegmentMetadata.getSegmentInfosBytes(),
-                    remoteSegmentMetadata.getGeneration()
-                );
+                final SegmentInfos infosSnapshot;
+                if (remoteSegmentMetadata.getSegmentInfosBytes().length == 0) {
+                    List<String> segmentInfosSnapshotFilenames = Arrays.stream(store.directory().listAll())
+                        .filter(file -> file.startsWith("segment_infos_snapshot"))
+                        .collect(Collectors.toList());
+                    assert segmentInfosSnapshotFilenames.size() == 1;
+                    infosSnapshot = SegmentInfos.readCommit(store.directory(), segmentInfosSnapshotFilenames.get(0));
+                } else {
+                    infosSnapshot = store.buildSegmentInfos(
+                        remoteSegmentMetadata.getSegmentInfosBytes(),
+                        remoteSegmentMetadata.getGeneration()
+                    );
+                }
                 long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
                 // delete any other commits, we want to start the engine only from a new commit made with the downloaded infos bytes.
                 // Extra segments will be wiped on engine open.
                 for (String file : List.of(store.directory().listAll())) {
-                    if (file.startsWith(IndexFileNames.SEGMENTS)) {
+                    if (file.startsWith(IndexFileNames.SEGMENTS) || file.startsWith("segment_infos_snapshot")) {
                         store.deleteQuiet(file);
                     }
                 }
