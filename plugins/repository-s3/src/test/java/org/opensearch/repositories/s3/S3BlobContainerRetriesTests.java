@@ -37,7 +37,6 @@ import software.amazon.awssdk.utils.internal.Base16;
 
 import org.apache.http.HttpStatus;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
-import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.SuppressForbidden;
@@ -332,22 +331,24 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             exceptionRef.set(ex);
             countDownLatch.countDown();
         });
-        blobContainer.asyncBlobUpload(new WriteContext("write_blob_by_streams_max_retries", new StreamContextSupplier() {
-            @Override
-            public StreamContext supplyStreamContext(long partSize) {
-                return new StreamContext(new CheckedTriFunction<Integer, Long, Long, InputStreamContainer, IOException>() {
-                    @Override
-                    public InputStreamContainer apply(Integer partNo, Long size, Long position) throws IOException {
-                        InputStream inputStream = new OffsetRangeIndexInputStream(new ByteArrayIndexInput("desc", bytes), size, position);
-                        openInputStreams.add(inputStream);
-                        return new InputStreamContainer(inputStream, size, position);
-                    }
-                }, partSize, calculateLastPartSize(bytes.length, partSize), calculateNumberOfParts(bytes.length, partSize));
-            }
-        }, bytes.length, false, WritePriority.NORMAL, Assert::assertTrue, false, null), completionListener);
 
+        StreamContextSupplier streamContextSupplier = partSize -> new StreamContext((partNo, size, position) -> {
+            InputStream inputStream = new OffsetRangeIndexInputStream(new ByteArrayIndexInput("desc", bytes), size, position);
+            openInputStreams.add(inputStream);
+            return new InputStreamContainer(inputStream, size, position);
+        }, partSize, calculateLastPartSize(bytes.length, partSize), calculateNumberOfParts(bytes.length, partSize));
+
+        WriteContext writeContext = new WriteContext.Builder().fileName("write_blob_by_streams_max_retries")
+            .streamContextSupplier(streamContextSupplier)
+            .fileSize(bytes.length)
+            .failIfAlreadyExists(false)
+            .writePriority(WritePriority.NORMAL)
+            .uploadFinalizer(Assert::assertTrue)
+            .doRemoteDataIntegrityCheck(false)
+            .build();
+
+        blobContainer.asyncBlobUpload(writeContext, completionListener);
         assertTrue(countDownLatch.await(5000, TimeUnit.SECONDS));
-
         assertThat(countDown.isCountedDown(), is(true));
 
         openInputStreams.forEach(inputStream -> {
