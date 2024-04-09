@@ -10,7 +10,9 @@ package org.opensearch.index.remote;
 
 import org.opensearch.common.collect.Tuple;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -101,4 +103,17 @@ public class RemoteStoreUtils {
         });
     }
 
+    /**
+     * Converts an input hash which occupies 64 bits of space into Base64 (6 bits per character) String. This must not
+     * be changed as it is used for creating path for storing remote store data on the remote store.
+     * This converts the byte array to base 64 string. `/` is replaced with `_`, `+` is replaced with `-` and `=`
+     * which is padded at the last is also removed. These characters are either used as delimiter or special character
+     * requiring special handling in some vendors. The characters present in this base64 version are [A-Za-z0-9_-].
+     * This must not be changed as it is used for creating path for storing remote store data on the remote store.
+     */
+    static String longToUrlBase64(long value) {
+        byte[] hashBytes = ByteBuffer.allocate(Long.BYTES).putLong(value).array();
+        String base64Str = Base64.getUrlEncoder().encodeToString(hashBytes);
+        return base64Str.substring(0, base64Str.length() - 1);
+    }
 }

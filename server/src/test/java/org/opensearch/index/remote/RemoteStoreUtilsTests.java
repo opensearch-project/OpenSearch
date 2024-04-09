@@ -17,8 +17,10 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.opensearch.index.remote.RemoteStoreUtils.longToUrlBase64;
 import static org.opensearch.index.remote.RemoteStoreUtils.verifyNoMultipleWriters;
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX;
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils.SEPARATOR;
@@ -179,4 +181,32 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
         );
     }
 
+    public void testLongToBase64() {
+        Map<Long, String> longToExpectedBase64String = Map.of(
+            -5537941589147079860L,
+            "syVHd0gGq0w",
+            -5878421770170594047L,
+            "rmumi5UPDQE",
+            -5147010836697060622L,
+            "uJIk6f-V6vI",
+            937096430362711837L,
+            "DQE8PQwOVx0",
+            8422273604115462710L,
+            "dOHtOEZzejY",
+            -2528761975013221124L,
+            "3OgIYbXSXPw",
+            -5512387536280560513L,
+            "s4AQvdu03H8",
+            -5749656451579835857L,
+            "sDUd65cNCi8",
+            5569654857969679538L,
+            "TUtjlYLPvLI",
+            -1563884000447039930L,
+            "6kv3yZNv9kY"
+        );
+        for (Map.Entry<Long, String> entry : longToExpectedBase64String.entrySet()) {
+            assertEquals(entry.getValue(), longToUrlBase64(entry.getKey()));
+            assertEquals(11, entry.getValue().length());
+        }
+    }
 }

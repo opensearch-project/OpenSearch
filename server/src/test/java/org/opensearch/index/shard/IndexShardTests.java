@@ -144,6 +144,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.IndicesQueryCache;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
@@ -4957,4 +4958,39 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(remoteSegmentStats.getTotalRejections() > 0);
         assertEquals(remoteSegmentTransferTracker.getRejectionCount(), remoteSegmentStats.getTotalRejections());
     }
+
+    public void testShouldRefreshOnTooManyRemoteTranslogFiles() throws Exception {
+
+        Settings primarySettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "seg-test")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "txlog-test")
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+            .build();
+
+        final IndexShard primaryShard = newStartedShard(true, primarySettings, new NRTReplicationEngineFactory());
+        RemoteStoreSettings remoteStoreSettings = primaryShard.getRemoteStoreSettings();
+        final long numDocs = remoteStoreSettings.getMaxRemoteReferencedTranslogFiles();
+
+        assertFalse(primaryShard.shouldRefreshShard());
+
+        for (long i = 0; i < numDocs; i++) {
+            indexDoc(primaryShard, "_doc", Long.toString(i), "{}");
+        }
+
+        assertTrue(primaryShard.shouldRefreshShard());
+        assertBusy(() -> {
+            primaryShard.afterWriteOperation();
+            try (Engine.Searcher searcher = primaryShard.acquireSearcher("test")) {
+                assertEquals(numDocs, searcher.getIndexReader().numDocs());
+            }
+        });
+
+        closeShards(primaryShard);
+    }
+
 }
