@@ -80,6 +80,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      */
     public static final String SEGMENT_NAME_UUID_SEPARATOR = "__";
 
+    public static final String SEGMENT_INFOS_SNAPSHOT_PREFIX = "segment_infos_snapshot";
+
     /**
      * remoteDataDirectory is used to store segment files at path: cluster_UUID/index_UUID/shardId/segments/data
      */
@@ -633,7 +635,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                     } else {
                         String segmentInfoSnapshotFilename = getMetadataFilename(
                             MetadataFilenameUtils.SEPARATOR,
-                            "segment_infos_snapshot",
+                            SEGMENT_INFOS_SNAPSHOT_PREFIX,
                             replicationCheckpoint.getPrimaryTerm(),
                             segmentInfosSnapshot.getGeneration(),
                             translogGeneration,
@@ -656,7 +658,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                                 segmentInfoSnapshotFilename,
                                 segmentInfoSnapshotFilename,
                                 segmentInfosSnapshotChecksum,
-                                storeDirectory.fileLength(segmentInfosSnapshotChecksum)
+                                storeDirectory.fileLength(segmentInfoSnapshotFilename)
                             );
                             segmentInfosSnapshotMetadata.setWrittenByMajor(segmentInfosSnapshot.getCommitLuceneVersion().major);
                             uploadedSegments.put(segmentInfoSnapshotFilename, segmentInfosSnapshotMetadata.toString());

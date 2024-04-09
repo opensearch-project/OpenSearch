@@ -5051,7 +5051,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 final SegmentInfos infosSnapshot;
                 if (remoteSegmentMetadata.getSegmentInfosBytes().length == 0) {
                     List<String> segmentInfosSnapshotFilenames = Arrays.stream(store.directory().listAll())
-                        .filter(file -> file.startsWith("segment_infos_snapshot"))
+                        .filter(file -> file.startsWith(RemoteSegmentStoreDirectory.SEGMENT_INFOS_SNAPSHOT_PREFIX))
                         .collect(Collectors.toList());
                     assert segmentInfosSnapshotFilenames.size() == 1;
                     infosSnapshot = SegmentInfos.readCommit(store.directory(), segmentInfosSnapshotFilenames.get(0));
@@ -5065,7 +5065,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // delete any other commits, we want to start the engine only from a new commit made with the downloaded infos bytes.
                 // Extra segments will be wiped on engine open.
                 for (String file : List.of(store.directory().listAll())) {
-                    if (file.startsWith(IndexFileNames.SEGMENTS) || file.startsWith("segment_infos_snapshot")) {
+                    if (file.startsWith(IndexFileNames.SEGMENTS)
+                        || file.startsWith(RemoteSegmentStoreDirectory.SEGMENT_INFOS_SNAPSHOT_PREFIX)) {
                         store.deleteQuiet(file);
                     }
                 }
