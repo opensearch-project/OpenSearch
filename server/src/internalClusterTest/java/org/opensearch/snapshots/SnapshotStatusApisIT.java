@@ -361,8 +361,11 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         final String snapshotName = "test-snap";
+        final String indexName = "test-idx";
         createRepository(repoName, "fs");
-        createIndex("test-idx");
+        // create an index with a single shard on the data node, that will be stopped
+        createIndex(indexName, singleShardOneNode(dataNode));
+        index(indexName, "_doc", "some_doc_id", "foo", "bar");
         logger.info("--> stopping data node before creating snapshot");
         stopNode(dataNode);
         startFullSnapshot(repoName, snapshotName, true).get();
