@@ -83,9 +83,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.instanceOf;
 import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING;
 import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
