@@ -134,6 +134,8 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
+        TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
+
         final FollowersChecker followersChecker = new FollowersChecker(
             settings,
             clusterSettings,
@@ -143,7 +145,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
                 assert false : node;
             },
             () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"),
-            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+            new ClusterManagerMetrics(metricsRegistry)
         );
 
         followersChecker.setCurrentNodes(discoveryNodesHolder[0]);
@@ -197,6 +199,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         followersChecker.clearCurrentNodes();
         deterministicTaskQueue.runAllTasks();
         assertThat(checkedNodes, empty());
+        assertEquals(Integer.valueOf(0), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
     }
 
     public void testFailsNodeThatDoesNotRespond() {
@@ -313,6 +316,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         transportService.acceptIncomingRequests();
 
         final AtomicBoolean nodeFailed = new AtomicBoolean();
+        TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
 
         final FollowersChecker followersChecker = new FollowersChecker(
             settings,
@@ -324,7 +328,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
                 assertThat(reason, equalTo("disconnected"));
             },
             () -> new StatusInfo(HEALTHY, "healthy-info"),
-            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+            new ClusterManagerMetrics(metricsRegistry)
         );
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build();
@@ -335,6 +339,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(nodeFailed.get());
         assertThat(followersChecker.getFaultyNodes(), contains(otherNode));
+        assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
     }
 
     public void testFailsNodeThatIsUnhealthy() {

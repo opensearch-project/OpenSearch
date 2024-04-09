@@ -45,7 +45,6 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.telemetry.TestInMemoryMetricsRegistry;
-import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.EqualsHashCodeTestUtils.CopyFunction;
@@ -466,7 +465,8 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        final ClusterManagerMetrics clusterManagerMetrics = new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE);
+        final TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
+        final ClusterManagerMetrics clusterManagerMetrics = new ClusterManagerMetrics(metricsRegistry);
         final LeaderChecker leaderChecker = new LeaderChecker(
             settings,
             clusterSettings,
@@ -538,6 +538,7 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
                 equalTo("rejecting leader check from [" + otherNode + "] sent to a node that is no longer the cluster-manager")
             );
         }
+        assertEquals(Integer.valueOf(0), metricsRegistry.getCounterStore().get("leader.checker.failure.count").getCounterValue());
     }
 
     private class CapturingTransportResponseHandler implements TransportResponseHandler<Empty> {

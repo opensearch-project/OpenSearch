@@ -25,13 +25,8 @@ import java.util.function.Supplier;
  */
 public class TestInMemoryMetricsRegistry implements MetricsRegistry {
 
-    private ConcurrentHashMap<String, TestInMemoryCounter> counterStore;
-    private ConcurrentHashMap<String, TestInMemoryHistogram> histogramStore;
-
-    public TestInMemoryMetricsRegistry() {
-        this.counterStore = new ConcurrentHashMap<>();
-        this.histogramStore = new ConcurrentHashMap<>();
-    }
+    private ConcurrentHashMap<String, TestInMemoryCounter> counterStore = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, TestInMemoryHistogram> histogramStore = new ConcurrentHashMap<>();
 
     public ConcurrentHashMap<String, TestInMemoryCounter> getCounterStore() {
         return this.counterStore;

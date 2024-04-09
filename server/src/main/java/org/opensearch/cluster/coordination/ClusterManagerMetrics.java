@@ -26,12 +26,12 @@ public final class ClusterManagerMetrics {
     public final Counter followerChecksFailureCounter;
 
     public ClusterManagerMetrics(MetricsRegistry metricsRegistry) {
-        this.followerChecksFailureCounter = metricsRegistry.createCounter(
+        followerChecksFailureCounter = metricsRegistry.createCounter(
             "followers.checker.failure.count",
             "Counter for number of failed follower checks",
             COUNTER_METRICS_UNIT
         );
-        this.leaderCheckFailureCounter = metricsRegistry.createCounter(
+        leaderCheckFailureCounter = metricsRegistry.createCounter(
             "leader.checker.failure.count",
             "Counter for number of failed leader checks",
             COUNTER_METRICS_UNIT
