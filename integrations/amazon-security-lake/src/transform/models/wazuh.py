@@ -6,27 +6,27 @@ import typing
 
 
 class Mitre(pydantic.BaseModel):
-    technique: typing.List[str] = []
-    id: typing.List[str] = ""
-    tactic: typing.List[str] = []
+    technique: typing.List[str] = ["N/A"]
+    id: typing.List[str] = ["N/A"]
+    tactic: typing.List[str] = ["N/A"]
 
 
 class Rule(pydantic.BaseModel):
     firedtimes: int = 0
-    description: str = ""
+    description: str = "N/A"
     groups: typing.List[str] = []
-    id: str = ""
+    id: str = "N/A"
     mitre: Mitre = Mitre()
     level: int = 0
     nist_800_53: typing.List[str] = []
 
 
 class Decoder(pydantic.BaseModel):
-    name: str
+    name: str = "N/A"
 
 
 class Input(pydantic.BaseModel):
-    type: str
+    type: str = "N/A"
 
 
 class Agent(pydantic.BaseModel):
@@ -39,9 +39,9 @@ class Manager(pydantic.BaseModel):
 
 
 class Event(pydantic.BaseModel):
-    rule: Rule = {}
-    decoder: Decoder = {}
-    input: Input = {}
+    rule: Rule = Rule()
+    decoder: Decoder = Decoder()
+    input: Input = Input()
     id: str = ""
     full_log: str = ""
     agent: Agent = {}

@@ -90,9 +90,16 @@ def to_detection_finding(event: models.wazuh.Event) -> models.ocsf.DetectionFind
     )
 
 
-def from_json(event: dict) -> models.wazuh.Event:
+# def from_json(event: dict) -> models.wazuh.Event:
+#     # Needs to a string, bytes or bytearray
+#     try:
+#         return models.wazuh.Event.model_validate_json(json.dumps(event))
+#     except pydantic.ValidationError as e:
+#         print(e)
+
+def from_json(event: str) -> models.wazuh.Event:
     # Needs to a string, bytes or bytearray
     try:
-        return models.wazuh.Event.model_validate_json(json.dumps(event))
+        return models.wazuh.Event.model_validate_json(event)
     except pydantic.ValidationError as e:
         print(e)

@@ -17,7 +17,7 @@ RUN pip install -r /app/requirements.txt
 FROM python:3.9
 ENV LOGSTASH_KEYSTORE_PASS="SecretPassword"
 # Add the application source code.
-COPY --chown=logstash:logstash . /home/app
+COPY --chown=logstash:logstash ./src /home/app
 # Add execution persmissions.
 RUN chmod a+x /home/app/run.py
 # Copy the application's dependencies.
@@ -39,3 +39,8 @@ USER logstash
 # Copy and run the setup.sh script to create and configure a keystore for Logstash.
 COPY --chown=logstash:logstash logstash/setup.sh /usr/share/logstash/bin/setup.sh
 RUN bash /usr/share/logstash/bin/setup.sh
+
+# Disable ECS compatibility
+RUN `echo "pipeline.ecs_compatibility: disabled" >> /etc/logstash/logstash.yml`
+
+WORKDIR /home/app

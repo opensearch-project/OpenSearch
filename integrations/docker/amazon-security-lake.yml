@@ -1,5 +1,6 @@
 version: "3.8"
 name: "amazon-security-lake"
+
 services:
   events-generator:
     image: wazuh/indexer-events-generator
@@ -12,7 +13,7 @@ services:
     command: bash -c "python run.py -a wazuh.indexer"
 
   wazuh.indexer:
-    image: opensearchproject/opensearch:2.11.1
+    image: opensearchproject/opensearch:2.12.0
     container_name: wazuh.indexer
     depends_on:
       wazuh-certs-generator:
@@ -55,7 +56,7 @@ services:
       - ./certs/root-ca.pem:/usr/share/opensearch/config/root-ca.pem
 
   wazuh.dashboard:
-    image: opensearchproject/opensearch-dashboards:2.11.1
+    image: opensearchproject/opensearch-dashboards:2.12.0
     container_name: wazuh.dashboard
     depends_on:
       - wazuh.indexer
@@ -79,18 +80,21 @@ services:
       LOG_LEVEL: trace
       LOGSTASH_KEYSTORE_PASS: "SecretPassword"
       MONITORING_ENABLED: false
-      AWS_KEY: "AKIAIOSFODNN7EXAMPLE"
-      AWS_SECRET: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+      AWS_ACCESS_KEY_ID: "AKIAIOSFODNN7EXAMPLE"
+      AWS_SECRET_ACCESS_KEY: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+      AWS_REGION: "us-east-1"
+      AWS_BUCKET: "wazuh-indexer-amazon-security-lake-bucket"
     ports:
       - "5000:5000/tcp"
       - "5000:5000/udp"
       - "5044:5044"
       - "9600:9600"
     volumes:
-      - ../amazon-security-lake/logstash/pipeline:/usr/share/logstash/pipeline
+      - ../amazon-security-lake/logstash/pipeline:/usr/share/logstash/pipeline # TODO has 1000:1000. logstash's uid is 999 
       - ./certs/root-ca.pem:/usr/share/logstash/root-ca.pem
-    # command: tail -f /dev/null
-    command: /usr/share/logstash/bin/logstash -f /usr/share/logstash/pipeline/indexer-to-integrator.conf --path.settings /etc/logstash --config.reload.automatic
+      - ../amazon-security-lake/src:/usr/share/logstash/amazon-security-lake # TODO use dedicated folder
+      # - ./credentials:/usr/share/logstash/.aws/credentials # TODO credentials are not commited (missing)
+    command: tail -f /var/log/logstash/logstash-plain.log
 
   s3.ninja:
     image: scireum/s3-ninja:latest
