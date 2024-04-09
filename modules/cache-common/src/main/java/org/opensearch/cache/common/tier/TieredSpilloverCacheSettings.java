@@ -60,12 +60,12 @@ public class TieredSpilloverCacheSettings {
      * Stores took time policy settings for various cache types as these are dynamic so that can be registered and
      * retrieved accordingly.
      */
-    public static final Map<CacheType, Setting<TimeValue>> TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP = getConcreteTookTimePolicySettings();
+    public static final Map<CacheType, Setting<TimeValue>> TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
 
     /**
      * Fetches concrete took time policy settings.
      */
-    private static Map<CacheType, Setting<TimeValue>> getConcreteTookTimePolicySettings() {
+    static {
         Map<CacheType, Setting<TimeValue>> concreteTookTimePolicySettingMap = new HashMap<>();
         for (CacheType cacheType : CacheType.values()) {
             concreteTookTimePolicySettingMap.put(
@@ -73,7 +73,7 @@ public class TieredSpilloverCacheSettings {
                 TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD.getConcreteSettingForNamespace(cacheType.getSettingPrefix())
             );
         }
-        return concreteTookTimePolicySettingMap;
+        TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP = concreteTookTimePolicySettingMap;
     }
 
     /**
