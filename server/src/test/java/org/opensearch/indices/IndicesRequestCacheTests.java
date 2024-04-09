@@ -42,10 +42,10 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedSupplier;
-import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.module.CacheModule;
@@ -73,7 +73,6 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -84,9 +83,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.instanceOf;
+import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING;
 import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -656,56 +655,34 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(0, cleanupKeyToCountMap.size());
     }
 
-    // when registering a closed listener raises an exception, we should
-    @Test(expected = Exception.class)
-    @SuppressForbidden(reason = "only way to avoid registering a reader after caching a key")
-    public void testAddReaderCloseListenerRaisingException_shouldTrackStaleCountAppropriately() throws Exception {
-        IndexReader.CacheHelper cacheHelper = mock(IndexReader.CacheHelper.class);
-        doThrow(new Exception("Mock exception")).when(cacheHelper).addClosedListener(any());
-        DirectoryReader reader = getReader(writer, indexShard.shardId());
+    // test the cleanupKeyToCountMap are set appropriately when readers are closed
+    public void testCleanupKeyToOnClosedReader_cleansupStalenessAsExpected() throws Exception {
+        threadPool = getThreadPool();
+        Settings settings = Settings.builder()
+            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51")
+            .put(INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "10m") // intentionally high
+            .build();
+        cache = getIndicesRequestCache(settings);
 
-        // assert there are no other entries
-        assertEquals(0, cache.count());
-        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
+        writer.addDocument(newDoc(0, "foo"));
+        ShardId shardId = indexShard.shardId();
+        DirectoryReader reader = getReader(writer, shardId);
 
-        cache.getOrCompute(getEntity(indexShard), getLoader(reader), reader, getTermBytes());
-        // the entry should be cached
+        assertTrue(cache.cacheCleanupManager.getCleanupKeyToCountMap().isEmpty());
+        try {
+            cache.getOrCompute(getEntity(indexShard), getAutoCloseLoader(reader), reader, getTermBytes());
+        } catch (Exception e) {
+            assertThat(e, instanceOf(AlreadyClosedException.class));
+        }
         assertEquals(1, cache.count());
-        // cacheCleanupManager should have incremented the stale keys count
         assertEquals(1, cache.cacheCleanupManager.getStaleKeysCount().get());
-        // cacheCleanupManager should have removed the entry from the map
-        assertFalse(cache.cacheCleanupManager.getCleanupKeyToCountMap().containsKey(indexShard.shardId()));
-
-        IndicesRequestCache.Key key = new IndicesRequestCache.Key(indexShard.shardId(), getTermBytes(), getReaderCacheKeyId(reader));
-        cache.onRemoval(new RemovalNotification<IndicesRequestCache.Key, BytesReference>(key, getTermBytes(), RemovalReason.INVALIDATED));
-        // eviction of previous stale key from the cache should decrement staleKeysCount in iRC
-        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
-    }
-
-    @Test(expected = Exception.class)
-    @SuppressForbidden(reason = "only way to avoid registering a reader after caching a key")
-    public void testAddReaderCloseListenerRaisingException_shouldCleanupCacheCorrectly() throws Exception {
-        IndexReader.CacheHelper cacheHelper = mock(IndexReader.CacheHelper.class);
-        doThrow(new Exception("Mock exception")).when(cacheHelper).addClosedListener(any());
-        DirectoryReader reader = getReader(writer, indexShard.shardId());
-
-        // assert there are no other entries
-        assertEquals(0, cache.count());
-        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
-
-        cache.getOrCompute(getEntity(indexShard), getLoader(reader), reader, getTermBytes());
-        // the entry should be cached
-        assertEquals(1, cache.count());
-        // cacheCleanupManager should have incremented the stale keys count
-        assertEquals(1, cache.cacheCleanupManager.getStaleKeysCount().get());
-        // cacheCleanupManager should have removed the entry from the map
-        assertFalse(cache.cacheCleanupManager.getCleanupKeyToCountMap().containsKey(indexShard.shardId()));
+        assertTrue(cache.cacheCleanupManager.getCleanupKeyToCountMap().isEmpty());
 
         cache.cacheCleanupManager.cleanCache();
-        // cache cleaner should have cleaned it up
+
         assertEquals(0, cache.count());
-        // stale keys count should ne decremented.
         assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
+        assertTrue(cache.cacheCleanupManager.getCleanupKeyToCountMap().isEmpty());
     }
 
     private DirectoryReader getReader(IndexWriter writer, ShardId shardId) throws IOException {
@@ -727,6 +704,10 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
     private Loader getLoader(DirectoryReader reader) {
         return new Loader(reader, 0);
+    }
+
+    private AutoCloseLoader getAutoCloseLoader(DirectoryReader reader) {
+        return new AutoCloseLoader(reader, 0);
     }
 
     private IndicesService.IndexShardCacheEntity getEntity(IndexShard indexShard) {
@@ -842,7 +823,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
     private static class Loader implements CheckedSupplier<BytesReference, IOException> {
 
-        private final DirectoryReader reader;
+        final DirectoryReader reader;
         private final int id;
         public boolean loadedFromCache = true;
 
@@ -865,6 +846,32 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+        }
+    }
+
+    /*
+    * This class does everything Loader class does except closing the reader after get()
+    * This can be used for testing behaviours on closed readers.
+    * */
+    private static class AutoCloseLoader extends Loader {
+
+        AutoCloseLoader(DirectoryReader reader, int id) {
+            super(reader, id);
+        }
+
+        @Override
+        public BytesReference get() {
+            BytesReference output = super.get();
+            try {
+                closeReader();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            return output;
+        }
+
+        private void closeReader() throws IOException {
+            reader.close();
         }
     }
 
