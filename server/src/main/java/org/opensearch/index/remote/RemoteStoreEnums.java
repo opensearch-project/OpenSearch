@@ -104,7 +104,10 @@ public class RemoteStoreEnums {
             @Override
             public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
-                return addPrefix(pathInput.basePath(), hashAlgorithm.hash(pathInput)).add(pathInput.indexUUID())
+                return BlobPath.cleanPath()
+                    .add(hashAlgorithm.hash(pathInput))
+                    .add(pathInput.basePath())
+                    .add(pathInput.indexUUID())
                     .add(pathInput.shardId())
                     .add(pathInput.dataCategory().getName())
                     .add(pathInput.dataType().getName());
@@ -273,14 +276,5 @@ public class RemoteStoreEnums {
          * This string is used as key for storing information in the custom data in index settings.
          */
         public static final String NAME = "path_hash_algorithm";
-    }
-
-    static BlobPath addPrefix(BlobPath blobPath, String prefix) {
-        BlobPath updatedPath = BlobPath.cleanPath();
-        updatedPath = updatedPath.add(prefix);
-        for (String path : blobPath) {
-            updatedPath = updatedPath.add(path);
-        }
-        return updatedPath;
     }
 }
