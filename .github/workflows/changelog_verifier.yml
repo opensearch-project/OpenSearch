@@ -14,18 +14,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.event.pull_request.head.sha }}
       - uses: dangoslen/changelog-enforcer@v3
-        id: verify-changelog-3x
-        with:
-          skipLabels: "autocut, skip-changelog"
-          changeLogPath: 'CHANGELOG-3.0.md'
-        continue-on-error: true
-      - uses: dangoslen/changelog-enforcer@v3
         id: verify-changelog
         with:
           skipLabels: "autocut, skip-changelog"
           changeLogPath: 'CHANGELOG.md'
-        continue-on-error: true
-      - run: |
-          if [[ ${{ steps.verify-changelog-3x.outcome }} == 'failure' && ${{ steps.verify-changelog.outcome }} == 'failure' ]]; then
-            exit 1
-          fi
