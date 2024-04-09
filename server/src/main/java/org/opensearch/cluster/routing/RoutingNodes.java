@@ -44,6 +44,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -61,11 +62,14 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.Random;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.isMigratingToRemoteStore;
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
@@ -419,6 +423,29 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     /**
+     * Returns one active replica shard on a remote node for the given shard id or <code>null</code> if
+     * no such replica is found.
+     * <p>
+     * Since we aim to continue moving forward during remote store migration, replicas already migrated to remote nodes
+     * are preferred for primary promotion
+     */
+    public ShardRouting activeReplicaOnRemoteNode(ShardId shardId) {
+        List<ShardRouting> replicaShardsOnRemote = assignedShards(shardId).stream()
+            .filter(shr -> !shr.primary() && shr.active())
+            .filter((shr) -> {
+                RoutingNode nd = node(shr.currentNodeId());
+                return (nd != null && nd.node().isRemoteStoreNode());
+            })
+            .collect(Collectors.toList());
+        ShardRouting replicaShard = null;
+        if (replicaShardsOnRemote.isEmpty() == false) {
+            Random rand = Randomness.get();
+            replicaShard = replicaShardsOnRemote.get(rand.nextInt(replicaShardsOnRemote.size()));
+        }
+        return replicaShard;
+    }
+
+    /**
      * Returns <code>true</code> iff all replicas are active for the given shard routing. Otherwise <code>false</code>
      */
     public boolean allReplicasActive(ShardId shardId, Metadata metadata) {
@@ -735,11 +762,17 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         RoutingChangesObserver routingChangesObserver
     ) {
         assert failedShard.primary();
-        ShardRouting activeReplica;
-        if (metadata.isSegmentReplicationEnabled(failedShard.getIndexName())) {
-            activeReplica = activeReplicaWithOldestVersion(failedShard.shardId());
-        } else {
-            activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
+        ShardRouting activeReplica = null;
+        if (isMigratingToRemoteStore(new ClusterSettings(metadata.settings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
+            // we might not find any replica on remote node
+            activeReplica = activeReplicaOnRemoteNode(failedShard.shardId());
+        }
+        if (activeReplica == null) {
+            if (metadata.isSegmentReplicationEnabled(failedShard.getIndexName())) {
+                activeReplica = activeReplicaWithOldestVersion(failedShard.shardId());
+            } else {
+                activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
+            }
         }
         if (activeReplica == null) {
             moveToUnassigned(failedShard, unassignedInfo);
