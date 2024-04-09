@@ -272,7 +272,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     }
 
     public ShardSearchRequest(byte[] in) throws IOException {
-        assert FeatureFlags.isEnabled(FeatureFlags.PROTOBUF) : "protobuf feature flag is not enabled";
         ShardSearchRequestProto.ShardSearchRequest searchRequestProto = ShardSearchRequestProto.ShardSearchRequest.parseFrom(in);
         this.clusterAlias = searchRequestProto.getClusterAlias();
         shardId = new ShardId(

@@ -60,7 +60,8 @@ import org.opensearch.server.proto.QuerySearchResultProto;
 import org.opensearch.server.proto.ShardSearchRequestProto;
 import org.opensearch.server.proto.ShardSearchRequestProto.AliasFilter;
 import org.opensearch.server.proto.ShardSearchRequestProto.ShardSearchRequest.SearchType;
-import org.opensearch.transport.BaseInboundMessage;
+import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
+import org.opensearch.transport.protobufprotocol.ProtobufInboundMessage;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -124,7 +125,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public QuerySearchResult(InputStream in) throws IOException {
         super(in);
-        assert FeatureFlags.isEnabled(FeatureFlags.PROTOBUF) : "protobuf feature flag is not enabled";
         this.querySearchResultProto = QuerySearchResultProto.QuerySearchResult.parseFrom(in);
         isNull = this.querySearchResultProto.getIsNull();
         if (!isNull) {
@@ -628,8 +628,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
     @Override
     public String getProtocol() {
         if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
-            return BaseInboundMessage.PROTOBUF_PROTOCOL;
+            return ProtobufInboundMessage.PROTOBUF_PROTOCOL;
         }
-        return BaseInboundMessage.NATIVE_PROTOCOL;
+        return NativeInboundMessage.NATIVE_PROTOCOL;
     }
 }

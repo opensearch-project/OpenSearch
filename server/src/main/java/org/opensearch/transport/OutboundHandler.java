@@ -54,6 +54,7 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.search.fetch.QueryFetchSearchResult;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.protobufprotocol.ProtobufInboundMessage;
 
 import java.io.IOException;
 import java.util.Set;
@@ -149,13 +150,13 @@ final class OutboundHandler {
     ) throws IOException {
         Version version = Version.min(this.version, nodeVersion);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
-        if ((response.getProtocol()).equals(BaseInboundMessage.PROTOBUF_PROTOCOL) && version.onOrAfter(Version.V_3_0_0)) {
+        if ((response.getProtocol()).equals(ProtobufInboundMessage.PROTOBUF_PROTOCOL) && version.onOrAfter(Version.V_3_0_0)) {
             if (response instanceof QueryFetchSearchResult) {
                 QueryFetchSearchResult queryFetchSearchResult = (QueryFetchSearchResult) response;
                 if (queryFetchSearchResult.response() != null) {
                     byte[] bytes = new byte[1];
                     bytes[0] = 1;
-                    NodeToNodeMessage protobufMessage = new NodeToNodeMessage(
+                    ProtobufInboundMessage protobufMessage = new ProtobufInboundMessage(
                         requestId,
                         bytes,
                         Version.CURRENT,
@@ -171,7 +172,7 @@ final class OutboundHandler {
                 if (querySearchResult.response() != null) {
                     byte[] bytes = new byte[1];
                     bytes[0] = 1;
-                    NodeToNodeMessage protobufMessage = new NodeToNodeMessage(
+                    ProtobufInboundMessage protobufMessage = new ProtobufInboundMessage(
                         requestId,
                         bytes,
                         Version.CURRENT,
@@ -231,7 +232,7 @@ final class OutboundHandler {
         internalSend(channel, sendContext);
     }
 
-    private void sendProtobufMessage(TcpChannel channel, NodeToNodeMessage message, ActionListener<Void> listener) throws IOException {
+    private void sendProtobufMessage(TcpChannel channel, ProtobufInboundMessage message, ActionListener<Void> listener) throws IOException {
         ProtobufMessageSerializer serializer = new ProtobufMessageSerializer(message, bigArrays);
         SendContext sendContext = new SendContext(channel, serializer, listener, serializer);
         internalSend(channel, sendContext);
@@ -288,11 +289,11 @@ final class OutboundHandler {
 
     private static class ProtobufMessageSerializer implements CheckedSupplier<BytesReference, IOException>, Releasable {
 
-        private final NodeToNodeMessage message;
+        private final ProtobufInboundMessage message;
         private final BigArrays bigArrays;
         private volatile ReleasableBytesStreamOutput bytesStreamOutput;
 
-        private ProtobufMessageSerializer(NodeToNodeMessage message, BigArrays bigArrays) {
+        private ProtobufMessageSerializer(ProtobufInboundMessage message, BigArrays bigArrays) {
             this.message = message;
             this.bigArrays = bigArrays;
         }

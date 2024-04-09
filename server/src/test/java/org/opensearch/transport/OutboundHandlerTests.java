@@ -68,6 +68,7 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.protobufprotocol.ProtobufInboundMessage;
 import org.junit.After;
 import org.junit.Before;
 
@@ -121,7 +122,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
-        }, Version.CURRENT);
+        });
     }
 
     @After
@@ -294,7 +295,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
         FetchSearchResult fetchResult = createFetchSearchResult();
         QueryFetchSearchResult response = new QueryFetchSearchResult(queryResult, fetchResult);
         System.setProperty(FeatureFlags.PROTOBUF, "true");
-        assertTrue((response.getProtocol()).equals(BaseInboundMessage.PROTOBUF_PROTOCOL));
+        assertTrue((response.getProtocol()).equals(ProtobufInboundMessage.PROTOBUF_PROTOCOL));
 
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
@@ -315,9 +316,9 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) requestCanTripBreaker -> true);
         InboundPipeline inboundPipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, (c, m) -> {
-            NodeToNodeMessage m1 = (NodeToNodeMessage) m;
+            ProtobufInboundMessage m1 = (ProtobufInboundMessage) m;
             protobufMessage.set(BytesReference.fromByteBuffer(ByteBuffer.wrap(m1.getMessage().toByteArray())));
-        }, Version.CURRENT);
+        });
         BytesReference reference = channel.getMessageCaptor().get();
         ActionListener<Void> sendListener = channel.getListenerCaptor().get();
         if (randomBoolean()) {
@@ -331,7 +332,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
 
         inboundPipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
         final BytesReference responseBytes = protobufMessage.get();
-        final NodeToNodeMessage message = new NodeToNodeMessage(new ByteArrayInputStream(responseBytes.toBytesRef().bytes));
+        final ProtobufInboundMessage message = new ProtobufInboundMessage(new ByteArrayInputStream(responseBytes.toBytesRef().bytes));
         assertEquals(version.toString(), message.getMessage().getVersion());
         assertEquals(requestId, message.getHeader().getRequestId());
         assertNotNull(message.getRequestHeaders());

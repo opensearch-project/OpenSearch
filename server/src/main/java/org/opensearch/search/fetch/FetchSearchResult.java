@@ -75,7 +75,6 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     public FetchSearchResult(InputStream in) throws IOException {
         super(in);
-        assert FeatureFlags.isEnabled(FeatureFlags.PROTOBUF) : "protobuf feature flag is not enabled";
         this.fetchSearchResultProto = FetchSearchResultProto.FetchSearchResult.parseFrom(in);
         contextId = new ShardSearchContextId(
             this.fetchSearchResultProto.getContextId().getSessionId(),

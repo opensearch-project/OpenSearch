@@ -33,10 +33,13 @@
 package org.opensearch.transport;
 
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
+import org.opensearch.transport.protobufprotocol.ProtobufInboundMessage;
+import org.opensearch.transport.protobufprotocol.ProtobufMessageHandler;
 
 import java.io.IOException;
 import java.util.Map;
@@ -80,6 +83,12 @@ public class InboundHandler {
                 keepAlive
             )
         );
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+            this.protocolMessageHandlers.put(
+                ProtobufInboundMessage.PROTOBUF_PROTOCOL,
+                new ProtobufMessageHandler(threadPool, responseHandlers)
+            );
+        }
     }
 
     void setMessageListener(TransportMessageListener listener) {

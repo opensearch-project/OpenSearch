@@ -61,6 +61,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.protobufprotocol.ProtobufInboundMessage;
 import org.junit.After;
 import org.junit.Before;
 
@@ -328,7 +329,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
 
         BytesReference fullResponseBytes = channel.getMessageCaptor().get();
         byte[] incomingBytes = BytesReference.toBytes(fullResponseBytes.slice(3, fullResponseBytes.length() - 3));
-        NodeToNodeMessage nodeToNodeMessage = new NodeToNodeMessage(new ByteArrayInputStream(incomingBytes));
+        ProtobufInboundMessage nodeToNodeMessage = new ProtobufInboundMessage(new ByteArrayInputStream(incomingBytes));
         handler.inboundMessage(channel, nodeToNodeMessage);
         QueryFetchSearchResult result = responseCaptor.get();
         assertNotNull(result);

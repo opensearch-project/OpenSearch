@@ -6,7 +6,7 @@
 * compatible open source license.
 */
 
-package org.opensearch.transport;
+package org.opensearch.transport.protobufprotocol;
 
 import com.google.protobuf.ByteString;
 import org.opensearch.Version;
@@ -18,6 +18,8 @@ import org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.Head
 import org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.ResponseHandlersList;
 import org.opensearch.server.proto.QueryFetchSearchResultProto.QueryFetchSearchResult;
 import org.opensearch.server.proto.QuerySearchResultProto.QuerySearchResult;
+import org.opensearch.transport.ProtocolInboundMessage;
+import org.opensearch.transport.TcpHeader;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,13 +36,17 @@ import java.util.stream.Collectors;
 *
 * @opensearch.internal
 */
-public class NodeToNodeMessage implements BaseInboundMessage {
+public class ProtobufInboundMessage implements ProtocolInboundMessage {
+
+    /**
+     * The protocol used to encode this message
+     */
+    public static String PROTOBUF_PROTOCOL = "protobuf";
 
     private final NodeToNodeMessageProto.NodeToNodeMessage message;
     private static final byte[] PREFIX = { (byte) 'E', (byte) 'S' };
-    private String protocol;
 
-    public NodeToNodeMessage(
+    public ProtobufInboundMessage(
         long requestId,
         byte[] status,
         Version version,
@@ -77,7 +83,7 @@ public class NodeToNodeMessage implements BaseInboundMessage {
             .build();
     }
 
-    public NodeToNodeMessage(
+    public ProtobufInboundMessage(
         long requestId,
         byte[] status,
         Version version,
@@ -114,7 +120,7 @@ public class NodeToNodeMessage implements BaseInboundMessage {
             .build();
     }
 
-    public NodeToNodeMessage(InputStream in) throws IOException {
+    public ProtobufInboundMessage(InputStream in) throws IOException {
         this.message = NodeToNodeMessageProto.NodeToNodeMessage.parseFrom(in);
     }
 
@@ -122,7 +128,7 @@ public class NodeToNodeMessage implements BaseInboundMessage {
         this.message.writeTo(out);
     }
 
-    BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
+    public BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
         NodeToNodeMessageProto.NodeToNodeMessage message = getMessage();
         TcpHeader.writeHeaderForProtobuf(bytesStream);
         message.writeTo(bytesStream);
@@ -135,7 +141,7 @@ public class NodeToNodeMessage implements BaseInboundMessage {
 
     @Override
     public String toString() {
-        return "NodeToNodeMessage [message=" + message + "]";
+        return "ProtobufInboundMessage [message=" + message + "]";
     }
 
     public org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.Header getHeader() {
@@ -163,8 +169,4 @@ public class NodeToNodeMessage implements BaseInboundMessage {
         return PROTOBUF_PROTOCOL;
     }
 
-    @Override
-    public void setProtocol() {
-        this.protocol = PROTOBUF_PROTOCOL;
-    }
 }
