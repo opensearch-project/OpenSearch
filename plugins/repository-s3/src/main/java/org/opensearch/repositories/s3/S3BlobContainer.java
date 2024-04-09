@@ -177,15 +177,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
      */
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
-        SocketAccess.doPrivilegedIOException(() -> {
-            if (blobSize <= getLargeBlobThresholdInBytes()) {
-                executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize, null);
-            } else {
-                executeMultipartUpload(blobStore, buildKey(blobName), inputStream, blobSize, null);
-            }
-            return null;
-        });
+        writeBlobWithMetadata(blobName, inputStream, null, blobSize, failIfAlreadyExists);
     }
 
     /**
@@ -196,7 +188,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     public void writeBlobWithMetadata(
         String blobName,
         InputStream inputStream,
-        Map<String, String> metadata,
+        @Nullable Map<String, String> metadata,
         long blobSize,
         boolean failIfAlreadyExists
     ) throws IOException {
@@ -611,7 +603,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             .acl(blobStore.getCannedACL())
             .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().putObjectMetricPublisher));
 
-        if (metadata != null) {
+        if (metadata != null && !metadata.isEmpty()) {
             putObjectRequestBuilder = putObjectRequestBuilder.metadata(metadata);
         }
         if (blobStore.serverSideEncryption()) {
@@ -668,7 +660,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             .acl(blobStore.getCannedACL())
             .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector));
 
-        if (metadata != null) {
+        if (metadata != null && !metadata.isEmpty()) {
             createMultipartUploadRequestBuilder.metadata(metadata);
         }
 

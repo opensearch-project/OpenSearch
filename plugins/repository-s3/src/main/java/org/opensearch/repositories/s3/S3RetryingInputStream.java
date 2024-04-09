@@ -269,7 +269,7 @@ class S3RetryingInputStream extends InputStream {
         return isStreamAborted.get();
     }
 
-    public Map<String, String> getMetadata() {
+    Map<String, String> getMetadata() {
         return this.metadata;
     }
 }

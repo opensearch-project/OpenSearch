@@ -129,9 +129,12 @@ public final class AsyncTransferManager {
 
         CreateMultipartUploadRequest.Builder createMultipartUploadRequestBuilder = CreateMultipartUploadRequest.builder()
             .bucket(uploadRequest.getBucket())
-            .metadata(uploadRequest.getMetadata())
             .key(uploadRequest.getKey())
             .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector));
+
+        if (uploadRequest.getMetadata() != null && !uploadRequest.getMetadata().isEmpty()) {
+            createMultipartUploadRequestBuilder.metadata(uploadRequest.getMetadata());
+        }
         if (uploadRequest.doRemoteDataIntegrityCheck()) {
             createMultipartUploadRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
         }
@@ -325,10 +328,13 @@ public final class AsyncTransferManager {
     ) {
         PutObjectRequest.Builder putObjectRequestBuilder = PutObjectRequest.builder()
             .bucket(uploadRequest.getBucket())
-            .metadata(uploadRequest.getMetadata())
             .key(uploadRequest.getKey())
             .contentLength(uploadRequest.getContentLength())
             .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.putObjectMetricPublisher));
+
+        if (uploadRequest.getMetadata() != null && !uploadRequest.getMetadata().isEmpty()) {
+            putObjectRequestBuilder.metadata(uploadRequest.getMetadata());
+        }
         if (uploadRequest.doRemoteDataIntegrityCheck()) {
             putObjectRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
             putObjectRequestBuilder.checksumCRC32(base64StringFromLong(uploadRequest.getExpectedChecksum()));

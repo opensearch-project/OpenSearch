@@ -9,6 +9,7 @@
 package org.opensearch.repositories.s3.async;
 
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 
 import java.io.IOException;
@@ -49,7 +50,7 @@ public class UploadRequest {
         boolean doRemoteDataIntegrityCheck,
         Long expectedChecksum,
         boolean uploadRetryEnabled,
-        Map<String, String> metadata
+        @Nullable Map<String, String> metadata
     ) {
         this.bucket = bucket;
         this.key = key;

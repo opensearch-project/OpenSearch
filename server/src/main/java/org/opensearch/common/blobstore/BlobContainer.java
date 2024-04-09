@@ -32,6 +32,7 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
 
@@ -166,7 +167,7 @@ public interface BlobContainer {
     default void writeBlobWithMetadata(
         String blobName,
         InputStream inputStream,
-        Map<String, String> metadata,
+        @Nullable Map<String, String> metadata,
         long blobSize,
         boolean failIfAlreadyExists
     ) throws IOException {
@@ -219,7 +220,7 @@ public interface BlobContainer {
     default void writeBlobAtomicWithMetadata(
         String blobName,
         InputStream inputStream,
-        Map<String, String> metadata,
+        @Nullable Map<String, String> metadata,
         long blobSize,
         boolean failIfAlreadyExists
     ) throws IOException {
