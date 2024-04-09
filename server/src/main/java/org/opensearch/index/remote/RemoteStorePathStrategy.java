@@ -8,6 +8,7 @@
 
 package org.opensearch.index.remote;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
@@ -36,9 +37,19 @@ public class RemoteStorePathStrategy {
     }
 
     public RemoteStorePathStrategy(PathType type, PathHashAlgorithm hashAlgorithm) {
-        assert type.requiresHashAlgorithm() == false || Objects.nonNull(hashAlgorithm);
-        this.type = Objects.requireNonNull(type);
+        Objects.requireNonNull(type, "pathType can not be null");
+        if (isCompatible(type, hashAlgorithm) == false) {
+            throw new IllegalArgumentException(
+                new ParameterizedMessage("pathType={} pathHashAlgorithm={} are incompatible", type, hashAlgorithm).getFormattedMessage()
+            );
+        }
+        this.type = type;
         this.hashAlgorithm = hashAlgorithm;
+    }
+
+    public static boolean isCompatible(PathType type, PathHashAlgorithm hashAlgorithm) {
+        return (type.requiresHashAlgorithm() == false && Objects.isNull(hashAlgorithm))
+            || (type.requiresHashAlgorithm() && Objects.nonNull(hashAlgorithm));
     }
 
     public PathType getType() {
@@ -55,7 +66,7 @@ public class RemoteStorePathStrategy {
     }
 
     public BlobPath generatePath(PathInput pathInput) {
-        return type.generatePath(pathInput, hashAlgorithm);
+        return type.path(pathInput, hashAlgorithm);
     }
 
     /**
