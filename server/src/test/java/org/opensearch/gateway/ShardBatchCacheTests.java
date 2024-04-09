@@ -119,6 +119,10 @@ public class ShardBatchCacheTests extends OpenSearchAllocationTestCase {
         this.shardCache.putData(node1, new NodeGatewayStartedShardsBatch(node1, getPrimaryResponse(shardsInBatch, ResponseType.VALID)));
         this.shardCache.putData(node2, new NodeGatewayStartedShardsBatch(node1, getPrimaryResponse(shardsInBatch, ResponseType.EMPTY)));
 
+        // assert that fetching is done as both node's responses are stored in cache
+        assertFalse(this.shardCache.getCache().get(node1.getId()).isFetching());
+        assertFalse(this.shardCache.getCache().get(node2.getId()).isFetching());
+
         Map<DiscoveryNode, NodeGatewayStartedShardsBatch> fetchData = shardCache.getCacheData(
             DiscoveryNodes.builder().add(node1).add(node2).build(),
             null
@@ -199,10 +203,6 @@ public class ShardBatchCacheTests extends OpenSearchAllocationTestCase {
             }
         }
         return shardData;
-    }
-
-    public void removeShard(ShardId shardId) {
-        // batchInfo.remove(shardId);
     }
 
     private void fillShards(Map<ShardId, ShardAttributes> shardAttributesMap, int numberOfShards) {

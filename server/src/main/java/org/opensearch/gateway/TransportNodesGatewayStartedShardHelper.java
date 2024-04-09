@@ -233,7 +233,7 @@ public class TransportNodesGatewayStartedShardHelper {
             return buf.toString();
         }
 
-        public static Boolean isEmpty(GatewayStartedShard gatewayStartedShard) {
+        public static boolean isEmpty(GatewayStartedShard gatewayStartedShard) {
             return gatewayStartedShard.allocationId() == null
                 && gatewayStartedShard.primary() == false
                 && gatewayStartedShard.storeException() == null
