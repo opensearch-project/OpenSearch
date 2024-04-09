@@ -19,6 +19,7 @@ import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
@@ -54,6 +55,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -221,6 +226,11 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         String restoredIndexName1version1 = indexName1 + "-restored-1";
         String restoredIndexName1version2 = indexName1 + "-restored-2";
 
+        client(clusterManagerNode).admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING.getKey(), PathType.FIXED))
+            .get();
         createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
         Client client = client();
         Settings indexSettings = getIndexSettings(1, 0).build();
@@ -418,12 +428,15 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     void assertRemoteSegmentsAndTranslogUploaded(String idx) throws IOException {
-        String indexUUID = client().admin().indices().prepareGetSettings(idx).get().getSetting(idx, IndexMetadata.SETTING_INDEX_UUID);
-
-        Path remoteTranslogMetadataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/translog/metadata");
-        Path remoteTranslogDataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/translog/data");
-        Path segmentMetadataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/segments/metadata");
-        Path segmentDataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/segments/data");
+        Client client = client();
+        String path = getShardLevelBlobPath(client, idx, new BlobPath(), "0", TRANSLOG, METADATA).buildAsString();
+        Path remoteTranslogMetadataPath = Path.of(remoteRepoPath + "/" + path);
+        path = getShardLevelBlobPath(client, idx, new BlobPath(), "0", TRANSLOG, DATA).buildAsString();
+        Path remoteTranslogDataPath = Path.of(remoteRepoPath + "/" + path);
+        path = getShardLevelBlobPath(client, idx, new BlobPath(), "0", SEGMENTS, METADATA).buildAsString();
+        Path segmentMetadataPath = Path.of(remoteRepoPath + "/" + path);
+        path = getShardLevelBlobPath(client, idx, new BlobPath(), "0", SEGMENTS, DATA).buildAsString();
+        Path segmentDataPath = Path.of(remoteRepoPath + "/" + path);
 
         try (
             Stream<Path> translogMetadata = Files.list(remoteTranslogMetadataPath);
