@@ -500,13 +500,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 if (this.indexSettings.isRemoteStoreEnabled()) {
                     remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
                 } else {
-                    if (sourceNode != null && sourceNode.isRemoteStoreNode() == false) {
+                    if (sourceNode == null || sourceNode.isRemoteStoreNode() == false) {
                         if (routing.primary() == false) {
                             throw new IllegalStateException("Can't migrate a remote shard to replica before primary " + routing.shardId());
                         }
+
                         logger.info("DocRep shard {} is migrating to remote", shardId);
                         seedRemote = true;
                     }
+
                     remoteDirectory = ((RemoteSegmentStoreDirectoryFactory) remoteDirectoryFactory).newDirectory(
                         RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(this.indexSettings.getNodeSettings()),
                         this.indexSettings.getUUID(),
