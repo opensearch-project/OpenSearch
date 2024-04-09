@@ -65,16 +65,12 @@ public class RecoverySettings {
         Property.NodeScope
     );
 
-    public static final Setting<Boolean> INDICES_USE_REPLICATION_INDIVIDUAL_RATE_LIMITER_SETTING = Setting.boolSetting(
-        "indices.replication.use_individual_rate_limiter",
-        false,
-        Property.Dynamic,
-        Property.NodeScope
-    );
-
+    /**
+     * Individual speed setting for segment replication, default -1B to reuse the setting of recovery.
+     */
     public static final Setting<ByteSizeValue> INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
         "indices.replication.max_bytes_per_sec",
-        new ByteSizeValue(200, ByteSizeUnit.MB),
+        new ByteSizeValue(-1),
         Property.Dynamic,
         Property.NodeScope
     );
@@ -184,7 +180,6 @@ public class RecoverySettings {
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512 * 1024 - 16, ByteSizeUnit.BYTES);
 
     private volatile ByteSizeValue recoveryMaxBytesPerSec;
-    private volatile boolean useReplicationIndividualRateLimiter;
     private volatile ByteSizeValue replicationMaxBytesPerSec;
     private volatile int maxConcurrentFileChunks;
     private volatile int maxConcurrentOperations;
@@ -221,7 +216,6 @@ public class RecoverySettings {
         } else {
             recoveryRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
         }
-        this.useReplicationIndividualRateLimiter = INDICES_USE_REPLICATION_INDIVIDUAL_RATE_LIMITER_SETTING.get(settings);
         this.replicationMaxBytesPerSec = INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.get(settings);
         updateReplicationRateLimiter();
 
@@ -229,10 +223,6 @@ public class RecoverySettings {
         this.internalRemoteUploadTimeout = INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.get(settings);
 
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setRecoveryMaxBytesPerSec);
-        clusterSettings.addSettingsUpdateConsumer(
-            INDICES_USE_REPLICATION_INDIVIDUAL_RATE_LIMITER_SETTING,
-            this::setUseReplicationIndividualRateLimiter
-        );
         clusterSettings.addSettingsUpdateConsumer(INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING, this::setReplicationMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING, this::setMaxConcurrentFileChunks);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING, this::setMaxConcurrentOperations);
@@ -256,7 +246,7 @@ public class RecoverySettings {
         return recoveryRateLimiter;
     }
 
-    public RateLimiter replicaitonRateLimiter() {
+    public RateLimiter replicationRateLimiter() {
         return replicationRateLimiter;
     }
 
@@ -332,12 +322,7 @@ public class RecoverySettings {
         } else {
             recoveryRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
         }
-        if (useReplicationIndividualRateLimiter == false) updateReplicationRateLimiter();
-    }
-
-    private void setUseReplicationIndividualRateLimiter(boolean useReplicationIndividualRateLimiter) {
-        this.useReplicationIndividualRateLimiter = useReplicationIndividualRateLimiter;
-        updateReplicationRateLimiter();
+        if (replicationMaxBytesPerSec.getBytes() < 0) updateReplicationRateLimiter();
     }
 
     private void setReplicationMaxBytesPerSec(ByteSizeValue replicationMaxBytesPerSec) {
@@ -346,15 +331,15 @@ public class RecoverySettings {
     }
 
     private void updateReplicationRateLimiter() {
-        if (useReplicationIndividualRateLimiter == true) {
-            if (replicationMaxBytesPerSec.getBytes() <= 0) {
+        if (replicationMaxBytesPerSec.getBytes() >= 0) {
+            if (replicationMaxBytesPerSec.getBytes() == 0) {
                 replicationRateLimiter = null;
             } else if (replicationRateLimiter != null) {
                 replicationRateLimiter.setMBPerSec(replicationMaxBytesPerSec.getMbFrac());
             } else {
                 replicationRateLimiter = new SimpleRateLimiter(replicationMaxBytesPerSec.getMbFrac());
             }
-        } else {
+        } else { // when replicationMaxBytesPerSec = -1B, use setting of recovery
             if (recoveryMaxBytesPerSec.getBytes() <= 0) {
                 replicationRateLimiter = null;
             } else if (replicationRateLimiter != null) {
