@@ -97,8 +97,9 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, (c, m) -> {
             try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
-                Streams.copy(m.openOrGetStreamInput(), streamOutput);
-                message.set(new Tuple<>(m.getHeader(), streamOutput.bytes()));
+                InboundMessage m1 = (InboundMessage) m;
+                Streams.copy(m1.openOrGetStreamInput(), streamOutput);
+                message.set(new Tuple<>(m1.getHeader(), streamOutput.bytes()));
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
