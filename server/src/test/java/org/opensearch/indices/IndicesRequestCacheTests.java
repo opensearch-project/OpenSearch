@@ -45,6 +45,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedSupplier;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.module.CacheModule;
@@ -657,6 +658,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
     // when registering a closed listener raises an exception, we should
     @Test(expected = Exception.class)
+    @SuppressForbidden(reason = "only way to avoid registering a reader after caching a key")
     public void testAddReaderCloseListenerRaisingException_shouldTrackStaleCountAppropriately() throws Exception {
         IndexReader.CacheHelper cacheHelper = mock(IndexReader.CacheHelper.class);
         doThrow(new Exception("Mock exception")).when(cacheHelper).addClosedListener(any());
@@ -681,6 +683,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     }
 
     @Test(expected = Exception.class)
+    @SuppressForbidden(reason = "only way to avoid registering a reader after caching a key")
     public void testAddReaderCloseListenerRaisingException_shouldCleanupCacheCorrectly() throws Exception {
         IndexReader.CacheHelper cacheHelper = mock(IndexReader.CacheHelper.class);
         doThrow(new Exception("Mock exception")).when(cacheHelper).addClosedListener(any());
