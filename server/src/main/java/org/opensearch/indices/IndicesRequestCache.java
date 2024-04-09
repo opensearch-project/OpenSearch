@@ -240,27 +240,31 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         final Key key = new Key(((IndexShard) cacheEntity.getCacheIdentity()).shardId(), cacheKey, readerCacheKeyId);
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = cache.computeIfAbsent(key, cacheLoader);
-        if (cacheLoader.isLoaded()) {
-            cacheEntity.onMiss();
-            // see if it's the first time we see this reader, and make sure to register a cleanup key
-            CleanupKey cleanupKey = new CleanupKey(cacheEntity, readerCacheKeyId);
-            if (!registeredClosedListeners.containsKey(cleanupKey)) {
-                Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
-                if (previous == null) {
-                    try {
+        CleanupKey cleanupKey = null;
+        try {
+            if (cacheLoader.isLoaded()) {
+                cacheEntity.onMiss();
+                // see if it's the first time we see this reader, and make sure to register a cleanup key
+                cleanupKey = new CleanupKey(cacheEntity, readerCacheKeyId);
+                if (!registeredClosedListeners.containsKey(cleanupKey)) {
+                    Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
+                    if (previous == null) {
                         OpenSearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
-                    } catch (Exception e) {
-                        logger.warn("cleanupKey in Indices Request Cache failed to register close listener due to : " + e.getCause());
-                        // On failing to register the cleanupkey, this cache entry is immediately stale and could live indefinitely
-                        // hence enqueuing it to clean-up
-                        cacheCleanupManager.enqueueCleanupKey(cleanupKey);
-                        throw e;
                     }
                 }
+                cacheCleanupManager.updateCleanupKeyToCountMapOnCacheInsertion(cleanupKey);
+            } else {
+                cacheEntity.onHit();
             }
+        } catch (Exception e) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("cleanupKey in Indices Request Cache failed to register close listener due to : " + e.getCause());
+            }
+            // On failing to register the cleanupkey, this cache entry is immediately stale and could live indefinitely
+            // hence enqueuing it to clean-up
             cacheCleanupManager.updateCleanupKeyToCountMapOnCacheInsertion(cleanupKey);
-        } else {
-            cacheEntity.onHit();
+            cacheCleanupManager.enqueueCleanupKey(cleanupKey);
+            throw e;
         }
         return value;
     }
