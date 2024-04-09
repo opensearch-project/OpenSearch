@@ -25,6 +25,7 @@ import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.MultiFileWriter;
@@ -36,6 +37,7 @@ import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -283,8 +285,9 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse) throws OpenSearchCorruptionException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
+        byte[] segmentInfosBytes = checkpointInfoResponse.getInfosBytes();
         // Handle empty SegmentInfos bytes for recovering replicas
-        if (checkpointInfoResponse.getInfosBytes() == null) {
+        if (segmentInfosBytes == null) {
             return;
         }
         Store store = null;
@@ -292,10 +295,21 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             store = store();
             store.incRef();
             multiFileWriter.renameAllTempFiles();
-            final SegmentInfos infos = store.buildSegmentInfos(
-                checkpointInfoResponse.getInfosBytes(),
-                checkpointInfoResponse.getCheckpoint().getSegmentsGen()
-            );
+            final SegmentInfos infos;
+            if (segmentInfosBytes.length == 0) {
+                List<String> segmentInfosSnapshotFilenames = Arrays.stream(store.directory().listAll())
+                    .filter(file -> file.startsWith(RemoteSegmentStoreDirectory.SEGMENT_INFOS_SNAPSHOT_PREFIX))
+                    .collect(Collectors.toList());
+                assert segmentInfosSnapshotFilenames.size() == 1;
+                infos = SegmentInfos.readCommit(
+                    store.directory(),
+                    store.directory().openChecksumInput(segmentInfosSnapshotFilenames.get(0), IOContext.READ),
+                    checkpointInfoResponse.getCheckpoint().getSegmentsGen()
+                );
+                store.deleteQuiet(segmentInfosSnapshotFilenames.get(0));
+            } else {
+                infos = store.buildSegmentInfos(segmentInfosBytes, checkpointInfoResponse.getCheckpoint().getSegmentsGen());
+            }
             indexShard.finalizeReplication(infos);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.

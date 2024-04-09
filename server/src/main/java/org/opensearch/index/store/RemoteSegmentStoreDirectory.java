@@ -652,7 +652,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                             ) {
                                 segmentInfosSnapshot.write(segmentInfosIndexOutput);
                             }
-                            copyFrom(storeDirectory, segmentInfoSnapshotFilename, segmentInfoSnapshotFilename, IOContext.DEFAULT);
+                            remoteDataDirectory.copyFrom(
+                                storeDirectory,
+                                segmentInfoSnapshotFilename,
+                                segmentInfoSnapshotFilename,
+                                IOContext.DEFAULT
+                            );
                             String segmentInfosSnapshotChecksum = getChecksumOfLocalFile(storeDirectory, segmentInfoSnapshotFilename);
                             UploadedSegmentMetadata segmentInfosSnapshotMetadata = new UploadedSegmentMetadata(
                                 segmentInfoSnapshotFilename,
