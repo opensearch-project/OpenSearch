@@ -1,8 +1,37 @@
 name: Build packages (single)
 
 # This workflow runs when any of the following occur:
+# - Run from another worklow of GH API
 # - Run manually
 on:
+  workflow_call:
+    inputs:
+      revision:
+        description: "Revision"
+        type: string
+        default: "0"
+      checksum:
+        description: "Checksum ?"
+        type: boolean
+        default: false
+      is_stage:
+        description: "Is stage ?"
+        type: boolean
+        default: false
+      system:
+        description: "Package OS"
+        type: choice
+        options:
+          - rpm
+          - deb
+        default: deb
+      architecture:
+        description: "Package architecture"
+        type: choice
+        options:
+          - amd64
+          - x86_64
+        default: amd64
   workflow_dispatch:
     inputs:
       revision:
