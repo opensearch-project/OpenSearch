@@ -75,7 +75,7 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extend
      *
      * @param shardId shardId to be removed from the batch.
      */
-    public void clearShard(ShardId shardId) {
+    public synchronized void clearShard(ShardId shardId) {
         this.shardAttributesMap.remove(shardId);
         this.cache.deleteShard(shardId);
     }
