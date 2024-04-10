@@ -260,8 +260,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             if (logger.isDebugEnabled()) {
                 logger.debug("cleanupKey in Indices Request Cache failed to register close listener due to : " + e.getCause());
             }
-            // On failing to register the cleanupkey, this cache entry is immediately stale and could live indefinitely
-            // hence enqueuing it to clean-up
+            // On failing to register the cleanupkey, this cache entry is immediately stale and could live indefinitely in the cache
+            // hence enqueuing it for clean-up
             cacheCleanupManager.updateCleanupKeyToCountMapOnCacheInsertion(cleanupKey);
             cacheCleanupManager.enqueueCleanupKey(cleanupKey);
             throw e;

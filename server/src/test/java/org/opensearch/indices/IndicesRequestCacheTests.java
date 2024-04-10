@@ -655,7 +655,9 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(0, cleanupKeyToCountMap.size());
     }
 
-    // test the cleanupKeyToCountMap are set appropriately when readers are closed
+    // test the cleanupKeyToCountMap are set appropriately in a case where the reader gets closed
+    // after putting an entry into the cache and before registering a close listener
+    // in this case, the entry is stale and needs to be accounted right and cleaned up accordingly
     public void testCleanupKeyToOnClosedReader_cleansupStalenessAsExpected() throws Exception {
         threadPool = getThreadPool();
         Settings settings = Settings.builder()
@@ -670,6 +672,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
         assertTrue(cache.cacheCleanupManager.getCleanupKeyToCountMap().isEmpty());
         try {
+            // use auto close loader to close the reader right after adding cache entry
             cache.getOrCompute(getEntity(indexShard), getAutoCloseLoader(reader), reader, getTermBytes());
         } catch (Exception e) {
             assertThat(e, instanceOf(AlreadyClosedException.class));
