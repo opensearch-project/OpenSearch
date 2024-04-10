@@ -53,6 +53,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 /**
@@ -108,14 +109,12 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     @Override
     public void cleanCaches() {
-        Releasables.close(
-            batchIdToStartedShardBatch.values().stream().map(shardsBatch -> shardsBatch.asyncBatch).collect(Collectors.toList())
-        );
-        batchIdToStartedShardBatch.clear();
-        Releasables.close(
-            batchIdToStoreShardBatch.values().stream().map(shardsBatch -> shardsBatch.asyncBatch).collect(Collectors.toList())
-        );
-        batchIdToStoreShardBatch.clear();
+        Stream.of(batchIdToStartedShardBatch, batchIdToStoreShardBatch).forEach(b -> {
+            Releasables.close(
+                b.values().stream().map(shardsBatch -> shardsBatch.asyncBatch).collect(Collectors.toList())
+            );
+            b.clear();
+        });
     }
 
     // for tests
@@ -226,20 +225,20 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
         ConcurrentMap<String, ShardsBatch> currentBatches = primary ? batchIdToStartedShardBatch : batchIdToStoreShardBatch;
         // get all batched shards
-        Map<ShardId, String> currentBatchShards = new HashMap<>();
+        Map<ShardId, String> currentBatchedShards = new HashMap<>();
         for (Map.Entry<String, ShardsBatch> batchEntry : currentBatches.entrySet()) {
             batchEntry.getValue().getBatchedShards()
-                .forEach(shardId -> currentBatchShards.put(shardId,
+                .forEach(shardId -> currentBatchedShards.put(shardId,
                     batchEntry.getKey()));
         }
 
-        Set<ShardRouting> shardsToBatch = Sets.newHashSet();
+        Set<ShardRouting> newShardsToBatch = Sets.newHashSet();
         Set<ShardId> batchedShardsToAssign = Sets.newHashSet();
         // add all unassigned shards to the batch if they are not already in a batch
         unassigned.forEach(shardRouting -> {
-            if ((currentBatchShards.containsKey(shardRouting.shardId()) == false) && (shardRouting.primary() == primary)) {
+            if ((currentBatchedShards.containsKey(shardRouting.shardId()) == false) && (shardRouting.primary() == primary)) {
                 assert shardRouting.unassigned();
-                shardsToBatch.add(shardRouting);
+                newShardsToBatch.add(shardRouting);
             }
             // if shard is already batched update to latest shardRouting information in the batches
             // Replica shard assignment can be cancelled if we get a better match. These ShardRouting objects also
@@ -249,7 +248,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
             // failure in executeDecision of BaseGatewayShardAllocator. Previous non-batch mode flow also used to
             // pass ShardRouting object directly from unassignedIterator, so we're following the same behaviour.
             else if (shardRouting.primary() == primary) {
-                String batchId = currentBatchShards.get(shardRouting.shardId());
+                String batchId = currentBatchedShards.get(shardRouting.shardId());
                 batchesToBeAssigned.add(batchId);
                 currentBatches.get(batchId).batchInfo.get(shardRouting.shardId()).setShardRouting(shardRouting);
                 batchedShardsToAssign.add(shardRouting.shardId());
@@ -258,11 +257,11 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
         refreshShardBatches(currentBatches, batchedShardsToAssign);
 
-        Iterator<ShardRouting> iterator = shardsToBatch.iterator();
+        Iterator<ShardRouting> iterator = newShardsToBatch.iterator();
         assert maxBatchSize > 0 : "Shards batch size must be greater than 0";
 
         long batchSize = maxBatchSize;
-        Map<ShardId, ShardEntry> shardsToAddToCurrentBatch = new HashMap<>();
+        Map<ShardId, ShardEntry> perBatchShards = new HashMap<>();
         while (iterator.hasNext()) {
             ShardRouting currentShard = iterator.next();
             ShardEntry shardEntry = new ShardEntry(
@@ -271,17 +270,17 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                 ),
                 currentShard
             );
-            shardsToAddToCurrentBatch.put(currentShard.shardId(), shardEntry);
+            perBatchShards.put(currentShard.shardId(), shardEntry);
             batchSize--;
             iterator.remove();
             // add to batch if batch size full or last shard in unassigned list
             if (batchSize == 0 || iterator.hasNext() == false) {
                 String batchUUId = UUIDs.base64UUID();
-                ShardsBatch shardsBatch = new ShardsBatch(batchUUId, shardsToAddToCurrentBatch, primary);
+                ShardsBatch shardsBatch = new ShardsBatch(batchUUId, perBatchShards, primary);
                 // add the batch to list of current batches
                 addBatch(shardsBatch, primary);
                 batchesToBeAssigned.add(batchUUId);
-                shardsToAddToCurrentBatch.clear();
+                perBatchShards.clear();
                 batchSize = maxBatchSize;
             }
         }
