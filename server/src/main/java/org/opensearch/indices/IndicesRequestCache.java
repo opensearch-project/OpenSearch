@@ -530,8 +530,10 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
          */
         private void updateCleanupKeyCountOnKeyRemoval(CleanupKey cleanupKey, RemovalNotification<Key, BytesReference> notification) {
             if (cleanupKey.entity == null) {
-                // this will only happen when the shard is deleted.
-                // we would have accounted this in staleKeysCount when the deletion of shard would have closed the associated readers
+                /*
+                * on shard close, the shard is still lying around so this will only happen when the shard is deleted.
+                * we would have accounted this in staleKeysCount when the deletion of shard would have closed the associated readers
+                * */
                 staleKeysCount.decrementAndGet();
                 return;
             }
