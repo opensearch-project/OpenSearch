@@ -650,6 +650,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
                         .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", -1)
                 )
                 .get()
         );
