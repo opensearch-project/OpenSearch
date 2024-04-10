@@ -30,7 +30,7 @@ public class RefreshRemoteTranslogFilesIT extends RemoteStoreBaseIntegTestCase {
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(
-            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_REFERENCED_TRANSLOG_FILES.getKey(), "5")
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS.getKey(), "5")
         );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 

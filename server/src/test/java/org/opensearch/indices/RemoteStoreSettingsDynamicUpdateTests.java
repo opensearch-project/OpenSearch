@@ -99,21 +99,21 @@ public class RemoteStoreSettingsDynamicUpdateTests extends OpenSearchTestCase {
 
     public void testMaxRemoteReferencedTranslogFiles() {
         // Test default value
-        assertEquals(300, remoteStoreSettings.getMaxRemoteReferencedTranslogFiles());
+        assertEquals(300, remoteStoreSettings.getMaxRemoteTranslogReaders());
 
         // Test override with valid value
         clusterSettings.applySettings(
-            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_REFERENCED_TRANSLOG_FILES.getKey(), "100").build()
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS.getKey(), "100").build()
         );
-        assertEquals(100, remoteStoreSettings.getMaxRemoteReferencedTranslogFiles());
+        assertEquals(100, remoteStoreSettings.getMaxRemoteTranslogReaders());
 
         // Test override with value less than minimum
         assertThrows(
             IllegalArgumentException.class,
             () -> clusterSettings.applySettings(
-                Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_REFERENCED_TRANSLOG_FILES.getKey(), "0").build()
+                Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS.getKey(), "0").build()
             )
         );
-        assertEquals(100, remoteStoreSettings.getMaxRemoteReferencedTranslogFiles());
+        assertEquals(100, remoteStoreSettings.getMaxRemoteTranslogReaders());
     }
 }

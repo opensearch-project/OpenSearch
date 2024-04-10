@@ -4485,9 +4485,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicBoolean flushOrRollRunning = new AtomicBoolean();
 
     /**
-     * Checks if the shard need to be Refreshed depending on Translog constraints.
-     * Each Translog type can have it's own decider
-     * @return {@code true} if the shard should be Refreshed
+     * Checks if the shard need to be refreshed depending on translog constraints.
+     * each translog type can have it's own decider
+     * @return {@code true} if the shard should be refreshed
      */
     public boolean shouldRefreshShard() {
         final Engine engine = getEngineOrNull();
@@ -4509,7 +4509,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Schedules a flush or translog generation roll if needed but will not schedule more than one concurrently. The operation will be
      * executed asynchronously on the flush thread pool.
-     * Also Schedules a refresh if required, decided by Translog manager
+     * Also schedules a refresh if required, decided by translog manager
      */
     public void afterWriteOperation() {
         if (shouldPeriodicallyFlush() || shouldRollTranslogGeneration()) {
@@ -4573,7 +4573,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         } else if (shouldRefreshShard()) {
             logger.debug("submitting async Refresh request");
-            final AbstractRunnable _refresh = new AbstractRunnable() {
+            final AbstractRunnable refreshRunnable = new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn("refresh failed after translog manager decided to refresh the shard", e);
@@ -4583,14 +4583,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 protected void doRun() throws Exception {
                     maybeRefreshShard("Translog manager decided to refresh the shard");
                 }
-
-                @Override
-                public boolean isForceExecution() {
-                    return true;
-                }
-
             };
-            threadPool.executor(ThreadPool.Names.REFRESH).execute(_refresh);
+            threadPool.executor(ThreadPool.Names.REFRESH).execute(refreshRunnable);
         }
     }
 

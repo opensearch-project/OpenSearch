@@ -2054,10 +2054,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     }
 
     /**
-     * Tests whether or not the shard should be Refreshed.
-     * This test is based on the number of Translog files compared to configured number of Translog files threshold
-     *
-     * @return {@code true} if the shard should be Refreshed
+     * Checks whether or not the shard should be refreshed.
+     * each translog type can have it's own decider
+     * @return {@code true} if the shard should be refreshed
      */
     public boolean shouldRefreshShard() {
         return false;

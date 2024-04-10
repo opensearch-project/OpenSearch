@@ -586,7 +586,7 @@ public class TranslogTransferManager {
         }
     }
 
-    public int getMaxRemoteReferencedTranslogFilesSettings() {
-        return this.remoteStoreSettings.getMaxRemoteReferencedTranslogFiles();
+    public int getMaxRemoteTranslogReadersSettings() {
+        return this.remoteStoreSettings.getMaxRemoteTranslogReaders();
     }
 }

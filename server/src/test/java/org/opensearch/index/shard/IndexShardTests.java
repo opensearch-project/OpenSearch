@@ -4974,7 +4974,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         final IndexShard primaryShard = newStartedShard(true, primarySettings, new NRTReplicationEngineFactory());
         RemoteStoreSettings remoteStoreSettings = primaryShard.getRemoteStoreSettings();
-        final long numDocs = remoteStoreSettings.getMaxRemoteReferencedTranslogFiles();
+        final long numDocs = remoteStoreSettings.getMaxRemoteTranslogReaders();
 
         assertFalse(primaryShard.shouldRefreshShard());
 

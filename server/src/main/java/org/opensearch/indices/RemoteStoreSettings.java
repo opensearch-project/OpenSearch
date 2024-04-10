@@ -68,8 +68,8 @@ public class RemoteStoreSettings {
     /**
      * Controls the maximum referenced remote translog files. If breached the shard will be Refreshed.
      */
-    public static final Setting<Integer> CLUSTER_REMOTE_MAX_REFERENCED_TRANSLOG_FILES = Setting.intSetting(
-        "cluster.remote_store.max_referenced_translog_files",
+    public static final Setting<Integer> CLUSTER_REMOTE_MAX_TRANSLOG_READERS = Setting.intSetting(
+        "cluster.remote_store.translog.max_readers",
         300,
         1,
         Property.Dynamic,
@@ -79,7 +79,7 @@ public class RemoteStoreSettings {
     private volatile TimeValue clusterRemoteTranslogBufferInterval;
     private volatile int minRemoteSegmentMetadataFiles;
     private volatile TimeValue clusterRemoteTranslogTransferTimeout;
-    private volatile int maxRemoteReferencedTranslogFiles;
+    private volatile int maxRemoteTranslogReaders;
 
     public RemoteStoreSettings(Settings settings, ClusterSettings clusterSettings) {
         this.clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
@@ -100,8 +100,8 @@ public class RemoteStoreSettings {
             this::setClusterRemoteTranslogTransferTimeout
         );
 
-        maxRemoteReferencedTranslogFiles = CLUSTER_REMOTE_MAX_REFERENCED_TRANSLOG_FILES.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_MAX_REFERENCED_TRANSLOG_FILES, this::setMaxRemoteReferencedTranslogFiles);
+        maxRemoteTranslogReaders = CLUSTER_REMOTE_MAX_TRANSLOG_READERS.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_MAX_TRANSLOG_READERS, this::setMaxRemoteTranslogReaders);
     }
 
     public TimeValue getClusterRemoteTranslogBufferInterval() {
@@ -128,11 +128,11 @@ public class RemoteStoreSettings {
         this.clusterRemoteTranslogTransferTimeout = clusterRemoteTranslogTransferTimeout;
     }
 
-    public int getMaxRemoteReferencedTranslogFiles() {
-        return maxRemoteReferencedTranslogFiles;
+    public int getMaxRemoteTranslogReaders() {
+        return maxRemoteTranslogReaders;
     }
 
-    private void setMaxRemoteReferencedTranslogFiles(int maxRemoteReferencedTranslogFiles) {
-        this.maxRemoteReferencedTranslogFiles = maxRemoteReferencedTranslogFiles;
+    private void setMaxRemoteTranslogReaders(int maxRemoteTranslogReaders) {
+        this.maxRemoteTranslogReaders = maxRemoteTranslogReaders;
     }
 }
