@@ -57,6 +57,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.compress.Compressor;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -191,8 +192,31 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         final Compressor compressor,
         final ToXContent.Params params
     ) throws IOException {
+        write(obj, blobContainer, name, compressor, params, false, XContentType.SMILE);
+    }
+
+    /**
+     * Writes blob with resolving the blob name using {@link #blobName} method.
+     * <p>
+     * The blob will optionally by compressed.
+     *
+     * @param obj                 object to be serialized
+     * @param blobContainer       blob container
+     * @param name                blob name
+     * @param compressor          whether to use compression
+     * @param params              ToXContent params
+     */
+    public void write(
+        final T obj,
+        final BlobContainer blobContainer,
+        final String name,
+        final Compressor compressor,
+        final ToXContent.Params params,
+        boolean skipHeaderFooter,
+        MediaType mediaType
+    ) throws IOException {
         final String blobName = blobName(name);
-        final BytesReference bytes = serialize(obj, blobName, compressor, params);
+        final BytesReference bytes = serialize(obj, blobName, compressor, params, skipHeaderFooter, mediaType);
         blobContainer.writeBlob(blobName, bytes.streamInput(), bytes.length(), false);
     }
 
@@ -208,7 +232,17 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         final ToXContent.Params params
     ) throws IOException {
         // use NORMAL priority by default
-        this.writeAsyncWithPriority(obj, blobContainer, name, compressor, WritePriority.NORMAL, listener, params);
+        this.writeAsyncWithPriority(
+            obj,
+            blobContainer,
+            name,
+            compressor,
+            WritePriority.NORMAL,
+            listener,
+            params,
+            false,
+            XContentType.SMILE
+        );
     }
 
     /**
@@ -226,7 +260,30 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         ActionListener<Void> listener,
         final ToXContent.Params params
     ) throws IOException {
-        this.writeAsyncWithPriority(obj, blobContainer, name, compressor, WritePriority.URGENT, listener, params);
+        this.writeAsyncWithPriority(
+            obj,
+            blobContainer,
+            name,
+            compressor,
+            WritePriority.URGENT,
+            listener,
+            params,
+            false,
+            XContentType.SMILE
+        );
+    }
+
+    public void writeAsyncWithUrgentPriority(
+        final T obj,
+        final BlobContainer blobContainer,
+        final String name,
+        final Compressor compressor,
+        ActionListener<Void> listener,
+        final ToXContent.Params params,
+        boolean skipHeaderFooter,
+        MediaType type
+    ) throws IOException {
+        this.writeAsyncWithPriority(obj, blobContainer, name, compressor, WritePriority.URGENT, listener, params, skipHeaderFooter, type);
     }
 
     /**
@@ -248,15 +305,17 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         final Compressor compressor,
         final WritePriority priority,
         ActionListener<Void> listener,
-        final ToXContent.Params params
+        final ToXContent.Params params,
+        boolean skipHeaderFooter,
+        MediaType mediaType
     ) throws IOException {
         if (blobContainer instanceof AsyncMultiStreamBlobContainer == false) {
-            write(obj, blobContainer, name, compressor, params);
+            write(obj, blobContainer, name, compressor, params, skipHeaderFooter, mediaType);
             listener.onResponse(null);
             return;
         }
         final String blobName = blobName(name);
-        final BytesReference bytes = serialize(obj, blobName, compressor, params);
+        final BytesReference bytes = serialize(obj, blobName, compressor, params, skipHeaderFooter, mediaType);
         final String resourceDescription = "ChecksumBlobStoreFormat.writeAsyncWithPriority(blob=\"" + blobName + "\")";
         try (IndexInput input = new ByteArrayIndexInput(resourceDescription, BytesReference.toBytes(bytes))) {
             long expectedChecksum;
@@ -290,6 +349,17 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
 
     public BytesReference serialize(final T obj, final String blobName, final Compressor compressor, final ToXContent.Params params)
         throws IOException {
+        return serialize(obj, blobName, compressor, params, false, XContentType.SMILE);
+    }
+
+    public BytesReference serialize(
+        final T obj,
+        final String blobName,
+        final Compressor compressor,
+        final ToXContent.Params params,
+        boolean skipHeaderFooter,
+        MediaType type
+    ) throws IOException {
         try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
             try (
                 OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
@@ -299,7 +369,9 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                     BUFFER_SIZE
                 )
             ) {
-                CodecUtil.writeHeader(indexOutput, codec, VERSION);
+                if (skipHeaderFooter == false) {
+                    CodecUtil.writeHeader(indexOutput, codec, VERSION);
+                }
                 try (OutputStream indexOutputOutputStream = new IndexOutputOutputStream(indexOutput) {
                     @Override
                     public void close() throws IOException {
@@ -308,7 +380,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                     }
                 };
                     XContentBuilder builder = MediaTypeRegistry.contentBuilder(
-                        XContentType.SMILE,
+                        type,
                         compressor.threadLocalOutputStream(indexOutputOutputStream)
                     )
                 ) {
@@ -316,7 +388,9 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                     obj.toXContent(builder, params);
                     builder.endObject();
                 }
-                CodecUtil.writeFooter(indexOutput);
+                if (skipHeaderFooter == false) {
+                    CodecUtil.writeFooter(indexOutput);
+                }
             }
             return outputStream.bytes();
         }
