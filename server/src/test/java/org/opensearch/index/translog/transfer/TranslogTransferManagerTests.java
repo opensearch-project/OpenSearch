@@ -18,6 +18,7 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -27,6 +28,8 @@ import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapsho
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -100,7 +103,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             remoteBaseTransferPath.add(TRANSLOG.getName()),
             remoteBaseTransferPath.add(METADATA.getName()),
             tracker,
-            remoteTranslogTransferTracker
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE
         );
 
         delayForBlobDownload = 1;
@@ -165,7 +169,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             remoteBaseTransferPath.add(TRANSLOG.getName()),
             remoteBaseTransferPath.add(METADATA.getName()),
             fileTransferTracker,
-            remoteTranslogTransferTracker
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE
         );
 
         assertTrue(translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
@@ -188,20 +193,36 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
     public void testTransferSnapshotOnUploadTimeout() throws Exception {
         doAnswer(invocationOnMock -> {
-            Thread.sleep(31 * 1000);
+            Set<TransferFileSnapshot> transferFileSnapshots = invocationOnMock.getArgument(0);
+            ActionListener<TransferFileSnapshot> listener = invocationOnMock.getArgument(2);
+            Runnable runnable = () -> {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                for (TransferFileSnapshot transferFileSnapshot : transferFileSnapshots) {
+                    listener.onResponse(transferFileSnapshot);
+                }
+            };
+            Thread t = new Thread(runnable);
+            t.start();
             return null;
         }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
         FileTransferTracker fileTransferTracker = new FileTransferTracker(
             new ShardId("index", "indexUUid", 0),
             remoteTranslogTransferTracker
         );
+        RemoteStoreSettings remoteStoreSettings = mock(RemoteStoreSettings.class);
+        when(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout()).thenReturn(new TimeValue(1));
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
             remoteBaseTransferPath.add(TRANSLOG.getName()),
             remoteBaseTransferPath.add(METADATA.getName()),
             fileTransferTracker,
-            remoteTranslogTransferTracker
+            remoteTranslogTransferTracker,
+            remoteStoreSettings
         );
         SetOnce<Exception> exception = new SetOnce<>();
         translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
@@ -243,7 +264,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             remoteBaseTransferPath.add(TRANSLOG.getName()),
             remoteBaseTransferPath.add(METADATA.getName()),
             fileTransferTracker,
-            remoteTranslogTransferTracker
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE
         );
         SetOnce<Exception> exception = new SetOnce<>();
 
@@ -336,14 +358,6 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     }
 
     public void testReadMetadataNoFile() throws IOException {
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
-            shardId,
-            transferService,
-            remoteBaseTransferPath.add(TRANSLOG.getName()),
-            remoteBaseTransferPath.add(METADATA.getName()),
-            null,
-            remoteTranslogTransferTracker
-        );
         doAnswer(invocation -> {
             LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
             List<BlobMetadata> bmList = new LinkedList<>();
@@ -358,14 +372,6 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
     // This should happen most of the time -
     public void testReadMetadataFile() throws IOException {
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
-            shardId,
-            transferService,
-            remoteBaseTransferPath.add(TRANSLOG.getName()),
-            remoteBaseTransferPath.add(METADATA.getName()),
-            null,
-            remoteTranslogTransferTracker
-        );
         TranslogTransferMetadata metadata1 = new TranslogTransferMetadata(1, 1, 1, 2);
         String mdFilename1 = metadata1.getFileName();
 
@@ -395,14 +401,6 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     }
 
     public void testReadMetadataReadException() throws IOException {
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
-            shardId,
-            transferService,
-            remoteBaseTransferPath.add(TRANSLOG.getName()),
-            remoteBaseTransferPath.add(METADATA.getName()),
-            null,
-            remoteTranslogTransferTracker
-        );
         TranslogTransferMetadata tm = new TranslogTransferMetadata(1, 1, 1, 2);
         String mdFilename = tm.getFileName();
 
@@ -432,15 +430,6 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     }
 
     public void testReadMetadataListException() throws IOException {
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
-            shardId,
-            transferService,
-            remoteBaseTransferPath.add(TRANSLOG.getName()),
-            remoteBaseTransferPath.add(METADATA.getName()),
-            null,
-            remoteTranslogTransferTracker
-        );
-
         doAnswer(invocation -> {
             LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
             latchedActionListener.onFailure(new IOException("Issue while listing"));
@@ -512,7 +501,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             remoteBaseTransferPath.add(TRANSLOG.getName()),
             remoteBaseTransferPath.add(METADATA.getName()),
             tracker,
-            remoteTranslogTransferTracker
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE
         );
         String translogFile = "translog-19.tlog", checkpointFile = "translog-19.ckp";
         tracker.add(translogFile, true);
@@ -526,14 +516,6 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     }
 
     public void testDeleteStaleTranslogMetadata() {
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
-            shardId,
-            transferService,
-            remoteBaseTransferPath.add(TRANSLOG.getName()),
-            remoteBaseTransferPath.add(METADATA.getName()),
-            null,
-            remoteTranslogTransferTracker
-        );
         String tm1 = new TranslogTransferMetadata(1, 1, 1, 2).getFileName();
         String tm2 = new TranslogTransferMetadata(1, 2, 1, 2).getFileName();
         String tm3 = new TranslogTransferMetadata(2, 3, 1, 2).getFileName();
@@ -584,7 +566,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             remoteBaseTransferPath.add(TRANSLOG.getName()),
             remoteBaseTransferPath.add(METADATA.getName()),
             tracker,
-            remoteTranslogTransferTracker
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE
         );
         String translogFile = "translog-19.tlog", checkpointFile = "translog-19.ckp";
         tracker.add(translogFile, true);
@@ -622,14 +605,6 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     }
 
     public void testMetadataConflict() throws InterruptedException {
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
-            shardId,
-            transferService,
-            remoteBaseTransferPath.add(TRANSLOG.getName()),
-            remoteBaseTransferPath.add(METADATA.getName()),
-            null,
-            remoteTranslogTransferTracker
-        );
         TranslogTransferMetadata tm = new TranslogTransferMetadata(1, 1, 1, 2, "node--1");
         String mdFilename = tm.getFileName();
         long count = mdFilename.chars().filter(ch -> ch == METADATA_SEPARATOR.charAt(0)).count();

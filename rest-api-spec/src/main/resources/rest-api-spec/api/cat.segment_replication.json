@@ -1,7 +1,7 @@
 {
   "cat.segment_replication":{
     "documentation":{
-      "url":"https://github.com/opensearch-project/documentation-website/issues/2627",
+      "url":"https://opensearch.org/docs/latest/api-reference/cat/cat-segment-replication/",
       "description":"Returns information about both on-going and latest completed Segment Replication events"
     },
     "stability":"experimental",

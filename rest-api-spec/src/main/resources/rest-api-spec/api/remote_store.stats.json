@@ -1,7 +1,7 @@
 {
   "remote_store.stats":{
     "documentation":{
-      "url": "https://opensearch.org/docs/latest/tuning-your-cluster/availability-and-recovery/remote",
+      "url": "https://opensearch.org/docs/latest/tuning-your-cluster/availability-and-recovery/remote-store/remote-store-stats-api/",
       "description":"Stats for remote store."
     },
     "stability":"experimental",

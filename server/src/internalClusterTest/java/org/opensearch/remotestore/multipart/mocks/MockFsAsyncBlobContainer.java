@@ -131,7 +131,7 @@ public class MockFsAsyncBlobContainer extends FsBlobContainer implements AsyncMu
                     InputStreamContainer blobPartStream = new InputStreamContainer(readBlob(blobName, offset, partSize), partSize, offset);
                     blobPartStreams.add(() -> CompletableFuture.completedFuture(blobPartStream));
                 }
-                ReadContext blobReadContext = new ReadContext(contentLength, blobPartStreams, null);
+                ReadContext blobReadContext = new ReadContext.Builder(contentLength, blobPartStreams).build();
                 listener.onResponse(blobReadContext);
             } catch (Exception e) {
                 listener.onFailure(e);
