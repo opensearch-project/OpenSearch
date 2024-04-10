@@ -161,7 +161,7 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
         MultiDimensionCacheStats.MDCSDimensionNode current,
         List<String> pathToCurrent
     ) {
-        if (!current.hasChildren()) {
+        if (current.children.isEmpty()) {
             result.put(pathToCurrent, current);
         } else {
             for (Map.Entry<String, MultiDimensionCacheStats.MDCSDimensionNode> entry : current.children.entrySet()) {
@@ -173,7 +173,7 @@ public class MultiDimensionCacheStatsTests extends OpenSearchTestCase {
     }
 
     private void assertSumOfChildrenStats(MultiDimensionCacheStats.MDCSDimensionNode current) {
-        if (current.hasChildren()) {
+        if (!current.children.isEmpty()) {
             CacheStatsCounter expectedTotal = new CacheStatsCounter();
             for (MultiDimensionCacheStats.MDCSDimensionNode child : current.children.values()) {
                 expectedTotal.add(child.getStats());

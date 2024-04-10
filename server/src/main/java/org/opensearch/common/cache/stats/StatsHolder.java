@@ -150,8 +150,7 @@ public class StatsHolder {
      * Produce an immutable CacheStats representation of these stats.
      */
     public CacheStats getCacheStats() {
-        MDCSDimensionNode snapshot = new MDCSDimensionNode(null, statsRoot.getStatsSnapshot());
-        snapshot.createChildrenMap();
+        MDCSDimensionNode snapshot = new MDCSDimensionNode(null, true, statsRoot.getStatsSnapshot());
         // Traverse the tree and build a corresponding tree of MDCSDimensionNode, to pass to MultiDimensionCacheStats.
         if (statsRoot.getChildren() != null) {
             for (DimensionNode child : statsRoot.getChildren().values()) {
@@ -171,10 +170,8 @@ public class StatsHolder {
 
     private MDCSDimensionNode createMatchingMDCSDimensionNode(DimensionNode node) {
         CacheStatsCounterSnapshot nodeSnapshot = node.getStatsSnapshot();
-        MDCSDimensionNode newNode = new MDCSDimensionNode(node.getDimensionValue(), nodeSnapshot);
-        if (!node.getChildren().isEmpty()) {
-            newNode.createChildrenMap();
-        }
+        boolean isLeafNode = node.getChildren().isEmpty();
+        MDCSDimensionNode newNode = new MDCSDimensionNode(node.getDimensionValue(), !isLeafNode, nodeSnapshot);
         return newNode;
     }
 
