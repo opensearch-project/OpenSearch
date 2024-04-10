@@ -45,12 +45,15 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.module.CacheModule;
 import org.opensearch.common.cache.service.CacheService;
+import org.opensearch.common.cache.stats.CacheStatsCounterSnapshot;
+import org.opensearch.common.cache.stats.MultiDimensionCacheStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
@@ -70,6 +73,7 @@ import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.node.Node;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -77,6 +81,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -749,6 +754,117 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         // cleanup should have been ignored
         assertEquals(2, cache.count());
 
+        IOUtils.close(secondReader, writer, dir, cache);
+        terminate(threadPool);
+    }
+
+    public void testClosingIndexWipesStats() throws Exception {
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        // Create two indices each with multiple shards
+        int numShards = 3;
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
+        String indexToKeepName = "test";
+        String indexToCloseName = "test2";
+        IndexService indexToKeep = createIndex(indexToKeepName, indexSettings);
+        IndexService indexToClose = createIndex(indexToCloseName, indexSettings);
+        for (int i = 0; i < numShards; i++) {
+            // Check we can get all the shards we expect
+            assertNotNull(indexToKeep.getShard(i));
+            assertNotNull(indexToClose.getShard(i));
+        }
+        ThreadPool threadPool = getThreadPool();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.001%").build();
+        IndicesRequestCache cache = new IndicesRequestCache(settings, (shardId -> {
+            IndexService indexService = null;
+            try {
+                indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            } catch (IndexNotFoundException ex) {
+                return Optional.empty();
+            }
+            try {
+                return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
+            } catch (ShardNotFoundException ex) {
+                return Optional.empty();
+            }
+        }), new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(), threadPool);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+
+        writer.addDocument(newDoc(0, "foo"));
+        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
+        if (randomBoolean()) {
+            writer.flush();
+            IOUtils.close(writer);
+            writer = new IndexWriter(dir, newIndexWriterConfig());
+        }
+        writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
+        DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+
+        List<DirectoryReader> readersToClose = new ArrayList<>();
+        List<DirectoryReader> readersToKeep = new ArrayList<>();
+        // Put entries into the cache for each shard
+        for (IndexService indexService : new IndexService[] { indexToKeep, indexToClose }) {
+            for (int i = 0; i < numShards; i++) {
+                IndexShard indexShard = indexService.getShard(i);
+                IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
+                DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), indexShard.shardId());
+                if (indexService == indexToClose) {
+                    readersToClose.add(reader);
+                } else {
+                    readersToKeep.add(reader);
+                }
+                Loader loader = new Loader(reader, 0);
+                cache.getOrCompute(entity, loader, reader, termBytes);
+            }
+        }
+
+        // Check resulting stats
+        List<List<String>> initialDimensionValues = new ArrayList<>();
+        for (IndexService indexService : new IndexService[] { indexToKeep, indexToClose }) {
+            for (int i = 0; i < numShards; i++) {
+                ShardId shardId = indexService.getShard(i).shardId();
+                List<String> dimensionValues = List.of(shardId.getIndexName(), shardId.toString());
+                initialDimensionValues.add(dimensionValues);
+                CacheStatsCounterSnapshot snapshot = ((MultiDimensionCacheStats) cache.getCacheStats()).getStatsForDimensionValues(
+                    dimensionValues
+                );
+                assertNotNull(snapshot);
+                // check the values are not empty by confirming entries != 0, this should always be true since the missed value is loaded
+                // into the cache
+                assertNotEquals(0, snapshot.getEntries());
+            }
+        }
+
+        // Delete an index
+        indexToClose.close("test_deletion", true);
+        // This actually closes the shards associated with the readers, which is necessary for cache cleanup logic
+        // In this UT, manually close the readers as well; could not figure out how to connect all this up in a UT so that
+        // we could get readers that were properly connected to an index's directory
+        for (DirectoryReader reader : readersToClose) {
+            IOUtils.close(reader);
+        }
+        // Trigger cache cleanup
+        cache.cacheCleanupManager.cleanCache();
+
+        // Now stats for the closed index should be gone
+        for (List<String> dimensionValues : initialDimensionValues) {
+            CacheStatsCounterSnapshot snapshot = ((MultiDimensionCacheStats) cache.getCacheStats()).getStatsForDimensionValues(
+                dimensionValues
+            );
+            if (dimensionValues.get(0).equals(indexToCloseName)) {
+                assertNull(snapshot);
+            } else {
+                assertNotNull(snapshot);
+                // check the values are not empty by confirming entries != 0, this should always be true since the missed value is loaded
+                // into the cache
+                assertNotEquals(0, snapshot.getEntries());
+            }
+        }
+
+        for (DirectoryReader reader : readersToKeep) {
+            IOUtils.close(reader);
+        }
         IOUtils.close(secondReader, writer, dir, cache);
         terminate(threadPool);
     }

@@ -20,6 +20,8 @@ import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.serializer.BytesReferenceSerializer;
 import org.opensearch.common.cache.serializer.Serializer;
+import org.opensearch.common.cache.stats.CacheStatsCounterSnapshot;
+import org.opensearch.common.cache.stats.MultiDimensionCacheStats;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Settings;
@@ -795,6 +797,68 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             assertEquals(keyValueMap.size() - removedKeyList.size(), ehcacheTest.count());
             ehcacheTest.close();
         }
+    }
+
+    // Modified from OpenSearchOnHeapCacheTests.java
+    public void testInvalidateWithDropDimensions() throws Exception {
+        Settings settings = Settings.builder().build();
+        List<String> dimensionNames = List.of("dim1", "dim2");
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            ICache<String, String> ehCacheDiskCachingTier = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setKeySerializer(new StringSerializer())
+                .setValueSerializer(new StringSerializer())
+                .setDimensionNames(dimensionNames)
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setSettings(settings)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES * 20) // bigger so no evictions happen
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setRemovalListener(new MockRemovalListener<>())
+                .setWeigher((key, value) -> 1)
+                .build();
+
+            List<ICacheKey<String>> keysAdded = new ArrayList<>();
+
+            for (int i = 0; i < 20; i++) {
+                ICacheKey<String> key = new ICacheKey<>(UUID.randomUUID().toString(), getRandomDimensions(dimensionNames));
+                keysAdded.add(key);
+                ehCacheDiskCachingTier.put(key, UUID.randomUUID().toString());
+            }
+
+            ICacheKey<String> keyToDrop = keysAdded.get(0);
+
+            CacheStatsCounterSnapshot snapshot = ((MultiDimensionCacheStats) ehCacheDiskCachingTier.stats()).getStatsForDimensionValues(
+                keyToDrop.dimensions
+            );
+            assertNotNull(snapshot);
+
+            keyToDrop.setDropStatsForDimensions(true);
+            ehCacheDiskCachingTier.invalidate(keyToDrop);
+
+            // Now assert the stats are gone for any key that has this combination of dimensions, but still there otherwise
+            for (ICacheKey<String> keyAdded : keysAdded) {
+                snapshot = ((MultiDimensionCacheStats) ehCacheDiskCachingTier.stats()).getStatsForDimensionValues(keyAdded.dimensions);
+                if (keyAdded.dimensions.equals(keyToDrop.dimensions)) {
+                    assertNull(snapshot);
+                } else {
+                    assertNotNull(snapshot);
+                }
+            }
+
+            ehCacheDiskCachingTier.close();
+        }
+    }
+
+    private List<String> getRandomDimensions(List<String> dimensionNames) {
+        Random rand = Randomness.get();
+        int bound = 3;
+        List<String> result = new ArrayList<>();
+        for (String dimName : dimensionNames) {
+            result.add(String.valueOf(rand.nextInt(bound)));
+        }
+        return result;
     }
 
     private static String generateRandomString(int length) {

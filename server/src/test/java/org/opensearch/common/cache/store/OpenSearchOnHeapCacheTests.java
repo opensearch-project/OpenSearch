@@ -8,12 +8,15 @@
 
 package org.opensearch.common.cache.store;
 
+import org.opensearch.common.Randomness;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.stats.CacheStatsCounterSnapshot;
+import org.opensearch.common.cache.stats.MultiDimensionCacheStats;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
 import org.opensearch.common.metrics.CounterMetric;
@@ -22,6 +25,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.UUID;
 
 import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES_KEY;
@@ -94,6 +98,48 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
             .setMaxSizeInBytes(maxSizeKeys * keyValueSize)
             .build();
         return (OpenSearchOnHeapCache<String, String>) onHeapCacheFactory.create(cacheConfig, CacheType.INDICES_REQUEST_CACHE, null);
+    }
+
+    public void testInvalidateWithDropDimensions() throws Exception {
+        MockRemovalListener<String, String> listener = new MockRemovalListener<>();
+        int maxKeys = 50;
+        OpenSearchOnHeapCache<String, String> cache = getCache(maxKeys, listener);
+
+        List<ICacheKey<String>> keysAdded = new ArrayList<>();
+
+        for (int i = 0; i < maxKeys - 5; i++) {
+            ICacheKey<String> key = new ICacheKey<>(UUID.randomUUID().toString(), getRandomDimensions());
+            keysAdded.add(key);
+            cache.computeIfAbsent(key, getLoadAwareCacheLoader());
+        }
+
+        ICacheKey<String> keyToDrop = keysAdded.get(0);
+
+        CacheStatsCounterSnapshot snapshot = ((MultiDimensionCacheStats) cache.stats()).getStatsForDimensionValues(keyToDrop.dimensions);
+        assertNotNull(snapshot);
+
+        keyToDrop.setDropStatsForDimensions(true);
+        cache.invalidate(keyToDrop);
+
+        // Now assert the stats are gone for any key that has this combination of dimensions, but still there otherwise
+        for (ICacheKey<String> keyAdded : keysAdded) {
+            snapshot = ((MultiDimensionCacheStats) cache.stats()).getStatsForDimensionValues(keyAdded.dimensions);
+            if (keyAdded.dimensions.equals(keyToDrop.dimensions)) {
+                assertNull(snapshot);
+            } else {
+                assertNotNull(snapshot);
+            }
+        }
+    }
+
+    private List<String> getRandomDimensions() {
+        Random rand = Randomness.get();
+        int bound = 3;
+        List<String> result = new ArrayList<>();
+        for (String dimName : dimensionNames) {
+            result.add(String.valueOf(rand.nextInt(bound)));
+        }
+        return result;
     }
 
     private static class MockRemovalListener<K, V> implements RemovalListener<ICacheKey<K>, V> {
