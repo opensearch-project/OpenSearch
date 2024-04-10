@@ -52,7 +52,7 @@ public class DerivedField implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(name);
-        builder.field(type);
+        builder.field("type", type);
         builder.field("script", script);
         builder.endObject();
         return builder;

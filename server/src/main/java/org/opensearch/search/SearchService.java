@@ -79,7 +79,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.DerivedField;
 import org.opensearch.index.mapper.DerivedFieldMapper;
-import org.opensearch.index.mapper.DerivedFieldType;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.InnerHitContextBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -1072,7 +1072,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.source() != null
                 && request.source().size() != 0
                 && (request.source().getDerivedFieldsObject() != null || request.source().getDerivedFields() != null)) {
-                Map<String, DerivedFieldType> derivedFieldTypeMap = new HashMap<>();
+                Map<String, MappedFieldType> derivedFieldTypeMap = new HashMap<>();
                 if (request.source().getDerivedFieldsObject() != null) {
                     Map<String, Object> derivedFieldObject = new HashMap<>();
                     derivedFieldObject.put(DerivedFieldMapper.CONTENT_TYPE, request.source().getDerivedFieldsObject());

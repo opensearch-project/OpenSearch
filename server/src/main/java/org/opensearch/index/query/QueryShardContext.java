@@ -59,7 +59,6 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.mapper.ContentPath;
-import org.opensearch.index.mapper.DerivedFieldType;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.Mapper;
@@ -79,6 +78,7 @@ import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -121,7 +121,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final ValuesSourceRegistry valuesSourceRegistry;
     private BitSetProducer parentFilter;
 
-    private Map<String, DerivedFieldType> derivedFieldTypeMap = new HashMap<>();
+    private Map<String, MappedFieldType> derivedFieldTypeMap = new HashMap<>();
 
     public QueryShardContext(
         int shardId,
@@ -335,11 +335,13 @@ public class QueryShardContext extends QueryRewriteContext {
     public Set<String> simpleMatchToIndexNames(String pattern) {
         Set<String> matchingFields = mapperService.simpleMatchToFullName(pattern);
         if (derivedFieldTypeMap != null && !derivedFieldTypeMap.isEmpty()) {
+            Set<String> matchingDerivedFields = new HashSet<>(matchingFields);
             for (String fieldName : derivedFieldTypeMap.keySet()) {
-                if (Regex.simpleMatch(pattern, fieldName)) {
-                    matchingFields.add(fieldName);
+                if (!matchingDerivedFields.contains(fieldName) && Regex.simpleMatch(pattern, fieldName)) {
+                    matchingDerivedFields.add(fieldName);
                 }
             }
+            return matchingDerivedFields;
         }
         return matchingFields;
     }
@@ -407,11 +409,11 @@ public class QueryShardContext extends QueryRewriteContext {
         return valuesSourceRegistry;
     }
 
-    public void setDerivedFieldTypes(Map<String, DerivedFieldType> derivedFieldTypeMap) {
+    public void setDerivedFieldTypes(Map<String, MappedFieldType> derivedFieldTypeMap) {
         this.derivedFieldTypeMap = derivedFieldTypeMap;
     }
 
-    public DerivedFieldType getDerivedFieldType(String fieldName) {
+    public MappedFieldType getDerivedFieldType(String fieldName) {
         return derivedFieldTypeMap == null ? null : derivedFieldTypeMap.get(fieldName);
     }
 

@@ -35,6 +35,7 @@ package org.opensearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorable;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.index.query.IntervalFilterScript;
 import org.opensearch.index.similarity.ScriptedSimilarity.Doc;
 import org.opensearch.index.similarity.ScriptedSimilarity.Field;
@@ -46,6 +47,7 @@ import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -283,22 +285,39 @@ public class MockScriptEngine implements ScriptEngine {
             IntervalFilterScript.Factory factory = mockCompiled::createIntervalFilterScript;
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(DerivedFieldScript.class)) {
-            DerivedFieldScript.Factory factory = (derivedFieldParams, lookup) -> ctx -> new DerivedFieldScript(
-                derivedFieldParams,
-                lookup,
-                ctx
-            ) {
+            DerivedFieldScript.Factory factory = new DerivedFieldScript.Factory() {
                 @Override
-                public void setDocument(int docid) {}
+                public boolean isResultDeterministic() {
+                    return true;
+                }
 
                 @Override
-                public void execute() {
-                    Map<String, Object> vars = new HashMap<>(derivedFieldParams);
-                    SourceLookup sourceLookup = lookup.source();
-                    vars.put("params", derivedFieldParams);
-                    vars.put("_source", sourceLookup.loadSourceIfNeeded());
-                    // currently supports adding one value, can be extended to emit multiple values too.
-                    addEmittedValue(script.apply(vars));
+                public DerivedFieldScript.LeafFactory newFactory(Map<String, Object> derivedFieldParams, SearchLookup lookup) {
+                    return ctx -> new DerivedFieldScript(derivedFieldParams, lookup, ctx) {
+                        @Override
+                        public void execute() {
+                            Map<String, Object> vars = new HashMap<>(derivedFieldParams);
+                            SourceLookup sourceLookup = lookup.source();
+                            vars.put("params", derivedFieldParams);
+                            vars.put("_source", sourceLookup.loadSourceIfNeeded());
+                            Object result = script.apply(vars);
+                            if (result instanceof ArrayList) {
+                                for (Object v : ((ArrayList<?>) result)) {
+                                    if (v instanceof HashMap) {
+                                        addEmittedValue(new Tuple(((HashMap<?, ?>) v).get("lat"), ((HashMap<?, ?>) v).get("lon")));
+                                    } else {
+                                        addEmittedValue(v);
+                                    }
+                                }
+                            } else {
+                                if (result instanceof HashMap) {
+                                    addEmittedValue(new Tuple(((HashMap<?, ?>) result).get("lat"), ((HashMap<?, ?>) result).get("lon")));
+                                } else {
+                                    addEmittedValue(result);
+                                }
+                            }
+                        }
+                    };
                 }
             };
             return context.factoryClazz.cast(factory);

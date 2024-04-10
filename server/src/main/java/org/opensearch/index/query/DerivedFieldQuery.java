@@ -29,7 +29,6 @@ import org.opensearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * DerivedFieldQuery used for querying derived fields. It contains the logic to execute an input lucene query against
@@ -39,7 +38,6 @@ public final class DerivedFieldQuery extends Query {
     private final Query query;
     private final DerivedFieldValueFetcher valueFetcher;
     private final SearchLookup searchLookup;
-    private final Function<Object, IndexableField> indexableFieldGenerator;
     private final Analyzer indexAnalyzer;
 
     /**
@@ -47,20 +45,11 @@ public final class DerivedFieldQuery extends Query {
      * @param valueFetcher DerivedFieldValueFetcher ValueFetcher to fetch the value of a derived field from _source
      *                     using LeafSearchLookup
      * @param searchLookup SearchLookup to get the LeafSearchLookup look used by valueFetcher to fetch the _source
-     * @param indexableFieldGenerator used to generate lucene IndexableField from a given object fetched by valueFetcher
-     *                                to be used in lucene memory index.
      */
-    public DerivedFieldQuery(
-        Query query,
-        DerivedFieldValueFetcher valueFetcher,
-        SearchLookup searchLookup,
-        Function<Object, IndexableField> indexableFieldGenerator,
-        Analyzer indexAnalyzer
-    ) {
+    public DerivedFieldQuery(Query query, DerivedFieldValueFetcher valueFetcher, SearchLookup searchLookup, Analyzer indexAnalyzer) {
         this.query = query;
         this.valueFetcher = valueFetcher;
         this.searchLookup = searchLookup;
-        this.indexableFieldGenerator = indexableFieldGenerator;
         this.indexAnalyzer = indexAnalyzer;
     }
 
@@ -75,7 +64,7 @@ public final class DerivedFieldQuery extends Query {
         if (rewritten == query) {
             return this;
         }
-        return new DerivedFieldQuery(rewritten, valueFetcher, searchLookup, indexableFieldGenerator, indexAnalyzer);
+        return new DerivedFieldQuery(rewritten, valueFetcher, searchLookup, indexAnalyzer);
     }
 
     @Override
@@ -91,12 +80,12 @@ public final class DerivedFieldQuery extends Query {
                     @Override
                     public boolean matches() {
                         leafSearchLookup.source().setSegmentAndDocument(context, approximation.docID());
-                        List<Object> values = valueFetcher.fetchValues(leafSearchLookup.source());
+                        List<IndexableField> indexableFields = valueFetcher.getIndexableField(leafSearchLookup.source());
                         // TODO: in case of errors from script, should it be ignored and treated as missing field
                         // by using a configurable setting?
                         MemoryIndex memoryIndex = new MemoryIndex();
-                        for (Object value : values) {
-                            memoryIndex.addField(indexableFieldGenerator.apply(value), indexAnalyzer);
+                        for (IndexableField indexableField : indexableFields) {
+                            memoryIndex.addField(indexableField, indexAnalyzer);
                         }
                         float score = memoryIndex.search(query);
                         return score > 0.0f;
