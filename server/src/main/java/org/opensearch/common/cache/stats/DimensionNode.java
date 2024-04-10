@@ -90,18 +90,11 @@ class DimensionNode {
         this.stats.resetSizeAndEntries();
     }
 
-    DimensionNode getChild(String dimensionValue) { // , boolean createIfAbsent, boolean createMapInChild
+    DimensionNode getChild(String dimensionValue) {
         return children.get(dimensionValue);
     }
 
     DimensionNode createChild(String dimensionValue, boolean createMapInChild) {
         return children.computeIfAbsent(dimensionValue, (key) -> new DimensionNode(dimensionValue, createMapInChild));
-    }
-
-    public void resetNode() {
-        for (String childDimensionValue : children.keySet()) {
-            children.remove(childDimensionValue);
-        }
-        stats = new CacheStatsCounter();
     }
 }
