@@ -1570,7 +1570,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (derivedFieldsObject != null || derivedFields != null) {
             builder.startObject(DERIVED_FIELDS_FIELD.getPreferredName());
             if (derivedFieldsObject != null) {
-                builder.map(derivedFieldsObject);
+                builder.mapContents(derivedFieldsObject);
             }
             if (derivedFields != null) {
                 for (DerivedField derivedField : derivedFields) {
@@ -1578,6 +1578,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 }
             }
             builder.endObject();
+
         }
 
         return builder;
