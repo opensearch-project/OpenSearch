@@ -191,13 +191,6 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             scripts.put("doc['s']", vars -> docScript(vars, "s"));
             scripts.put("doc['ms']", vars -> docScript(vars, "ms"));
 
-            scripts.put("doc['l']", vars -> docScript(vars, "l"));
-            scripts.put("doc['ml']", vars -> docScript(vars, "ml"));
-            scripts.put("doc['d']", vars -> docScript(vars, "d"));
-            scripts.put("doc['md']", vars -> docScript(vars, "md"));
-            scripts.put("doc['s']", vars -> docScript(vars, "s"));
-            scripts.put("doc['ms']", vars -> docScript(vars, "ms"));
-
             scripts.put("doc['keyword_field']", vars -> sourceScript(vars, "keyword_field"));
             scripts.put("doc['multi_keyword_field']", vars -> sourceScript(vars, "multi_keyword_field"));
             scripts.put("doc['long_field']", vars -> sourceScript(vars, "long_field"));
