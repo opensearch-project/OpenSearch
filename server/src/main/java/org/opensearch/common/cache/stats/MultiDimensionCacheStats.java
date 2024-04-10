@@ -40,7 +40,7 @@ public class MultiDimensionCacheStats implements CacheStats {
         // of the last node we read. This allows us to avoid ambiguity if nodes have the same dimension value, without
         // having to serialize the whole path to each node.
         this.dimensionNames = List.of(in.readStringArray());
-        this.statsRoot = new MDCSDimensionNode(null, true);
+        this.statsRoot = new MDCSDimensionNode("", true);
         List<MDCSDimensionNode> ancestorsOfLastRead = List.of(statsRoot);
         while (ancestorsOfLastRead != null) {
             ancestorsOfLastRead = readAndAttachDimensionNode(in, ancestorsOfLastRead);
@@ -142,7 +142,7 @@ public class MultiDimensionCacheStats implements CacheStats {
      */
     MDCSDimensionNode aggregateByLevels(List<String> levels) {
         List<String> filteredLevels = filterLevels(levels);
-        MDCSDimensionNode newRoot = new MDCSDimensionNode(null, true, statsRoot.getStats());
+        MDCSDimensionNode newRoot = new MDCSDimensionNode("", true, statsRoot.getStats());
         for (MDCSDimensionNode child : statsRoot.children.values()) {
             aggregateByLevelsHelper(newRoot, child, filteredLevels, 0);
         }

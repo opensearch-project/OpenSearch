@@ -8,6 +8,7 @@
 
 package org.opensearch.common.cache.stats;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -40,8 +41,8 @@ public class StatsHolder {
     private final Lock lock = new ReentrantLock();
 
     public StatsHolder(List<String> dimensionNames) {
-        this.dimensionNames = dimensionNames;
-        this.statsRoot = new DimensionNode(null, true); // The root node has no dimension value associated with it, only children
+        this.dimensionNames = Collections.unmodifiableList(dimensionNames);
+        this.statsRoot = new DimensionNode("", true); // The root node has the empty string as its dimension value
     }
 
     public List<String> getDimensionNames() {
@@ -102,7 +103,17 @@ public class StatsHolder {
 
     private void internalIncrement(List<String> dimensionValues, Consumer<DimensionNode> adder, boolean createNodesIfAbsent) {
         assert dimensionValues.size() == dimensionNames.size();
-        internalIncrementHelper(dimensionValues, statsRoot, 0, adder, createNodesIfAbsent);
+        // First try to increment without creating nodes
+        boolean didIncrement = internalIncrementHelper(dimensionValues, statsRoot, 0, adder, false);
+        // If we failed to increment, because nodes had to be created, obtain the lock and run again while creating nodes if needed
+        if (!didIncrement) {
+            try {
+                lock.lock();
+                internalIncrementHelper(dimensionValues, statsRoot, 0, adder, createNodesIfAbsent);
+            } finally {
+                lock.unlock();
+            }
+        }
     }
 
     /**
@@ -126,14 +137,8 @@ public class StatsHolder {
         DimensionNode child = node.getChild(dimensionValues.get(depth));
         if (child == null) {
             if (createNodesIfAbsent) {
-                // If we have to create a new node, obtain the lock first
                 boolean createMapInChild = depth < dimensionValues.size() - 1;
-                lock.lock();
-                try {
-                    child = node.createChild(dimensionValues.get(depth), createMapInChild);
-                } finally {
-                    lock.unlock();
-                }
+                child = node.createChild(dimensionValues.get(depth), createMapInChild);
             } else {
                 return false;
             }
@@ -150,7 +155,7 @@ public class StatsHolder {
      * Produce an immutable CacheStats representation of these stats.
      */
     public CacheStats getCacheStats() {
-        MDCSDimensionNode snapshot = new MDCSDimensionNode(null, true, statsRoot.getStatsSnapshot());
+        MDCSDimensionNode snapshot = new MDCSDimensionNode("", true, statsRoot.getStatsSnapshot());
         // Traverse the tree and build a corresponding tree of MDCSDimensionNode, to pass to MultiDimensionCacheStats.
         if (statsRoot.getChildren() != null) {
             for (DimensionNode child : statsRoot.getChildren().values()) {
