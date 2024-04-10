@@ -46,6 +46,7 @@ import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
@@ -76,11 +77,20 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         );
     }
 
-    public void testClone() {
+    public void testClone() throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         SearchRequest clonedRequest = searchRequest.clone();
         assertEquals(searchRequest.hashCode(), clonedRequest.hashCode());
         assertNotSame(searchRequest, clonedRequest);
+
+        SearchSourceBuilder source = new SearchSourceBuilder()
+            .fetchSource(new FetchSourceContext(true, new String[] { "field1.*" }, new String[] { "field2.*" }));
+        SearchRequest complexSearchRequest = createSearchRequest().source(source);
+        complexSearchRequest.requestCache(false);
+        complexSearchRequest.scroll(new TimeValue(1000));
+        SearchRequest clonedComplexRequest = complexSearchRequest.clone();
+        assertEquals(complexSearchRequest.hashCode(), clonedComplexRequest.hashCode());
+        assertNotSame(complexSearchRequest, clonedComplexRequest);
     }
 
     public void testWithLocalReduction() {
