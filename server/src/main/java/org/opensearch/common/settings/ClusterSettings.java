@@ -154,6 +154,7 @@ import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
+import org.opensearch.search.sandbox.QuerySandboxServiceSettings;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.tasks.TaskCancellationMonitoringSettings;
@@ -732,7 +733,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_TRANSFER_TIMEOUT_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING,
-                RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING
+                RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING,
+
+                // Sandbox settings
+                QuerySandboxServiceSettings.MAX_SANDBOX_COUNT,
+                QuerySandboxServiceSettings.NODE_LEVEL_REJECTION_THRESHOLD,
+                QuerySandboxServiceSettings.NODE_LEVEL_CANCELLATION_THRESHOLD
             )
         )
     );
