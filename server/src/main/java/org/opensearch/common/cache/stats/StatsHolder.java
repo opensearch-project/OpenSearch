@@ -176,8 +176,7 @@ public class StatsHolder {
     private MDCSDimensionNode createMatchingMDCSDimensionNode(DimensionNode node) {
         CacheStatsCounterSnapshot nodeSnapshot = node.getStatsSnapshot();
         boolean isLeafNode = node.getChildren().isEmpty();
-        MDCSDimensionNode newNode = new MDCSDimensionNode(node.getDimensionValue(), !isLeafNode, nodeSnapshot);
-        return newNode;
+        return new MDCSDimensionNode(node.getDimensionValue(), !isLeafNode, nodeSnapshot);
     }
 
     public void removeDimensions(List<String> dimensionValues) {

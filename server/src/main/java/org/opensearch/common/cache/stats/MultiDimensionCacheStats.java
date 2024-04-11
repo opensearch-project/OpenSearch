@@ -91,10 +91,6 @@ public class MultiDimensionCacheStats implements CacheStats {
             this.stats = stats;
         }
 
-        MDCSDimensionNode(String dimensionValue, boolean createChildrenMap) {
-            this(dimensionValue, createChildrenMap, null);
-        }
-
         Map<String, MDCSDimensionNode> getChildren() {
             return children;
         }
