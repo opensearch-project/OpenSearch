@@ -17,7 +17,7 @@ import java.util.Map;
  *
  * @opensearch.experimental
  */
-public class BlobDownloadResponse {
+public class FetchBlobResult {
 
     /**
      * Downloaded blob InputStream
@@ -37,7 +37,7 @@ public class BlobDownloadResponse {
         return metadata;
     }
 
-    public BlobDownloadResponse(InputStream inputStream, Map<String, String> metadata) {
+    public FetchBlobResult(InputStream inputStream, Map<String, String> metadata) {
         this.inputStream = inputStream;
         this.metadata = metadata;
     }

@@ -40,7 +40,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -78,11 +80,14 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
         );
 
         AtomicReference<InputStream> streamRef = new AtomicReference<>();
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+        metadata.put("key2", "value2");
         CompletableFuture<Void> resultFuture = asyncTransferManager.uploadObject(
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(1), WritePriority.HIGH, uploadSuccess -> {
                 // do nothing
-            }, false, null, true, null),
+            }, false, null, true, metadata),
             new StreamContext((partIdx, partSize, position) -> {
                 streamRef.set(new ZeroInputStream(partSize));
                 return new InputStreamContainer(streamRef.get(), partSize, position);
@@ -123,11 +128,15 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
         deleteObjectResponseCompletableFuture.complete(DeleteObjectResponse.builder().build());
         when(s3AsyncClient.deleteObject(any(DeleteObjectRequest.class))).thenReturn(deleteObjectResponseCompletableFuture);
 
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+        metadata.put("key2", "value2");
+
         CompletableFuture<Void> resultFuture = asyncTransferManager.uploadObject(
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(1), WritePriority.HIGH, uploadSuccess -> {
                 // do nothing
-            }, false, null, true, null),
+            }, false, null, true, metadata),
             new StreamContext(
                 (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
                 ByteSizeUnit.MB.toBytes(1),
@@ -180,7 +189,7 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(5), WritePriority.HIGH, uploadSuccess -> {
                 // do nothing
-            }, true, 3376132981L, true, null),
+            }, true, 3376132981L, true, new HashMap<>()),
             new StreamContext((partIdx, partSize, position) -> {
                 InputStream stream = new ZeroInputStream(partSize);
                 streams.add(stream);
