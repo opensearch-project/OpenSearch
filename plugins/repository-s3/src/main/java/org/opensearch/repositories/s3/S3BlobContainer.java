@@ -822,12 +822,11 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         final GetObjectResponse getObjectResponse = streamResponse.response();
         final String contentRange = getObjectResponse.contentRange();
         final Long contentLength = getObjectResponse.contentLength();
-        final Map<String, String> metadata = getObjectResponse.metadata();
         if ((isMultipartObject && contentRange == null) || contentLength == null) {
             throw SdkException.builder().message("Failed to fetch required metadata for blob part").build();
         }
         final long offset = isMultipartObject ? HttpRangeUtils.getStartOffsetFromRangeHeader(getObjectResponse.contentRange()) : 0L;
-        return new InputStreamContainer(streamResponse, getObjectResponse.contentLength(), offset, metadata);
+        return new InputStreamContainer(streamResponse, getObjectResponse.contentLength(), offset);
     }
 
     /**

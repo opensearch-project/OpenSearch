@@ -352,7 +352,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         StreamContextSupplier streamContextSupplier = partSize -> new StreamContext((partNo, size, position) -> {
             InputStream inputStream = new OffsetRangeIndexInputStream(new ByteArrayIndexInput("desc", bytes), size, position);
             openInputStreams.add(inputStream);
-            return new InputStreamContainer(inputStream, size, position, null);
+            return new InputStreamContainer(inputStream, size, position);
         }, partSize, calculateLastPartSize(bytes.length, partSize), calculateNumberOfParts(bytes.length, partSize));
 
         WriteContext writeContext = new WriteContext.Builder().fileName("write_blob_by_streams_max_retries")

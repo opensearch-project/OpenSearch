@@ -85,7 +85,7 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
             }, false, null, true, null),
             new StreamContext((partIdx, partSize, position) -> {
                 streamRef.set(new ZeroInputStream(partSize));
-                return new InputStreamContainer(streamRef.get(), partSize, position, null);
+                return new InputStreamContainer(streamRef.get(), partSize, position);
             }, ByteSizeUnit.MB.toBytes(1), ByteSizeUnit.MB.toBytes(1), 1),
             new StatsMetricPublisher()
         );
@@ -129,7 +129,7 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
                 // do nothing
             }, false, null, true, null),
             new StreamContext(
-                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position, null),
+                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
                 ByteSizeUnit.MB.toBytes(1),
                 ByteSizeUnit.MB.toBytes(1),
                 1
@@ -184,7 +184,7 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
             new StreamContext((partIdx, partSize, position) -> {
                 InputStream stream = new ZeroInputStream(partSize);
                 streams.add(stream);
-                return new InputStreamContainer(stream, partSize, position, null);
+                return new InputStreamContainer(stream, partSize, position);
             }, ByteSizeUnit.MB.toBytes(1), ByteSizeUnit.MB.toBytes(1), 5),
             new StatsMetricPublisher()
         );
@@ -242,7 +242,7 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
                 // do nothing
             }, true, 0L, true, null),
             new StreamContext(
-                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position, null),
+                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
                 ByteSizeUnit.MB.toBytes(1),
                 ByteSizeUnit.MB.toBytes(1),
                 5

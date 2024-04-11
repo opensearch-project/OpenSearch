@@ -221,7 +221,7 @@ public class RemoteTransferContainer implements Closeable {
                     inputStream = offsetRangeInputStream;
                 }
 
-                return new InputStreamContainer(inputStream, size, position, null);
+                return new InputStreamContainer(inputStream, size, position);
             } catch (IOException e) {
                 log.error("Failed to create input stream", e);
                 throw e;

@@ -473,7 +473,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         StreamContextSupplier streamContextSupplier = partSize -> new StreamContext((partNo, size, position) -> {
             InputStream inputStream = new OffsetRangeIndexInputStream(new ByteArrayIndexInput("desc", bytes), size, position);
             openInputStreams.add(inputStream);
-            return new InputStreamContainer(inputStream, size, position, null);
+            return new InputStreamContainer(inputStream, size, position);
         }, partSize, calculateLastPartSize(bytes.length, partSize), calculateNumberOfParts(bytes.length, partSize));
 
         CheckedConsumer<Boolean, IOException> uploadFinalizer = uploadSuccess -> {
@@ -529,7 +529,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         StreamContextSupplier streamContextSupplier = partSize1 -> new StreamContext((partNo, size, position) -> {
             InputStream inputStream = new OffsetRangeIndexInputStream(new ZeroIndexInput("desc", blobSize), size, position);
             openInputStreams.add(inputStream);
-            return new InputStreamContainer(inputStream, size, position, null);
+            return new InputStreamContainer(inputStream, size, position);
         }, partSize1, calculateLastPartSize(blobSize, partSize1), calculateNumberOfParts(blobSize, partSize1));
 
         CheckedConsumer<Boolean, IOException> uploadFinalizer = uploadSuccess -> {
@@ -651,7 +651,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         StreamContextSupplier streamContextSupplier = partSize1 -> new StreamContext((partNo, size, position) -> {
             InputStream inputStream = new OffsetRangeIndexInputStream(new ZeroIndexInput("desc", blobSize), size, position);
             openInputStreams.add(inputStream);
-            return new InputStreamContainer(inputStream, size, position, null);
+            return new InputStreamContainer(inputStream, size, position);
         }, partSize1, calculateLastPartSize(blobSize, partSize1), calculateNumberOfParts(blobSize, partSize1));
 
         WriteContext writeContext = new WriteContext.Builder().fileName("write_large_blob")
