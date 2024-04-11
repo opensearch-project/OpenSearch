@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 
 ### Dependencies
+- Bump `commons-io:commons-io` from 2.15 to 2.16.0 [#13068](https://github.com/opensearch-project/OpenSearch/pull/13068))
+- Bump `org.apache.commons:commons-compress` from 1.24.0 to 1.26.1 ([#13068](https://github.com/opensearch-project/OpenSearch/pull/13068))
+- Bump `org.apache.commons:commonscodec` from 1.15 to 1.16.1 ([#13068](https://github.com/opensearch-project/OpenSearch/pull/13068))
+- Bump `org.apache.commons:commonslang` from 3.13.0 to 3.14.0 ([#13068](https://github.com/opensearch-project/OpenSearch/pull/13068))
+- Bump Apache Tika from 2.6.0 to 2.9.2 ([#13068](https://github.com/opensearch-project/OpenSearch/pull/13068))
 
 ### Changed
 
