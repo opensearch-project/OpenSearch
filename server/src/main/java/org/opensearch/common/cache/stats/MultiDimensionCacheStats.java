@@ -82,7 +82,7 @@ public class MultiDimensionCacheStats implements CacheStats {
      * Reads a serialized dimension node, attaches it to its appropriate place in the tree, and returns the list of
      * ancestors of the newly attached node.
      */
-    private void readAndAttachDimensionNodeRecursive(StreamInput in, List<MDCSDimensionNode> ancestorsOfLastRead) //List<MDCSDimensionNode>
+    private void readAndAttachDimensionNodeRecursive(StreamInput in, List<MDCSDimensionNode> ancestorsOfLastRead) // List<MDCSDimensionNode>
         throws IOException {
         boolean hasNextNode = in.readBoolean();
         if (hasNextNode) {
