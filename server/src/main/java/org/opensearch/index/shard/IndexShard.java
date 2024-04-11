@@ -5054,11 +5054,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         .filter(file -> file.startsWith(RemoteSegmentStoreDirectory.SEGMENT_INFOS_SNAPSHOT_PREFIX))
                         .collect(Collectors.toList());
                     assert segmentInfosSnapshotFilenames.size() == 1;
-                    infosSnapshot = SegmentInfos.readCommit(
-                        store.directory(),
-                        store.directory().openChecksumInput(segmentInfosSnapshotFilenames.get(0), IOContext.READ),
-                        remoteSegmentMetadata.getGeneration()
-                    );
+                    try (ChecksumIndexInput segmentInfosInput = store.directory().openChecksumInput(segmentInfosSnapshotFilenames.get(0), IOContext.READ)) {
+                        infosSnapshot = SegmentInfos.readCommit(
+                            store.directory(),
+                            segmentInfosInput,
+                            remoteSegmentMetadata.getGeneration()
+                        );
+                    }
                 } else {
                     infosSnapshot = store.buildSegmentInfos(
                         remoteSegmentMetadata.getSegmentInfosBytes(),

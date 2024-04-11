@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.OpenSearchCorruptionException;
@@ -301,11 +302,13 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                     .filter(file -> file.startsWith(RemoteSegmentStoreDirectory.SEGMENT_INFOS_SNAPSHOT_PREFIX))
                     .collect(Collectors.toList());
                 assert segmentInfosSnapshotFilenames.size() == 1;
-                infos = SegmentInfos.readCommit(
-                    store.directory(),
-                    store.directory().openChecksumInput(segmentInfosSnapshotFilenames.get(0), IOContext.READ),
-                    checkpointInfoResponse.getCheckpoint().getSegmentsGen()
-                );
+                try (ChecksumIndexInput segmentInfosInput = store.directory().openChecksumInput(segmentInfosSnapshotFilenames.get(0), IOContext.READ)) {
+                    infos = SegmentInfos.readCommit(
+                        store.directory(),
+                        segmentInfosInput,
+                        checkpointInfoResponse.getCheckpoint().getSegmentsGen()
+                    );
+                }
                 store.deleteQuiet(segmentInfosSnapshotFilenames.get(0));
             } else {
                 infos = store.buildSegmentInfos(segmentInfosBytes, checkpointInfoResponse.getCheckpoint().getSegmentsGen());
