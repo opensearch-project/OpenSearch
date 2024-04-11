@@ -135,6 +135,7 @@ import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.MockFieldFilterPlugin;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
@@ -210,6 +211,7 @@ import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_ENABLED_
 import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
@@ -376,6 +378,14 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Key to provide the cluster name
      */
     public static final String TESTS_CLUSTER_NAME = "tests.clustername";
+
+    protected static final String REMOTE_BACKED_STORAGE_REPOSITORY_NAME = "test-remote-store-repo";
+
+    private Path remoteStoreRepositoryPath;
+
+    private ReplicationType randomReplicationType;
+
+    private String randomStorageType;
 
     @BeforeClass
     public static void beforeClass() throws Exception {
@@ -1894,11 +1904,19 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             builder.put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true);
         }
 
-        // Randomly set a replication strategy for the node. Replication Strategy can still be manually overridden by subclass if needed.
+        // Randomly set a Replication Strategy and storage type for the node. Both Replication Strategy and Storage Type can still be
+        // manually overridden by subclass if needed.
         if (useRandomReplicationStrategy()) {
-            ReplicationType replicationType = randomBoolean() ? ReplicationType.DOCUMENT : ReplicationType.SEGMENT;
-            logger.info("Randomly using Replication Strategy as {}.", replicationType.toString());
-            builder.put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), replicationType);
+            if (randomReplicationType.equals(ReplicationType.SEGMENT) && randomStorageType.equals("REMOTE_STORE")) {
+                logger.info("Randomly using Replication Strategy as {} and Storage Type as {}.", randomReplicationType, randomStorageType);
+                if (remoteStoreRepositoryPath == null) {
+                    remoteStoreRepositoryPath = randomRepoPath().toAbsolutePath();
+                }
+                builder.put(remoteStoreClusterSettings(REMOTE_BACKED_STORAGE_REPOSITORY_NAME, remoteStoreRepositoryPath));
+            } else {
+                logger.info("Randomly using Replication Strategy as {} and Storage Type as {}.", randomReplicationType, randomStorageType);
+                builder.put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), randomReplicationType);
+            }
         }
         return builder.build();
     }
@@ -1951,6 +1969,14 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
+        if (useRandomReplicationStrategy()) {
+            randomReplicationType = randomBoolean() ? ReplicationType.DOCUMENT : ReplicationType.SEGMENT;
+            if (randomReplicationType.equals(ReplicationType.SEGMENT)) {
+                randomStorageType = randomBoolean() ? "REMOTE_STORE" : "LOCAL";
+            } else {
+                randomStorageType = "LOCAL";
+            }
+        }
         String clusterAddresses = System.getProperty(TESTS_CLUSTER);
         if (Strings.hasLength(clusterAddresses) && ignoreExternalCluster() == false) {
             if (scope == Scope.TEST) {
@@ -2593,6 +2619,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             settings.put(segmentRepoSettingsAttributeKeyPrefix + "compress", randomBoolean())
                 .put(segmentRepoSettingsAttributeKeyPrefix + "chunk_size", 200, ByteSizeUnit.BYTES);
         }
+        settings.put(CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING.getKey(), randomFrom(PathType.values()));
         return settings.build();
     }
 

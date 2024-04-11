@@ -8,7 +8,6 @@
 
 package org.opensearch.gateway;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
@@ -27,7 +26,6 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayStartedShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.store.ShardAttributes;
 import org.opensearch.threadpool.ThreadPool;
@@ -40,6 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayStartedShard;
+import static org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.INDEX_NOT_FOUND;
 import static org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.getShardInfoOnLocalNode;
 
 /**
@@ -136,8 +136,10 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
     @Override
     protected NodeGatewayStartedShardsBatch nodeOperation(NodeRequest request) {
         Map<ShardId, GatewayStartedShard> shardsOnNode = new HashMap<>();
-        for (ShardAttributes shardAttr : request.shardAttributes.values()) {
-            final ShardId shardId = shardAttr.getShardId();
+        // NOTE : If we ever change this for loop to run in parallel threads, we should re-visit the exception
+        // handling in AsyncShardBatchFetch class.
+        for (Map.Entry<ShardId, ShardAttributes> shardAttr : request.shardAttributes.entrySet()) {
+            final ShardId shardId = shardAttr.getKey();
             try {
                 shardsOnNode.put(
                     shardId,
@@ -147,16 +149,19 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
                         namedXContentRegistry,
                         nodeEnv,
                         indicesService,
-                        shardAttr.getCustomDataPath(),
+                        shardAttr.getValue().getCustomDataPath(),
                         settings,
                         clusterService
                     )
                 );
             } catch (Exception e) {
-                shardsOnNode.put(
-                    shardId,
-                    new GatewayStartedShard(null, false, null, new OpenSearchException("failed to load started shards", e))
-                );
+                // should return null in case of known exceptions being returned from getShardInfoOnLocalNode method.
+                if (e instanceof IllegalStateException || e.getMessage().contains(INDEX_NOT_FOUND) || e instanceof IOException) {
+                    shardsOnNode.put(shardId, null);
+                } else {
+                    // return actual exception as it is for unknown exceptions
+                    shardsOnNode.put(shardId, new GatewayStartedShard(null, false, null, e));
+                }
             }
         }
         return new NodeGatewayStartedShardsBatch(clusterService.localNode(), shardsOnNode);
@@ -264,13 +269,26 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
 
         public NodeGatewayStartedShardsBatch(StreamInput in) throws IOException {
             super(in);
-            this.nodeGatewayStartedShardsBatch = in.readMap(ShardId::new, GatewayStartedShard::new);
+            this.nodeGatewayStartedShardsBatch = in.readMap(ShardId::new, i -> {
+                if (i.readBoolean()) {
+                    return new GatewayStartedShard(i);
+                } else {
+                    return null;
+                }
+            });
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(nodeGatewayStartedShardsBatch, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
+            out.writeMap(nodeGatewayStartedShardsBatch, (o, k) -> k.writeTo(o), (o, v) -> {
+                if (v != null) {
+                    o.writeBoolean(true);
+                    v.writeTo(o);
+                } else {
+                    o.writeBoolean(false);
+                }
+            });
         }
 
         public NodeGatewayStartedShardsBatch(DiscoveryNode node, Map<ShardId, GatewayStartedShard> nodeGatewayStartedShardsBatch) {
