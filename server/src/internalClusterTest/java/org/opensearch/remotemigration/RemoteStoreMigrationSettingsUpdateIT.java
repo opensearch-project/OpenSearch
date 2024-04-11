@@ -29,15 +29,10 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.MIXED;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.Direction.REMOTE_STORE;
-import static org.opensearch.remotemigration.RemoteStoreMigrationAllocationIT.TEST_INDEX;
-import static org.opensearch.remotemigration.RemoteStoreMigrationAllocationIT.assertNodeInCluster;
-import static org.opensearch.remotemigration.RemoteStoreMigrationAllocationIT.prepareIndexWithoutReplica;
-import static org.opensearch.remotemigration.RemoteStoreMigrationAllocationIT.setClusterMode;
-import static org.opensearch.remotemigration.RemoteStoreMigrationAllocationIT.setDirection;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class RemoteStoreMigrationSettingsUpdateIT extends MigrationBaseTestCase {
+public class RemoteStoreMigrationSettingsUpdateIT extends ShardAllocationBaseTestCase {
 
     private Client client;
 
@@ -182,6 +177,7 @@ public class RemoteStoreMigrationSettingsUpdateIT extends MigrationBaseTestCase 
         );
     }
 
+    // bootstrap a cluster
     private void initializeCluster(boolean remoteClusterManager) {
         addRemote = remoteClusterManager;
         internalCluster().startClusterManagerOnlyNode();
