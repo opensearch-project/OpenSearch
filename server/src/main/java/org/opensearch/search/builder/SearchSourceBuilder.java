@@ -298,7 +298,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (in.getVersion().onOrAfter(Version.V_2_13_0)) {
             includeNamedQueriesScore = in.readOptionalBoolean();
         }
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_14_0)) {
             if (in.readBoolean()) {
                 derivedFieldsObject = in.readMap();
             }
@@ -382,7 +382,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (out.getVersion().onOrAfter(Version.V_2_13_0)) {
             out.writeOptionalBoolean(includeNamedQueriesScore);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_14_0)) {
             boolean hasDerivedFieldsObject = derivedFieldsObject != null;
             out.writeBoolean(hasDerivedFieldsObject);
             if (hasDerivedFieldsObject) {
