@@ -187,7 +187,6 @@ public class StatsHolderTests extends OpenSearchTestCase {
         int numRepetitionsPerValue
     ) throws InterruptedException {
         Map<List<String>, CacheStatsCounter> expected = new ConcurrentHashMap<>();
-
         Thread[] threads = new Thread[numDistinctValuePairs];
         CountDownLatch countDownLatch = new CountDownLatch(numDistinctValuePairs);
         Random rand = Randomness.get();
@@ -196,42 +195,23 @@ public class StatsHolderTests extends OpenSearchTestCase {
             dimensionsForThreads.add(getRandomDimList(statsHolder.getDimensionNames(), usedDimensionValues, true, rand));
             int finalI = i;
             threads[i] = new Thread(() -> {
-                Random threadRand = Randomness.get(); // TODO: This always has the same seed for each thread, causing only 1 set of values
+                Random threadRand = Randomness.get();
                 List<String> dimensions = dimensionsForThreads.get(finalI);
                 expected.computeIfAbsent(dimensions, (key) -> new CacheStatsCounter());
-
                 for (int j = 0; j < numRepetitionsPerValue; j++) {
-                    int numHitIncrements = threadRand.nextInt(10);
-                    for (int k = 0; k < numHitIncrements; k++) {
-                        statsHolder.incrementHits(dimensions);
-                        expected.get(dimensions).hits.inc();
-                    }
-                    int numMissIncrements = threadRand.nextInt(10);
-                    for (int k = 0; k < numMissIncrements; k++) {
-                        statsHolder.incrementMisses(dimensions);
-                        expected.get(dimensions).misses.inc();
-                    }
-                    int numEvictionIncrements = threadRand.nextInt(10);
-                    for (int k = 0; k < numEvictionIncrements; k++) {
-                        statsHolder.incrementEvictions(dimensions);
-                        expected.get(dimensions).evictions.inc();
-                    }
-                    int numMemorySizeIncrements = threadRand.nextInt(10);
-                    for (int k = 0; k < numMemorySizeIncrements; k++) {
-                        long memIncrementAmount = threadRand.nextInt(5000);
-                        statsHolder.incrementSizeInBytes(dimensions, memIncrementAmount);
-                        expected.get(dimensions).sizeInBytes.inc(memIncrementAmount);
-                    }
-                    int numEntryIncrements = threadRand.nextInt(9) + 1;
-                    for (int k = 0; k < numEntryIncrements; k++) {
-                        statsHolder.incrementEntries(dimensions);
-                        expected.get(dimensions).entries.inc();
-                    }
-                    int numEntryDecrements = threadRand.nextInt(numEntryIncrements);
-                    for (int k = 0; k < numEntryDecrements; k++) {
-                        statsHolder.decrementEntries(dimensions);
-                        expected.get(dimensions).entries.dec();
-                    }
+                    CacheStatsCounter statsToInc = new CacheStatsCounter(
+                        threadRand.nextInt(10),
+                        threadRand.nextInt(10),
+                        threadRand.nextInt(10),
+                        threadRand.nextInt(5000),
+                        threadRand.nextInt(10)
+                    );
+                    expected.get(dimensions).hits.inc(statsToInc.getHits());
+                    expected.get(dimensions).misses.inc(statsToInc.getMisses());
+                    expected.get(dimensions).evictions.inc(statsToInc.getEvictions());
+                    expected.get(dimensions).sizeInBytes.inc(statsToInc.getSizeInBytes());
+                    expected.get(dimensions).entries.inc(statsToInc.getEntries());
+                    StatsHolderTests.populateStatsHolderFromStatsValueMap(statsHolder, Map.of(dimensions, statsToInc));
                 }
                 countDownLatch.countDown();
             });
@@ -281,6 +261,26 @@ public class StatsHolderTests extends OpenSearchTestCase {
             assertEquals(expectedTotal.snapshot(), current.getStatsSnapshot());
             for (DimensionNode child : current.children.values()) {
                 assertSumOfChildrenStats(child);
+            }
+        }
+    }
+
+    static void populateStatsHolderFromStatsValueMap(StatsHolder statsHolder, Map<List<String>, CacheStatsCounter> statsMap) {
+        for (Map.Entry<List<String>, CacheStatsCounter> entry : statsMap.entrySet()) {
+            CacheStatsCounter stats = entry.getValue();
+            List<String> dims = entry.getKey();
+            for (int i = 0; i < stats.getHits(); i++) {
+                statsHolder.incrementHits(dims);
+            }
+            for (int i = 0; i < stats.getMisses(); i++) {
+                statsHolder.incrementMisses(dims);
+            }
+            for (int i = 0; i < stats.getEvictions(); i++) {
+                statsHolder.incrementEvictions(dims);
+            }
+            statsHolder.incrementSizeInBytes(dims, stats.getSizeInBytes());
+            for (int i = 0; i < stats.getEntries(); i++) {
+                statsHolder.incrementEntries(dims);
             }
         }
     }

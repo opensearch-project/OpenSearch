@@ -8,11 +8,6 @@
 
 package org.opensearch.common.cache.stats;
 
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,72 +28,6 @@ public class MultiDimensionCacheStats implements CacheStats {
     public MultiDimensionCacheStats(MDCSDimensionNode statsRoot, List<String> dimensionNames) {
         this.statsRoot = statsRoot;
         this.dimensionNames = dimensionNames;
-    }
-
-    public MultiDimensionCacheStats(StreamInput in) throws IOException {
-        // Because we write in preorder order, the parent of the next node we read will always be one of the ancestors
-        // of the last node we read. This allows us to avoid ambiguity if nodes have the same dimension value, without
-        // having to serialize the whole path to each node.
-        this.dimensionNames = List.of(in.readStringArray());
-        this.statsRoot = new MDCSDimensionNode("", true);
-        readAndAttachDimensionNodeRecursive(in, List.of(statsRoot));
-        // Finally, update sum-of-children stats for the root node
-        CacheStatsCounter totalStats = new CacheStatsCounter();
-        for (MDCSDimensionNode child : statsRoot.children.values()) {
-            totalStats.add(child.getStats());
-        }
-        statsRoot.setStats(totalStats.snapshot());
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        // Write each node in preorder order, along with its depth.
-        // Then, when rebuilding the tree from the stream, we can always find the correct parent to attach each node to.
-        out.writeStringArray(dimensionNames.toArray(new String[0]));
-        for (MDCSDimensionNode child : statsRoot.children.values()) {
-            writeDimensionNodeRecursive(out, child, 1);
-        }
-        out.writeBoolean(false); // Write false to signal there are no more nodes
-    }
-
-    private void writeDimensionNodeRecursive(StreamOutput out, MDCSDimensionNode node, int depth) throws IOException {
-        out.writeBoolean(true); // Signals there is a following node to deserialize
-        out.writeVInt(depth);
-        out.writeString(node.getDimensionValue());
-        node.getStats().writeTo(out);
-
-        if (!node.children.isEmpty()) {
-            // Not a leaf node
-            out.writeBoolean(true); // Write true to indicate we should re-create a map on deserialization
-            for (MDCSDimensionNode child : node.children.values()) {
-                writeDimensionNodeRecursive(out, child, depth + 1);
-            }
-        } else {
-            out.writeBoolean(false); // Write false to indicate we should not re-create a map on deserialization
-        }
-    }
-
-    /**
-     * Reads a serialized dimension node, attaches it to its appropriate place in the tree, and returns the list of
-     * ancestors of the newly attached node.
-     */
-    private void readAndAttachDimensionNodeRecursive(StreamInput in, List<MDCSDimensionNode> ancestorsOfLastRead) // List<MDCSDimensionNode>
-        throws IOException {
-        boolean hasNextNode = in.readBoolean();
-        if (hasNextNode) {
-            int depth = in.readVInt();
-            String nodeDimensionValue = in.readString();
-            CacheStatsCounterSnapshot stats = new CacheStatsCounterSnapshot(in);
-            boolean doRecreateMap = in.readBoolean();
-
-            MDCSDimensionNode result = new MDCSDimensionNode(nodeDimensionValue, doRecreateMap, stats);
-            MDCSDimensionNode parent = ancestorsOfLastRead.get(depth - 1);
-            parent.getChildren().put(nodeDimensionValue, result);
-            List<MDCSDimensionNode> ancestors = new ArrayList<>(ancestorsOfLastRead.subList(0, depth));
-            ancestors.add(result);
-            readAndAttachDimensionNodeRecursive(in, ancestors);
-        }
-        // If !hasNextNode, there are no more nodes, so we are done
     }
 
     @Override

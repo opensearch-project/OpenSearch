@@ -9,7 +9,6 @@
 package org.opensearch.common.cache.stats;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.core.common.io.stream.Writeable;
 
 /**
  * Interface for access to any cache stats. Allows accessing stats by dimension values.
@@ -18,7 +17,7 @@ import org.opensearch.core.common.io.stream.Writeable;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface CacheStats extends Writeable {// TODO: also extends ToXContentFragment (in API PR)
+public interface CacheStats { // TODO: also extends Writeable, ToXContentFragment (in API PR)
 
     // Method to get all 5 values at once
     CacheStatsCounterSnapshot getTotalStats();
