@@ -283,7 +283,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null);
         try (InputStream stream = new ByteArrayInputStream(bytes)) {
             if (metadata != null) {
-                blobContainer.writeBlobWithMetadata("write_blob_max_retries", stream, metadata, bytes.length, false);
+                blobContainer.writeBlobWithMetadata("write_blob_max_retries", stream, bytes.length, false, metadata);
             } else {
                 blobContainer.writeBlob("write_blob_max_retries", stream, bytes.length, false);
             }
@@ -404,7 +404,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         Exception exception = expectThrows(IOException.class, () -> {
             try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
                 if (metadata != null) {
-                    blobContainer.writeBlobWithMetadata("write_blob_timeout", stream, metadata, bytes.length, false);
+                    blobContainer.writeBlobWithMetadata("write_blob_timeout", stream, bytes.length, false, metadata);
                 } else {
                     blobContainer.writeBlob("write_blob_timeout", stream, bytes.length, false);
                 }
@@ -520,7 +520,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         });
 
         if (metadata != null) {
-            blobContainer.writeBlobWithMetadata("write_large_blob", new ZeroInputStream(blobSize), metadata, blobSize, false);
+            blobContainer.writeBlobWithMetadata("write_large_blob", new ZeroInputStream(blobSize), blobSize, false, metadata);
         } else {
             blobContainer.writeBlob("write_large_blob", new ZeroInputStream(blobSize), blobSize, false);
         }

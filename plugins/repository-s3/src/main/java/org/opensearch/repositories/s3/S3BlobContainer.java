@@ -177,7 +177,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
      */
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        writeBlobWithMetadata(blobName, inputStream, null, blobSize, failIfAlreadyExists);
+        writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, null);
     }
 
     /**
@@ -188,9 +188,9 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     public void writeBlobWithMetadata(
         String blobName,
         InputStream inputStream,
-        @Nullable Map<String, String> metadata,
         long blobSize,
-        boolean failIfAlreadyExists
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata
     ) throws IOException {
         assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
         SocketAccess.doPrivilegedIOException(() -> {
@@ -332,18 +332,6 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     @Override
     public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
-    }
-
-    @ExperimentalApi
-    @Override
-    public void writeBlobAtomicWithMetadata(
-        String blobName,
-        InputStream inputStream,
-        Map<String, String> metadata,
-        long blobSize,
-        boolean failIfAlreadyExists
-    ) throws IOException {
-        writeBlobWithMetadata(blobName, inputStream, metadata, blobSize, failIfAlreadyExists);
     }
 
     @Override

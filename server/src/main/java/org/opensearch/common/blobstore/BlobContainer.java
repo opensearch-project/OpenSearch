@@ -167,9 +167,9 @@ public interface BlobContainer {
     default void writeBlobWithMetadata(
         String blobName,
         InputStream inputStream,
-        @Nullable Map<String, String> metadata,
         long blobSize,
-        boolean failIfAlreadyExists
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata
     ) throws IOException {
         throw new UnsupportedOperationException("writeBlobWithMetadata is not implemented yet");
     };
