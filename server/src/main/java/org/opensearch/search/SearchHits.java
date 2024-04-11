@@ -342,5 +342,4 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
             throw new IllegalArgumentException("invalid total hits relation: " + relation);
         }
     }
-
 }

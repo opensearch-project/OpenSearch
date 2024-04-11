@@ -97,11 +97,15 @@ public class InboundPipeline implements Releasable {
         this.statsTracker = statsTracker;
         this.decoder = decoder;
         this.aggregator = aggregator;
-        this.protocolBytesHandlers = List.of(new NativeInboundBytesHandler(pending, decoder, aggregator, statsTracker));
-        this.messageHandler = messageHandler;
         if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
-            protocolBytesHandlers.add(new ProtobufInboundBytesHandler());
+            this.protocolBytesHandlers = List.of(
+                new ProtobufInboundBytesHandler(),
+                new NativeInboundBytesHandler(pending, decoder, aggregator, statsTracker)
+            );
+        } else {
+            this.protocolBytesHandlers = List.of(new NativeInboundBytesHandler(pending, decoder, aggregator, statsTracker));
         }
+        this.messageHandler = messageHandler;
     }
 
     @Override
@@ -129,6 +133,10 @@ public class InboundPipeline implements Releasable {
     }
 
     public void doHandleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
+        channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
+        statsTracker.markBytesRead(reference.length());
+        pending.add(reference.retain());
+
         // If we don't have a current handler, we should try to find one based on the protocol of the incoming bytes.
         if (currentHandler == null) {
             for (InboundBytesHandler handler : protocolBytesHandlers) {

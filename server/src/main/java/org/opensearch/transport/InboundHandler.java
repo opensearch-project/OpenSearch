@@ -70,23 +70,35 @@ public class InboundHandler {
         Tracer tracer
     ) {
         this.threadPool = threadPool;
-        this.protocolMessageHandlers = Map.of(
-            NativeInboundMessage.NATIVE_PROTOCOL,
-            new NativeMessageHandler(
-                threadPool,
-                outboundHandler,
-                namedWriteableRegistry,
-                handshaker,
-                requestHandlers,
-                responseHandlers,
-                tracer,
-                keepAlive
-            )
-        );
         if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
-            this.protocolMessageHandlers.put(
+            this.protocolMessageHandlers = Map.of(
                 ProtobufInboundMessage.PROTOBUF_PROTOCOL,
-                new ProtobufMessageHandler(threadPool, responseHandlers)
+                new ProtobufMessageHandler(threadPool, responseHandlers),
+                NativeInboundMessage.NATIVE_PROTOCOL,
+                new NativeMessageHandler(
+                    threadPool,
+                    outboundHandler,
+                    namedWriteableRegistry,
+                    handshaker,
+                    requestHandlers,
+                    responseHandlers,
+                    tracer,
+                    keepAlive
+                )
+            );
+        } else {
+            this.protocolMessageHandlers = Map.of(
+                NativeInboundMessage.NATIVE_PROTOCOL,
+                new NativeMessageHandler(
+                    threadPool,
+                    outboundHandler,
+                    namedWriteableRegistry,
+                    handshaker,
+                    requestHandlers,
+                    responseHandlers,
+                    tracer,
+                    keepAlive
+                )
             );
         }
     }

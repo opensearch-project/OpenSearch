@@ -87,6 +87,9 @@ public class InboundHandlerTests extends OpenSearchTestCase {
     private final Version version = Version.CURRENT;
 
     private TaskManager taskManager;
+    private NamedWriteableRegistry namedWriteableRegistry;
+    private TransportHandshaker handshaker;
+    private TransportKeepAlive keepAlive;
     private Transport.ResponseHandlers responseHandlers;
     private Transport.RequestHandlers requestHandlers;
     private InboundHandler handler;
@@ -105,8 +108,8 @@ public class InboundHandlerTests extends OpenSearchTestCase {
                 }
             }
         };
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        TransportHandshaker handshaker = new TransportHandshaker(version, threadPool, (n, c, r, v) -> {});
+        namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+        handshaker = new TransportHandshaker(version, threadPool, (n, c, r, v) -> {});
         outboundHandler = new OutboundHandler(
             "node",
             version,
@@ -115,7 +118,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             threadPool,
             BigArrays.NON_RECYCLING_INSTANCE
         );
-        TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, outboundHandler::sendBytes);
+        keepAlive = new TransportKeepAlive(threadPool, outboundHandler::sendBytes);
         requestHandlers = new Transport.RequestHandlers();
         responseHandlers = new Transport.ResponseHandlers();
         handler = new InboundHandler(
@@ -251,6 +254,17 @@ public class InboundHandlerTests extends OpenSearchTestCase {
 
     @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testProtobufResponse() throws Exception {
+        System.setProperty(FeatureFlags.PROTOBUF_SETTING.getKey(), "true");
+        InboundHandler inboundHandler = new InboundHandler(
+            threadPool,
+            outboundHandler,
+            namedWriteableRegistry,
+            handshaker,
+            keepAlive,
+            requestHandlers,
+            responseHandlers,
+            NoopTracer.INSTANCE
+        );
         String action = "test-request";
         int headerSize = TcpHeader.headerSize(version);
         AtomicReference<TestRequest> requestCaptor = new AtomicReference<>();
@@ -314,7 +328,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
         InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
         requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
-        handler.inboundMessage(channel, requestMessage);
+        inboundHandler.inboundMessage(channel, requestMessage);
 
         TransportChannel transportChannel = channelCaptor.get();
         assertEquals(Version.CURRENT, transportChannel.getVersion());
@@ -324,13 +338,12 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         QuerySearchResult queryResult = OutboundHandlerTests.createQuerySearchResult();
         FetchSearchResult fetchResult = OutboundHandlerTests.createFetchSearchResult();
         QueryFetchSearchResult response = new QueryFetchSearchResult(queryResult, fetchResult);
-        System.setProperty(FeatureFlags.PROTOBUF, "true");
         transportChannel.sendResponse(response);
 
         BytesReference fullResponseBytes = channel.getMessageCaptor().get();
         byte[] incomingBytes = BytesReference.toBytes(fullResponseBytes.slice(3, fullResponseBytes.length() - 3));
         ProtobufInboundMessage nodeToNodeMessage = new ProtobufInboundMessage(new ByteArrayInputStream(incomingBytes));
-        handler.inboundMessage(channel, nodeToNodeMessage);
+        inboundHandler.inboundMessage(channel, nodeToNodeMessage);
         QueryFetchSearchResult result = responseCaptor.get();
         assertNotNull(result);
         assertEquals(queryResult.getMaxScore(), result.queryResult().getMaxScore(), 0.0);

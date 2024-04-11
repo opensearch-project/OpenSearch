@@ -23,7 +23,7 @@ import java.util.function.BiConsumer;
   */
 public class ProtobufInboundBytesHandler implements InboundBytesHandler {
 
-    public void ProtobufInboundBytesHandler() {}
+    public ProtobufInboundBytesHandler() {}
 
     @Override
     public void doHandleBytes(
