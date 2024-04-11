@@ -42,7 +42,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedSupplier;
@@ -83,9 +82,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING;
 import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -655,39 +652,6 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(0, cleanupKeyToCountMap.size());
     }
 
-    // test the cleanupKeyToCountMap are set appropriately in a case where the reader gets closed
-    // after putting an entry into the cache and before registering a close listener
-    // in this case, the entry is stale and needs to be accounted right and cleaned up accordingly
-    public void testCleanupKeyToOnClosedReader_cleansupStalenessAsExpected() throws Exception {
-        threadPool = getThreadPool();
-        Settings settings = Settings.builder()
-            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51")
-            .put(INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "10m") // intentionally high
-            .build();
-        cache = getIndicesRequestCache(settings);
-
-        writer.addDocument(newDoc(0, "foo"));
-        ShardId shardId = indexShard.shardId();
-        DirectoryReader reader = getReader(writer, shardId);
-
-        assertTrue(cache.cacheCleanupManager.getCleanupKeyToCountMap().isEmpty());
-        try {
-            // use auto close loader to close the reader right after adding cache entry
-            cache.getOrCompute(getEntity(indexShard), getAutoCloseLoader(reader), reader, getTermBytes());
-        } catch (Exception e) {
-            assertThat(e, instanceOf(AlreadyClosedException.class));
-        }
-        assertEquals(1, cache.count());
-        assertEquals(1, cache.cacheCleanupManager.getStaleKeysCount().get());
-        assertTrue(cache.cacheCleanupManager.getCleanupKeyToCountMap().isEmpty());
-
-        cache.cacheCleanupManager.cleanCache();
-
-        assertEquals(0, cache.count());
-        assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
-        assertTrue(cache.cacheCleanupManager.getCleanupKeyToCountMap().isEmpty());
-    }
-
     private DirectoryReader getReader(IndexWriter writer, ShardId shardId) throws IOException {
         return OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), shardId);
     }
@@ -707,10 +671,6 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
     private Loader getLoader(DirectoryReader reader) {
         return new Loader(reader, 0);
-    }
-
-    private AutoCloseLoader getAutoCloseLoader(DirectoryReader reader) {
-        return new AutoCloseLoader(reader, 0);
     }
 
     private IndicesService.IndexShardCacheEntity getEntity(IndexShard indexShard) {
@@ -849,32 +809,6 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-        }
-    }
-
-    /*
-    * This class does everything Loader class does except closing the reader after get()
-    * This can be used for testing behaviours on closed readers.
-    * */
-    private static class AutoCloseLoader extends Loader {
-
-        AutoCloseLoader(DirectoryReader reader, int id) {
-            super(reader, id);
-        }
-
-        @Override
-        public BytesReference get() {
-            BytesReference output = super.get();
-            try {
-                closeReader();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            return output;
-        }
-
-        private void closeReader() throws IOException {
-            reader.close();
         }
     }
 

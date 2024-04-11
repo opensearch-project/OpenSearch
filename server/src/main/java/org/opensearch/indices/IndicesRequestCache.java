@@ -240,31 +240,19 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         final Key key = new Key(((IndexShard) cacheEntity.getCacheIdentity()).shardId(), cacheKey, readerCacheKeyId);
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = cache.computeIfAbsent(key, cacheLoader);
-        CleanupKey cleanupKey = null;
-        try {
-            if (cacheLoader.isLoaded()) {
-                cacheEntity.onMiss();
-                // see if it's the first time we see this reader, and make sure to register a cleanup key
-                cleanupKey = new CleanupKey(cacheEntity, readerCacheKeyId);
-                if (!registeredClosedListeners.containsKey(cleanupKey)) {
-                    Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
-                    if (previous == null) {
-                        OpenSearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
-                    }
+        if (cacheLoader.isLoaded()) {
+            cacheEntity.onMiss();
+            // see if it's the first time we see this reader, and make sure to register a cleanup key
+            CleanupKey cleanupKey = new CleanupKey(cacheEntity, readerCacheKeyId);
+            if (!registeredClosedListeners.containsKey(cleanupKey)) {
+                Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
+                if (previous == null) {
+                    OpenSearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
                 }
-                cacheCleanupManager.updateCleanupKeyToCountMapOnCacheInsertion(cleanupKey);
-            } else {
-                cacheEntity.onHit();
             }
-        } catch (Exception e) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("cleanupKey in Indices Request Cache failed to register close listener due to : " + e.getCause());
-            }
-            // On failing to register the cleanupkey, this cache entry is immediately stale and could live indefinitely in the cache
-            // hence enqueuing it for clean-up
             cacheCleanupManager.updateCleanupKeyToCountMapOnCacheInsertion(cleanupKey);
-            cacheCleanupManager.enqueueCleanupKey(cleanupKey);
-            throw e;
+        } else {
+            cacheEntity.onHit();
         }
         return value;
     }
