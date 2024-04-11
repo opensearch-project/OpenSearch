@@ -18,7 +18,9 @@ import org.opensearch.common.cache.serializer.Serializer;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 
+import java.util.Iterator;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class MockDiskCache<K, V> implements ICache<K, V> {
@@ -79,7 +81,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
 
     @Override
     public Iterable<K> keys() {
-        return this.cache.keySet();
+        return () -> new CacheKeyIterator<>(cache, removalListener);
     }
 
     @Override
@@ -155,5 +157,49 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
             return this;
         }
 
+    }
+
+    /**
+     * Provides a iterator over keys.
+     * @param <K> Type of key
+     * @param <V> Type of value
+     */
+    static class CacheKeyIterator<K, V> implements Iterator<K> {
+        private final Iterator<Map.Entry<K, V>> entryIterator;
+        private final Map<K, V> cache;
+        private final RemovalListener<K, V> removalListener;
+        private K currentKey;
+
+        public CacheKeyIterator(Map<K, V> cache, RemovalListener<K, V> removalListener) {
+            this.entryIterator = cache.entrySet().iterator();
+            this.removalListener = removalListener;
+            this.cache = cache;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return entryIterator.hasNext();
+        }
+
+        @Override
+        public K next() {
+            if (!hasNext()) {
+                throw new NoSuchElementException();
+            }
+            Map.Entry<K, V> entry = entryIterator.next();
+            currentKey = entry.getKey();
+            return currentKey;
+        }
+
+        @Override
+        public void remove() {
+            if (currentKey == null) {
+                throw new IllegalStateException("No element to remove");
+            }
+            V value = cache.get(currentKey);
+            cache.remove(currentKey);
+            this.removalListener.onRemoval(new RemovalNotification<>(currentKey, value, RemovalReason.INVALIDATED));
+            currentKey = null;
+        }
     }
 }
