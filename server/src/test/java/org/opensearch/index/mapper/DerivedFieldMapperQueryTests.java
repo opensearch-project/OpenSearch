@@ -19,8 +19,10 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.index.Index;
+import org.opensearch.geometry.Rectangle;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.DerivedFieldScript;
@@ -32,6 +34,7 @@ import java.util.Set;
 
 import org.mockito.Mockito;
 
+import static org.opensearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.mockito.Mockito.when;
 
 public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
@@ -40,13 +43,14 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
     // Raw Message, Request Succeeded (boolean), Timestamp (long), Client IP, Method, Request Size (double), Duration (long)
     private static final Object[][] raw_requests = new Object[][] {
         {
-            "40.135.0.0 GET /images/hm_bg.jpg?size=1.5KB HTTP/1.0 200 2024-03-20T08:30:45 1500",
+            "40.135.0.0 GET /images/hm_bg.jpg?size=1.5KB loc 10.0 20.0 HTTP/1.0 200 2024-03-20T08:30:45 1500",
             true,
             1710923445000L,
             "40.135.0.0",
             "GET",
             1.5,
-            1500L },
+            1500L,
+            new Tuple<>(10.0, 20.0) },
         {
             "232.0.0.0 GET /images/hm_bg.jpg?size=2.3KB HTTP/1.0 400 2024-03-20T09:15:20 2300",
             false,
@@ -54,7 +58,8 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
             "232.0.0.0",
             "GET",
             2.3,
-            2300L },
+            2300L,
+            new Tuple<>(20.0, 30.0) },
         {
             "26.1.0.0 DELETE /images/hm_bg.jpg?size=3.7KB HTTP/1.0 200 2024-03-20T10:05:55 3700",
             true,
@@ -62,7 +67,8 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
             "26.1.0.0",
             "DELETE",
             3.7,
-            3700L },
+            3700L,
+            new Tuple<>(30.0, 40.0) },
         {
             "247.37.0.0 GET /french/splash_inet.html?size=4.1KB HTTP/1.0 400 2024-03-20T11:20:10 4100",
             false,
@@ -70,7 +76,8 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
             "247.37.0.0",
             "GET",
             4.1,
-            4100L },
+            4100L,
+            new Tuple<>(40.0, 50.0) },
         {
             "247.37.0.0 DELETE /french/splash_inet.html?size=5.8KB HTTP/1.0 400 2024-03-20T12:45:30 5800",
             false,
@@ -78,7 +85,8 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
             "247.37.0.0",
             "DELETE",
             5.8,
-            5800L },
+            5800L,
+            new Tuple<>(50.0, 60.0) },
         {
             "10.20.30.40 GET /path/to/resource?size=6.3KB HTTP/1.0 200 2024-03-20T13:10:15 6300",
             true,
@@ -86,7 +94,8 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
             "10.20.30.40",
             "GET",
             6.3,
-            6300L },
+            6300L,
+            new Tuple<>(60.0, 70.0) },
         {
             "50.60.70.80 GET /path/to/resource?size=7.2KB HTTP/1.0 404 2024-03-20T14:20:50 7200",
             false,
@@ -94,7 +103,8 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
             "50.60.70.80",
             "GET",
             7.2,
-            7200L },
+            7200L,
+            new Tuple<>(70.0, 80.0) },
         {
             "127.0.0.1 PUT /path/to/resource?size=8.9KB HTTP/1.0 500 2024-03-20T15:30:25 8900",
             false,
@@ -102,7 +112,8 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
             "127.0.0.1",
             "PUT",
             8.9,
-            8900L },
+            8900L,
+            new Tuple<>(80.0, 90.0) },
         {
             "127.0.0.1 GET /path/to/resource?size=9.4KB HTTP/1.0 200 2024-03-20T16:40:15 9400",
             true,
@@ -110,7 +121,8 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
             "127.0.0.1",
             "GET",
             9.4,
-            9400L },
+            9400L,
+            new Tuple<>(85.0, 90.0) },
         {
             "192.168.1.1 GET /path/to/resource?size=10.7KB HTTP/1.0 400 2024-03-20T17:50:40 10700",
             false,
@@ -118,7 +130,8 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
             "192.168.1.1",
             "GET",
             10.7,
-            10700L } };
+            10700L,
+            new Tuple<>(90.0, 90.0) } };
 
     public void testAllPossibleQueriesOnDerivedFields() throws IOException {
         MapperService mapperService = createMapperService(topMapping(b -> {
@@ -166,6 +179,12 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 b.startObject("duration");
                 {
                     b.field("type", "long");
+                    b.field("script", "");
+                }
+                b.endObject();
+                b.startObject("geopoint");
+                {
+                    b.field("type", "geo_point");
                     b.field("script", "");
                 }
                 b.endObject();
@@ -273,6 +292,13 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 query = QueryBuilders.regexpQuery("method", ".*LET.*").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
                 assertEquals(2, topDocs.totalHits.value);
+
+                // GeoPoint Query
+                scriptIndex[0] = 7;
+
+                query = geoShapeQuery("geopoint", new Rectangle(0.0, 55.0, 55.0, 0.0)).toQuery(queryShardContext);
+                topDocs = searcher.search(query, 10);
+                assertEquals(4, topDocs.totalHits.value);
             }
         }
     }

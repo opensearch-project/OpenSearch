@@ -993,7 +993,7 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster level settings
      * @param combinedTemplateSettings combined template settings which satisfy the index
      */
-    private static void updateReplicationStrategy(
+    public static void updateReplicationStrategy(
         Settings.Builder settingsBuilder,
         Settings requestSettings,
         Settings clusterSettings,
@@ -1008,7 +1008,7 @@ public class MetadataCreateIndexService {
         final ReplicationType indexReplicationType;
         if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings)) {
             indexReplicationType = INDEX_REPLICATION_TYPE_SETTING.get(requestSettings);
-        } else if (INDEX_REPLICATION_TYPE_SETTING.exists(combinedTemplateSettings)) {
+        } else if (combinedTemplateSettings != null && INDEX_REPLICATION_TYPE_SETTING.exists(combinedTemplateSettings)) {
             indexReplicationType = INDEX_REPLICATION_TYPE_SETTING.get(combinedTemplateSettings);
         } else if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings)) {
             indexReplicationType = CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings);
@@ -1023,20 +1023,20 @@ public class MetadataCreateIndexService {
     /**
      * Updates index settings to enable remote store by default based on node attributes
      * @param settingsBuilder index settings builder to be updated with relevant settings
-     * @param clusterSettings cluster level settings
+     * @param nodeSettings node settings
      */
-    private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings clusterSettings) {
-        if (isRemoteDataAttributePresent(clusterSettings)) {
+    public static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings nodeSettings) {
+        if (RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(nodeSettings)) {
             settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
                 .put(
                     SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
-                    clusterSettings.get(
+                    nodeSettings.get(
                         Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
                     )
                 )
                 .put(
                     SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
-                    clusterSettings.get(
+                    nodeSettings.get(
                         Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
                     )
                 );
