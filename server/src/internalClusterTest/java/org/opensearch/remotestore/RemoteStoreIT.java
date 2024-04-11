@@ -789,4 +789,33 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             docs + moreDocs + uncommittedOps
         );
     }
+
+    public void testRefreshOnTooManyRemoteTranslogFiles() throws Exception {
+
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(1).get(0);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0, 10000L, -1));
+        ensureGreen(INDEX_NAME);
+
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS.getKey(), "5")
+        );
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        // indexing 35 documents (7 bulk requests), which should trigger refresh, and hence number of documents(searchable) should be 35.
+        // Here refresh will be triggered on 6th and 7th bulk request. One extra since translogs will be marked
+        // unreferenced after 6th refresh completes and will be trimmed on 7th bulk request call.
+        for (int i = 0; i < 7; i++) {
+            indexBulk(INDEX_NAME, 5);
+        }
+
+        assertBusy(() -> assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), 35), 30, TimeUnit.SECONDS);
+
+        // refresh will not trigger here, hence total searchable documents will be 35 (not 40)
+        indexBulk(INDEX_NAME, 5);
+
+        long currentDocCount = client().prepareSearch(INDEX_NAME).setSize(0).get().getHits().getTotalHits().value;
+        assertEquals(35, currentDocCount);
+    }
 }
