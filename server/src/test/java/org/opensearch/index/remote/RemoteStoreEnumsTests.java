@@ -25,7 +25,7 @@ import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
-import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A;
+import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathType.FIXED;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathType.HASHED_INFIX;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathType.HASHED_PREFIX;
@@ -161,10 +161,10 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        BlobPath result = HASHED_PREFIX.path(pathInput, FNV_1A);
+        BlobPath result = HASHED_PREFIX.path(pathInput, FNV_1A_BASE64);
         assertTrue(
             result.buildAsString()
-                .startsWith(String.join(SEPARATOR, FNV_1A.hash(pathInput), basePath, dataCategory.getName(), dataType.getName()))
+                .startsWith(String.join(SEPARATOR, FNV_1A_BASE64.hash(pathInput), basePath, dataCategory.getName(), dataType.getName()))
         );
 
         // assert with exact value for known base path
@@ -178,7 +178,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        result = HASHED_PREFIX.path(pathInput, FNV_1A);
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_BASE64);
         assertEquals("DgSI70IciXs/xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/k2ijhe877d7yuhx7/10/translog/data/", result.buildAsString());
 
         // Translog Metadata
@@ -190,10 +190,10 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        result = HASHED_PREFIX.path(pathInput, FNV_1A);
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_BASE64);
         assertTrue(
             result.buildAsString()
-                .startsWith(String.join(SEPARATOR, FNV_1A.hash(pathInput), basePath, dataCategory.getName(), dataType.getName()))
+                .startsWith(String.join(SEPARATOR, FNV_1A_BASE64.hash(pathInput), basePath, dataCategory.getName(), dataType.getName()))
         );
 
         // assert with exact value for known base path
@@ -204,7 +204,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        result = HASHED_PREFIX.path(pathInput, FNV_1A);
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_BASE64);
         assertEquals("oKU5SjILiy4/xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/k2ijhe877d7yuhx7/10/translog/metadata/", result.buildAsString());
 
         // Translog Lock files - This is a negative case where the assertion will trip.
@@ -238,10 +238,10 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        result = HASHED_PREFIX.path(pathInput, FNV_1A);
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_BASE64);
         assertTrue(
             result.buildAsString()
-                .startsWith(String.join(SEPARATOR, FNV_1A.hash(pathInput), basePath, dataCategory.getName(), dataType.getName()))
+                .startsWith(String.join(SEPARATOR, FNV_1A_BASE64.hash(pathInput), basePath, dataCategory.getName(), dataType.getName()))
         );
 
         // assert with exact value for known base path
@@ -252,7 +252,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        result = HASHED_PREFIX.path(pathInput, FNV_1A);
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_BASE64);
         assertEquals("AUBRfCIuWdk/xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/k2ijhe877d7yuhx7/10/segments/data/", result.buildAsString());
 
         // Segment Metadata
@@ -264,10 +264,10 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        result = HASHED_PREFIX.path(pathInput, FNV_1A);
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_BASE64);
         assertTrue(
             result.buildAsString()
-                .startsWith(String.join(SEPARATOR, FNV_1A.hash(pathInput), basePath, dataCategory.getName(), dataType.getName()))
+                .startsWith(String.join(SEPARATOR, FNV_1A_BASE64.hash(pathInput), basePath, dataCategory.getName(), dataType.getName()))
         );
 
         // assert with exact value for known base path
@@ -278,7 +278,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        result = HASHED_PREFIX.path(pathInput, FNV_1A);
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_BASE64);
         assertEquals("erwR-G735Uw/xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/k2ijhe877d7yuhx7/10/segments/metadata/", result.buildAsString());
 
         // Segment Lockfiles
@@ -290,10 +290,10 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        result = HASHED_PREFIX.path(pathInput, FNV_1A);
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_BASE64);
         assertTrue(
             result.buildAsString()
-                .startsWith(String.join(SEPARATOR, FNV_1A.hash(pathInput), basePath, dataCategory.getName(), dataType.getName()))
+                .startsWith(String.join(SEPARATOR, FNV_1A_BASE64.hash(pathInput), basePath, dataCategory.getName(), dataType.getName()))
         );
 
         // assert with exact value for known base path
@@ -304,7 +304,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        result = HASHED_PREFIX.path(pathInput, FNV_1A);
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_BASE64);
         assertEquals("KeYDIk0mJXI/xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/k2ijhe877d7yuhx7/10/segments/lock_files/", result.buildAsString());
     }
 
@@ -330,7 +330,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        BlobPath result = HASHED_INFIX.path(pathInput, FNV_1A);
+        BlobPath result = HASHED_INFIX.path(pathInput, FNV_1A_BASE64);
         String expected = derivePath(basePath, pathInput);
         String actual = result.buildAsString();
         assertTrue(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual.startsWith(expected));
@@ -346,7 +346,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        result = HASHED_INFIX.path(pathInput, FNV_1A);
+        result = HASHED_INFIX.path(pathInput, FNV_1A_BASE64);
         expected = "xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/DgSI70IciXs/k2ijhe877d7yuhx7/10/translog/data/";
         actual = result.buildAsString();
         assertTrue(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual.startsWith(expected));
@@ -361,7 +361,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataType(dataType)
             .build();
 
-        result = HASHED_INFIX.path(pathInput, FNV_1A);
+        result = HASHED_INFIX.path(pathInput, FNV_1A_BASE64);
         expected = derivePath(basePath, pathInput);
         actual = result.buildAsString();
         assertTrue(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual.startsWith(expected));
@@ -374,7 +374,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        result = HASHED_INFIX.path(pathInput, FNV_1A);
+        result = HASHED_INFIX.path(pathInput, FNV_1A_BASE64);
         expected = "xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/oKU5SjILiy4/k2ijhe877d7yuhx7/10/translog/metadata/";
         actual = result.buildAsString();
         assertTrue(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual.startsWith(expected));
@@ -410,7 +410,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        result = HASHED_INFIX.path(pathInput, FNV_1A);
+        result = HASHED_INFIX.path(pathInput, FNV_1A_BASE64);
         expected = derivePath(basePath, pathInput);
         actual = result.buildAsString();
         assertTrue(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual.startsWith(expected));
@@ -423,7 +423,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        result = HASHED_INFIX.path(pathInput, FNV_1A);
+        result = HASHED_INFIX.path(pathInput, FNV_1A_BASE64);
         expected = "xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/AUBRfCIuWdk/k2ijhe877d7yuhx7/10/segments/data/";
         actual = result.buildAsString();
         assertTrue(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual.startsWith(expected));
@@ -437,7 +437,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        result = HASHED_INFIX.path(pathInput, FNV_1A);
+        result = HASHED_INFIX.path(pathInput, FNV_1A_BASE64);
         expected = derivePath(basePath, pathInput);
         actual = result.buildAsString();
         assertTrue(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual.startsWith(expected));
@@ -450,7 +450,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        result = HASHED_INFIX.path(pathInput, FNV_1A);
+        result = HASHED_INFIX.path(pathInput, FNV_1A_BASE64);
         expected = "xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/erwR-G735Uw/k2ijhe877d7yuhx7/10/segments/metadata/";
         actual = result.buildAsString();
         assertTrue(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual.startsWith(expected));
@@ -464,7 +464,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        result = HASHED_INFIX.path(pathInput, FNV_1A);
+        result = HASHED_INFIX.path(pathInput, FNV_1A_BASE64);
         expected = derivePath(basePath, pathInput);
         actual = result.buildAsString();
         assertTrue(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual.startsWith(expected));
@@ -477,7 +477,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .dataCategory(dataCategory)
             .dataType(dataType)
             .build();
-        result = HASHED_INFIX.path(pathInput, FNV_1A);
+        result = HASHED_INFIX.path(pathInput, FNV_1A_BASE64);
         expected = "xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/KeYDIk0mJXI/k2ijhe877d7yuhx7/10/segments/lock_files/";
         actual = result.buildAsString();
         assertTrue(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual.startsWith(expected));
@@ -487,7 +487,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         return "".equals(basePath)
             ? String.join(
                 SEPARATOR,
-                FNV_1A.hash(pathInput),
+                FNV_1A_BASE64.hash(pathInput),
                 pathInput.indexUUID(),
                 pathInput.shardId(),
                 pathInput.dataCategory().getName(),
@@ -496,7 +496,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             : String.join(
                 SEPARATOR,
                 basePath,
-                FNV_1A.hash(pathInput),
+                FNV_1A_BASE64.hash(pathInput),
                 pathInput.indexUUID(),
                 pathInput.shardId(),
                 pathInput.dataCategory().getName(),

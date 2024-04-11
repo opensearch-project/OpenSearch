@@ -119,7 +119,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             repositoryBasePath,
             fileNames,
             PathType.HASHED_PREFIX,
-            PathHashAlgorithm.FNV_1A
+            PathHashAlgorithm.FNV_1A_BASE64
         );
         try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
             builder.startObject();
@@ -223,7 +223,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             repositoryBasePath,
             fileNames,
             PathType.HASHED_PREFIX,
-            PathHashAlgorithm.FNV_1A
+            PathHashAlgorithm.FNV_1A_BASE64
         );
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
             RemoteStoreShardShallowCopySnapshot actualShardShallowCopySnapshot = RemoteStoreShardShallowCopySnapshot.fromXContent(parser);
@@ -296,19 +296,19 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
                     break;
                 case 10:
                     version = "1";
-                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A;
+                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_BASE64;
                     failure = "Invalid combination of pathType=null pathHashAlgorithm=FNV_1A for version=1";
                     break;
                 case 11:
                     version = "2";
                     pathType = PathType.FIXED;
-                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A;
+                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_BASE64;
                     failure = "Invalid combination of pathType=FIXED pathHashAlgorithm=FNV_1A for version=2";
                     break;
                 case 12:
                     version = "2";
                     pathType = PathType.HASHED_PREFIX;
-                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A;
+                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_BASE64;
                     break;
                 case 13:
                     break;

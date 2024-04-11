@@ -10,11 +10,14 @@ package org.opensearch.index.remote;
 
 import org.opensearch.common.collect.Tuple;
 
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -27,9 +30,25 @@ public class RemoteStoreUtils {
     public static final int LONG_MAX_LENGTH = String.valueOf(Long.MAX_VALUE).length();
 
     /**
+     * URL safe base 64 character set. This must not be changed as this is used in deriving the base64 equivalent of binary.
+     */
+    private static final char[] URL_BASE64_CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_".toCharArray();
+
+    private static Map<Character, Integer> BASE64_CHARSET_IDX_MAP;
+
+    static {
+        Map<Character, Integer> charToIndexMap = new HashMap<>();
+        for (int i = 0; i < URL_BASE64_CHARSET.length; i++) {
+            charToIndexMap.put(URL_BASE64_CHARSET[i], i);
+        }
+        BASE64_CHARSET_IDX_MAP = Collections.unmodifiableMap(charToIndexMap);
+    }
+
+    /**
      * This method subtracts given numbers from Long.MAX_VALUE and returns a string representation of the result.
      * The resultant string is guaranteed to be of the same length that of Long.MAX_VALUE. If shorter, we add left padding
      * of 0s to the string.
+     *
      * @param num number to get the inverted long string for
      * @return String value of Long.MAX_VALUE - num
      */
@@ -46,6 +65,7 @@ public class RemoteStoreUtils {
 
     /**
      * This method converts the given string into long and subtracts it from Long.MAX_VALUE
+     *
      * @param str long in string format to be inverted
      * @return long value of the invert result
      */
@@ -59,6 +79,7 @@ public class RemoteStoreUtils {
 
     /**
      * Extracts the segment name from the provided segment file name
+     *
      * @param filename Segment file name to parse
      * @return Name of the segment that the segment file belongs to
      */
@@ -79,10 +100,9 @@ public class RemoteStoreUtils {
     }
 
     /**
-     *
      * @param mdFiles List of segment/translog metadata files
-     * @param fn Function to extract PrimaryTerm_Generation and Node Id from metadata file name .
-     *          fn returns null if node id is not part of the file name
+     * @param fn      Function to extract PrimaryTerm_Generation and Node Id from metadata file name .
+     *                fn returns null if node id is not part of the file name
      */
     public static void verifyNoMultipleWriters(List<String> mdFiles, Function<String, Tuple<String, String>> fn) {
         Map<String, String> nodesByPrimaryTermAndGen = new HashMap<>();
@@ -115,5 +135,44 @@ public class RemoteStoreUtils {
         byte[] hashBytes = ByteBuffer.allocate(Long.BYTES).putLong(value).array();
         String base64Str = Base64.getUrlEncoder().encodeToString(hashBytes);
         return base64Str.substring(0, base64Str.length() - 1);
+    }
+
+    static long urlBase64ToLong(String base64Str) {
+        byte[] hashBytes = Base64.getUrlDecoder().decode(base64Str);
+        return ByteBuffer.wrap(hashBytes).getLong();
+    }
+
+    /**
+     * Converts an input hash which occupies 64 bits of memory into a composite encoded string. The string will have 2 parts -
+     * 1. Base 64 string and 2. Binary String. We will use the first 6 bits for creating the base 64 string.
+     * For the second part, we will use the next 14 bits. For eg - A010001010100010.
+     */
+    static String longToCompositeUrlBase64AndBinaryEncodingUsing20Bits(long value) {
+        return longToCompositeBase64AndBinaryEncoding(value, 20);
+    }
+
+    /**
+     * Converts an input hash which occupies 64 bits of memory into a composite encoded string. The string will have 2 parts -
+     * 1. Base 64 string and 2. Binary String. We will use the first 6 bits for creating the base 64 string.
+     * For the second part, the rest of the bits will be used as is in string form.
+     */
+    static String longToCompositeBase64AndBinaryEncoding(long value, int len) {
+        if (len < 7 || len > 64) {
+            throw new IllegalArgumentException("In longToCompositeBase64AndBinaryEncoding, len must be between 7 and 64 (both inclusive)");
+        }
+        String binaryEncoding = String.format(Locale.ROOT, "%64s", Long.toBinaryString(value)).replace(' ', '0');
+        String base64Part = binaryEncoding.substring(0, 6);
+        String binaryPart = binaryEncoding.substring(6, len);
+        int base64DecimalValue = Integer.valueOf(base64Part, 2);
+        assert base64DecimalValue >= 0 && base64DecimalValue < 64;
+        return URL_BASE64_CHARSET[base64DecimalValue] + binaryPart;
+    }
+
+    static long compositeUrlBase64BinaryEncodingToLong(String encodedValue) {
+        char ch = encodedValue.charAt(0);
+        int base64BitsIntValue = BASE64_CHARSET_IDX_MAP.get(ch);
+        String base64PartBinary = Integer.toBinaryString(base64BitsIntValue);
+        String binaryString = base64PartBinary + encodedValue.substring(1);
+        return new BigInteger(binaryString, 2).longValue();
     }
 }

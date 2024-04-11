@@ -1607,7 +1607,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         validateRemoteCustomData(
             indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY),
             PathHashAlgorithm.NAME,
-            PathHashAlgorithm.FNV_1A.name()
+            PathHashAlgorithm.FNV_1A_BASE64.name()
         );
     }
 

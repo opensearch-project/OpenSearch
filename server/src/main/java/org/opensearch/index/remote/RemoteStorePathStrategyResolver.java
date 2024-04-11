@@ -39,7 +39,7 @@ public class RemoteStorePathStrategyResolver {
         // Min node version check ensures that we are enabling the new prefix type only when all the nodes understand it.
         pathType = Version.CURRENT.compareTo(minNodeVersionSupplier.get()) <= 0 ? type : PathType.FIXED;
         // If the path type is fixed, hash algorithm is not applicable.
-        pathHashAlgorithm = pathType == PathType.FIXED ? null : PathHashAlgorithm.FNV_1A;
+        pathHashAlgorithm = pathType == PathType.FIXED ? null : PathHashAlgorithm.FNV_1A_BASE64;
         return new RemoteStorePathStrategy(pathType, pathHashAlgorithm);
     }
 
