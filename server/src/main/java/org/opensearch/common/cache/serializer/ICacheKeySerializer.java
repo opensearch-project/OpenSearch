@@ -21,6 +21,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * A serializer for ICacheKey.
+ * @param <K> the type of the underlying key in ICacheKey
+ */
 public class ICacheKeySerializer<K> implements Serializer<ICacheKey<K>, byte[]> {
 
     public final Serializer<K, byte[]> keySerializer;
