@@ -685,12 +685,19 @@ public class RestoreService implements ClusterStateApplier {
                                 settingsBuilder,
                                 request.indexSettings(),
                                 clusterService.getSettings(),
-                                null
+                                null,
+                                clusterSettings
                             );
                         }
                         // remote store settings needs to be overridden if the remote store feature is enabled in the
                         // cluster where snapshot is being restored.
-                        MetadataCreateIndexService.updateRemoteStoreSettings(settingsBuilder, clusterService.getSettings());
+                        MetadataCreateIndexService.updateRemoteStoreSettings(
+                            settingsBuilder,
+                            clusterService.state(),
+                            clusterSettings,
+                            clusterService.getSettings(),
+                            request.getDescription()
+                        );
                         return settingsBuilder.build();
                     }
 
