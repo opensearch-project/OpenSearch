@@ -62,6 +62,7 @@ import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
+import software.amazon.awssdk.utils.CollectionUtils;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -591,7 +592,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             .acl(blobStore.getCannedACL())
             .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().putObjectMetricPublisher));
 
-        if (metadata != null && !metadata.isEmpty()) {
+        if (CollectionUtils.isNotEmpty(metadata)) {
             putObjectRequestBuilder = putObjectRequestBuilder.metadata(metadata);
         }
         if (blobStore.serverSideEncryption()) {
@@ -648,7 +649,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             .acl(blobStore.getCannedACL())
             .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector));
 
-        if (metadata != null && !metadata.isEmpty()) {
+        if (CollectionUtils.isNotEmpty(metadata)) {
             createMultipartUploadRequestBuilder.metadata(metadata);
         }
 

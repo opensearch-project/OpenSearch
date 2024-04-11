@@ -22,6 +22,7 @@ import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.utils.CollectionUtils;
 import software.amazon.awssdk.utils.CompletableFutureUtils;
 
 import org.apache.logging.log4j.LogManager;
@@ -132,7 +133,7 @@ public final class AsyncTransferManager {
             .key(uploadRequest.getKey())
             .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector));
 
-        if (uploadRequest.getMetadata() != null && !uploadRequest.getMetadata().isEmpty()) {
+        if (CollectionUtils.isNotEmpty(uploadRequest.getMetadata())) {
             createMultipartUploadRequestBuilder.metadata(uploadRequest.getMetadata());
         }
         if (uploadRequest.doRemoteDataIntegrityCheck()) {
@@ -332,7 +333,7 @@ public final class AsyncTransferManager {
             .contentLength(uploadRequest.getContentLength())
             .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.putObjectMetricPublisher));
 
-        if (uploadRequest.getMetadata() != null && !uploadRequest.getMetadata().isEmpty()) {
+        if (CollectionUtils.isNotEmpty(uploadRequest.getMetadata())) {
             putObjectRequestBuilder.metadata(uploadRequest.getMetadata());
         }
         if (uploadRequest.doRemoteDataIntegrityCheck()) {

@@ -8,6 +8,8 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.io.InputStream;
 import java.util.Map;
 
@@ -17,6 +19,7 @@ import java.util.Map;
  *
  * @opensearch.experimental
  */
+@ExperimentalApi
 public class FetchBlobResult {
 
     /**
