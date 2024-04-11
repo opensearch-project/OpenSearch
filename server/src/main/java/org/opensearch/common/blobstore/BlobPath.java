@@ -79,6 +79,15 @@ public class BlobPath implements Iterable<String> {
         return new BlobPath(Collections.unmodifiableList(paths));
     }
 
+    /**
+     * Add additional level of paths to the existing path and returns new {@link BlobPath} with the updated paths.
+     */
+    public BlobPath add(Iterable<String> paths) {
+        List<String> updatedPaths = new ArrayList<>(this.paths);
+        paths.iterator().forEachRemaining(updatedPaths::add);
+        return new BlobPath(Collections.unmodifiableList(updatedPaths));
+    }
+
     public String buildAsString() {
         String p = String.join(SEPARATOR, paths);
         if (p.isEmpty() || p.endsWith(SEPARATOR)) {
