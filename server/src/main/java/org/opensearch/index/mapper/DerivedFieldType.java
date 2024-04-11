@@ -18,10 +18,11 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.geometry.Geometry;
+import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.query.DerivedFieldQuery;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.DerivedFieldScript;
-import org.opensearch.script.Script;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -36,19 +37,16 @@ import java.util.function.Function;
  * Contains logic to execute different type of queries on a derived field of given type.
  * @opensearch.internal
  */
-public final class DerivedFieldType extends MappedFieldType {
-    private final String type;
+public final class DerivedFieldType extends MappedFieldType implements GeoShapeQueryable {
 
-    private final Script script;
+    private final DerivedField derivedField;
 
     FieldMapper typeFieldMapper;
 
     final Function<Object, IndexableField> indexableFieldGenerator;
 
     public DerivedFieldType(
-        String name,
-        String type,
-        Script script,
+        DerivedField derivedField,
         boolean isIndexed,
         boolean isStored,
         boolean hasDocValues,
@@ -56,21 +54,14 @@ public final class DerivedFieldType extends MappedFieldType {
         FieldMapper typeFieldMapper,
         Function<Object, IndexableField> fieldFunction
     ) {
-        super(name, isIndexed, isStored, hasDocValues, typeFieldMapper.fieldType().getTextSearchInfo(), meta);
-        this.type = type;
-        this.script = script;
+        super(derivedField.getName(), isIndexed, isStored, hasDocValues, typeFieldMapper.fieldType().getTextSearchInfo(), meta);
+        this.derivedField = derivedField;
         this.typeFieldMapper = typeFieldMapper;
         this.indexableFieldGenerator = fieldFunction;
     }
 
-    public DerivedFieldType(
-        String name,
-        String type,
-        Script script,
-        FieldMapper typeFieldMapper,
-        Function<Object, IndexableField> fieldFunction
-    ) {
-        this(name, type, script, false, false, false, Collections.emptyMap(), typeFieldMapper, fieldFunction);
+    public DerivedFieldType(DerivedField derivedField, FieldMapper typeFieldMapper, Function<Object, IndexableField> fieldFunction) {
+        this(derivedField, false, false, false, Collections.emptyMap(), typeFieldMapper, fieldFunction);
     }
 
     @Override
@@ -79,7 +70,15 @@ public final class DerivedFieldType extends MappedFieldType {
     }
 
     public String getType() {
-        return type;
+        return derivedField.getType();
+    }
+
+    public MappedFieldType getTypeMappedFieldType() {
+        return typeFieldMapper.mappedFieldType;
+    }
+
+    public NamedAnalyzer getIndexAnalyzer() {
+        return typeFieldMapper.mappedFieldType.indexAnalyzer();
     }
 
     @Override
@@ -87,46 +86,33 @@ public final class DerivedFieldType extends MappedFieldType {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return new DerivedFieldValueFetcher(getDerivedFieldLeafFactory(context));
+        Function<Object, Object> valueForDisplay = DerivedFieldSupportedTypes.getValueForDisplayGenerator(getType());
+        return new DerivedFieldValueFetcher(
+            getDerivedFieldLeafFactory(context, searchLookup == null ? context.lookup() : searchLookup),
+            valueForDisplay,
+            indexableFieldGenerator
+        );
     }
 
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
         Query query = typeFieldMapper.mappedFieldType.termQuery(value, context);
-        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(getDerivedFieldLeafFactory(context));
-        return new DerivedFieldQuery(
-            query,
-            valueFetcher,
-            context.lookup(),
-            indexableFieldGenerator,
-            typeFieldMapper.mappedFieldType.indexAnalyzer()
-        );
+        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
+        return new DerivedFieldQuery(query, valueFetcher, context.lookup(), getIndexAnalyzer());
     }
 
     @Override
     public Query termQueryCaseInsensitive(Object value, @Nullable QueryShardContext context) {
         Query query = typeFieldMapper.mappedFieldType.termQueryCaseInsensitive(value, context);
-        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(getDerivedFieldLeafFactory(context));
-        return new DerivedFieldQuery(
-            query,
-            valueFetcher,
-            context.lookup(),
-            indexableFieldGenerator,
-            typeFieldMapper.mappedFieldType.indexAnalyzer()
-        );
+        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
+        return new DerivedFieldQuery(query, valueFetcher, context.lookup(), getIndexAnalyzer());
     }
 
     @Override
     public Query termsQuery(List<?> values, @Nullable QueryShardContext context) {
         Query query = typeFieldMapper.mappedFieldType.termsQuery(values, context);
-        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(getDerivedFieldLeafFactory(context));
-        return new DerivedFieldQuery(
-            query,
-            valueFetcher,
-            context.lookup(),
-            indexableFieldGenerator,
-            typeFieldMapper.mappedFieldType.indexAnalyzer()
-        );
+        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
+        return new DerivedFieldQuery(query, valueFetcher, context.lookup(), getIndexAnalyzer());
     }
 
     @Override
@@ -150,14 +136,8 @@ public final class DerivedFieldType extends MappedFieldType {
             parser,
             context
         );
-        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(getDerivedFieldLeafFactory(context));
-        return new DerivedFieldQuery(
-            query,
-            valueFetcher,
-            context.lookup(),
-            indexableFieldGenerator,
-            typeFieldMapper.mappedFieldType.indexAnalyzer()
-        );
+        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
+        return new DerivedFieldQuery(query, valueFetcher, context.lookup(), getIndexAnalyzer());
     }
 
     @Override
@@ -170,14 +150,8 @@ public final class DerivedFieldType extends MappedFieldType {
         QueryShardContext context
     ) {
         Query query = typeFieldMapper.mappedFieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
-        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(getDerivedFieldLeafFactory(context));
-        return new DerivedFieldQuery(
-            query,
-            valueFetcher,
-            context.lookup(),
-            indexableFieldGenerator,
-            typeFieldMapper.mappedFieldType.indexAnalyzer()
-        );
+        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
+        return new DerivedFieldQuery(query, valueFetcher, context.lookup(), getIndexAnalyzer());
     }
 
     @Override
@@ -199,14 +173,8 @@ public final class DerivedFieldType extends MappedFieldType {
             method,
             context
         );
-        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(getDerivedFieldLeafFactory(context));
-        return new DerivedFieldQuery(
-            query,
-            valueFetcher,
-            context.lookup(),
-            indexableFieldGenerator,
-            typeFieldMapper.mappedFieldType.indexAnalyzer()
-        );
+        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
+        return new DerivedFieldQuery(query, valueFetcher, context.lookup(), getIndexAnalyzer());
     }
 
     @Override
@@ -217,14 +185,8 @@ public final class DerivedFieldType extends MappedFieldType {
         QueryShardContext context
     ) {
         Query query = typeFieldMapper.mappedFieldType.prefixQuery(value, method, caseInsensitive, context);
-        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(getDerivedFieldLeafFactory(context));
-        return new DerivedFieldQuery(
-            query,
-            valueFetcher,
-            context.lookup(),
-            indexableFieldGenerator,
-            typeFieldMapper.mappedFieldType.indexAnalyzer()
-        );
+        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
+        return new DerivedFieldQuery(query, valueFetcher, context.lookup(), getIndexAnalyzer());
     }
 
     @Override
@@ -235,27 +197,15 @@ public final class DerivedFieldType extends MappedFieldType {
         QueryShardContext context
     ) {
         Query query = typeFieldMapper.mappedFieldType.wildcardQuery(value, method, caseInsensitive, context);
-        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(getDerivedFieldLeafFactory(context));
-        return new DerivedFieldQuery(
-            query,
-            valueFetcher,
-            context.lookup(),
-            indexableFieldGenerator,
-            typeFieldMapper.mappedFieldType.indexAnalyzer()
-        );
+        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
+        return new DerivedFieldQuery(query, valueFetcher, context.lookup(), getIndexAnalyzer());
     }
 
     @Override
     public Query normalizedWildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         Query query = typeFieldMapper.mappedFieldType.normalizedWildcardQuery(value, method, context);
-        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(getDerivedFieldLeafFactory(context));
-        return new DerivedFieldQuery(
-            query,
-            valueFetcher,
-            context.lookup(),
-            indexableFieldGenerator,
-            typeFieldMapper.mappedFieldType.indexAnalyzer()
-        );
+        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
+        return new DerivedFieldQuery(query, valueFetcher, context.lookup(), getIndexAnalyzer());
     }
 
     @Override
@@ -268,54 +218,30 @@ public final class DerivedFieldType extends MappedFieldType {
         QueryShardContext context
     ) {
         Query query = typeFieldMapper.mappedFieldType.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
-        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(getDerivedFieldLeafFactory(context));
-        return new DerivedFieldQuery(
-            query,
-            valueFetcher,
-            context.lookup(),
-            indexableFieldGenerator,
-            typeFieldMapper.mappedFieldType.indexAnalyzer()
-        );
+        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
+        return new DerivedFieldQuery(query, valueFetcher, context.lookup(), getIndexAnalyzer());
     }
 
     @Override
     public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext context) throws IOException {
         Query query = typeFieldMapper.mappedFieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
-        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(getDerivedFieldLeafFactory(context));
-        return new DerivedFieldQuery(
-            query,
-            valueFetcher,
-            context.lookup(),
-            indexableFieldGenerator,
-            typeFieldMapper.mappedFieldType.indexAnalyzer()
-        );
+        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
+        return new DerivedFieldQuery(query, valueFetcher, context.lookup(), getIndexAnalyzer());
     }
 
     @Override
     public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext context)
         throws IOException {
         Query query = typeFieldMapper.mappedFieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
-        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(getDerivedFieldLeafFactory(context));
-        return new DerivedFieldQuery(
-            query,
-            valueFetcher,
-            context.lookup(),
-            indexableFieldGenerator,
-            typeFieldMapper.mappedFieldType.indexAnalyzer()
-        );
+        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
+        return new DerivedFieldQuery(query, valueFetcher, context.lookup(), getIndexAnalyzer());
     }
 
     @Override
     public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, QueryShardContext context) throws IOException {
         Query query = typeFieldMapper.mappedFieldType.phrasePrefixQuery(stream, slop, maxExpansions, context);
-        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(getDerivedFieldLeafFactory(context));
-        return new DerivedFieldQuery(
-            query,
-            valueFetcher,
-            context.lookup(),
-            indexableFieldGenerator,
-            typeFieldMapper.mappedFieldType.indexAnalyzer()
-        );
+        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
+        return new DerivedFieldQuery(query, valueFetcher, context.lookup(), getIndexAnalyzer());
     }
 
     @Override
@@ -328,14 +254,15 @@ public final class DerivedFieldType extends MappedFieldType {
     @Override
     public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
         Query query = typeFieldMapper.mappedFieldType.distanceFeatureQuery(origin, pivot, boost, context);
-        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(getDerivedFieldLeafFactory(context));
-        return new DerivedFieldQuery(
-            query,
-            valueFetcher,
-            context.lookup(),
-            indexableFieldGenerator,
-            typeFieldMapper.mappedFieldType.indexAnalyzer()
-        );
+        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
+        return new DerivedFieldQuery(query, valueFetcher, context.lookup(), getIndexAnalyzer());
+    }
+
+    @Override
+    public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+        Query query = ((GeoShapeQueryable) (typeFieldMapper.mappedFieldType)).geoShapeQuery(shape, fieldName, relation, context);
+        DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
+        return new DerivedFieldQuery(query, valueFetcher, context.lookup(), getIndexAnalyzer());
     }
 
     @Override
@@ -348,7 +275,7 @@ public final class DerivedFieldType extends MappedFieldType {
         return false;
     }
 
-    private DerivedFieldScript.LeafFactory getDerivedFieldLeafFactory(QueryShardContext context) {
+    private DerivedFieldScript.LeafFactory getDerivedFieldLeafFactory(QueryShardContext context, SearchLookup searchLookup) {
         if (!context.documentMapper("").sourceMapper().enabled()) {
             throw new IllegalArgumentException(
                 "DerivedFieldQuery error: unable to fetch fields from _source field: _source is disabled in the mappings "
@@ -357,7 +284,7 @@ public final class DerivedFieldType extends MappedFieldType {
                     + "]"
             );
         }
-        DerivedFieldScript.Factory factory = context.compile(script, DerivedFieldScript.CONTEXT);
-        return factory.newFactory(script.getParams(), context.lookup());
+        DerivedFieldScript.Factory factory = context.compile(derivedField.getScript(), DerivedFieldScript.CONTEXT);
+        return factory.newFactory(derivedField.getScript().getParams(), searchLookup);
     }
 }
