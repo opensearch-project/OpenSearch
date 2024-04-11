@@ -54,7 +54,7 @@ public class GatewayRecoveryTestUtils {
             );
             for (int shardIdNum = 0; shardIdNum < primaryShardCount; shardIdNum++) {
                 final ShardId shardId = new ShardId(index, shardIdNum);
-                shardIdShardAttributesMap.put(shardId, new ShardAttributes(shardId, customDataPath));
+                shardIdShardAttributesMap.put(shardId, new ShardAttributes(customDataPath));
             }
         }
         return shardIdShardAttributesMap;
