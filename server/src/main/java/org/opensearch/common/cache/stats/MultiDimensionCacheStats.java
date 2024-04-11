@@ -41,10 +41,7 @@ public class MultiDimensionCacheStats implements CacheStats {
         // having to serialize the whole path to each node.
         this.dimensionNames = List.of(in.readStringArray());
         this.statsRoot = new MDCSDimensionNode("", true);
-        List<MDCSDimensionNode> ancestorsOfLastRead = List.of(statsRoot);
-        while (ancestorsOfLastRead != null) {
-            ancestorsOfLastRead = readAndAttachDimensionNode(in, ancestorsOfLastRead);
-        }
+        readAndAttachDimensionNodeRecursive(in, List.of(statsRoot));
         // Finally, update sum-of-children stats for the root node
         CacheStatsCounter totalStats = new CacheStatsCounter();
         for (MDCSDimensionNode child : statsRoot.children.values()) {
@@ -85,7 +82,7 @@ public class MultiDimensionCacheStats implements CacheStats {
      * Reads a serialized dimension node, attaches it to its appropriate place in the tree, and returns the list of
      * ancestors of the newly attached node.
      */
-    private List<MDCSDimensionNode> readAndAttachDimensionNode(StreamInput in, List<MDCSDimensionNode> ancestorsOfLastRead)
+    private void readAndAttachDimensionNodeRecursive(StreamInput in, List<MDCSDimensionNode> ancestorsOfLastRead) //List<MDCSDimensionNode>
         throws IOException {
         boolean hasNextNode = in.readBoolean();
         if (hasNextNode) {
@@ -99,11 +96,9 @@ public class MultiDimensionCacheStats implements CacheStats {
             parent.getChildren().put(nodeDimensionValue, result);
             List<MDCSDimensionNode> ancestors = new ArrayList<>(ancestorsOfLastRead.subList(0, depth));
             ancestors.add(result);
-            return ancestors;
-        } else {
-            // No more nodes
-            return null;
+            readAndAttachDimensionNodeRecursive(in, ancestors);
         }
+        // If !hasNextNode, there are no more nodes, so we are done
     }
 
     @Override
