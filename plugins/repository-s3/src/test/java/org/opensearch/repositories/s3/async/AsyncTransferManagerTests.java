@@ -184,12 +184,16 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
             abortMultipartUploadResponseCompletableFuture
         );
 
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+        metadata.put("key2", "value2");
+
         List<InputStream> streams = new ArrayList<>();
         CompletableFuture<Void> resultFuture = asyncTransferManager.uploadObject(
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(5), WritePriority.HIGH, uploadSuccess -> {
                 // do nothing
-            }, true, 3376132981L, true, new HashMap<>()),
+            }, true, 3376132981L, true, metadata),
             new StreamContext((partIdx, partSize, position) -> {
                 InputStream stream = new ZeroInputStream(partSize);
                 streams.add(stream);
@@ -245,11 +249,15 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
             abortMultipartUploadResponseCompletableFuture
         );
 
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+        metadata.put("key2", "value2");
+
         CompletableFuture<Void> resultFuture = asyncTransferManager.uploadObject(
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(5), WritePriority.HIGH, uploadSuccess -> {
                 // do nothing
-            }, true, 0L, true, null),
+            }, true, 0L, true, metadata),
             new StreamContext(
                 (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
                 ByteSizeUnit.MB.toBytes(1),
