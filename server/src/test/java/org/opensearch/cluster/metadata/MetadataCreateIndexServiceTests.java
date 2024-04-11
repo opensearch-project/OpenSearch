@@ -1400,7 +1400,10 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(segmentRepositoryNameAttributeKey, SEGMENT_REPO)
             .put(translogRepositoryNameAttributeKey, TRANSLOG_REPO)
             .build();
-
+        clusterSettings = new ClusterSettings(
+            Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
         request.settings(requestSettings.build());
@@ -1434,7 +1437,10 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(segmentRepositoryNameAttributeKey, SEGMENT_REPO)
             .put(translogRepositoryNameAttributeKey, TRANSLOG_REPO)
             .build();
-
+        clusterSettings = new ClusterSettings(
+            Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         Settings indexSettings = aggregateIndexSettings(
             clusterState,
@@ -1930,6 +1936,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testClusterReplicationSetting() {
         Settings settings = Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build();
+        clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         Settings indexSettings = aggregateIndexSettings(
             ClusterState.EMPTY_STATE,

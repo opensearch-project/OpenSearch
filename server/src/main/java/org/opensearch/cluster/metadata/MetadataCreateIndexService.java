@@ -1002,19 +1002,23 @@ public class MetadataCreateIndexService {
         ClusterSettings clusterSettings
     ) {
         // The replication setting is applied in the following order:
-        // 1. Explicit index creation request parameter
-        // 2. Template property for replication type
-        // 3. Defaults to segment if remote store attributes/migration on the cluster
-        // 4. Default cluster level setting
+        // 1. Strictly SEGMENT if cluster is undergoing remote store migration
+        // 2. Explicit index creation request parameter
+        // 3. Template property for replication type
+        // 4. Replication type according to cluster level settings
+        // 5. Defaults to segment if remote store attributes on the cluster
+        // 6. Default cluster level setting
 
         final ReplicationType indexReplicationType;
-        if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings)) {
+        if (isMigratingToRemoteStore(clusterSettings)) {
+            indexReplicationType = ReplicationType.SEGMENT;
+        } else if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings)) {
             indexReplicationType = INDEX_REPLICATION_TYPE_SETTING.get(requestSettings);
         } else if (combinedTemplateSettings != null && INDEX_REPLICATION_TYPE_SETTING.exists(combinedTemplateSettings)) {
             indexReplicationType = INDEX_REPLICATION_TYPE_SETTING.get(combinedTemplateSettings);
         } else if (clusterSettings.get(CLUSTER_REPLICATION_TYPE_SETTING) != null) {
             indexReplicationType = clusterSettings.get(CLUSTER_REPLICATION_TYPE_SETTING);
-        } else if (isRemoteDataAttributePresent(nodeSettings) || isMigratingToRemoteStore(clusterSettings)) {
+        } else if (isRemoteDataAttributePresent(nodeSettings)) {
             indexReplicationType = ReplicationType.SEGMENT;
         } else {
             indexReplicationType = CLUSTER_REPLICATION_TYPE_SETTING.getDefault(nodeSettings);

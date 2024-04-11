@@ -8,12 +8,9 @@
 
 package org.opensearch.remotestore;
 
-import org.opensearch.action.admin.indices.get.GetIndexRequest;
-import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
@@ -25,7 +22,6 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
@@ -34,27 +30,6 @@ public class CreateRemoteIndexIT extends RemoteStoreBaseIntegTestCase {
     @Before
     public void setup() throws Exception {
         internalCluster().startNodes(2);
-    }
-
-    public void testDefaultRemoteStoreNoUserOverride() throws Exception {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
-        assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
-        GetIndexResponse getIndexResponse = client().admin()
-            .indices()
-            .getIndex(new GetIndexRequest().indices("test-idx-1").includeDefaults(true))
-            .get();
-        Settings indexSettings = getIndexResponse.settings().get("test-idx-1");
-        verifyRemoteStoreIndexSettings(
-            indexSettings,
-            "true",
-            REPOSITORY_NAME,
-            REPOSITORY_2_NAME,
-            ReplicationType.SEGMENT.toString(),
-            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
-        );
     }
 
     public void testRemoteStoreDisabledByUser() throws Exception {

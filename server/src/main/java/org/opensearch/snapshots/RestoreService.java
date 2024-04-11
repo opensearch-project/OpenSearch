@@ -92,6 +92,7 @@ import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -678,9 +679,10 @@ public class RestoreService implements ClusterStateApplier {
 
                         // We will use whatever replication strategy provided by user or from snapshot metadata unless
                         // cluster is remote store enabled or user have restricted a specific replication type in the
-                        // cluster.
+                        // cluster. If cluster is undergoing remote store migration, replication strategy is strictly SEGMENT type
                         if (RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(clusterService.getSettings()) == true
-                            || clusterSettings.get(IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING) == true) {
+                            || clusterSettings.get(IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING) == true
+                            || RemoteStoreNodeService.isMigratingToRemoteStore(clusterSettings) == true) {
                             MetadataCreateIndexService.updateReplicationStrategy(
                                 settingsBuilder,
                                 request.indexSettings(),
