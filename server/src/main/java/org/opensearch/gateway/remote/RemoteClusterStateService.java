@@ -91,6 +91,8 @@ public class RemoteClusterStateService implements Closeable {
     public static final TimeValue GLOBAL_METADATA_UPLOAD_TIMEOUT_DEFAULT = TimeValue.timeValueMillis(20000);
 
     public static final TimeValue METADATA_MANIFEST_UPLOAD_TIMEOUT_DEFAULT = TimeValue.timeValueMillis(20000);
+    public static final TimeValue CLUSTER_STATE_CLEANUP_INTERVAL_DEFAULT = TimeValue.timeValueMillis(60000);
+    public static final TimeValue CLUSTER_STATE_CLEANUP_INTERVAL_MINIMUM = TimeValue.MINUS_ONE;
 
     public static final Setting<TimeValue> INDEX_METADATA_UPLOAD_TIMEOUT_SETTING = Setting.timeSetting(
         "cluster.remote_store.state.index_metadata.upload_timeout",
@@ -155,8 +157,8 @@ public class RemoteClusterStateService implements Closeable {
      */
     public static final Setting<TimeValue> REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.remote_store.state.cleanup_interval",
-        TimeValue.timeValueMinutes(5),
-        TimeValue.timeValueMillis(-1),
+        CLUSTER_STATE_CLEANUP_INTERVAL_DEFAULT,
+        CLUSTER_STATE_CLEANUP_INTERVAL_MINIMUM,
         Property.NodeScope,
         Property.Dynamic
     );
@@ -657,8 +659,8 @@ public class RemoteClusterStateService implements Closeable {
         this.staleFileCleanupInterval = updatedInterval;
         logger.info("updated remote state cleanup interval to {}", updatedInterval);
         // After updating the interval, we need to close the current task and create a new one which will run with updated interval
-        if (!this.staleFileDeletionTask.getInterval().equals(updatedInterval)) {
-            this.staleFileDeletionTask.setInterval(updatedInterval);
+        if (staleFileDeletionTask != null && !staleFileDeletionTask.getInterval().equals(updatedInterval)) {
+            staleFileDeletionTask.setInterval(updatedInterval);
         }
     }
 

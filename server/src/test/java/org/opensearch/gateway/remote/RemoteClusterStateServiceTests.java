@@ -41,6 +41,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreUtils;
+import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.repositories.FilterRepository;
 import org.opensearch.repositories.RepositoriesService;
@@ -79,6 +80,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 
 import static java.util.stream.Collectors.toList;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.CLUSTER_STATE_CLEANUP_INTERVAL_DEFAULT;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.FORMAT_PARAMS;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.INDEX_METADATA_CURRENT_CODEC_VERSION;
@@ -1225,10 +1228,27 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertEquals(globalMetadataUploadTimeout, remoteClusterStateService.getGlobalMetadataUploadTimeout().seconds());
     }
 
+    public void testRemoteClusterStateCleanupSetting() {
+        remoteClusterStateService.start();
+        // verify default value
+        assertEquals(
+            CLUSTER_STATE_CLEANUP_INTERVAL_DEFAULT,
+            remoteClusterStateService.getStaleFileCleanupInterval()
+        );
+
+        // verify update interval
+        int cleanupInterval = randomIntBetween(1, 10);
+        Settings newSettings = Settings.builder()
+            .put("cluster.remote_store.state.cleanup_interval", cleanupInterval + "s")
+            .build();
+        clusterSettings.applySettings(newSettings);
+        assertEquals(cleanupInterval, remoteClusterStateService.getStaleFileCleanupInterval().seconds());
+    }
+
     public void testRemoteCleanupTaskScheduled() {
         AbstractAsyncTask cleanupTask = remoteClusterStateService.getStaleFileDeletionTask();
         assertNull(cleanupTask);
-
+        // now the task should be initialized
         remoteClusterStateService.start();
         assertNotNull(remoteClusterStateService.getStaleFileDeletionTask());
         assertTrue(remoteClusterStateService.getStaleFileDeletionTask().mustReschedule());
