@@ -632,20 +632,16 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(1, cache.cacheCleanupManager.getStaleKeysCount().get());
         // cache count should not be affected
         assertEquals(2, cache.count());
-
         // test the mapping
         assertFalse(cleanupKeyToCountMap.get(shardId).containsKey(getReaderCacheKeyId(reader)));
-
         // second reader's mapping should not be affected
         assertEquals(1, (int) cleanupKeyToCountMap.get(shardId).get(getReaderCacheKeyId(secondReader)));
-
         // Close the second reader
         secondReader.close();
         // both keys should now be stale
         assertEquals(2, cache.cacheCleanupManager.getStaleKeysCount().get());
         // cache count should not be affected
         assertEquals(2, cache.count());
-
         // test the mapping
         // since all the readers of this shard is closed,
         // the cleanupKeyToCountMap should have no entries

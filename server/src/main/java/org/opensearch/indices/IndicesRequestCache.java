@@ -519,9 +519,9 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         private void updateCleanupKeyCountOnKeyRemoval(CleanupKey cleanupKey, RemovalNotification<Key, BytesReference> notification) {
             if (cleanupKey.entity == null) {
                 /*
-                * on shard close, the shard is still lying around so this will only happen when the shard is deleted.
-                * we would have accounted this in staleKeysCount when the deletion of shard would have closed the associated readers
-                * */
+                 * on shard close, the shard is still lying around so this will only happen when the shard is deleted.
+                 * we would have accounted this in staleKeysCount when the deletion of shard would have closed the associated readers
+                 * */
                 staleKeysCount.decrementAndGet();
                 return;
             }
@@ -537,26 +537,28 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
             cleanupKeyToCountMap.compute(shardId, (key, readerCacheKeyMap) -> {
                 if (readerCacheKeyMap == null || !readerCacheKeyMap.containsKey(cleanupKey.readerCacheKeyId)) {
-                    // If ShardId is not present or readerCacheKeyId is not present, decrement staleKeysCount
+                    // If ShardId is not present or readerCacheKeyId is not present
+                    // it should have already been accounted for and hence been removed from this map
+                    // so decrement staleKeysCount
                     staleKeysCount.decrementAndGet();
-                    return null; // Returning null removes the entry for the shardId, if it exists
+                    // Returning null removes the entry for the shardId, if it exists
+                    return null;
                 } else {
-                    // Proceed to adjust the count for the readerCacheKeyId
+                    // If it is in the map, it is not stale yet.
+                    // Proceed to adjust the count for the readerCacheKeyId in the map
+                    // but do not decrement the staleKeysCount
                     Integer count = readerCacheKeyMap.get(cleanupKey.readerCacheKeyId);
-                    if (count == null) {
-                        staleKeysCount.decrementAndGet();
+                    // this should never be null
+                    assert (count != null);
+                    // Reduce the count by 1
+                    int newCount = count - 1;
+                    if (newCount <= 0) {
+                        // Remove the readerCacheKeyId entry if new count is zero or less
+                        readerCacheKeyMap.remove(cleanupKey.readerCacheKeyId);
                     } else {
-                        // Reduce the count by 1
-                        int newCount = count - 1;
-                        if (newCount <= 0) {
-                            // Remove the readerCacheKeyId entry if new count is zero or less
-                            readerCacheKeyMap.remove(cleanupKey.readerCacheKeyId);
-                        } else {
-                            // Update the map with the new count
-                            readerCacheKeyMap.put(cleanupKey.readerCacheKeyId, newCount);
-                        }
+                        // Update the map with the new count
+                        readerCacheKeyMap.put(cleanupKey.readerCacheKeyId, newCount);
                     }
-
                     // If after modification, the readerCacheKeyMap is empty, we return null to remove the ShardId entry
                     return readerCacheKeyMap.isEmpty() ? null : readerCacheKeyMap;
                 }
