@@ -962,11 +962,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         }
 
         if (primaryMode && indexSettings.isSoftDeleteEnabled() && hasAllPeerRecoveryRetentionLeases
-            // Skip assertion if createMissingPeerRecoveryRetentionLeases has not yet run after activating primary context
-            // This is required since during an ongoing remote store migration,
-            // remote enabled primary taking over primary context from another remote enabled shard
-            // might not have retention leases for docrep shard copies
-            // (since all RetentionLease sync actions are blocked on remote shard copies)
+        // Skip assertion if createMissingPeerRecoveryRetentionLeases has not yet run after activating primary context
+        // This is required since during an ongoing remote store migration,
+        // remote enabled primary taking over primary context from another remote enabled shard
+        // might not have retention leases for docrep shard copies
+        // (since all RetentionLease sync actions are blocked on remote shard copies)
             && createdMissingRetentionLeases) {
             // all tracked shard copies have a corresponding peer-recovery retention lease
             for (final ShardRouting shardRouting : routingTable.assignedShards()) {
