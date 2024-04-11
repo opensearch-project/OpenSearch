@@ -1016,8 +1016,8 @@ public class MetadataCreateIndexService {
             indexReplicationType = INDEX_REPLICATION_TYPE_SETTING.get(requestSettings);
         } else if (combinedTemplateSettings != null && INDEX_REPLICATION_TYPE_SETTING.exists(combinedTemplateSettings)) {
             indexReplicationType = INDEX_REPLICATION_TYPE_SETTING.get(combinedTemplateSettings);
-        } else if (clusterSettings.get(CLUSTER_REPLICATION_TYPE_SETTING) != null) {
-            indexReplicationType = clusterSettings.get(CLUSTER_REPLICATION_TYPE_SETTING);
+        } else if (CLUSTER_REPLICATION_TYPE_SETTING.exists(nodeSettings)) {
+            indexReplicationType = CLUSTER_REPLICATION_TYPE_SETTING.get(nodeSettings);
         } else if (isRemoteDataAttributePresent(nodeSettings)) {
             indexReplicationType = ReplicationType.SEGMENT;
         } else {

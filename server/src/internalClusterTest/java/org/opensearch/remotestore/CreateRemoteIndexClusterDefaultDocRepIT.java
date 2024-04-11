@@ -36,6 +36,7 @@ public class CreateRemoteIndexClusterDefaultDocRepIT extends CreateRemoteIndexIT
         return builder.build();
     }
 
+    @Override
     public void testDefaultRemoteStoreNoUserOverride() throws Exception {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
