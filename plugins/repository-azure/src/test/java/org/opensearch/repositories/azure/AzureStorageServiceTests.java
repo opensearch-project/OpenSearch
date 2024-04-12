@@ -120,14 +120,18 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         // Azure clients without account key and sas token.
         secureSettings.setString("azure.client.azure1.account", "myaccount1");
         secureSettings.setString("azure.client.azure2.account", "myaccount2");
+        secureSettings.setString("azure.client.azure3.account", "myaccount3");
 
         final Settings settings = Settings.builder()
             .setSecureSettings(secureSettings)
-            // Enabled managed identity for both clients
+            // Enabled managed identity for all clients
             .put("azure.client.azure1.token_credential_type", TokenCredentialType.MANAGED_IDENTITY.name())
             .put("azure.client.azure2.token_credential_type", TokenCredentialType.MANAGED_IDENTITY.name())
+            .put("azure.client.azure3.token_credential_type", TokenCredentialType.MANAGED_IDENTITY.name())
             // Defined an endpoint suffic for azure client 1 only.
             .put("azure.client.azure1.endpoint_suffix", "my_endpoint_suffix")
+            // Defined an invalid endpoint suffix for azure client 3 only.
+            .put("azure.client.azure3.endpoint_suffix", "invalid endpoint suffix")
             .build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService;
@@ -139,35 +143,30 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             // Expect azure client 2 to use the default endpoint suffix
             final BlobServiceClient client2 = azureStorageService.client("azure2").v1();
             assertThat(client2.getAccountUrl(), equalTo("https://myaccount2.blob.core.windows.net"));
-        }
-    }
 
-    public void testGetStorageBlobEndpoint() throws IOException {
-        final Settings settings = Settings.builder().setSecureSettings(buildSecureSettings()).build();
-
-        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
-            final AzureStorageService azureStorageService = plugin.azureStoreService;
-            final AzureStorageSettings storageSettings = azureStorageService.storageSettings.get("azure1");
-            String primaryUri = azureStorageService.getStorageBlobEndpoint(storageSettings).getPrimaryUri();
-            String secondaryUri = azureStorageService.getStorageBlobEndpoint(storageSettings).getSecondaryUri();
-            assertThat(primaryUri, equalTo("https://myaccount1.blob.core.windows.net"));
-            assertThat(secondaryUri, equalTo("https://myaccount1-secondary.blob.core.windows.net"));
-        }
-    }
-
-    public void testGetStorageBlobEndpointWithInvalidValues() throws IOException {
-        final Settings settings = Settings.builder()
-            .setSecureSettings(buildSecureSettings())
-            .put("azure.client.azure1.endpoint_suffix", "my endpoint suffix")
-            .build();
-
-        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
-            final AzureStorageService azureStorageService = plugin.azureStoreService;
-            final AzureStorageSettings storageSettings = azureStorageService.storageSettings.get("azure1");
+            // Expect azure client 3 to fail due to invalid endpoint suffix
             final RuntimeException e = expectThrows(
                 RuntimeException.class,
-                () -> azureStorageService.getStorageBlobEndpoint(storageSettings)
+                () -> azureStorageService.client("azure3").v1()
             );
+        }
+    }
+
+    public void testGettingSecondaryStorageBlobEndpoint() throws IOException {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("azure.client.azure1.account", "myaccount1");
+        final Settings settings = Settings.builder()
+            .setSecureSettings(secureSettings)
+            // Enabled managed identity
+            .put("azure.client.azure1.token_credential_type", TokenCredentialType.MANAGED_IDENTITY.name())
+            .build();
+        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
+            final AzureStorageService azureStorageService = plugin.azureStoreService;
+            final Map<String, AzureStorageSettings> prevSettings = azureStorageService.refreshAndClearCache(Collections.emptyMap());
+            final Map<String, AzureStorageSettings> newSettings = AzureStorageSettings.overrideLocationMode(prevSettings, LocationMode.SECONDARY_ONLY);
+            azureStorageService.refreshAndClearCache(newSettings);
+            final BlobServiceClient client1 = azureStorageService.client("azure1").v1();
+            assertThat(client1.getAccountUrl(), equalTo("https://myaccount1-secondary.blob.core.windows.net"));
         }
     }
 

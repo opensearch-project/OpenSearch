@@ -162,7 +162,7 @@ public class AzureStorageService implements AutoCloseable {
         return new Tuple<>(state.getClient(), () -> buildOperationContext(azureStorageSettings));
     }
 
-    public StorageEndpoint getStorageBlobEndpoint(final AzureStorageSettings settings) {
+    private StorageEndpoint getStorageBlobEndpoint(final AzureStorageSettings settings) {
         try {
             String endpointSuffix = settings.getEndpointSuffix();
             if (!Strings.hasText(endpointSuffix)) {

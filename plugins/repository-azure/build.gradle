@@ -71,7 +71,7 @@ dependencies {
   // selected the higher version which is 2.5.0
   api 'net.minidev:json-smart:2.5.0'
   api 'net.minidev:accessors-smart:2.5.0'
-  api 'org.ow2.asm:asm:9.3'
+  api "org.ow2.asm:asm:${versions.asm}"
   // End of transitive dependencies for azure-identity
   api "io.projectreactor.netty:reactor-netty-core:${versions.reactor_netty}"
   api "io.projectreactor.netty:reactor-netty-http:${versions.reactor_netty}"
