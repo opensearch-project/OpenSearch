@@ -272,13 +272,13 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertEquals(RestStatus.ACCEPTED, restoreSnapshotResponse.status());
         ensureGreen(restoredIndexName1version2);
-        validatePathType(restoredIndexName1version2, PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A_BASE64);
+        validatePathType(restoredIndexName1version2, PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A_COMPOSITE);
 
         // Create index with cluster setting cluster.remote_store.index.path.prefix.type as hashed_prefix.
         indexSettings = getIndexSettings(1, 0).build();
         createIndex(indexName2, indexSettings);
         ensureGreen(indexName2);
-        validatePathType(indexName2, PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A_BASE64);
+        validatePathType(indexName2, PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A_COMPOSITE);
 
         // Validating that custom data has not changed for indexes which were created before the cluster setting got updated
         validatePathType(indexName1, PathType.FIXED);
@@ -309,7 +309,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen(indexName2);
 
         // Validating that custom data has not changed for testindex2 which was created before the cluster setting got updated
-        validatePathType(indexName2, PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A_BASE64);
+        validatePathType(indexName2, PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A_COMPOSITE);
     }
 
     private void validatePathType(String index, PathType pathType) {

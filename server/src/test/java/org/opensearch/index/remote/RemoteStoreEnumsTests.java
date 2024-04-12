@@ -26,6 +26,7 @@ import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64;
+import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathType.FIXED;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathType.HASHED_INFIX;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathType.HASHED_PREFIX;
@@ -306,6 +307,183 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             .build();
         result = HASHED_PREFIX.path(pathInput, FNV_1A_BASE64);
         assertEquals("KeYDIk0mJXI/xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/k2ijhe877d7yuhx7/10/segments/lock_files/", result.buildAsString());
+    }
+
+    public void testGeneratePathForHashedPrefixTypeAndFNVCompositeHashAlgorithm() {
+        BlobPath blobPath = new BlobPath();
+        List<String> pathList = getPathList();
+        for (String path : pathList) {
+            blobPath = blobPath.add(path);
+        }
+
+        String indexUUID = randomAlphaOfLength(10);
+        String shardId = String.valueOf(randomInt(100));
+        DataCategory dataCategory = TRANSLOG;
+        DataType dataType = DATA;
+
+        String basePath = getPath(pathList) + indexUUID + SEPARATOR + shardId;
+        // Translog Data
+        PathInput pathInput = PathInput.builder()
+            .basePath(blobPath)
+            .indexUUID(indexUUID)
+            .shardId(shardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        BlobPath result = HASHED_PREFIX.path(pathInput, FNV_1A_COMPOSITE);
+        assertTrue(
+            result.buildAsString()
+                .startsWith(String.join(SEPARATOR, FNV_1A_COMPOSITE.hash(pathInput), basePath, dataCategory.getName(), dataType.getName()))
+        );
+
+        // assert with exact value for known base path
+        BlobPath fixedBlobPath = BlobPath.cleanPath().add("xjsdhj").add("ddjsha").add("yudy7sd").add("32hdhua7").add("89jdij");
+        String fixedIndexUUID = "k2ijhe877d7yuhx7";
+        String fixedShardId = "10";
+        pathInput = PathInput.builder()
+            .basePath(fixedBlobPath)
+            .indexUUID(fixedIndexUUID)
+            .shardId(fixedShardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_COMPOSITE);
+        assertEquals("D10000001001000/xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/k2ijhe877d7yuhx7/10/translog/data/", result.buildAsString());
+
+        // Translog Metadata
+        dataType = METADATA;
+        pathInput = PathInput.builder()
+            .basePath(blobPath)
+            .indexUUID(indexUUID)
+            .shardId(shardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_COMPOSITE);
+        assertTrue(
+            result.buildAsString()
+                .startsWith(String.join(SEPARATOR, FNV_1A_COMPOSITE.hash(pathInput), basePath, dataCategory.getName(), dataType.getName()))
+        );
+
+        // assert with exact value for known base path
+        pathInput = PathInput.builder()
+            .basePath(fixedBlobPath)
+            .indexUUID(fixedIndexUUID)
+            .shardId(fixedShardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_COMPOSITE);
+        assertEquals(
+            "o00101001010011/xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/k2ijhe877d7yuhx7/10/translog/metadata/",
+            result.buildAsString()
+        );
+
+        // Translog Lock files - This is a negative case where the assertion will trip.
+        dataType = LOCK_FILES;
+        PathInput finalPathInput = PathInput.builder()
+            .basePath(blobPath)
+            .indexUUID(indexUUID)
+            .shardId(shardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        assertThrows(AssertionError.class, () -> HASHED_PREFIX.path(finalPathInput, null));
+
+        // assert with exact value for known base path
+        pathInput = PathInput.builder()
+            .basePath(fixedBlobPath)
+            .indexUUID(fixedIndexUUID)
+            .shardId(fixedShardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        assertThrows(AssertionError.class, () -> HASHED_PREFIX.path(finalPathInput, null));
+
+        // Segment Data
+        dataCategory = SEGMENTS;
+        dataType = DATA;
+        pathInput = PathInput.builder()
+            .basePath(blobPath)
+            .indexUUID(indexUUID)
+            .shardId(shardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_COMPOSITE);
+        assertTrue(
+            result.buildAsString()
+                .startsWith(String.join(SEPARATOR, FNV_1A_COMPOSITE.hash(pathInput), basePath, dataCategory.getName(), dataType.getName()))
+        );
+
+        // assert with exact value for known base path
+        pathInput = PathInput.builder()
+            .basePath(fixedBlobPath)
+            .indexUUID(fixedIndexUUID)
+            .shardId(fixedShardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_COMPOSITE);
+        assertEquals("A01010000000101/xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/k2ijhe877d7yuhx7/10/segments/data/", result.buildAsString());
+
+        // Segment Metadata
+        dataType = METADATA;
+        pathInput = PathInput.builder()
+            .basePath(blobPath)
+            .indexUUID(indexUUID)
+            .shardId(shardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_COMPOSITE);
+        assertTrue(
+            result.buildAsString()
+                .startsWith(String.join(SEPARATOR, FNV_1A_COMPOSITE.hash(pathInput), basePath, dataCategory.getName(), dataType.getName()))
+        );
+
+        // assert with exact value for known base path
+        pathInput = PathInput.builder()
+            .basePath(fixedBlobPath)
+            .indexUUID(fixedIndexUUID)
+            .shardId(fixedShardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_COMPOSITE);
+        assertEquals(
+            "e10101111000001/xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/k2ijhe877d7yuhx7/10/segments/metadata/",
+            result.buildAsString()
+        );
+
+        // Segment Lockfiles
+        dataType = LOCK_FILES;
+        pathInput = PathInput.builder()
+            .basePath(blobPath)
+            .indexUUID(indexUUID)
+            .shardId(shardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_COMPOSITE);
+        assertTrue(
+            result.buildAsString()
+                .startsWith(String.join(SEPARATOR, FNV_1A_COMPOSITE.hash(pathInput), basePath, dataCategory.getName(), dataType.getName()))
+        );
+
+        // assert with exact value for known base path
+        pathInput = PathInput.builder()
+            .basePath(fixedBlobPath)
+            .indexUUID(fixedIndexUUID)
+            .shardId(fixedShardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        result = HASHED_PREFIX.path(pathInput, FNV_1A_COMPOSITE);
+        assertEquals(
+            "K01111001100000/xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/k2ijhe877d7yuhx7/10/segments/lock_files/",
+            result.buildAsString()
+        );
     }
 
     public void testGeneratePathForHashedInfixType() {
