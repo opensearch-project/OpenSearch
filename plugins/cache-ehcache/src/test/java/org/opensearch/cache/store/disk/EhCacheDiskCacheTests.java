@@ -807,6 +807,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setKeySerializer(new StringSerializer())
                 .setValueSerializer(new StringSerializer())
+                .setIsEventListenerModeSync(true)
                 .setDimensionNames(dimensionNames)
                 .setKeyType(String.class)
                 .setValueType(String.class)
