@@ -71,6 +71,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.mapper.DerivedFieldType;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -544,6 +545,49 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                     + "This limit can be set by changing the [index.max_docvalue_fields_search] index level setting.",
                 ex.getMessage()
             );
+        }
+    }
+
+    public void testDerivedFieldsSearch() throws IOException {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchRequest.source(searchSourceBuilder);
+
+        for (int i = 0; i < 5; i++) {
+            searchSourceBuilder.derivedField(
+                "field" + i,
+                "date",
+                new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap())
+            );
+        }
+        final ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1.0f,
+            -1,
+            null,
+            null
+        );
+
+        try (ReaderContext reader = createReaderContext(indexService, indexShard)) {
+            try (SearchContext context = service.createContext(reader, request, null, randomBoolean())) {
+                assertNotNull(context);
+                for (int i = 0; i < 5; i++) {
+                    DerivedFieldType derivedFieldType = (DerivedFieldType) context.getQueryShardContext().getDerivedFieldType("field" + i);
+                    assertEquals("field" + i, derivedFieldType.name());
+                    assertEquals("date", derivedFieldType.getType());
+                }
+                assertNull(context.getQueryShardContext().getDerivedFieldType("field" + 5));
+            }
         }
     }
 

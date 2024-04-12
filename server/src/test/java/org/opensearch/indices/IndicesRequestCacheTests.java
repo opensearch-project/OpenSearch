@@ -68,6 +68,7 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.node.Node;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -706,7 +707,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.getBytes() + 1 + "b").build(),
             (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
             new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
-            threadPool
+            threadPool,
+            ClusterServiceUtils.createClusterService(threadPool)
         );
         dir = newDirectory();
         writer = new IndexWriter(dir, newIndexWriterConfig());
