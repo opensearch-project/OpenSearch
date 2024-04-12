@@ -545,7 +545,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                     // but do not decrement the staleKeysCount
                     Integer count = readerCacheKeyMap.get(cleanupKey.readerCacheKeyId);
                     // this should never be null
-                    assert (count != null);
+                    assert (count != null && count >= 0);
                     // Reduce the count by 1
                     int newCount = count - 1;
                     if (newCount <= 0) {
