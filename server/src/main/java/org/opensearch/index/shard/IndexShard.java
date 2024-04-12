@@ -67,6 +67,8 @@ import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -179,6 +181,7 @@ import org.opensearch.index.warmer.ShardIndexWarmerService;
 import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
@@ -349,12 +352,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
     private final RemoteStoreFileDownloader fileDownloader;
     private final RecoverySettings recoverySettings;
+    private final RemoteStoreSettings remoteStoreSettings;
     /*
      On source doc rep node,  It will be DOCREP_NON_MIGRATING.
      On source remote node , it will be REMOTE_MIGRATING_SEEDED when relocating from remote node
      On source remote node , it will be REMOTE_MIGRATING_UNSEEDED when relocating from docrep node
      */
     private final ShardMigrationState shardMigrationState;
+    private DiscoveryNodes discoveryNodes;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -381,10 +386,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
         @Nullable final Store remoteStore,
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-        final Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier,
         final String nodeId,
         final RecoverySettings recoverySettings,
-        boolean seedRemote
+        final RemoteStoreSettings remoteStoreSettings,
+        boolean seedRemote,
+        final DiscoveryNodes discoveryNodes
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -404,8 +410,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger,
             threadPool,
             this::getEngine,
-            indexSettings.isRemoteNode(),
-            () -> getRemoteTranslogUploadBufferInterval(clusterRemoteTranslogBufferIntervalSupplier)
+            indexSettings.isAssignedOnRemoteNode(),
+            () -> getRemoteTranslogUploadBufferInterval(remoteStoreSettings::getClusterRemoteTranslogBufferInterval)
         );
         this.mapperService = mapperService;
         this.indexCache = indexCache;
@@ -446,7 +452,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             threadPool::absoluteTimeInMillis,
             (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
             this::getSafeCommitInfo,
-            pendingReplicationActions
+            pendingReplicationActions,
+            isShardOnRemoteEnabledNode
         );
 
         // the query cache is a node-level thing, however we want the most popular filters
@@ -481,8 +488,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             : mapperService.documentMapper().mappers().containsTimeStampField();
         this.remoteStoreStatsTrackerFactory = remoteStoreStatsTrackerFactory;
         this.recoverySettings = recoverySettings;
+        this.remoteStoreSettings = remoteStoreSettings;
         this.fileDownloader = new RemoteStoreFileDownloader(shardRouting.shardId(), threadPool, recoverySettings);
         this.shardMigrationState = getShardMigrationState(indexSettings, seedRemote);
+        this.discoveryNodes = discoveryNodes;
     }
 
     public ThreadPool getThreadPool() {
@@ -502,6 +511,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // set it true only if relocating from docrep to remote store
         return shardMigrationState == REMOTE_MIGRATING_UNSEEDED;
     }
+
+    /**
+     * To be delegated to {@link ReplicationTracker} so that relevant remote store based
+     * operations can be ignored during engine migration
+     * <p>
+     * Has explicit null checks to ensure that the {@link ReplicationTracker#invariant()}
+     * checks does not fail during a cluster manager state update when the latest replication group
+     * calculation is not yet done and the cached replication group details are available
+     */
+    public Function<String, Boolean> isShardOnRemoteEnabledNode = nodeId -> {
+        DiscoveryNode node = discoveryNodes.get(nodeId);
+        if (node != null) {
+            logger.trace("Node {} has remote_enabled as {}", nodeId, node.isRemoteStoreNode());
+            return node.isRemoteStoreNode();
+        }
+        return false;
+    };
 
     public boolean isRemoteSeeded() {
         return shardMigrationState == REMOTE_MIGRATING_SEEDED;
@@ -598,6 +624,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return recoverySettings;
     }
 
+    public RemoteStoreSettings getRemoteStoreSettings() {
+        return remoteStoreSettings;
+    }
+
     public RemoteStoreFileDownloader getFileDownloader() {
         return fileDownloader;
     }
@@ -609,8 +639,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
         final long applyingClusterStateVersion,
         final Set<String> inSyncAllocationIds,
-        final IndexShardRoutingTable routingTable
+        final IndexShardRoutingTable routingTable,
+        DiscoveryNodes discoveryNodes
     ) throws IOException {
+        this.discoveryNodes = discoveryNodes;
         final ShardRouting currentRouting;
         synchronized (mutex) {
             currentRouting = this.shardRouting;
@@ -1462,7 +1494,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
         // Populate remote_store stats only if the index is remote store backed
-        if (indexSettings().isRemoteNode()) {
+        if (indexSettings().isAssignedOnRemoteNode()) {
             segmentsStats.addRemoteSegmentStats(
                 new RemoteSegmentStats(remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId).stats())
             );
@@ -1484,7 +1516,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public TranslogStats translogStats() {
         TranslogStats translogStats = getEngine().translogManager().getTranslogStats();
         // Populate remote_store stats only if the index is remote store backed
-        if (indexSettings.isRemoteNode()) {
+        if (indexSettings.isAssignedOnRemoteNode()) {
             translogStats.addRemoteTranslogStats(
                 new RemoteTranslogStats(remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardId).stats())
             );
@@ -1523,7 +1555,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * {@link org.opensearch.index.translog.TranslogDeletionPolicy} for details
      */
     public void trimTranslog() {
-        if (indexSettings.isRemoteNode()) {
+        if (indexSettings.isAssignedOnRemoteNode()) {
             return;
         }
         verifyNotClosed();
@@ -2043,7 +2075,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ToDo : Fix this https://github.com/opensearch-project/OpenSearch/issues/8003
      */
     public RemoteSegmentStoreDirectory getRemoteDirectory() {
-        assert indexSettings.isRemoteNode();
+        assert indexSettings.isAssignedOnRemoteNode();
         assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
         FilterDirectory remoteStoreDirectory = (FilterDirectory) remoteStore.directory();
         FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
@@ -2056,7 +2088,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * is in sync with local
      */
     public boolean isRemoteSegmentStoreInSync() {
-        assert indexSettings.isRemoteNode();
+        assert indexSettings.isAssignedOnRemoteNode();
         try {
             RemoteSegmentStoreDirectory directory = getRemoteDirectory();
             if (directory.readLatestMetadataFile() != null) {
@@ -2095,7 +2127,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     Calls onProgress on seeing an increased file count on remote
     */
     public void waitForRemoteStoreSync(Runnable onProgress) {
-        assert indexSettings.isRemoteNode();
+        assert indexSettings.isAssignedOnRemoteNode();
         RemoteSegmentStoreDirectory directory = getRemoteDirectory();
         int segmentUploadeCount = 0;
         if (shardRouting.primary() == false) {
@@ -2270,7 +2302,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return the starting sequence number from which the recovery should start.
      */
     private long recoverLocallyUptoLastCommit() {
-        assert indexSettings.isRemoteNode() : "Remote translog store is not enabled";
+        assert indexSettings.isAssignedOnRemoteNode() : "Remote translog store is not enabled";
         long seqNo;
         validateLocalRecoveryState();
 
@@ -3489,7 +3521,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              * update local checkpoint at replica, so the local checkpoint at replica can be less than globalCheckpoint.
              */
             assert (state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED)
-                || indexSettings.isRemoteTranslogStoreEnabled() : "supposedly in-sync shard copy received a global checkpoint ["
+                || indexSettings.isAssignedOnRemoteNode() : "supposedly in-sync shard copy received a global checkpoint ["
                     + globalCheckpoint
                     + "] "
                     + "that is higher than its local checkpoint ["
@@ -3533,7 +3565,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void postActivatePrimaryMode() {
-        if (indexSettings.isRemoteNode()) {
+        if (indexSettings.isAssignedOnRemoteNode()) {
             // We make sure to upload translog (even if it does not contain any operations) to remote translog.
             // This helps to get a consistent state in remote store where both remote segment store and remote
             // translog contains data.
@@ -3986,7 +4018,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public boolean isRemoteTranslogEnabled() {
-        return indexSettings() != null && indexSettings().isRemoteTranslogStoreEnabled();
+        return indexSettings() != null && (indexSettings().isRemoteTranslogStoreEnabled());
     }
 
     /**
@@ -4003,7 +4035,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private boolean hasOneRemoteSegmentSyncHappened() {
-        assert indexSettings.isRemoteNode();
+        assert indexSettings.isAssignedOnRemoteNode();
         // We upload remote translog only after one remote segment upload in case of migration
         RemoteSegmentStoreDirectory rd = getRemoteDirectory();
         AtomicBoolean segment_n_uploaded = new AtomicBoolean(false);
@@ -4617,7 +4649,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public final boolean isSearchIdleSupported() {
         // If the index is remote store backed, then search idle is not supported. This is to ensure that async refresh
         // task continues to upload to remote store periodically.
-        if (isRemoteTranslogEnabled() || indexSettings.isRemoteNode()) {
+        if (isRemoteTranslogEnabled() || indexSettings.isAssignedOnRemoteNode()) {
             return false;
         }
         return indexSettings.isSegRepEnabledOrRemoteNode() == false || indexSettings.getNumberOfReplicas() == 0;
@@ -4683,9 +4715,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *                 <code>true</code> if the listener was registered to wait for a refresh.
      */
     public final void awaitShardSearchActive(Consumer<Boolean> listener) {
+        boolean isSearchIdle = isSearchIdle();
         markSearcherAccessed(); // move the shard into non-search idle
         final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {
+            if (isSearchIdle) {
+                SearchOperationListener searchOperationListener = getSearchOperationListener();
+                searchOperationListener.onSearchIdleReactivation();
+            }
             addRefreshListener(location, (b) -> {
                 pendingRefreshLocation.compareAndSet(location, null);
                 listener.accept(true);
@@ -4932,7 +4969,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         TranslogFactory translogFactory = translogFactorySupplier.apply(indexSettings, shardRouting);
         assert translogFactory instanceof RemoteBlobStoreInternalTranslogFactory;
         Repository repository = ((RemoteBlobStoreInternalTranslogFactory) translogFactory).getRepository();
-        RemoteFsTranslog.cleanup(repository, shardId, getThreadPool());
+        RemoteFsTranslog.cleanup(repository, shardId, getThreadPool(), indexSettings.getRemoteStorePathStrategy(), remoteStoreSettings);
     }
 
     /*
@@ -4949,7 +4986,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         TranslogFactory translogFactory = translogFactorySupplier.apply(indexSettings, shardRouting);
         assert translogFactory instanceof RemoteBlobStoreInternalTranslogFactory;
         Repository repository = ((RemoteBlobStoreInternalTranslogFactory) translogFactory).getRepository();
-        RemoteFsTranslog.download(repository, shardId, getThreadPool(), shardPath().resolveTranslog(), logger);
+        RemoteFsTranslog.download(
+            repository,
+            shardId,
+            getThreadPool(),
+            shardPath().resolveTranslog(),
+            indexSettings.getRemoteStorePathStrategy(),
+            remoteStoreSettings,
+            logger
+        );
     }
 
     /**
@@ -5244,9 +5289,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     static ShardMigrationState getShardMigrationState(IndexSettings indexSettings, boolean shouldSeed) {
-        if (indexSettings.isRemoteNode() && indexSettings.isRemoteStoreEnabled()) {
+        if (indexSettings.isAssignedOnRemoteNode() && indexSettings.isRemoteStoreEnabled()) {
             return REMOTE_NON_MIGRATING;
-        } else if (indexSettings.isRemoteNode()) {
+        } else if (indexSettings.isAssignedOnRemoteNode()) {
             return shouldSeed ? REMOTE_MIGRATING_UNSEEDED : REMOTE_MIGRATING_SEEDED;
         }
         return ShardMigrationState.DOCREP_NON_MIGRATING;

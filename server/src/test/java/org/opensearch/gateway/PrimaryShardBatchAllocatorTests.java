@@ -29,6 +29,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.Environment;
+import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayStartedShard;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
@@ -289,14 +290,9 @@ public class PrimaryShardBatchAllocatorTests extends OpenSearchAllocationTestCas
             if (data == null) {
                 data = new HashMap<>();
             }
-            Map<ShardId, TransportNodesGatewayStartedShardHelper.GatewayStartedShard> shardData = Map.of(
+            Map<ShardId, GatewayStartedShard> shardData = Map.of(
                 shardId,
-                new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(
-                    allocationId,
-                    primary,
-                    replicationCheckpoint,
-                    storeException
-                )
+                new GatewayStartedShard(allocationId, primary, replicationCheckpoint, storeException)
             );
             data.put(node, new TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch(node, shardData));
             return this;
@@ -313,16 +309,8 @@ public class PrimaryShardBatchAllocatorTests extends OpenSearchAllocationTestCas
             if (data == null) {
                 data = new HashMap<>();
             }
-            Map<ShardId, TransportNodesGatewayStartedShardHelper.GatewayStartedShard> shardData = new HashMap<>();
-            shardData.put(
-                shardId,
-                new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(
-                    allocationId,
-                    primary,
-                    replicationCheckpoint,
-                    storeException
-                )
-            );
+            Map<ShardId, GatewayStartedShard> shardData = new HashMap<>();
+            shardData.put(shardId, new GatewayStartedShard(allocationId, primary, replicationCheckpoint, storeException));
             if (data.get(node) != null) shardData.putAll(data.get(node).getNodeGatewayStartedShardsBatch());
             data.put(node, new TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch(node, shardData));
             return this;

@@ -88,8 +88,10 @@ import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.remote.RemoteStorePathResolver;
-import org.opensearch.index.remote.RemoteStorePathType;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
+import org.opensearch.index.remote.RemoteStorePathStrategyResolver;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexCreationException;
@@ -113,6 +115,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -170,7 +173,7 @@ public class MetadataCreateIndexService {
     private AwarenessReplicaBalance awarenessReplicaBalance;
 
     @Nullable
-    private final RemoteStorePathResolver remoteStorePathResolver;
+    private final RemoteStorePathStrategyResolver remoteStorePathStrategyResolver;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -203,8 +206,9 @@ public class MetadataCreateIndexService {
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         createIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_KEY, true);
-        remoteStorePathResolver = isRemoteDataAttributePresent(settings)
-            ? new RemoteStorePathResolver(clusterService.getClusterSettings())
+        Supplier<Version> minNodeVersionSupplier = () -> clusterService.state().nodes().getMinNodeVersion();
+        remoteStorePathStrategyResolver = isRemoteDataAttributePresent(settings)
+            ? new RemoteStorePathStrategyResolver(clusterService.getClusterSettings(), minNodeVersionSupplier)
             : null;
     }
 
@@ -553,7 +557,7 @@ public class MetadataCreateIndexService {
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(indexSettings);
         tmpImdBuilder.system(isSystem);
-        addRemoteCustomData(tmpImdBuilder);
+        addRemoteStorePathStrategyInCustomData(tmpImdBuilder, true);
 
         // Set up everything, now locally create the index to see that things are ok, and apply
         IndexMetadata tempMetadata = tmpImdBuilder.build();
@@ -562,20 +566,30 @@ public class MetadataCreateIndexService {
         return tempMetadata;
     }
 
-    public void addRemoteCustomData(IndexMetadata.Builder tmpImdBuilder) {
-        if (remoteStorePathResolver != null) {
-            // It is possible that remote custom data exists already. In such cases, we need to only update the path type
-            // in the remote store custom data map.
-            Map<String, String> existingRemoteCustomData = tmpImdBuilder.removeCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
-            Map<String, String> remoteCustomData = existingRemoteCustomData == null
-                ? new HashMap<>()
-                : new HashMap<>(existingRemoteCustomData);
-            // Determine the path type for use using the remoteStorePathResolver.
-            String newPathType = remoteStorePathResolver.resolveType().toString();
-            String oldPathType = remoteCustomData.put(RemoteStorePathType.NAME, newPathType);
-            logger.trace(() -> new ParameterizedMessage("Added new path type {}, replaced old path type {}", newPathType, oldPathType));
-            tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, remoteCustomData);
+    /**
+     * Adds the remote store path type information in custom data of index metadata.
+     *
+     * @param tmpImdBuilder     index metadata builder.
+     * @param assertNullOldType flag to verify that the old remote store path type is null
+     */
+    public void addRemoteStorePathStrategyInCustomData(IndexMetadata.Builder tmpImdBuilder, boolean assertNullOldType) {
+        if (remoteStorePathStrategyResolver == null) {
+            return;
         }
+        // It is possible that remote custom data exists already. In such cases, we need to only update the path type
+        // in the remote store custom data map.
+        Map<String, String> existingCustomData = tmpImdBuilder.removeCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        assert assertNullOldType == false || Objects.isNull(existingCustomData);
+
+        // Determine the path type for use using the remoteStorePathResolver.
+        RemoteStorePathStrategy newPathStrategy = remoteStorePathStrategyResolver.get();
+        Map<String, String> remoteCustomData = new HashMap<>();
+        remoteCustomData.put(PathType.NAME, newPathStrategy.getType().name());
+        if (Objects.nonNull(newPathStrategy.getHashAlgorithm())) {
+            remoteCustomData.put(PathHashAlgorithm.NAME, newPathStrategy.getHashAlgorithm().name());
+        }
+        logger.trace(() -> new ParameterizedMessage("Added newStrategy={}, replaced oldStrategy={}", remoteCustomData, existingCustomData));
+        tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, remoteCustomData);
     }
 
     private ClusterState applyCreateIndexRequestWithV1Templates(
@@ -979,7 +993,7 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster level settings
      * @param combinedTemplateSettings combined template settings which satisfy the index
      */
-    private static void updateReplicationStrategy(
+    public static void updateReplicationStrategy(
         Settings.Builder settingsBuilder,
         Settings requestSettings,
         Settings clusterSettings,
@@ -994,7 +1008,7 @@ public class MetadataCreateIndexService {
         final ReplicationType indexReplicationType;
         if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings)) {
             indexReplicationType = INDEX_REPLICATION_TYPE_SETTING.get(requestSettings);
-        } else if (INDEX_REPLICATION_TYPE_SETTING.exists(combinedTemplateSettings)) {
+        } else if (combinedTemplateSettings != null && INDEX_REPLICATION_TYPE_SETTING.exists(combinedTemplateSettings)) {
             indexReplicationType = INDEX_REPLICATION_TYPE_SETTING.get(combinedTemplateSettings);
         } else if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings)) {
             indexReplicationType = CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings);
@@ -1009,20 +1023,20 @@ public class MetadataCreateIndexService {
     /**
      * Updates index settings to enable remote store by default based on node attributes
      * @param settingsBuilder index settings builder to be updated with relevant settings
-     * @param clusterSettings cluster level settings
+     * @param nodeSettings node settings
      */
-    private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings clusterSettings) {
-        if (isRemoteDataAttributePresent(clusterSettings)) {
+    public static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings nodeSettings) {
+        if (RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(nodeSettings)) {
             settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
                 .put(
                     SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
-                    clusterSettings.get(
+                    nodeSettings.get(
                         Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
                     )
                 )
                 .put(
                     SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
-                    clusterSettings.get(
+                    nodeSettings.get(
                         Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
                     )
                 );
