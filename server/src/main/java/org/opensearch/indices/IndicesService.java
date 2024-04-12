@@ -417,7 +417,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 return Optional.empty();
             }
             return Optional.of(new IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }), cacheService, threadPool);
+        }), cacheService, threadPool, clusterService);
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;
