@@ -6,58 +6,56 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.sandbox;
+package org.opensearch.search.resource_limit_group;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
-import java.util.List;
-
 /**
- * Main class to declare the query sandboxing feature related settings
+ * Main class to declare the query ResourceLimitGrouping feature related settings
  */
-public class QuerySandboxServiceSettings {
+public class ResourceLimitGroupServiceSettings {
     private static final Long DEFAULT_RUN_INTERVAL_MILLIS = 1000l;
-    private static final Double DEFAULT_NODE_LEVEL_REJECTION_QUERY_SANDBOX_THRESHOLD = 0.8;
-    private static final Double DEFAULT_NODE_LEVEL_CANCELLATION_QUERY_SANDBOX_THRESHOLD = 0.9;
+    private static final Double DEFAULT_NODE_LEVEL_REJECTION_THRESHOLD = 0.8;
+    private static final Double DEFAULT_NODE_LEVEL_CANCELLATION_THRESHOLD = 0.9;
     /**
-     * default max sandbox count on any node at any given point in time
+     * default max ResourceLimitGroup count on any node at any given point in time
      */
-    public static final int DEFAULT_MAX_SANDBOX_COUNT_VALUE = 100;
+    public static final int DEFAULT_MAX_RESOURCE_LIMIT_GROUP_COUNT_VALUE = 100;
 
-    public static final String SANDBOX_COUNT_SETTING_NAME = "node.sandbox.max_count";
+    public static final String RESOURCE_LIMIT_GROUP_COUNT_SETTING_NAME = "node.resource_limit_group.max_count";
     public static final double NODE_LEVEL_CANCELLATION_THRESHOLD_MAX_VALUE = 0.95;
     public static final double NODE_LEVEL_REJECTION_THRESHOLD_MAX_VALUE = 0.90;
 
     private TimeValue runIntervalMillis;
     private Double nodeLevelJvmCancellationThreshold;
     private Double nodeLevelJvmRejectionThreshold;
-    private volatile int maxSandboxCount;
+    private volatile int maxResourceLimitGroupCount;
     /**
-     *  max sandbox count setting
+     *  max ResourceLimitGroup count setting
      */
-    public static final Setting<Integer> MAX_SANDBOX_COUNT = Setting.intSetting(
-        SANDBOX_COUNT_SETTING_NAME,
-        DEFAULT_MAX_SANDBOX_COUNT_VALUE,
+    public static final Setting<Integer> MAX_RESOURCE_LIMIT_GROUP_COUNT = Setting.intSetting(
+        RESOURCE_LIMIT_GROUP_COUNT_SETTING_NAME,
+        DEFAULT_MAX_RESOURCE_LIMIT_GROUP_COUNT_VALUE,
         0,
         (newVal) -> {
             if (newVal > 100 || newVal < 1)
-                throw new IllegalArgumentException(SANDBOX_COUNT_SETTING_NAME + " should be in range [1-100]");
+                throw new IllegalArgumentException(RESOURCE_LIMIT_GROUP_COUNT_SETTING_NAME + " should be in range [1-100]");
         },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
     /**
-     * Setting name for default sandbox count
+     * Setting name for default ResourceLimitGroup count
      */
-    public static final String QUERY_SANDBOX_SERVICE_RUN_INTERVAL_MILLIS_SETTING_NAME = "query_sandbox.service.run_interval_millis";
+    public static final String SERVICE_RUN_INTERVAL_MILLIS_SETTING_NAME = "resource_limit_group.service.run_interval_millis";
     /**
      * Setting to control the run interval of QSB service
      */
-    private static final Setting<Long> QSB_RUN_INTERVAL_SETTING = Setting.longSetting(
-        QUERY_SANDBOX_SERVICE_RUN_INTERVAL_MILLIS_SETTING_NAME,
+    private static final Setting<Long> RESOURCE_LIMIT_GROUP_RUN_INTERVAL_SETTING = Setting.longSetting(
+        SERVICE_RUN_INTERVAL_MILLIS_SETTING_NAME,
         DEFAULT_RUN_INTERVAL_MILLIS,
         1,
         Setting.Property.Dynamic,
@@ -67,44 +65,44 @@ public class QuerySandboxServiceSettings {
     /**
      * Setting name for node level rejection threshold for QSB
      */
-    public static final String QUERY_SANDBOX_NODE_REJECTION_THRESHOLD_SETTING_NAME = "query_sandbox.node.rejection_threshold";
+    public static final String NODE_REJECTION_THRESHOLD_SETTING_NAME = "resource_limit_group.node.rejection_threshold";
     /**
      * Setting to control the rejection threshold
      */
     public static final Setting<Double> NODE_LEVEL_REJECTION_THRESHOLD = Setting.doubleSetting(
-        QUERY_SANDBOX_NODE_REJECTION_THRESHOLD_SETTING_NAME,
-        DEFAULT_NODE_LEVEL_REJECTION_QUERY_SANDBOX_THRESHOLD,
+        NODE_REJECTION_THRESHOLD_SETTING_NAME,
+        DEFAULT_NODE_LEVEL_REJECTION_THRESHOLD,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
     /**
      * Setting name for node level cancellation threshold
      */
-    public static final String QUERY_SANDBOX_NODE_CANCELLATION_THRESHOLD_SETTING_NAME = "query_sandbox.node.cancellation_threshold";
+    public static final String NODE_CANCELLATION_THRESHOLD_SETTING_NAME = "resource_limit_group.node.cancellation_threshold";
     /**
      * Setting name for node level cancellation threshold
      */
     public static final Setting<Double> NODE_LEVEL_CANCELLATION_THRESHOLD = Setting.doubleSetting(
-        QUERY_SANDBOX_NODE_CANCELLATION_THRESHOLD_SETTING_NAME,
-        DEFAULT_NODE_LEVEL_CANCELLATION_QUERY_SANDBOX_THRESHOLD,
+        NODE_CANCELLATION_THRESHOLD_SETTING_NAME,
+        DEFAULT_NODE_LEVEL_CANCELLATION_THRESHOLD,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     /**
-     * Sandbox service settings constructor
+     * ResourceLimitGroup service settings constructor
      * @param settings
      * @param clusterSettings
      */
-    public QuerySandboxServiceSettings(Settings settings, ClusterSettings clusterSettings) {
-        runIntervalMillis = new TimeValue(QSB_RUN_INTERVAL_SETTING.get(settings));
+    public ResourceLimitGroupServiceSettings(Settings settings, ClusterSettings clusterSettings) {
+        runIntervalMillis = new TimeValue(RESOURCE_LIMIT_GROUP_RUN_INTERVAL_SETTING.get(settings));
         nodeLevelJvmCancellationThreshold = NODE_LEVEL_CANCELLATION_THRESHOLD.get(settings);
         nodeLevelJvmRejectionThreshold = NODE_LEVEL_REJECTION_THRESHOLD.get(settings);
-        maxSandboxCount = MAX_SANDBOX_COUNT.get(settings);
+        maxResourceLimitGroupCount = MAX_RESOURCE_LIMIT_GROUP_COUNT.get(settings);
 
         ensureRejectionThresholdIsLessThanCancellation(nodeLevelJvmRejectionThreshold, nodeLevelJvmCancellationThreshold);
 
-        clusterSettings.addSettingsUpdateConsumer(MAX_SANDBOX_COUNT, this::setMaxSandboxCount);
+        clusterSettings.addSettingsUpdateConsumer(MAX_RESOURCE_LIMIT_GROUP_COUNT, this::setMaxResourceLimitGroupCount);
         clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_CANCELLATION_THRESHOLD, this::setNodeLevelJvmCancellationThreshold);
         clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_REJECTION_THRESHOLD, this::setNodeLevelJvmRejectionThreshold);
     }
@@ -118,14 +116,14 @@ public class QuerySandboxServiceSettings {
     }
 
     /**
-     * Method to set the new sandbox count
-     * @param newMaxSandboxCount is the new maxSandboxCount per node
+     * Method to set the new ResourceLimitGroup count
+     * @param newMaxResourceLimitGroupCount is the new maxResourceLimitGroupCount per node
      */
-    public void setMaxSandboxCount(int newMaxSandboxCount) {
-        if (newMaxSandboxCount < 0) {
-            throw new IllegalArgumentException("node.sandbox.max_count can't be negative");
+    public void setMaxResourceLimitGroupCount(int newMaxResourceLimitGroupCount) {
+        if (newMaxResourceLimitGroupCount < 0) {
+            throw new IllegalArgumentException("node.ResourceLimitGroup.max_count can't be negative");
         }
-        this.maxSandboxCount = newMaxSandboxCount;
+        this.maxResourceLimitGroupCount = newMaxResourceLimitGroupCount;
     }
 
     /**
@@ -144,7 +142,7 @@ public class QuerySandboxServiceSettings {
     public void setNodeLevelJvmCancellationThreshold(Double nodeLevelJvmCancellationThreshold) {
         if (Double.compare(nodeLevelJvmCancellationThreshold, NODE_LEVEL_CANCELLATION_THRESHOLD_MAX_VALUE) > 0) {
             throw new IllegalArgumentException(
-                QUERY_SANDBOX_NODE_CANCELLATION_THRESHOLD_SETTING_NAME
+                NODE_CANCELLATION_THRESHOLD_SETTING_NAME
                     + " value should not be greater than 0.95 as it pose a threat of node drop"
             );
         }
@@ -170,7 +168,7 @@ public class QuerySandboxServiceSettings {
     public void setNodeLevelJvmRejectionThreshold(Double nodeLevelJvmRejectionThreshold) {
         if (Double.compare(nodeLevelJvmRejectionThreshold, NODE_LEVEL_REJECTION_THRESHOLD_MAX_VALUE) > 0) {
             throw new IllegalArgumentException(
-                QUERY_SANDBOX_NODE_REJECTION_THRESHOLD_SETTING_NAME + " value not be greater than 0.90 as it pose a threat of node drop"
+                NODE_REJECTION_THRESHOLD_SETTING_NAME + " value not be greater than 0.90 as it pose a threat of node drop"
             );
         }
 
@@ -185,18 +183,18 @@ public class QuerySandboxServiceSettings {
     ) {
         if (Double.compare(nodeLevelJvmCancellationThreshold , nodeLevelJvmRejectionThreshold) < 0) {
             throw new IllegalArgumentException(
-                QUERY_SANDBOX_NODE_CANCELLATION_THRESHOLD_SETTING_NAME
+                NODE_CANCELLATION_THRESHOLD_SETTING_NAME
                     + " value should not be less than "
-                    + QUERY_SANDBOX_NODE_REJECTION_THRESHOLD_SETTING_NAME
+                    + NODE_REJECTION_THRESHOLD_SETTING_NAME
             );
         }
     }
 
     /**
-     * Method to get the current sandbox count
-     * @return the current max sandbox count
+     * Method to get the current ResourceLimitGroup count
+     * @return the current max ResourceLimitGroup count
      */
-    public int getMaxSandboxCount() {
-        return maxSandboxCount;
+    public int getMaxResourceLimitGroupCount() {
+        return maxResourceLimitGroupCount;
     }
 }

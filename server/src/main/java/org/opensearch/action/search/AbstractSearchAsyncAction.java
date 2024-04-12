@@ -839,6 +839,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // than creating an empty response in the search thread pool.
         // Note that, we have to disable this shortcut for queries that create a context (scroll and search context).
         shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get() && shardRequest.scroll() == null);
+
+        // Propagate the resource limit group from co-ordinator to data nodes
+        shardRequest.setResourceLimitGroupId(getTask().getResourceLimitGroupId());
         return shardRequest;
     }
 
