@@ -9,24 +9,25 @@
 package org.opensearch.common.cache.stats;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
-import static org.opensearch.common.cache.stats.MultiDimensionCacheStats.MDCSDimensionNode;
-
 /**
- * A class caches use to internally keep track of their stats across multiple dimensions.
- * Not intended to be exposed outside the cache; for this, use statsHolder.getCacheStats() to create an immutable
+ * A class ICache implementations use to internally keep track of their stats across multiple dimensions.
+ * Not intended to be exposed outside the cache; for this, caches use getImmutableCacheStatsHolder() to create an immutable
  * copy of the current state of the stats.
- * Currently, in the IRC, the stats tracked in a StatsHolder will not appear for empty shards that have had no cache
+ * Currently, in the IRC, the stats tracked in a CacheStatsHolder will not appear for empty shards that have had no cache
  * operations done on them yet. This might be changed in the future, by exposing a method to add empty nodes to the
- * tree in StatsHolder in the ICache interface.
+ * tree in CacheStatsHolder in the ICache interface.
  *
  * @opensearch.experimental
  */
-public class StatsHolder {
+public class CacheStatsHolder {
 
     // The list of permitted dimensions. Should be ordered from "outermost" to "innermost", as you would like to
     // aggregate them in an API response.
@@ -35,14 +36,14 @@ public class StatsHolder {
     // Non-leaf nodes have stats matching the sum of their children.
     // We use a tree structure, rather than a map with concatenated keys, to save on memory usage. If there are many leaf
     // nodes that share a parent, that parent's dimension value will only be stored once, not many times.
-    private final DimensionNode statsRoot;
+    private final Node statsRoot;
     // To avoid sync problems, obtain a lock before creating or removing nodes in the stats tree.
     // No lock is needed to edit stats on existing nodes.
     private final Lock lock = new ReentrantLock();
 
-    public StatsHolder(List<String> dimensionNames) {
+    public CacheStatsHolder(List<String> dimensionNames) {
         this.dimensionNames = Collections.unmodifiableList(dimensionNames);
-        this.statsRoot = new DimensionNode("", true); // The root node has the empty string as its dimension value
+        this.statsRoot = new Node("", true); // The root node has the empty string as its dimension value
     }
 
     public List<String> getDimensionNames() {
@@ -52,15 +53,15 @@ public class StatsHolder {
     // For all these increment functions, the dimensions list comes from the key, and contains all dimensions present in dimensionNames.
     // The order has to match the order given in dimensionNames.
     public void incrementHits(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, DimensionNode::incrementHits, true);
+        internalIncrement(dimensionValues, Node::incrementHits, true);
     }
 
     public void incrementMisses(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, DimensionNode::incrementMisses, true);
+        internalIncrement(dimensionValues, Node::incrementMisses, true);
     }
 
     public void incrementEvictions(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, DimensionNode::incrementEvictions, true);
+        internalIncrement(dimensionValues, Node::incrementEvictions, true);
     }
 
     public void incrementSizeInBytes(List<String> dimensionValues, long amountBytes) {
@@ -74,11 +75,11 @@ public class StatsHolder {
     }
 
     public void incrementEntries(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, DimensionNode::incrementEntries, true);
+        internalIncrement(dimensionValues, Node::incrementEntries, true);
     }
 
     public void decrementEntries(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, DimensionNode::decrementEntries, false);
+        internalIncrement(dimensionValues, Node::decrementEntries, false);
     }
 
     /**
@@ -89,9 +90,9 @@ public class StatsHolder {
         resetHelper(statsRoot);
     }
 
-    private void resetHelper(DimensionNode current) {
+    private void resetHelper(Node current) {
         current.resetSizeAndEntries();
-        for (DimensionNode child : current.children.values()) {
+        for (Node child : current.children.values()) {
             resetHelper(child);
         }
     }
@@ -101,15 +102,15 @@ public class StatsHolder {
         return statsRoot.getEntries();
     }
 
-    private void internalIncrement(List<String> dimensionValues, Consumer<DimensionNode> adder, boolean createNodesIfAbsent) {
+    private void internalIncrement(List<String> dimensionValues, Consumer<Node> adder, boolean createNodesIfAbsent) {
         assert dimensionValues.size() == dimensionNames.size();
         // First try to increment without creating nodes
         boolean didIncrement = internalIncrementHelper(dimensionValues, statsRoot, 0, adder, false);
         // If we failed to increment, because nodes had to be created, obtain the lock and run again while creating nodes if needed
-        if (!didIncrement) {
+        if (!didIncrement && createNodesIfAbsent) {
             try {
                 lock.lock();
-                internalIncrementHelper(dimensionValues, statsRoot, 0, adder, createNodesIfAbsent);
+                internalIncrementHelper(dimensionValues, statsRoot, 0, adder, true);
             } finally {
                 lock.unlock();
             }
@@ -123,9 +124,9 @@ public class StatsHolder {
      */
     private boolean internalIncrementHelper(
         List<String> dimensionValues,
-        DimensionNode node,
+        Node node,
         int depth, // Pass in the depth to avoid having to slice the list for each node.
-        Consumer<DimensionNode> adder,
+        Consumer<Node> adder,
         boolean createNodesIfAbsent
     ) {
         if (depth == dimensionValues.size()) {
@@ -134,7 +135,7 @@ public class StatsHolder {
             return true;
         }
 
-        DimensionNode child = node.getChild(dimensionValues.get(depth));
+        Node child = node.getChild(dimensionValues.get(depth));
         if (child == null) {
             if (createNodesIfAbsent) {
                 boolean createMapInChild = depth < dimensionValues.size() - 1;
@@ -152,31 +153,31 @@ public class StatsHolder {
     }
 
     /**
-     * Produce an immutable CacheStats representation of these stats.
+     * Produce an immutable version of these stats.
      */
-    public CacheStats getCacheStats() {
-        MDCSDimensionNode snapshot = new MDCSDimensionNode("", true, statsRoot.getStatsSnapshot());
+    public ImmutableCacheStatsHolder getImmutableCacheStatsHolder() {
+        ImmutableCacheStatsHolder.Node snapshot = new ImmutableCacheStatsHolder.Node("", true, statsRoot.getStatsSnapshot());
         // Traverse the tree and build a corresponding tree of MDCSDimensionNode, to pass to MultiDimensionCacheStats.
         if (statsRoot.getChildren() != null) {
-            for (DimensionNode child : statsRoot.getChildren().values()) {
-                getCacheStatsHelper(child, snapshot);
+            for (Node child : statsRoot.getChildren().values()) {
+                getImmutableCacheStatsHelper(child, snapshot);
             }
         }
-        return new MultiDimensionCacheStats(snapshot, dimensionNames);
+        return new ImmutableCacheStatsHolder(snapshot, dimensionNames);
     }
 
-    private void getCacheStatsHelper(DimensionNode currentNodeInOriginalTree, MDCSDimensionNode parentInNewTree) {
-        MDCSDimensionNode newNode = createMatchingMDCSDimensionNode(currentNodeInOriginalTree);
+    private void getImmutableCacheStatsHelper(Node currentNodeInOriginalTree, ImmutableCacheStatsHolder.Node parentInNewTree) {
+        ImmutableCacheStatsHolder.Node newNode = createMatchingImmutableCacheStatsHolderNode(currentNodeInOriginalTree);
         parentInNewTree.getChildren().put(newNode.getDimensionValue(), newNode);
-        for (DimensionNode child : currentNodeInOriginalTree.children.values()) {
-            getCacheStatsHelper(child, newNode);
+        for (Node child : currentNodeInOriginalTree.children.values()) {
+            getImmutableCacheStatsHelper(child, newNode);
         }
     }
 
-    private MDCSDimensionNode createMatchingMDCSDimensionNode(DimensionNode node) {
-        CacheStatsCounterSnapshot nodeSnapshot = node.getStatsSnapshot();
+    private ImmutableCacheStatsHolder.Node createMatchingImmutableCacheStatsHolderNode(Node node) {
+        CacheStatsSnapshot nodeSnapshot = node.getStatsSnapshot();
         boolean isLeafNode = node.getChildren().isEmpty();
-        return new MDCSDimensionNode(node.getDimensionValue(), !isLeafNode, nodeSnapshot);
+        return new ImmutableCacheStatsHolder.Node(node.getDimensionValue(), !isLeafNode, nodeSnapshot);
     }
 
     public void removeDimensions(List<String> dimensionValues) {
@@ -191,16 +192,16 @@ public class StatsHolder {
     }
 
     // Returns a CacheStatsCounterSnapshot object for the stats to decrement if the removal happened, null otherwise.
-    private CacheStatsCounterSnapshot removeDimensionsHelper(List<String> dimensionValues, DimensionNode node, int depth) {
+    private CacheStatsSnapshot removeDimensionsHelper(List<String> dimensionValues, Node node, int depth) {
         if (depth == dimensionValues.size()) {
             // Pass up a snapshot of the original stats to avoid issues when the original is decremented by other fn invocations
             return node.getStatsSnapshot();
         }
-        DimensionNode child = node.getChild(dimensionValues.get(depth));
+        Node child = node.getChild(dimensionValues.get(depth));
         if (child == null) {
             return null;
         }
-        CacheStatsCounterSnapshot statsToDecrement = removeDimensionsHelper(dimensionValues, child, depth + 1);
+        CacheStatsSnapshot statsToDecrement = removeDimensionsHelper(dimensionValues, child, depth + 1);
         if (statsToDecrement != null) {
             // The removal took place, decrement values and remove this node from its parent if it's now empty
             node.decrementBySnapshot(statsToDecrement);
@@ -212,7 +213,92 @@ public class StatsHolder {
     }
 
     // pkg-private for testing
-    DimensionNode getStatsRoot() {
+    Node getStatsRoot() {
         return statsRoot;
+    }
+
+    static class Node {
+        private final String dimensionValue;
+        // Map from dimensionValue to the DimensionNode for that dimension value.
+        final Map<String, Node> children;
+        // The stats for this node. If a leaf node, corresponds to the stats for this combination of dimensions; if not,
+        // contains the sum of its children's stats.
+        private CacheStats stats;
+
+        // Used for leaf nodes to avoid allocating many unnecessary maps
+        private static final Map<String, Node> EMPTY_CHILDREN_MAP = new HashMap<>();
+
+        Node(String dimensionValue, boolean createChildrenMap) {
+            this.dimensionValue = dimensionValue;
+            if (createChildrenMap) {
+                this.children = new ConcurrentHashMap<>();
+            } else {
+                this.children = EMPTY_CHILDREN_MAP;
+            }
+            this.stats = new CacheStats();
+        }
+
+        public String getDimensionValue() {
+            return dimensionValue;
+        }
+
+        protected Map<String, Node> getChildren() {
+            // We can safely iterate over ConcurrentHashMap without worrying about thread issues.
+            return children;
+        }
+
+        // Functions for modifying internal CacheStatsCounter without callers having to be aware of CacheStatsCounter
+
+        void incrementHits() {
+            this.stats.incrementHits();
+        }
+
+        void incrementMisses() {
+            this.stats.incrementMisses();
+        }
+
+        void incrementEvictions() {
+            this.stats.incrementEvictions();
+        }
+
+        void incrementSizeInBytes(long amountBytes) {
+            this.stats.incrementSizeInBytes(amountBytes);
+        }
+
+        void decrementSizeInBytes(long amountBytes) {
+            this.stats.decrementSizeInBytes(amountBytes);
+        }
+
+        void incrementEntries() {
+            this.stats.incrementEntries();
+        }
+
+        void decrementEntries() {
+            this.stats.decrementEntries();
+        }
+
+        long getEntries() {
+            return this.stats.getEntries();
+        }
+
+        CacheStatsSnapshot getStatsSnapshot() {
+            return this.stats.snapshot();
+        }
+
+        void decrementBySnapshot(CacheStatsSnapshot snapshot) {
+            this.stats.subtract(snapshot);
+        }
+
+        void resetSizeAndEntries() {
+            this.stats.resetSizeAndEntries();
+        }
+
+        Node getChild(String dimensionValue) {
+            return children.get(dimensionValue);
+        }
+
+        Node createChild(String dimensionValue, boolean createMapInChild) {
+            return children.computeIfAbsent(dimensionValue, (key) -> new Node(dimensionValue, createMapInChild));
+        }
     }
 }

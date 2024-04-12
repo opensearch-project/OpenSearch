@@ -20,8 +20,7 @@ import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.serializer.BytesReferenceSerializer;
 import org.opensearch.common.cache.serializer.Serializer;
-import org.opensearch.common.cache.stats.CacheStatsCounterSnapshot;
-import org.opensearch.common.cache.stats.MultiDimensionCacheStats;
+import org.opensearch.common.cache.stats.CacheStatsSnapshot;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Settings;
@@ -829,9 +828,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
             ICacheKey<String> keyToDrop = keysAdded.get(0);
 
-            CacheStatsCounterSnapshot snapshot = ((MultiDimensionCacheStats) ehCacheDiskCachingTier.stats()).getStatsForDimensionValues(
-                keyToDrop.dimensions
-            );
+            CacheStatsSnapshot snapshot = ehCacheDiskCachingTier.stats().getStatsForDimensionValues(keyToDrop.dimensions);
             assertNotNull(snapshot);
 
             keyToDrop.setDropStatsForDimensions(true);
@@ -839,7 +836,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
             // Now assert the stats are gone for any key that has this combination of dimensions, but still there otherwise
             for (ICacheKey<String> keyAdded : keysAdded) {
-                snapshot = ((MultiDimensionCacheStats) ehCacheDiskCachingTier.stats()).getStatsForDimensionValues(keyAdded.dimensions);
+                snapshot = ehCacheDiskCachingTier.stats().getStatsForDimensionValues(keyAdded.dimensions);
                 if (keyAdded.dimensions.equals(keyToDrop.dimensions)) {
                     assertNull(snapshot);
                 } else {

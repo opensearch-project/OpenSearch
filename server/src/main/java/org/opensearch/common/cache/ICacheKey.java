@@ -14,7 +14,8 @@ import java.util.List;
 
 /**
  * A key wrapper used for ICache implementations, which carries dimensions with it.
- * @param <K> the type of the underlying key
+ * @param <K> the type of the underlying key. K must implement equals(), or else ICacheKey.equals()
+ *           won't work properly and cache behavior may be incorrect!
  *
  * @opensearch.experimental
  */

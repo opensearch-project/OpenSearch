@@ -49,7 +49,7 @@ import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.serializer.BytesReferenceSerializer;
 import org.opensearch.common.cache.service.CacheService;
-import org.opensearch.common.cache.stats.CacheStats;
+import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -763,7 +763,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     /**
      * Returns the current cache stats. Pkg-private for testing.
      */
-    CacheStats getCacheStats() {
+    ImmutableCacheStatsHolder stats() {
         return cache.stats();
     }
 

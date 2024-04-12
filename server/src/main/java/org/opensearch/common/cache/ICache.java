@@ -9,7 +9,7 @@
 package org.opensearch.common.cache;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.cache.stats.CacheStats;
+import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 
 import java.io.Closeable;
@@ -45,7 +45,7 @@ public interface ICache<K, V> extends Closeable {
 
     void refresh();
 
-    CacheStats stats();
+    ImmutableCacheStatsHolder stats();
 
     /**
      * Factory to create objects.

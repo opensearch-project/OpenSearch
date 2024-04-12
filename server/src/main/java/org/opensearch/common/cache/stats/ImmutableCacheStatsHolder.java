@@ -8,60 +8,57 @@
 
 package org.opensearch.common.cache.stats;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * A CacheStats object supporting aggregation over multiple different dimensions.
- * Stores a fixed snapshot of a cache's stats; does not allow changes.
+ * An object storing an immutable snapshot of an entire cache's stats. Accessible outside the cache itself.
  *
  * @opensearch.experimental
  */
-public class MultiDimensionCacheStats implements CacheStats {
+
+@ExperimentalApi
+public class ImmutableCacheStatsHolder { // TODO: extends Writeable, ToXContent
     // A snapshot of a StatsHolder containing stats maintained by the cache.
     // Pkg-private for testing.
-    final MDCSDimensionNode statsRoot;
+    final Node statsRoot;
     final List<String> dimensionNames;
 
-    public MultiDimensionCacheStats(MDCSDimensionNode statsRoot, List<String> dimensionNames) {
+    public ImmutableCacheStatsHolder(Node statsRoot, List<String> dimensionNames) {
         this.statsRoot = statsRoot;
         this.dimensionNames = dimensionNames;
     }
 
-    @Override
-    public CacheStatsCounterSnapshot getTotalStats() {
+    public CacheStatsSnapshot getTotalStats() {
         return statsRoot.getStats();
     }
 
-    @Override
     public long getTotalHits() {
         return getTotalStats().getHits();
     }
 
-    @Override
     public long getTotalMisses() {
         return getTotalStats().getMisses();
     }
 
-    @Override
     public long getTotalEvictions() {
         return getTotalStats().getEvictions();
     }
 
-    @Override
     public long getTotalSizeInBytes() {
         return getTotalStats().getSizeInBytes();
     }
 
-    @Override
     public long getTotalEntries() {
         return getTotalStats().getEntries();
     }
 
-    public CacheStatsCounterSnapshot getStatsForDimensionValues(List<String> dimensionValues) {
-        MDCSDimensionNode current = statsRoot;
+    public CacheStatsSnapshot getStatsForDimensionValues(List<String> dimensionValues) {
+        Node current = statsRoot;
         for (String dimensionValue : dimensionValues) {
             current = current.children.get(dimensionValue);
             if (current == null) {
@@ -71,17 +68,17 @@ public class MultiDimensionCacheStats implements CacheStats {
         return current.stats;
     }
 
-    // A similar class to DimensionNode, which uses an ordered TreeMap and holds immutable CacheStatsCounterSnapshot as its stats.
-    static class MDCSDimensionNode {
+    // A similar class to CacheStatsHolder.Node, which uses an ordered TreeMap and holds immutable CacheStatsSnapshot as its stats.
+    static class Node {
         private final String dimensionValue;
-        final Map<String, MDCSDimensionNode> children; // Map from dimensionValue to the DimensionNode for that dimension value
+        final Map<String, Node> children; // Map from dimensionValue to the Node for that dimension value
 
         // The stats for this node. If a leaf node, corresponds to the stats for this combination of dimensions; if not,
         // contains the sum of its children's stats.
-        private CacheStatsCounterSnapshot stats;
-        private static final Map<String, MDCSDimensionNode> EMPTY_CHILDREN_MAP = new HashMap<>();
+        private CacheStatsSnapshot stats;
+        private static final Map<String, Node> EMPTY_CHILDREN_MAP = new HashMap<>();
 
-        MDCSDimensionNode(String dimensionValue, boolean createChildrenMap, CacheStatsCounterSnapshot stats) {
+        Node(String dimensionValue, boolean createChildrenMap, CacheStatsSnapshot stats) {
             this.dimensionValue = dimensionValue;
             if (createChildrenMap) {
                 this.children = new TreeMap<>(); // This map should be ordered to enforce a consistent order in API response
@@ -91,15 +88,15 @@ public class MultiDimensionCacheStats implements CacheStats {
             this.stats = stats;
         }
 
-        Map<String, MDCSDimensionNode> getChildren() {
+        Map<String, Node> getChildren() {
             return children;
         }
 
-        public CacheStatsCounterSnapshot getStats() {
+        public CacheStatsSnapshot getStats() {
             return stats;
         }
 
-        public void setStats(CacheStatsCounterSnapshot stats) {
+        public void setStats(CacheStatsSnapshot stats) {
             this.stats = stats;
         }
 
@@ -109,7 +106,7 @@ public class MultiDimensionCacheStats implements CacheStats {
     }
 
     // pkg-private for testing
-    MDCSDimensionNode getStatsRoot() {
+    Node getStatsRoot() {
         return statsRoot;
     }
 

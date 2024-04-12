@@ -24,8 +24,8 @@ import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.serializer.ICacheKeySerializer;
 import org.opensearch.common.cache.serializer.Serializer;
-import org.opensearch.common.cache.stats.CacheStats;
-import org.opensearch.common.cache.stats.StatsHolder;
+import org.opensearch.common.cache.stats.CacheStatsHolder;
+import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.collect.Tuple;
@@ -113,7 +113,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     private final Class<K> keyType;
     private final Class<V> valueType;
     private final TimeValue expireAfterAccess;
-    private final StatsHolder statsHolder;
+    private final CacheStatsHolder cacheStatsHolder;
     private final EhCacheEventListener ehCacheEventListener;
     private final String threadPoolAlias;
     private final Settings settings;
@@ -162,7 +162,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         this.ehCacheEventListener = new EhCacheEventListener(builder.getRemovalListener(), builder.getWeigher());
         this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
         List<String> dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
-        this.statsHolder = new StatsHolder(dimensionNames);
+        this.cacheStatsHolder = new CacheStatsHolder(dimensionNames);
     }
 
     @SuppressWarnings({ "rawtypes" })
@@ -277,9 +277,9 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
             throw new OpenSearchException("Exception occurred while trying to fetch item from ehcache disk cache");
         }
         if (value != null) {
-            statsHolder.incrementHits(key.dimensions);
+            cacheStatsHolder.incrementHits(key.dimensions);
         } else {
-            statsHolder.incrementMisses(key.dimensions);
+            cacheStatsHolder.incrementMisses(key.dimensions);
         }
         return value;
     }
@@ -315,9 +315,9 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
             value = compute(key, loader);
         }
         if (!loader.isLoaded()) {
-            statsHolder.incrementHits(key.dimensions);
+            cacheStatsHolder.incrementHits(key.dimensions);
         } else {
-            statsHolder.incrementMisses(key.dimensions);
+            cacheStatsHolder.incrementMisses(key.dimensions);
         }
         return value;
     }
@@ -383,7 +383,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     public void invalidate(ICacheKey<K> key) {
         try {
             if (key.getDropStatsForDimensions()) {
-                statsHolder.removeDimensions(key.dimensions);
+                cacheStatsHolder.removeDimensions(key.dimensions);
             }
             if (key.key != null) {
                 cache.remove(key);
@@ -398,7 +398,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     @Override
     public void invalidateAll() {
         cache.clear();
-        statsHolder.reset();
+        cacheStatsHolder.reset();
     }
 
     /**
@@ -416,7 +416,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
      */
     @Override
     public long count() {
-        return statsHolder.count();
+        return cacheStatsHolder.count();
     }
 
     @Override
@@ -448,8 +448,8 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
      * @return CacheStats
      */
     @Override
-    public CacheStats stats() {
-        return statsHolder.getCacheStats();
+    public ImmutableCacheStatsHolder stats() {
+        return cacheStatsHolder.getImmutableCacheStatsHolder();
     }
 
     /**
@@ -508,39 +508,39 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         public void onEvent(CacheEvent<? extends ICacheKey<K>, ? extends ByteArrayWrapper> event) {
             switch (event.getType()) {
                 case CREATED:
-                    statsHolder.incrementEntries(event.getKey().dimensions);
-                    statsHolder.incrementSizeInBytes(event.getKey().dimensions, getNewValuePairSize(event));
+                    cacheStatsHolder.incrementEntries(event.getKey().dimensions);
+                    cacheStatsHolder.incrementSizeInBytes(event.getKey().dimensions, getNewValuePairSize(event));
                     assert event.getOldValue() == null;
                     break;
                 case EVICTED:
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.EVICTED)
                     );
-                    statsHolder.decrementEntries(event.getKey().dimensions);
-                    statsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
-                    statsHolder.incrementEvictions(event.getKey().dimensions);
+                    cacheStatsHolder.decrementEntries(event.getKey().dimensions);
+                    cacheStatsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
+                    cacheStatsHolder.incrementEvictions(event.getKey().dimensions);
                     assert event.getNewValue() == null;
                     break;
                 case REMOVED:
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.EXPLICIT)
                     );
-                    statsHolder.decrementEntries(event.getKey().dimensions);
-                    statsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
+                    cacheStatsHolder.decrementEntries(event.getKey().dimensions);
+                    cacheStatsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
                     assert event.getNewValue() == null;
                     break;
                 case EXPIRED:
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.INVALIDATED)
                     );
-                    statsHolder.decrementEntries(event.getKey().dimensions);
-                    statsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
+                    cacheStatsHolder.decrementEntries(event.getKey().dimensions);
+                    cacheStatsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
                     assert event.getNewValue() == null;
                     break;
                 case UPDATED:
                     long newSize = getNewValuePairSize(event);
                     long oldSize = getOldValuePairSize(event);
-                    statsHolder.incrementSizeInBytes(event.getKey().dimensions, newSize - oldSize);
+                    cacheStatsHolder.incrementSizeInBytes(event.getKey().dimensions, newSize - oldSize);
                     break;
                 default:
                     break;
