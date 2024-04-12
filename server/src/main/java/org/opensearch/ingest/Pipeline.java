@@ -204,16 +204,16 @@ public final class Pipeline {
         return metrics;
     }
 
-    public void batchExecute(List<IngestDocument> ingestDocuments, Consumer<List<Tuple<IngestDocument, Exception>>> handler) {
+    public void batchExecute(List<IngestDocumentWrapper> ingestDocumentWrappers, Consumer<List<IngestDocumentWrapper>> handler) {
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
-        metrics.before();
-        compoundProcessor.batchExecute(ingestDocuments, (List<Tuple<IngestDocument, Exception>> results) -> {
+        int size = ingestDocumentWrappers.size();
+        metrics.beforeN(size);
+        compoundProcessor.batchExecute(ingestDocumentWrappers, results -> {
             long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
-            metrics.after(ingestTimeInMillis);
-            // TODO: Check if any exception should make a failure.
-            if (results.stream().anyMatch(t -> t.v2() != null)) {
-                metrics.failed();
-            }
+            metrics.afterN(results.size(), ingestTimeInMillis);
+
+            int failedCount = (int) results.stream().filter(t -> t.getException() != null).count();
+            metrics.failedN(failedCount);
             handler.accept(results);
         });
     }

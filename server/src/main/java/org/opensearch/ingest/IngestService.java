@@ -584,24 +584,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
                     i++;
                 }
+
                 BatchIngestionOption batchOption = originalBulkRequst.batchIngestionOption();
                 int batchSize = originalBulkRequst.maximumBatchSize();
-
-                if (batchOption == BatchIngestionOption.NONE ||
-                    (batchOption == BatchIngestionOption.ENABLED && indexRequestWrappers.size() == 1) ||
-                    (batchOption == BatchIngestionOption.ENABLED && batchSize == 1)) {
-                    for (IndexRequestWrapper indexRequestWrapper : indexRequestWrappers) {
-                        executePipelines(indexRequestWrapper.getSlot(),
-                            indexRequestWrapper.getPipelines().iterator(),
-                            indexRequestWrapper.isHasFinalPipeline(),
-                            indexRequestWrapper.getIndexRequest(),
-                            onDropped, onFailure, counter, onCompletion, originalThread);
-                    }
-                } else {
+                if (shouldExecutePipelineInBatch(batchOption, indexRequestWrappers.size(), batchSize)) {
                     List<List<IndexRequestWrapper>> batches = handleBatch(batchSize, indexRequestWrappers);
                     logger.info("batchSize: {}, batches: {}", batchSize, batches.size());
                     for (List<IndexRequestWrapper> batch : batches) {
-                        executePipelinesInBatchIndexRequests(batch.stream()
+                        executePipelinesInBatchRequests(batch.stream()
                                 .map(IndexRequestWrapper::getSlot)
                                 .collect(Collectors.toList()),
                             batch.get(0).getPipelines().iterator(),
@@ -614,9 +604,21 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             originalThread
                         );
                     }
+                } else {
+                    for (IndexRequestWrapper indexRequestWrapper : indexRequestWrappers) {
+                        executePipelines(indexRequestWrapper.getSlot(),
+                            indexRequestWrapper.getPipelines().iterator(),
+                            indexRequestWrapper.isHasFinalPipeline(),
+                            indexRequestWrapper.getIndexRequest(),
+                            onDropped, onFailure, counter, onCompletion, originalThread);
+                    }
                 }
             }
         });
+    }
+
+    private boolean shouldExecutePipelineInBatch(BatchIngestionOption batchOption, int documentSize, int batchSize) {
+        return batchOption == BatchIngestionOption.ENABLED && documentSize > 1 && batchSize > 1;
     }
 
     private List<List<IndexRequestWrapper>> handleBatch(int batchSize, List<IndexRequestWrapper> indexRequestWrappers) {
@@ -667,7 +669,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    private void executePipelinesInBatchIndexRequests(
+    private void executePipelinesInBatchRequests(
         final List<Integer> slots,
         final Iterator<String> it,
         final boolean hasFinalPipeline,
@@ -691,11 +693,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
                 Pipeline pipeline = holder.pipeline;
                 String originalIndex = indexRequests.get(0).indices()[0];
-                innerExecute(slots, indexRequests, pipeline, onDropped, exceptions -> {
-                    for (int i = 0; i < indexRequests.size(); ++i) {
-                        Exception e = exceptions.get(i);
-                        IndexRequest indexRequest = indexRequests.get(i);
-                        if (e != null) {
+                Map<Integer, IndexRequest> slotIndexRequestMap = IngestServiceHelper.createSlotIndexRequestMap(slots,
+                    indexRequests);
+                innerExecute(slots, indexRequests, pipeline, onDropped, results -> {
+                    for (int i = 0; i < results.size(); ++i) {
+                        if (results.get(i).getException() != null) {
+                            IndexRequest indexRequest = slotIndexRequestMap.get(results.get(i).getSlot());
                             logger.debug(
                                 () -> new ParameterizedMessage(
                                     "failed to execute pipeline [{}] for document [{}/{}]",
@@ -703,9 +706,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                     indexRequest.index(),
                                     indexRequest.id()
                                 ),
-                                e
+                                results.get(i).getException()
                             );
-                            onFailure.accept(slots.get(i), e);
+                            onFailure.accept(slots.get(i), results.get(i).getException());
                         }
                     }
 
@@ -741,7 +744,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     }
 
                     if (newIt.hasNext()) {
-                        executePipelinesInBatchIndexRequests(
+                        executePipelinesInBatchRequests(
                             slots,
                             newIt,
                             newHasFinalPipeline,
@@ -753,7 +756,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             originalThread
                         );
                     } else {
-                        if (counter.addAndGet(-indexRequests.size()) == 0) {
+                        if (counter.addAndGet(-results.size()) == 0) {
                             onCompletion.accept(originalThread, null);
                         }
                         assert counter.get() >= 0;
@@ -971,23 +974,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 itemDroppedHandler.accept(slot);
                 handler.accept(null);
             } else {
-                Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
-                // it's fine to set all metadata fields all the time, as ingest document holds their starting values
-                // before ingestion, which might also get modified during ingestion.
-                indexRequest.index((String) metadataMap.get(IngestDocument.Metadata.INDEX));
-                indexRequest.id((String) metadataMap.get(IngestDocument.Metadata.ID));
-                indexRequest.routing((String) metadataMap.get(IngestDocument.Metadata.ROUTING));
-                indexRequest.version(((Number) metadataMap.get(IngestDocument.Metadata.VERSION)).longValue());
-                if (metadataMap.get(IngestDocument.Metadata.VERSION_TYPE) != null) {
-                    indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.Metadata.VERSION_TYPE)));
-                }
-                if (metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO) != null) {
-                    indexRequest.setIfSeqNo(((Number) metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO)).longValue());
-                }
-                if (metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM) != null) {
-                    indexRequest.setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
-                }
-                indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
+                IngestServiceHelper.updateIndexRequestWithIngestDocument(indexRequest, ingestDocument);
                 handler.accept(null);
             }
         });
@@ -998,62 +985,57 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IndexRequest> indexRequests,
         Pipeline pipeline,
         IntConsumer itemDroppedHandler,
-        Consumer<List<Exception>> handler
+        Consumer<List<IngestDocumentWrapper>> handler
     ) {
         if (pipeline.getProcessors().isEmpty()) {
             handler.accept(null);
             return;
         }
 
+        int size = indexRequests.size();
         long startTimeInNanos = System.nanoTime();
         // the pipeline specific stat holder may not exist and that is fine:
         // (e.g. the pipeline may have been removed while we're ingesting a document
-        totalMetrics.before();
-        List<IngestDocument> ingestDocuments = indexRequests.stream()
-            .map(IngestService::toIngestDocument)
-            .collect(Collectors.toList());
-        pipeline.batchExecute(ingestDocuments, results -> {
-            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
-            totalMetrics.after(ingestTimeInMillis);
-            List<Exception> exceptions = Arrays.asList(new Exception[ingestDocuments.size()]);
-            for (int i = 0; i < results.size(); ++i) {
-                Tuple<IngestDocument, Exception> result = results.get(i);
-                Exception e = result.v2();
-                IngestDocument ingestDocument = result.v1();
-                IndexRequest indexRequest = indexRequests.get(i);
-                int slot = slots.get(i);
-                if (e != null) {
-                    totalMetrics.failed();
-                    exceptions.set(i, e);
-                } else if (ingestDocument == null) {
-                    itemDroppedHandler.accept(slot);
-                } else {
-                    Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
-                    // it's fine to set all metadata fields all the time, as ingest document holds their starting values
-                    // before ingestion, which might also get modified during ingestion.
-                    indexRequests.get(i).index((String) metadataMap.get(IngestDocument.Metadata.INDEX));
-                    indexRequests.get(i).id((String) metadataMap.get(IngestDocument.Metadata.ID));
-                    indexRequests.get(i).routing((String) metadataMap.get(IngestDocument.Metadata.ROUTING));
-                    indexRequests.get(i).version(((Number) metadataMap.get(IngestDocument.Metadata.VERSION)).longValue());
-                    if (metadataMap.get(IngestDocument.Metadata.VERSION_TYPE) != null) {
-                        indexRequests.get(i).versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.Metadata.VERSION_TYPE)));
+        totalMetrics.beforeN(size);
+        List<IngestDocumentWrapper> ingestDocumentWrappers = new ArrayList<>();
+        Map<Integer, IndexRequest> slotToindexRequestMap = new HashMap<>();
+        for (int i = 0; i < slots.size(); ++i) {
+            slotToindexRequestMap.put(slots.get(i), indexRequests.get(i));
+            ingestDocumentWrappers.add(IngestServiceHelper.toIngestDocumentWrapper(slots.get(i), indexRequests.get(i)));
+        }
+        AtomicInteger counter = new AtomicInteger(size);
+        List<IngestDocumentWrapper> allResults = Collections.synchronizedList(new ArrayList<>());
+        pipeline.batchExecute(ingestDocumentWrappers, results -> {
+            allResults.addAll(results);
+            if (counter.addAndGet(-results.size()) == 0) {
+                long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
+                totalMetrics.afterN(size, ingestTimeInMillis);
+                List<IngestDocumentWrapper> succeeded = new ArrayList<>();
+                List<IngestDocumentWrapper> dropped = new ArrayList<>();
+                List<IngestDocumentWrapper> exceptions = new ArrayList<>();
+                for (IngestDocumentWrapper result : results) {
+                    if (result.getException() != null) {
+                        exceptions.add(result);
+                    } else if (result.getIngestDocument() == null) {
+                        dropped.add(result);
+                    } else {
+                        succeeded.add(result);
                     }
-                    if (metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO) != null) {
-                        indexRequests.get(i).setIfSeqNo(((Number) metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO)).longValue());
-                    }
-                    if (metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM) != null) {
-                        indexRequests.get(i).setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
-                    }
-                    indexRequests.get(i).source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
                 }
+                if (!exceptions.isEmpty()) {
+                    totalMetrics.failedN(exceptions.size());
+                } else if (!dropped.isEmpty()) {
+                    dropped.forEach(t -> itemDroppedHandler.accept(t.getSlot()));
+                } else {
+                    for (IngestDocumentWrapper ingestDocumentWrapper : succeeded) {
+                        IngestServiceHelper.updateIndexRequestWithIngestDocument(
+                            slotToindexRequestMap.get(ingestDocumentWrapper.getSlot()),
+                            ingestDocumentWrapper.getIngestDocument());
+                    }
+                }
+                handler.accept(results);
             }
-            handler.accept(exceptions);
         });
-    }
-
-    private static IngestDocument toIngestDocument(IndexRequest indexRequest) {
-        return new IngestDocument(indexRequest.index(), indexRequest.id(), indexRequest.routing(),
-            indexRequest.version(), indexRequest.versionType(), indexRequest.sourceAsMap());
     }
 
     @Override

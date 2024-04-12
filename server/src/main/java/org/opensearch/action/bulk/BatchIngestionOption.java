@@ -13,11 +13,10 @@ import org.opensearch.common.annotation.PublicApi;
 /**
  * An enum for batch ingestion option.
  */
-@PublicApi(since = "2.14.0")
+@PublicApi(since = "2.15.0")
 public enum BatchIngestionOption {
     NONE("disabled"),
-    ENABLED("enabled"),
-    PARALLEL("parallel");
+    ENABLED("enabled");
 
     private final String value;
 

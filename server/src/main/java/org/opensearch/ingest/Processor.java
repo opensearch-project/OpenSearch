@@ -33,7 +33,6 @@
 package org.opensearch.ingest;
 
 import org.opensearch.client.Client;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
@@ -86,29 +85,25 @@ public interface Processor {
      */
     IngestDocument execute(IngestDocument ingestDocument) throws Exception;
 
-    default void batchExecute(List<IngestDocument> ingestDocuments,
-                              Consumer<List<Tuple<IngestDocument, Exception>>> handler) {
-        if (ingestDocuments.isEmpty()) {
+    default void batchExecute(List<IngestDocumentWrapper> ingestDocumentWrappers,
+        Consumer<List<IngestDocumentWrapper>> handler) {
+        if (ingestDocumentWrappers.isEmpty()) {
             handler.accept(Collections.emptyList());
             return;
         }
-        int size = ingestDocuments.size();
+        int size = ingestDocumentWrappers.size();
         AtomicInteger counter = new AtomicInteger(size);
-        AtomicArray<Tuple<IngestDocument, Exception>> results = new AtomicArray<>(size);
+        AtomicArray<IngestDocumentWrapper> results = new AtomicArray<>(size);
         for (int i = 0; i < size; ++i) {
-            innerExecute(i, ingestDocuments.get(i), results, counter, handler);
+            innerExecute(i, ingestDocumentWrappers.get(i), results, counter, handler);
         }
     }
 
-    private void innerExecute(int slot, IngestDocument ingestDocument,
-                              AtomicArray<Tuple<IngestDocument, Exception>> results, AtomicInteger counter,
-                              Consumer<List<Tuple<IngestDocument, Exception>>> handler) {
-        execute(ingestDocument, (doc, ex) -> {
-            if (ex != null) {
-                results.set(slot, new Tuple<>(null, ex));
-            } else {
-                results.set(slot, new Tuple<>(doc, null));
-            }
+    private void innerExecute(int slot, IngestDocumentWrapper ingestDocumentWrapper,
+        AtomicArray<IngestDocumentWrapper> results, AtomicInteger counter,
+        Consumer<List<IngestDocumentWrapper>> handler) {
+        execute(ingestDocumentWrapper.getIngestDocument(), (doc, ex) -> {
+            results.set(slot, new IngestDocumentWrapper(ingestDocumentWrapper.getSlot(), doc, ex));
             if (counter.decrementAndGet() == 0) {
                 handler.accept(results.asList());
             }

@@ -348,20 +348,38 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return this;
     }
 
+    /**
+     * Convert string version of batch option and convert it to {@link BatchIngestionOption}
+     * @param batchOption a string input from request
+     * @return {@link BulkRequest}
+     */
     public final BulkRequest batchIngestionOption(String batchOption) {
         this.batchIngestionOption = BatchIngestionOption.from(batchOption);
         return this;
     }
 
+    /**
+     * Get batch ingestion option
+     * @return {@link BatchIngestionOption}
+     */
     public final BatchIngestionOption batchIngestionOption() {
         return this.batchIngestionOption;
     }
 
+    /**
+     * Set maximum batch size
+     * @param size maximum batch size from input
+     * @return {@link BulkRequest}
+     */
     public final BulkRequest maximumBatchSize(int size) {
         this.maximumBatchSize = size;
         return this;
     }
 
+    /**
+     * Get maximum batch size
+     * @return maximum batch size
+     */
     public final int maximumBatchSize() {
         return this.maximumBatchSize;
     }
