@@ -1,0 +1,76 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+syntax = "proto3";
+package org.opensearch.server.proto;
+
+import "server/search/ShardSearchRequestProto.proto";
+
+option java_outer_classname = "QuerySearchResultProto";
+
+message QuerySearchResult {
+  ShardSearchContextId contextId = 1;
+  optional int32 from = 2;
+  optional int32 size = 3;
+  optional TopDocsAndMaxScore topDocsAndMaxScore = 4;
+  optional bool hasScoreDocs = 5;
+  optional TotalHits totalHits = 6;
+  optional float maxScore = 7;
+  optional TopDocs topDocs = 8;
+  optional bool hasAggs = 9;
+  optional bool hasSuggest = 10;
+  optional bool searchTimedOut = 11;
+  optional bool terminatedEarly = 12;
+  optional bytes profileShardResults = 13;
+  optional int64 serviceTimeEWMA = 14;
+  optional int32 nodeQueueSize = 15;
+  SearchShardTarget searchShardTarget = 17;
+  ShardSearchRequest searchShardRequest = 18;
+  bool isNull = 19;
+
+  message TopDocsAndMaxScore {
+    TopDocs topDocs = 1;
+    float maxScore = 2;
+  }
+
+  message TopDocs {
+    TotalHits totalHits = 1;
+    repeated ScoreDoc scoreDocs = 2;
+
+    message ScoreDoc {
+      int32 doc = 1;
+      float score = 2;
+      int32 shardIndex = 3;
+    }
+  }
+
+  message RescoreDocIds {
+    map<int32, setInteger> docIds = 1;
+
+    message setInteger {
+      repeated int32 values = 1;
+    }
+  }
+
+}
+
+message SearchShardTarget {
+  string nodeId = 1;
+  ShardId shardId = 2;
+  optional string clusterAlias = 3;
+}
+
+message TotalHits {
+  int64 value = 1;
+  Relation relation = 2;
+
+  enum Relation {
+      EQUAL_TO = 0;
+      GREATER_THAN_OR_EQUAL_TO = 1;
+  }
+}

@@ -1,0 +1,129 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+syntax = "proto3";
+package org.opensearch.server.proto;
+
+import "google/protobuf/any.proto";
+import "server/search/QuerySearchResultProto.proto";
+import "server/search/ShardSearchRequestProto.proto";
+
+option java_outer_classname = "FetchSearchResultProto";
+
+message FetchSearchResult {
+  ShardSearchContextId contextId = 1;
+  optional SearchHits hits = 2;
+}
+
+message SearchHits {
+  TotalHits totalHits = 1;
+  float maxScore = 2;
+  int32 size = 3;
+  repeated SearchHit hits = 4;
+  repeated SortField sortFields = 5;
+  optional string collapseField = 6;
+  repeated SortValue collapseValues = 7;
+}
+
+message SearchHit {
+  int32 docId = 1;
+  float score = 2;
+  string id = 3;
+  optional NestedIdentity nestedIdentity = 4;
+  int64 version = 5;
+  int64 seqNo = 6;
+  int64 primaryTerm = 7;
+  bytes source = 8;
+  map<string, DocumentField> documentFields = 9;
+  map<string, DocumentField> metaFields = 10;
+  map<string, HighlightField> highlightFields = 11;
+  SearchSortValues sortValues = 12;
+  repeated string matchedQueries = 13;
+  optional Explanation explanation = 14;
+  SearchShardTarget shard = 15;
+  optional string index = 16;
+  optional string clusterAlias = 17;
+  map<string, SearchHits> innerHits = 18;
+  map<string, float> matchedQueriesWithScores = 19;
+
+  message NestedIdentity {
+    optional string field = 1;
+    optional int32 offset = 2;
+    optional NestedIdentity child = 3;
+  }
+
+  message DocumentField {
+    string name = 1;
+    repeated DocumentFieldValue values = 2;
+  }
+
+  message HighlightField {
+    string name = 1;
+    repeated string fragments = 2;
+  }
+
+  message SearchSortValues {
+    repeated SortValue formattedSortValues = 1;
+    repeated SortValue rawSortValues = 2;
+  }
+
+  message Explanation {
+    bool match = 1;
+    string description = 2;
+    repeated Explanation subExplanations = 3;
+    oneof explanationValue {
+      float value1 = 4;
+      double value2 = 5;
+      int64 value3 = 6;
+    }
+  }
+}
+
+message SortField {
+  Type type = 1;
+  string field = 2;
+
+  enum Type {
+    SCORE = 0;
+    DOC = 1;
+    STRING = 2;
+    INT = 3;
+    FLOAT = 4;
+    LONG = 5;
+    DOUBLE = 6;
+    CUSTOM = 7;
+    STRING_VAL = 8;
+    REWRITEABLE = 9;
+  }
+}
+
+message SortValue {
+  optional string collapseString = 1;
+  optional int32 collapseInt = 2;
+  optional int64 collapseLong = 3;
+  optional float collapseFloat = 4;
+  optional double collapseDouble = 5;
+  optional bytes collapseBytes = 6;
+  optional bool collapseBool = 7;
+}
+
+message DocumentFieldValue {
+  optional string valueString = 1;
+  optional int32 valueInt = 2;
+  optional int64 valueLong = 3;
+  optional float valueFloat = 4;
+  optional double valueDouble = 5;
+  optional bool valueBool = 6;
+  repeated bytes valueByteArray = 7;
+  repeated DocumentFieldValue valueArrayList = 8;
+  map<string, DocumentFieldValue> valueMap = 9;
+  optional int64 valueDate = 10;
+  optional string valueZonedDate = 11;
+  optional int64 valueZonedTime = 12;
+  optional string valueText = 13;
+}

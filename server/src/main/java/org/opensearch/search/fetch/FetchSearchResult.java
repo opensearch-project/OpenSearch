@@ -33,6 +33,7 @@
 package org.opensearch.search.fetch;
 
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.search.SearchHit;
@@ -41,8 +42,13 @@ import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.serializer.SearchHitsProtobufSerializer;
+import org.opensearch.server.proto.FetchSearchResultProto;
+import org.opensearch.server.proto.ShardSearchRequestProto;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * Result from a fetch
@@ -56,6 +62,8 @@ public final class FetchSearchResult extends SearchPhaseResult {
     // client side counter
     private transient int counter;
 
+    private FetchSearchResultProto.FetchSearchResult fetchSearchResultProto;
+
     public FetchSearchResult() {}
 
     public FetchSearchResult(StreamInput in) throws IOException {
@@ -64,9 +72,24 @@ public final class FetchSearchResult extends SearchPhaseResult {
         hits = new SearchHits(in);
     }
 
+    public FetchSearchResult(InputStream in) throws IOException {
+        this.fetchSearchResultProto = FetchSearchResultProto.FetchSearchResult.parseFrom(in);
+        contextId = new ShardSearchContextId(
+            this.fetchSearchResultProto.getContextId().getSessionId(),
+            this.fetchSearchResultProto.getContextId().getId()
+        );
+        SearchHitsProtobufSerializer protobufSerializer = new SearchHitsProtobufSerializer();
+        hits = protobufSerializer.createSearchHits(new ByteArrayInputStream(this.fetchSearchResultProto.getHits().toByteArray()));
+    }
+
     public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
         this.contextId = id;
         setSearchShardTarget(shardTarget);
+        this.fetchSearchResultProto = FetchSearchResultProto.FetchSearchResult.newBuilder()
+            .setContextId(
+                ShardSearchRequestProto.ShardSearchContextId.newBuilder().setSessionId(id.getSessionId()).setId(id.getId()).build()
+            )
+            .build();
     }
 
     @Override
@@ -82,6 +105,11 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public void hits(SearchHits hits) {
         assert assertNoSearchTarget(hits);
         this.hits = hits;
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING) && this.fetchSearchResultProto != null) {
+            this.fetchSearchResultProto = this.fetchSearchResultProto.toBuilder()
+                .setHits(SearchHitsProtobufSerializer.convertHitsToProto(hits))
+                .build();
+        }
     }
 
     private boolean assertNoSearchTarget(SearchHits hits) {
@@ -92,6 +120,16 @@ public final class FetchSearchResult extends SearchPhaseResult {
     }
 
     public SearchHits hits() {
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING) && this.fetchSearchResultProto != null) {
+            SearchHits hits;
+            try {
+                SearchHitsProtobufSerializer protobufSerializer = new SearchHitsProtobufSerializer();
+                hits = protobufSerializer.createSearchHits(new ByteArrayInputStream(this.fetchSearchResultProto.getHits().toByteArray()));
+                return hits;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
         return hits;
     }
 

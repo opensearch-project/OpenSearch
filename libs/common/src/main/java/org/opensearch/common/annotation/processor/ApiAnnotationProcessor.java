@@ -238,7 +238,15 @@ public class ApiAnnotationProcessor extends AbstractProcessor {
      */
     private boolean inspectable(Element element) {
         final PackageElement pckg = processingEnv.getElementUtils().getPackageOf(element);
-        return pckg.getQualifiedName().toString().startsWith(OPENSEARCH_PACKAGE);
+        return pckg.getQualifiedName().toString().startsWith(OPENSEARCH_PACKAGE)
+            && !element.getEnclosingElement()
+                .getAnnotationMirrors()
+                .stream()
+                .anyMatch(
+                    m -> m.getAnnotationType()
+                        .toString() /* ClassSymbol.toString() returns class name */
+                        .equalsIgnoreCase("javax.annotation.Generated")
+                );
     }
 
     /**
