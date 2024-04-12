@@ -74,6 +74,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.node.Node;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -101,7 +102,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             Settings.EMPTY,
             (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
             new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
-            threadPool
+            threadPool,
+            ClusterServiceUtils.createClusterService(threadPool)
         );
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -165,7 +167,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.PLUGGABLE_CACHE, "true").build(),
             (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
             cacheService,
-            threadPool
+            threadPool,
+            ClusterServiceUtils.createClusterService(threadPool)
         );
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -233,7 +236,11 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 return Optional.empty();
             }
             return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }), new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(), threadPool);
+        }),
+            new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
+            threadPool,
+            ClusterServiceUtils.createClusterService(threadPool)
+        );
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
@@ -365,7 +372,11 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 return Optional.empty();
             }
             return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }), new CacheModule(new ArrayList<>(), settings).getCacheService(), threadPool);
+        }),
+            new CacheModule(new ArrayList<>(), settings).getCacheService(),
+            threadPool,
+            ClusterServiceUtils.createClusterService(threadPool)
+        );
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
@@ -426,7 +437,11 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 return Optional.empty();
             }
             return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }), new CacheModule(new ArrayList<>(), settings).getCacheService(), threadPool);
+        }),
+            new CacheModule(new ArrayList<>(), settings).getCacheService(),
+            threadPool,
+            ClusterServiceUtils.createClusterService(threadPool)
+        );
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
@@ -488,7 +503,11 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 return Optional.empty();
             }
             return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }), new CacheModule(new ArrayList<>(), settings).getCacheService(), threadPool);
+        }),
+            new CacheModule(new ArrayList<>(), settings).getCacheService(),
+            threadPool,
+            ClusterServiceUtils.createClusterService(threadPool)
+        );
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
@@ -567,7 +586,11 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 return Optional.empty();
             }
             return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }), new CacheModule(new ArrayList<>(), settings).getCacheService(), threadPool);
+        }),
+            new CacheModule(new ArrayList<>(), settings).getCacheService(),
+            threadPool,
+            ClusterServiceUtils.createClusterService(threadPool)
+        );
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
@@ -646,7 +669,11 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 return Optional.empty();
             }
             return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }), new CacheModule(new ArrayList<>(), settings).getCacheService(), threadPool);
+        }),
+            new CacheModule(new ArrayList<>(), settings).getCacheService(),
+            threadPool,
+            ClusterServiceUtils.createClusterService(threadPool)
+        );
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
@@ -708,7 +735,11 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 return Optional.empty();
             }
             return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }), new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(), threadPool);
+        }),
+            new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
+            threadPool,
+            ClusterServiceUtils.createClusterService(threadPool)
+        );
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
@@ -773,7 +804,9 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         }
         ThreadPool threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.001%").build();
-        IndicesRequestCache cache = new IndicesRequestCache(settings, (shardId -> {
+        IndicesRequestCache cache = new IndicesRequestCache(
+            settings,
+            (shardId -> {
             IndexService indexService = null;
             try {
                 indexService = indicesService.indexServiceSafe(shardId.getIndex());
@@ -785,7 +818,11 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             } catch (ShardNotFoundException ex) {
                 return Optional.empty();
             }
-        }), new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(), threadPool);
+            }),
+            new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
+            threadPool,
+            ClusterServiceUtils.createClusterService(threadPool)
+        );
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
@@ -873,7 +910,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 Settings.EMPTY,
                 (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
                 new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
-                threadPool
+                threadPool,
+                ClusterServiceUtils.createClusterService(threadPool)
             );
             Directory dir = newDirectory();
             IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -905,7 +943,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.getBytes() + 5 + "b").build(),
             (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
             new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
-            threadPool
+            threadPool,
+            ClusterServiceUtils.createClusterService(threadPool)
         );
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -952,7 +991,11 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 return Optional.empty();
             }
             return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }), new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(), threadPool);
+        }),
+            new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
+            threadPool,
+            ClusterServiceUtils.createClusterService(threadPool)
+        );
 
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -1048,7 +1091,11 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 return Optional.empty();
             }
             return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }), new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(), threadPool);
+        }),
+            new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
+            threadPool,
+            ClusterServiceUtils.createClusterService(threadPool)
+        );
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 

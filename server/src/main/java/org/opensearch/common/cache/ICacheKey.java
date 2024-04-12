@@ -62,6 +62,9 @@ public class ICacheKey<K> {
 
     @Override
     public int hashCode() {
+        if (key == null) {
+            return dimensions.hashCode();
+        }
         return 31 * key.hashCode() + dimensions.hashCode();
     }
 

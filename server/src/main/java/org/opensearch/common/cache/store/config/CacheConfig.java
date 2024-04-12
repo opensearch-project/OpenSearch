@@ -13,6 +13,7 @@ import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.serializer.Serializer;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
@@ -65,6 +66,8 @@ public class CacheConfig<K, V> {
      */
     private final TimeValue expireAfterAccess;
 
+    private final ClusterSettings clusterSettings;
+
     private CacheConfig(Builder<K, V> builder) {
         this.keyType = builder.keyType;
         this.valueType = builder.valueType;
@@ -77,6 +80,7 @@ public class CacheConfig<K, V> {
         this.cachedResultParser = builder.cachedResultParser;
         this.maxSizeInBytes = builder.maxSizeInBytes;
         this.expireAfterAccess = builder.expireAfterAccess;
+        this.clusterSettings = builder.clusterSettings;
     }
 
     public Class<K> getKeyType() {
@@ -123,6 +127,10 @@ public class CacheConfig<K, V> {
         return expireAfterAccess;
     }
 
+    public ClusterSettings getClusterSettings() {
+        return clusterSettings;
+    }
+
     /**
      * Builder class to build Cache config related parameters.
      * @param <K> Type of key.
@@ -146,6 +154,7 @@ public class CacheConfig<K, V> {
         private long maxSizeInBytes;
 
         private TimeValue expireAfterAccess;
+        private ClusterSettings clusterSettings;
 
         public Builder() {}
 
@@ -201,6 +210,11 @@ public class CacheConfig<K, V> {
 
         public Builder<K, V> setExpireAfterAccess(TimeValue expireAfterAccess) {
             this.expireAfterAccess = expireAfterAccess;
+            return this;
+        }
+
+        public Builder<K, V> setClusterSettings(ClusterSettings clusterSettings) {
+            this.clusterSettings = clusterSettings;
             return this;
         }
 

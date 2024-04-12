@@ -39,6 +39,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
@@ -156,7 +157,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         Settings settings,
         Function<ShardId, Optional<CacheEntity>> cacheEntityFunction,
         CacheService cacheService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        ClusterService clusterService
     ) {
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
@@ -187,6 +189,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
                 })
                 .setKeySerializer(new IRCKeyWriteableSerializer())
                 .setValueSerializer(new BytesReferenceSerializer())
+                .setClusterSettings(clusterService.getClusterSettings())
                 .build(),
             CacheType.INDICES_REQUEST_CACHE
         );
