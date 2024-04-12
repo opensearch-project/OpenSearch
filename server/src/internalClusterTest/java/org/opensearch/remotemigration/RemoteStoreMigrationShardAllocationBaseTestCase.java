@@ -22,7 +22,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_D
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
-public class ShardAllocationBaseTestCase extends MigrationBaseTestCase {
+public class RemoteStoreMigrationShardAllocationBaseTestCase extends MigrationBaseTestCase {
     protected static final String TEST_INDEX = "test_index";
     protected static final String NAME = "remote_store_migration";
 

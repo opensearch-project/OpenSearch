@@ -32,7 +32,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeService.Direction.R
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class RemoteStoreMigrationSettingsUpdateIT extends ShardAllocationBaseTestCase {
+public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationShardAllocationBaseTestCase {
 
     private Client client;
 
