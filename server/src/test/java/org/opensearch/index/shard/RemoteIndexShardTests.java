@@ -64,8 +64,8 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
     private static final Settings settings = Settings.builder()
         .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
         .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-        .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, REPOSITORY_NAME)
-        .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, REPOSITORY_NAME)
+        .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY, REPOSITORY_NAME)
+        .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY, REPOSITORY_NAME)
         .build();
 
     protected Settings getIndexSettings() {

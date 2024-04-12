@@ -72,8 +72,8 @@ import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXP
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.test.VersionUtils.allVersions;
@@ -499,8 +499,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             .build();
 
         for (Map.Entry<String, String> nodeAttribute : existingNodeAttributes.entrySet()) {
-            if (nodeAttribute.getKey() != REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
-                && nodeAttribute.getKey() != REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
+            if (nodeAttribute.getKey() != REMOTE_STORE_SEGMENT_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY
+                && nodeAttribute.getKey() != REMOTE_STORE_TRANSLOG_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY
                 && nodeAttribute.getKey() != REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY) {
                 remoteStoreNodeAttributes.put(nodeAttribute.getKey(), nodeAttribute.getValue() + "-new");
                 validateAttributes(remoteStoreNodeAttributes, currentState, existingNode);
@@ -523,10 +523,10 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             .build();
 
         for (Map.Entry<String, String> nodeAttribute : existingNodeAttributes.entrySet()) {
-            if (REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(nodeAttribute.getKey())) {
+            if (REMOTE_STORE_SEGMENT_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(nodeAttribute.getKey())) {
                 Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO + "new", TRANSLOG_REPO);
                 validateAttributes(remoteStoreNodeAttributes, currentState, existingNode);
-            } else if (REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(nodeAttribute.getKey())) {
+            } else if (REMOTE_STORE_TRANSLOG_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(nodeAttribute.getKey())) {
                 Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO + "new");
                 validateAttributes(remoteStoreNodeAttributes, currentState, existingNode);
             } else if (REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY.equals(nodeAttribute.getKey())) {
@@ -955,11 +955,11 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
         return new HashMap<>() {
             {
-                put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName);
+                put(REMOTE_STORE_SEGMENT_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName);
                 put(segmentRepositoryTypeAttributeKey, "s3");
                 put(segmentRepositorySettingsAttributeKeyPrefix + "bucket", "segment_bucket");
                 put(segmentRepositorySettingsAttributeKeyPrefix + "base_path", "/segment/path");
-                put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, translogRepoName);
+                put(REMOTE_STORE_TRANSLOG_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY, translogRepoName);
                 putIfAbsent(translogRepositoryTypeAttributeKey, "s3");
                 putIfAbsent(translogRepositorySettingsAttributeKeyPrefix + "bucket", "translog_bucket");
                 putIfAbsent(translogRepositorySettingsAttributeKeyPrefix + "base_path", "/translog/path");

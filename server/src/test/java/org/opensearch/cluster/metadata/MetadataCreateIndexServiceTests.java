@@ -125,9 +125,9 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TY
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.aggregateIndexSettings;
@@ -148,8 +148,8 @@ import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_INDEX_RESTRIC
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.opensearch.node.Node.NODE_ATTRIBUTES;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -169,9 +169,9 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     private QueryShardContext queryShardContext;
     private ClusterSettings clusterSettings;
     private static final String segmentRepositoryNameAttributeKey = NODE_ATTRIBUTES.getKey()
-        + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+        + REMOTE_STORE_SEGMENT_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY;
     private static final String translogRepositoryNameAttributeKey = NODE_ATTRIBUTES.getKey()
-        + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+        + REMOTE_STORE_TRANSLOG_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
     final String REPLICATION_MISMATCH_VALIDATION_ERROR =
         "Validation Failed: 1: index setting [index.replication.type] is not allowed to be set as [cluster.index.restrict.replication.type=true];";
@@ -1475,7 +1475,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     public void testRemoteStoreOverrideSegmentRepoIndexSettings() {
         final Settings.Builder requestSettings = Settings.builder();
         requestSettings.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "my-custom-repo");
+            .put(SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY, "my-custom-repo");
         withTemporaryClusterService(((clusterService, threadPool) -> {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
                 Settings.EMPTY,
@@ -1505,7 +1505,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                     String.format(
                         Locale.ROOT,
                         "private index setting [%s] can not be set explicitly",
-                        SETTING_REMOTE_SEGMENT_STORE_REPOSITORY
+                        SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY
                     )
                 )
             );
@@ -1514,7 +1514,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testRemoteStoreOverrideTranslogRepoIndexSettings() {
         final Settings.Builder requestSettings = Settings.builder();
-        requestSettings.put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "my-custom-repo");
+        requestSettings.put(SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY, "my-custom-repo");
         withTemporaryClusterService(((clusterService, threadPool) -> {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
                 Settings.EMPTY,
@@ -1544,7 +1544,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                     String.format(
                         Locale.ROOT,
                         "private index setting [%s] can not be set explicitly",
-                        SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY
+                        SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY
                     )
                 )
             );
@@ -1614,7 +1614,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     private IndexMetadata testRemoteCustomData(boolean remoteStoreEnabled, PathType pathType) {
         Settings.Builder settingsBuilder = Settings.builder();
         if (remoteStoreEnabled) {
-            settingsBuilder.put(NODE_ATTRIBUTES.getKey() + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "test");
+            settingsBuilder.put(NODE_ATTRIBUTES.getKey() + REMOTE_STORE_SEGMENT_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY, "test");
         }
         settingsBuilder.put(IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING.getKey(), pathType.toString());
         Settings settings = settingsBuilder.build();
@@ -2116,8 +2116,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     ) {
         assertEquals(replicationType, indexSettings.get(SETTING_REPLICATION_TYPE));
         assertEquals(isRemoteSegmentEnabled, indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
-        assertEquals(remoteSegmentRepo, indexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
-        assertEquals(remoteTranslogRepo, indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
+        assertEquals(remoteSegmentRepo, indexSettings.get(SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY));
+        assertEquals(remoteTranslogRepo, indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY));
         assertEquals(translogBufferInterval, INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings));
     }
 

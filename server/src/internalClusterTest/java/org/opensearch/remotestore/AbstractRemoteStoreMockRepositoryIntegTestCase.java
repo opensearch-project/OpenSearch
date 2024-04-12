@@ -31,8 +31,8 @@ import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SET
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
 public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends AbstractSnapshotIntegTestCase {
 
@@ -89,7 +89,7 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
         );
 
         return Settings.builder()
-            .put("node.attr." + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, REPOSITORY_NAME)
+            .put("node.attr." + REMOTE_STORE_SEGMENT_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY, REPOSITORY_NAME)
             .put(segmentRepoTypeAttributeKey, "mock")
             .put(segmentRepoSettingsAttributeKeyPrefix + "location", repoLocation)
             .put(segmentRepoSettingsAttributeKeyPrefix + "random_control_io_exception_rate", ioFailureRate)
@@ -97,7 +97,7 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
             .put(segmentRepoSettingsAttributeKeyPrefix + "skip_exception_on_list_blobs", true)
             .put(segmentRepoSettingsAttributeKeyPrefix + "skip_exception_on_blobs", skipExceptionBlobList)
             .put(segmentRepoSettingsAttributeKeyPrefix + "max_failure_number", maxFailure)
-            .put("node.attr." + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, TRANSLOG_REPOSITORY_NAME)
+            .put("node.attr." + REMOTE_STORE_TRANSLOG_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY, TRANSLOG_REPOSITORY_NAME)
             .put(translogRepoTypeAttributeKey, "mock")
             .put(translogRepoSettingsAttributeKeyPrefix + "location", repoLocation)
             .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, REPOSITORY_NAME)

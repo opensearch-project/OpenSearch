@@ -321,9 +321,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_REMOTE_STORE_ENABLED = "index.remote_store.enabled";
 
-    public static final String SETTING_REMOTE_SEGMENT_STORE_REPOSITORY = "index.remote_store.segment.repository";
+    public static final String SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY = "index.remote_store.segment.repository";
 
-    public static final String SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY = "index.remote_store.translog.repository";
+    public static final String SETTING_REMOTE_SEGMENT_STORE_METADATA_REPOSITORY = "index.remote_store.segment.metadata_repository";
+
+    public static final String SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY = "index.remote_store.translog.repository";
 
     /**
      * Used to specify if the index data should be persisted in the remote store.
@@ -362,46 +364,63 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.Dynamic
     );
 
+    static class RepositoryNameValidator implements Setting.Validator<String> {
+
+        String remoteStoreRepositorySettingKey;
+
+        RepositoryNameValidator(String remoteStoreRepositorySettingKey) {
+            this.remoteStoreRepositorySettingKey = remoteStoreRepositorySettingKey;
+        }
+
+        @Override
+        public void validate(final String value) {}
+
+        @Override
+        public void validate(final String value, final Map<Setting<?>, Object> settings) {
+            if (value == null || value.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "Setting " + remoteStoreRepositorySettingKey + " should be provided with non-empty repository ID"
+                );
+            } else {
+                validateRemoteStoreSettingEnabled(settings, remoteStoreRepositorySettingKey);
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_STORE_ENABLED_SETTING);
+            return settings.iterator();
+        }
+    }
+
     /**
-     * Used to specify remote store repository to use for this index.
+     * Used to specify remote store data repository to use for this index.
      */
-    public static final Setting<String> INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING = Setting.simpleString(
-        SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
-        new Setting.Validator<>() {
-
-            @Override
-            public void validate(final String value) {}
-
-            @Override
-            public void validate(final String value, final Map<Setting<?>, Object> settings) {
-                if (value == null || value.isEmpty()) {
-                    throw new IllegalArgumentException(
-                        "Setting "
-                            + INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey()
-                            + " should be provided with non-empty repository ID"
-                    );
-                } else {
-                    validateRemoteStoreSettingEnabled(settings, INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING);
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_STORE_ENABLED_SETTING);
-                return settings.iterator();
-            }
-        },
+    public static final Setting<String> INDEX_REMOTE_SEGMENT_STORE_DATA_REPOSITORY_SETTING = Setting.simpleString(
+        SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY,
+        new RepositoryNameValidator(SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY),
         Property.IndexScope,
         Property.PrivateIndex,
         Property.Dynamic
     );
 
-    private static void validateRemoteStoreSettingEnabled(final Map<Setting<?>, Object> settings, Setting<?> setting) {
+    /**
+     * Used to specify remote store metadata repository to use for this index.
+     */
+    public static final Setting<String> INDEX_REMOTE_SEGMENT_STORE_METADATA_REPOSITORY_SETTING = Setting.simpleString(
+        SETTING_REMOTE_SEGMENT_STORE_METADATA_REPOSITORY,
+        new RepositoryNameValidator(SETTING_REMOTE_SEGMENT_STORE_METADATA_REPOSITORY),
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Dynamic
+    );
+
+    private static void validateRemoteStoreSettingEnabled(final Map<Setting<?>, Object> settings, String settingKey) {
         final Boolean isRemoteSegmentStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_STORE_ENABLED_SETTING);
         if (isRemoteSegmentStoreEnabled == false) {
             throw new IllegalArgumentException(
                 "Settings "
-                    + setting.getKey()
+                    + settingKey
                     + " can only be set/enabled when "
                     + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
                     + " is set to true"
@@ -409,39 +428,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
     }
 
-    public static final Setting<String> INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING = Setting.simpleString(
-        SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
-        new Setting.Validator<>() {
-
-            @Override
-            public void validate(final String value) {}
-
-            @Override
-            public void validate(final String value, final Map<Setting<?>, Object> settings) {
-                if (value == null || value.isEmpty()) {
-                    throw new IllegalArgumentException(
-                        "Setting " + INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey() + " should be provided with non-empty repository ID"
-                    );
-                } else {
-                    final Boolean isRemoteTranslogStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_STORE_ENABLED_SETTING);
-                    if (isRemoteTranslogStoreEnabled == null || isRemoteTranslogStoreEnabled == false) {
-                        throw new IllegalArgumentException(
-                            "Settings "
-                                + INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey()
-                                + " can only be set/enabled when "
-                                + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
-                                + " is set to true"
-                        );
-                    }
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_STORE_ENABLED_SETTING);
-                return settings.iterator();
-            }
-        },
+    public static final Setting<String> INDEX_REMOTE_TRANSLOG_DATA_REPOSITORY_SETTING = Setting.simpleString(
+        SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY,
+        new RepositoryNameValidator(SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY),
         Property.IndexScope,
         Property.PrivateIndex,
         Property.Dynamic

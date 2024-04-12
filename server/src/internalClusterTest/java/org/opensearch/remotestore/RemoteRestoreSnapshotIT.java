@@ -710,7 +710,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // try index restore with remote store repository modified
         Settings remoteStoreIndexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, newRemoteStoreRepo)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY, newRemoteStoreRepo)
             .build();
 
         exception = expectThrows(
@@ -735,8 +735,8 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
                 .setWaitForCompletion(false)
                 .setIgnoreIndexSettings(
-                    IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
-                    IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY
+                    IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY,
+                    IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY
                 )
                 .setIndices(index)
                 .setRenamePattern(index)

@@ -408,6 +408,7 @@ final class StoreRecovery {
                 );
                 RemoteSegmentStoreDirectory sourceRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
                     remoteStoreRepository,
+                    remoteStoreRepository,
                     indexUUID,
                     shardId,
                     shallowCopyShardMetadata.getRemoteStorePathStrategy()

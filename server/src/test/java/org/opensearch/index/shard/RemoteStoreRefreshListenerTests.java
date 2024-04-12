@@ -70,8 +70,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             primary,
             Settings.builder()
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "temp-fs")
-                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY, "temp-fs")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY, "temp-fs")
                 .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build(),
             new InternalEngineFactory()
@@ -537,8 +537,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             true,
             Settings.builder()
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "temp-fs")
-                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY, "temp-fs")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY, "temp-fs")
                 .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build(),
             new InternalEngineFactory()

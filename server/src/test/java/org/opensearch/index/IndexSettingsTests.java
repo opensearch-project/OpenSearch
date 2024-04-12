@@ -823,7 +823,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertNull(settings.getRemoteStoreRepository());
+        assertNull(settings.getRemoteSegmentStoreDataRepository());
     }
 
     public void testRemoteRepositoryExplicitSetting() {
@@ -833,28 +833,28 @@ public class IndexSettingsTests extends OpenSearchTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "repo1")
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY, "repo1")
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertEquals("repo1", settings.getRemoteStoreRepository());
+        assertEquals("repo1", settings.getRemoteSegmentStoreDataRepository());
     }
 
     public void testSetRemoteRepositoryFailsWhenRemoteStoreIsNotEnabled() {
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
-            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "repo1")
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY, "repo1")
             .build();
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.get(indexSettings)
+            () -> IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_DATA_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals(
             String.format(
                 Locale.ROOT,
                 "Settings %s can only be set/enabled when %s is set to true",
-                IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
+                IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY,
                 IndexMetadata.SETTING_REMOTE_STORE_ENABLED
             ),
             iae.getMessage()
@@ -865,17 +865,17 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
-            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "")
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY, "")
             .build();
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.get(indexSettings)
+            () -> IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_DATA_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals(
             String.format(
                 Locale.ROOT,
                 "Setting %s should be provided with non-empty repository ID",
-                IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY
+                IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY
             ),
             iae.getMessage()
         );
@@ -887,7 +887,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertNull(settings.getRemoteStoreRepository());
+        assertNull(settings.getRemoteSegmentStoreDataRepository());
     }
 
     public void testRemoteTranslogExplicitSetting() {
@@ -895,13 +895,13 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             "index",
             Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "tlog-store")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY, "tlog-store")
                 .put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "200ms")
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertNull(settings.getRemoteStoreRepository());
-        assertEquals("tlog-store", settings.getRemoteStoreTranslogRepository());
+        assertNull(settings.getRemoteSegmentStoreDataRepository());
+        assertEquals("tlog-store", settings.getRemoteStoreTranslogDataRepository());
         assertEquals(TimeValue.timeValueMillis(200), settings.getRemoteTranslogUploadBufferInterval());
     }
 
@@ -909,11 +909,11 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "repo1")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY, "repo1")
             .build();
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(indexSettings)
+            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_DATA_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals(
             "Settings index.remote_store.translog.repository can only be set/enabled when index.remote_store.enabled is set to true",
@@ -925,11 +925,11 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY, "")
             .build();
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(indexSettings)
+            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_DATA_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals("Setting index.remote_store.translog.repository should be provided with non-empty repository ID", iae.getMessage());
     }

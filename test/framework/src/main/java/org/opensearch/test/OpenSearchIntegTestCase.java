@@ -216,8 +216,9 @@ import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SET
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_METADATA_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.test.XContentTestUtils.convertToMap;
 import static org.opensearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -2526,6 +2527,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 segmentRepoName,
                 segmentRepoPath,
                 segmentRepoType,
+                null,
+                null,
+                null,
                 translogRepoName,
                 translogRepoPath,
                 translogRepoType,
@@ -2546,6 +2550,28 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return settingsBuilder.build();
     }
 
+    public static Settings remoteStoreClusterSettings(
+        String segmentRepoName,
+        Path segmentRepoPath,
+        String segmentMetadataRepoName,
+        Path segmentMetadataRepoPath,
+        String translogRepoName,
+        Path translogRepoPath
+    ) {
+        return buildRemoteStoreNodeAttributes(
+            segmentRepoName,
+            segmentRepoPath,
+            ReloadableFsRepository.TYPE,
+            segmentMetadataRepoName,
+            segmentMetadataRepoPath,
+            ReloadableFsRepository.TYPE,
+            translogRepoName,
+            translogRepoPath,
+            ReloadableFsRepository.TYPE,
+            false
+        );
+    }
+
     public static Settings buildRemoteStoreNodeAttributes(
         String segmentRepoName,
         Path segmentRepoPath,
@@ -2557,6 +2583,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             segmentRepoName,
             segmentRepoPath,
             ReloadableFsRepository.TYPE,
+            null,
+            null,
+            null,
             translogRepoName,
             translogRepoPath,
             ReloadableFsRepository.TYPE,
@@ -2565,23 +2594,26 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     private static Settings buildRemoteStoreNodeAttributes(
-        String segmentRepoName,
-        Path segmentRepoPath,
-        String segmentRepoType,
+        String segmentDataRepoName,
+        Path segmentDataRepoPath,
+        String segmentDataRepoType,
+        String segmentMetadataRepoName,
+        Path segmentMetadataRepoPath,
+        String segmentMetadataRepoType,
         String translogRepoName,
         Path translogRepoPath,
         String translogRepoType,
         boolean withRateLimiterAttributes
     ) {
-        String segmentRepoTypeAttributeKey = String.format(
+        String segmentDataRepoTypeAttributeKey = String.format(
             Locale.getDefault(),
             "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
-            segmentRepoName
+            segmentDataRepoName
         );
-        String segmentRepoSettingsAttributeKeyPrefix = String.format(
+        String segmentDataRepoSettingsAttributeKeyPrefix = String.format(
             Locale.getDefault(),
             "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
-            segmentRepoName
+            segmentDataRepoName
         );
         String translogRepoTypeAttributeKey = String.format(
             Locale.getDefault(),
@@ -2596,28 +2628,45 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         String stateRepoTypeAttributeKey = String.format(
             Locale.getDefault(),
             "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
-            segmentRepoName
+            segmentDataRepoName
         );
         String stateRepoSettingsAttributeKeyPrefix = String.format(
             Locale.getDefault(),
             "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
-            segmentRepoName
+            segmentDataRepoName
         );
 
         Settings.Builder settings = Settings.builder()
-            .put("node.attr." + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName)
-            .put(segmentRepoTypeAttributeKey, segmentRepoType)
-            .put(segmentRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
-            .put("node.attr." + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, translogRepoName)
+            .put("node.attr." + REMOTE_STORE_SEGMENT_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentDataRepoName)
+            .put(segmentDataRepoTypeAttributeKey, segmentDataRepoType)
+            .put(segmentDataRepoSettingsAttributeKeyPrefix + "location", segmentDataRepoPath)
+            .put("node.attr." + REMOTE_STORE_TRANSLOG_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY, translogRepoName)
             .put(translogRepoTypeAttributeKey, translogRepoType)
             .put(translogRepoSettingsAttributeKeyPrefix + "location", translogRepoPath)
-            .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName)
-            .put(stateRepoTypeAttributeKey, segmentRepoType)
-            .put(stateRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath);
+            .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentDataRepoName)
+            .put(stateRepoTypeAttributeKey, segmentDataRepoType)
+            .put(stateRepoSettingsAttributeKeyPrefix + "location", segmentDataRepoPath);
+
+        String segmentMetadataRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            segmentMetadataRepoName
+        );
+        String segmentMetadataRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            segmentMetadataRepoName
+        );
+        if (segmentMetadataRepoName != null && segmentMetadataRepoPath != null && segmentMetadataRepoType != null) {
+            Settings.builder()
+                .put("node.attr." + REMOTE_STORE_SEGMENT_METADATA_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentMetadataRepoName)
+                .put(segmentMetadataRepoTypeAttributeKey, segmentMetadataRepoType)
+                .put(segmentMetadataRepoSettingsAttributeKeyPrefix + "location", segmentMetadataRepoPath);
+        }
 
         if (withRateLimiterAttributes) {
-            settings.put(segmentRepoSettingsAttributeKeyPrefix + "compress", randomBoolean())
-                .put(segmentRepoSettingsAttributeKeyPrefix + "chunk_size", 200, ByteSizeUnit.BYTES);
+            settings.put(segmentDataRepoSettingsAttributeKeyPrefix + "compress", randomBoolean())
+                .put(segmentDataRepoSettingsAttributeKeyPrefix + "chunk_size", 200, ByteSizeUnit.BYTES);
         }
         settings.put(CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING.getKey(), randomFrom(PathType.values()));
         return settings.build();

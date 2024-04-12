@@ -34,7 +34,7 @@ public class IndexShardTestUtils {
 
     public static DiscoveryNode getFakeRemoteEnabledNode(String id) {
         Map<String, String> remoteNodeAttributes = new HashMap<String, String>();
-        remoteNodeAttributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "test-repo");
+        remoteNodeAttributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_DATA_REPOSITORY_NAME_ATTRIBUTE_KEY, "test-repo");
         return new DiscoveryNode(
             id,
             id,

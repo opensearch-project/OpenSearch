@@ -236,7 +236,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
                 return new RemoteBlobStoreInternalTranslogFactory(
                     repositoriesServiceReference::get,
                     threadPool,
-                    indexSettings.getRemoteStoreTranslogRepository(),
+                    indexSettings.getRemoteStoreTranslogDataRepository(),
                     new RemoteTranslogTransferTracker(shardRouting.shardId(), 10),
                     DefaultRemoteStoreSettings.INSTANCE
                 );

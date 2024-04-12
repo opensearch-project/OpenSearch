@@ -729,8 +729,9 @@ public final class IndexSettings {
     private final ReplicationType replicationType;
     private final boolean isRemoteStoreEnabled;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
-    private final String remoteStoreTranslogRepository;
-    private final String remoteStoreRepository;
+    private final String remoteStoreTranslogDataRepository;
+    private final String remoteSegmentStoreDataRepository;
+    private final String remoteSegmentStoreMetadataRepository;
     private final boolean isRemoteSnapshot;
     private int remoteTranslogKeepExtraGen;
     private Version extendedCompatibilitySnapshotVersion;
@@ -917,9 +918,10 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
-        remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
+        remoteStoreTranslogDataRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY);
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
-        remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY);
+        remoteSegmentStoreDataRepository = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY);
+        remoteSegmentStoreMetadataRepository = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_METADATA_REPOSITORY);
         this.remoteTranslogKeepExtraGen = INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING.get(settings);
         isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
 
@@ -1266,12 +1268,16 @@ public final class IndexSettings {
     /**
      * Returns if remote store is enabled for this index.
      */
-    public String getRemoteStoreRepository() {
-        return remoteStoreRepository;
+    public String getRemoteSegmentStoreDataRepository() {
+        return remoteSegmentStoreDataRepository;
     }
 
-    public String getRemoteStoreTranslogRepository() {
-        return remoteStoreTranslogRepository;
+    public String getRemoteSegmentStoreMetadataRepository() {
+        return remoteSegmentStoreMetadataRepository;
+    }
+
+    public String getRemoteStoreTranslogDataRepository() {
+        return remoteStoreTranslogDataRepository;
     }
 
     /**

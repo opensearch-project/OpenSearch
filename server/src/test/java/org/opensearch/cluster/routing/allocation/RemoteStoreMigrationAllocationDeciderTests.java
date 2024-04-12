@@ -64,9 +64,9 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -603,8 +603,8 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
         Settings.Builder builder = settings(Version.CURRENT);
         if (isRemoteStoreBackedIndex) {
             builder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-                .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, TEST_REPO)
-                .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, TEST_REPO)
+                .put(SETTING_REMOTE_SEGMENT_STORE_DATA_REPOSITORY, TEST_REPO)
+                .put(SETTING_REMOTE_TRANSLOG_STORE_DATA_REPOSITORY, TEST_REPO)
                 .put(SETTING_REMOTE_STORE_ENABLED, true);
         }
         return IndexMetadata.builder(TEST_INDEX).settings(builder).numberOfShards(shardCount).numberOfReplicas(replicaCount);
