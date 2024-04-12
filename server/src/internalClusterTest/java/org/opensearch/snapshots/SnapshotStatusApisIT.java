@@ -101,13 +101,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.version(), equalTo(Version.CURRENT));
 
-        final List<SnapshotStatus> snapshotStatus = clusterAdmin().snapshotsStatus(
-            new SnapshotsStatusRequest("test-repo", new String[] { "test-snap" })
-        ).actionGet().getSnapshots();
-        assertThat(snapshotStatus.size(), equalTo(1));
-        final SnapshotStatus snStatus = snapshotStatus.get(0);
-        assertEquals(snStatus.getStats().getStartTime(), snapshotInfo.startTime());
-        assertEquals(snStatus.getStats().getTime(), snapshotInfo.endTime() - snapshotInfo.startTime());
+        final SnapshotStatus snapshotStatus = getSnapshotStatus("test-repo", "test-snap");
+        assertEquals(snapshotStatus.getStats().getStartTime(), snapshotInfo.startTime());
+        assertEquals(snapshotStatus.getStats().getTime(), snapshotInfo.endTime() - snapshotInfo.startTime());
     }
 
     public void testStatusAPICallForShallowCopySnapshot() {
@@ -369,11 +365,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> stopping data node before creating snapshot");
         stopNode(dataNode);
         startFullSnapshot(repoName, snapshotName, true).get();
-        final List<SnapshotStatus> snapshotStatus = clusterAdmin().snapshotsStatus(
-            new SnapshotsStatusRequest(repoName, new String[] { snapshotName })
-        ).actionGet().getSnapshots();
-        assertThat(snapshotStatus.size(), equalTo(1));
-        assertEquals(SnapshotsInProgress.State.PARTIAL, snapshotStatus.get(0).getState());
+        final SnapshotStatus snapshotStatus = getSnapshotStatus(repoName, snapshotName);
+        assertEquals(SnapshotsInProgress.State.PARTIAL, snapshotStatus.getState());
     }
 
     public void testStatusAPICallInProgressShallowSnapshot() throws Exception {
