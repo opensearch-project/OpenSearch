@@ -277,7 +277,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
      * @param request cluster settings update request, for settings to be updated and new values
      * @param clusterState current state of cluster, for information on nodes
      */
-    public static void validateCompatibilityModeSettingRequest(ClusterUpdateSettingsRequest request, ClusterState clusterState) {
+    public void validateCompatibilityModeSettingRequest(ClusterUpdateSettingsRequest request, ClusterState clusterState) {
         Settings settings = Settings.builder().put(request.persistentSettings()).put(request.transientSettings()).build();
         if (RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.exists(settings)) {
             String value = settings.get(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey()).toLowerCase(Locale.ROOT);
@@ -293,7 +293,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
      * If not, it throws SettingsException error
      * @param discoveryNodes current discovery nodes in the cluster
      */
-    private static void validateAllNodesOfSameVersion(DiscoveryNodes discoveryNodes) {
+    private void validateAllNodesOfSameVersion(DiscoveryNodes discoveryNodes) {
         if (discoveryNodes.getMaxNodeVersion().equals(discoveryNodes.getMinNodeVersion()) == false) {
             throw new SettingsException("can not change the compatibility mode when all the nodes in cluster are not of the same version");
         }
@@ -304,7 +304,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
      * same type (all remote or all non-remote). If not, it throws SettingsException error
      * @param discoveryNodes current discovery nodes in the cluster
      */
-    private static void validateAllNodesOfSameType(DiscoveryNodes discoveryNodes) {
+    private void validateAllNodesOfSameType(DiscoveryNodes discoveryNodes) {
         Set<Boolean> nodeTypes = discoveryNodes.getNodes()
             .values()
             .stream()

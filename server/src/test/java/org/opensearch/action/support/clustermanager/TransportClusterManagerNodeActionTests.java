@@ -24,6 +24,7 @@ import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.EmptyClusterInfoService;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -35,6 +36,10 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
@@ -52,9 +57,11 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -67,10 +74,10 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Objects;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
@@ -744,10 +751,26 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         Metadata metadata = Metadata.builder().persistentSettings(currentCompatibilityModeSettings).build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).nodes(discoveryNodes).build();
+        AllocationService allocationService = new AllocationService(
+            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
+        TransportClusterUpdateSettingsAction transportClusterUpdateSettingsAction = new TransportClusterUpdateSettingsAction(
+            transportService,
+            clusterService,
+            threadPool,
+            allocationService,
+            new ActionFilters(Collections.emptySet()),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            clusterService.getClusterSettings()
+        );
 
         final SettingsException exception = expectThrows(
             SettingsException.class,
-            () -> TransportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, clusterState)
+            () -> transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, clusterState)
         );
         assertEquals(
             "can not switch to STRICT compatibility mode when the cluster contains both remote and non-remote nodes",
@@ -771,7 +794,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             .localNodeId(nonRemoteNode2.getId())
             .build();
         ClusterState sameTypeClusterState = ClusterState.builder(clusterState).nodes(discoveryNodes).build();
-        TransportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameTypeClusterState);
+        transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameTypeClusterState);
 
         // cluster with only non-remote nodes
         discoveryNodes = DiscoveryNodes.builder()
@@ -781,7 +804,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             .localNodeId(remoteNode2.getId())
             .build();
         sameTypeClusterState = ClusterState.builder(sameTypeClusterState).nodes(discoveryNodes).build();
-        TransportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameTypeClusterState);
+        transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameTypeClusterState);
     }
 
     public void testDontAllowSwitchingCompatibilityModeForClusterWithMultipleVersions() {
@@ -835,11 +858,27 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             .metadata(metadata)
             .nodes(discoveryNodes)
             .build();
+        AllocationService allocationService = new AllocationService(
+            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
+        TransportClusterUpdateSettingsAction transportClusterUpdateSettingsAction = new TransportClusterUpdateSettingsAction(
+            transportService,
+            clusterService,
+            threadPool,
+            allocationService,
+            new ActionFilters(Collections.emptySet()),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            clusterService.getClusterSettings()
+        );
 
         // changing compatibility mode when all nodes are not of the same version
         final SettingsException exception = expectThrows(
             SettingsException.class,
-            () -> TransportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, differentVersionClusterState)
+            () -> transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, differentVersionClusterState)
         );
         assertThat(
             exception.getMessage(),
@@ -862,7 +901,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             .build();
 
         ClusterState sameVersionClusterState = ClusterState.builder(differentVersionClusterState).nodes(discoveryNodes).build();
-        TransportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameVersionClusterState);
+        transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameVersionClusterState);
     }
 
     private Map<String, String> getRemoteStoreNodeAttributes() {

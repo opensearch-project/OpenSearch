@@ -16,9 +16,9 @@ import org.opensearch.common.settings.SettingsException;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.test.InternalTestCluster;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotState;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
@@ -143,21 +143,6 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationSh
         assertRemoteStoreBackedIndex(restoredIndexName2);
     }
 
-    // restore indices from a snapshot
-    private void restoreSnapshot(String snapshotRepoName, String snapshotName, String restoredIndexName) {
-        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
-            .cluster()
-            .prepareRestoreSnapshot(snapshotRepoName, snapshotName)
-            .setWaitForCompletion(false)
-            .setIndices(TEST_INDEX)
-            .setRenamePattern(TEST_INDEX)
-            .setRenameReplacement(restoredIndexName)
-            .get();
-
-        assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
-        ensureGreen(restoredIndexName);
-    }
-
     // compatibility mode setting test
 
     public void testSwitchToStrictMode() throws Exception {
@@ -187,6 +172,21 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationSh
 
         logger.info(" --> attempt switching to strict mode");
         setClusterMode(STRICT.mode);
+    }
+
+    // restore indices from a snapshot
+    private void restoreSnapshot(String snapshotRepoName, String snapshotName, String restoredIndexName) {
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName)
+            .setWaitForCompletion(false)
+            .setIndices(TEST_INDEX)
+            .setRenamePattern(TEST_INDEX)
+            .setRenameReplacement(restoredIndexName)
+            .get();
+
+        assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
+        ensureGreen(restoredIndexName);
     }
 
     // verify that the created index is not remote store backed
