@@ -102,6 +102,7 @@ import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -144,6 +145,7 @@ import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SET
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.isMigratingToRemoteStore;
 
 /**
@@ -1041,7 +1043,9 @@ public class MetadataCreateIndexService {
         Settings nodeSettings,
         String indexName
     ) {
-        if (isRemoteDataAttributePresent(nodeSettings) || isMigratingToRemoteStore(clusterSettings)) {
+        if ((isRemoteDataAttributePresent(nodeSettings)
+            && clusterSettings.get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING).equals(RemoteStoreNodeService.CompatibilityMode.STRICT))
+            || isMigratingToRemoteStore(clusterSettings)) {
             String segmentRepo, translogRepo;
 
             Optional<DiscoveryNode> remoteNode = clusterState.nodes()
