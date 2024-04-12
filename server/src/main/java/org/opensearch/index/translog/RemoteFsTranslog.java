@@ -36,11 +36,9 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -267,7 +265,7 @@ public class RemoteFsTranslog extends Translog {
                 if (isEmptyTranslog(checkpoint) == false) {
                     logger.debug("Translog files exist on local without any metadata in remote, cleaning up these files");
                     // Creating empty translog will cleanup the older un-referenced tranlog files, we don't have to explicitly delete
-                    createEmptyTranslog(translogTransferManager, location, checkpoint);
+                    Translog.createEmptyTranslog(location, translogTransferManager.getShardId(), checkpoint);
                 } else {
                     logger.debug("Empty translog on local, skipping clean-up");
                 }
@@ -281,27 +279,6 @@ public class RemoteFsTranslog extends Translog {
             && checkpoint.minSeqNo == SequenceNumbers.NO_OPS_PERFORMED
             && checkpoint.maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED
             && checkpoint.numOps == 0;
-    }
-
-    private static void createEmptyTranslog(TranslogTransferManager translogTransferManager, Path location, Checkpoint checkpoint)
-        throws IOException {
-        final Path highestGenTranslogFile = location.resolve(getFilename(checkpoint.generation));
-        final TranslogHeader translogHeader;
-        try (FileChannel channel = FileChannel.open(highestGenTranslogFile, StandardOpenOption.READ)) {
-            translogHeader = TranslogHeader.read(highestGenTranslogFile, channel);
-        }
-        final String translogUUID = translogHeader.getTranslogUUID();
-        final long primaryTerm = translogHeader.getPrimaryTerm();
-        final ChannelFactory channelFactory = FileChannel::open;
-        Translog.createEmptyTranslog(
-            location,
-            translogTransferManager.getShardId(),
-            SequenceNumbers.NO_OPS_PERFORMED,
-            primaryTerm,
-            translogUUID,
-            channelFactory,
-            checkpoint.generation + 1
-        );
     }
 
     public static TranslogTransferManager buildTranslogTransferManager(

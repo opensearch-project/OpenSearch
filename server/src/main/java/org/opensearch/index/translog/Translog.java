@@ -2015,6 +2015,26 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         return createEmptyTranslog(location, shardId, initialGlobalCheckpoint, primaryTerm, translogUUID, factory, 1);
     }
 
+    public static String createEmptyTranslog(final Path location, final ShardId shardId, Checkpoint checkpoint) throws IOException {
+        final Path highestGenTranslogFile = location.resolve(getFilename(checkpoint.generation));
+        final TranslogHeader translogHeader;
+        try (FileChannel channel = FileChannel.open(highestGenTranslogFile, StandardOpenOption.READ)) {
+            translogHeader = TranslogHeader.read(highestGenTranslogFile, channel);
+        }
+        final String translogUUID = translogHeader.getTranslogUUID();
+        final long primaryTerm = translogHeader.getPrimaryTerm();
+        final ChannelFactory channelFactory = FileChannel::open;
+        return Translog.createEmptyTranslog(
+            location,
+            shardId,
+            SequenceNumbers.NO_OPS_PERFORMED,
+            primaryTerm,
+            translogUUID,
+            channelFactory,
+            checkpoint.generation + 1
+        );
+    }
+
     public static String createEmptyTranslog(
         final Path location,
         final ShardId shardId,
