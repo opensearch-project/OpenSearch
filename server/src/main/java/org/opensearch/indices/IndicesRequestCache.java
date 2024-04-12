@@ -212,19 +212,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         Key key = notification.getKey();
         cacheEntityLookup.apply(key.shardId).ifPresent(entity -> entity.onRemoval(notification));
         CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId);
-        cacheCleanupManager.updateCleanupKeyCountOnKeyRemoval(cleanupKey, notification);
-    }
-
-    /**
-     * This method checks if the removal reason of the notification is not REPLACED.
-     * The reason of the notification is REPLACED when a cache entry's value is updated, since replacing an entry
-     * does not affect the staleness count, we skip such notifications.
-     *
-     * <p>If the removal reason is anything other than REPLACED, this will return true.
-     * If the removal reason is REPLACED, this will return false.
-     */
-    private boolean notificationAffectsStaleness(RemovalNotification<Key, BytesReference> notification) {
-        return notification.getRemovalReason() != RemovalReason.REPLACED;
+        cacheCleanupManager.updateStaleCountOnEntryRemoval(cleanupKey, notification);
     }
 
     BytesReference getOrCompute(
@@ -243,6 +231,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         final Key key = new Key(((IndexShard) cacheEntity.getCacheIdentity()).shardId(), cacheKey, readerCacheKeyId);
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = cache.computeIfAbsent(key, cacheLoader);
+        IndexShard indexShard = (IndexShard) cacheEntity.getCacheIdentity();
+        indexShard.refresh("test");
         if (cacheLoader.isLoaded()) {
             cacheEntity.onMiss();
             // see if it's the first time we see this reader, and make sure to register a cleanup key
@@ -253,10 +243,11 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                     OpenSearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
                 }
             }
-            cacheCleanupManager.updateCleanupKeyToCountMapOnCacheInsertion(cleanupKey);
+            cacheCleanupManager.updateStaleCountOnCacheInsert(cleanupKey);
         } else {
             cacheEntity.onHit();
         }
+
         return value;
     }
 
@@ -489,7 +480,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
          *
          * @param cleanupKey the CleanupKey to be updated in the map
          */
-        private void updateCleanupKeyToCountMapOnCacheInsertion(CleanupKey cleanupKey) {
+        private void updateStaleCountOnCacheInsert(CleanupKey cleanupKey) {
             if (stalenessThreshold == 0.0 || cleanupKey.entity == null) {
                 return;
             }
@@ -519,7 +510,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
          * @param cleanupKey   the CleanupKey that has been evicted from the cache
          * @param notification RemovalNotification of the cache entry evicted
          */
-        private void updateCleanupKeyCountOnKeyRemoval(CleanupKey cleanupKey, RemovalNotification<Key, BytesReference> notification) {
+        private void updateStaleCountOnEntryRemoval(CleanupKey cleanupKey, RemovalNotification<Key, BytesReference> notification) {
             if (cleanupKey.entity == null) {
                 /*
                  * on shard close, the shard is still lying around so this will only happen when the shard is deleted.
@@ -528,7 +519,11 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                 staleKeysCount.decrementAndGet();
                 return;
             }
-            if (!notificationAffectsStaleness(notification) || stalenessThreshold == 0.0) {
+            /*
+             * The reason of the notification is REPLACED when a cache entry's value is updated, since replacing an entry
+             * does not affect the staleness count, we skip such notifications.
+             * */
+            if (notification.getRemovalReason() == RemovalReason.REPLACED) {
                 return;
             }
             IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
