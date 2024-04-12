@@ -40,7 +40,6 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardSt
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.SnapshotsInProgress;
