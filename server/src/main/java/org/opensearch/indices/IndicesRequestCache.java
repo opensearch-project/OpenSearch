@@ -509,19 +509,15 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
          * @param notification RemovalNotification of the cache entry evicted
          */
         private void updateStaleCountOnEntryRemoval(CleanupKey cleanupKey, RemovalNotification<Key, BytesReference> notification) {
-            if (cleanupKey.entity == null) {
-                /*
-                 * on shard close, the shard is still lying around so this will only happen when the shard is deleted.
-                 * we would have accounted this in staleKeysCount when the deletion of shard would have closed the associated readers
-                 * */
-                staleKeysCount.decrementAndGet();
+            if (notification.getRemovalReason() == RemovalReason.REPLACED) {
+                // The reason of the notification is REPLACED when a cache entry's value is updated, since replacing an entry
+                // does not affect the staleness count, we skip such notifications.
                 return;
             }
-            /*
-             * The reason of the notification is REPLACED when a cache entry's value is updated, since replacing an entry
-             * does not affect the staleness count, we skip such notifications.
-             * */
-            if (notification.getRemovalReason() == RemovalReason.REPLACED) {
+            if (cleanupKey.entity == null) {
+                // on shard close, the shard is still lying around so this will only happen when the shard is deleted.
+                // we would have accounted this in staleKeysCount when the deletion of shard would have closed the associated readers
+                staleKeysCount.decrementAndGet();
                 return;
             }
             IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
