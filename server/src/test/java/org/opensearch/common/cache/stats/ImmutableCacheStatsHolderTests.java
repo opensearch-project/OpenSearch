@@ -26,12 +26,12 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
         for (List<String> dimensionValues : expected.keySet()) {
             CacheStats expectedCounter = expected.get(dimensionValues);
 
-            ImmutableCacheStats actualStatsHolder = CacheStatsHolderTests.getNode(dimensionValues, cacheStatsHolder.getStatsRoot())
+            ImmutableCacheStats actualCacheStatsHolder = CacheStatsHolderTests.getNode(dimensionValues, cacheStatsHolder.getStatsRoot())
                 .getImmutableStats();
-            ImmutableCacheStats actualCacheStats = getNode(dimensionValues, stats.getStatsRoot()).getStats();
+            ImmutableCacheStats actualImmutableCacheStatsHolder = getNode(dimensionValues, stats.getStatsRoot()).getStats();
 
-            assertEquals(expectedCounter.immutableSnapshot(), actualStatsHolder);
-            assertEquals(expectedCounter.immutableSnapshot(), actualCacheStats);
+            assertEquals(expectedCounter.immutableSnapshot(), actualCacheStatsHolder);
+            assertEquals(expectedCounter.immutableSnapshot(), actualImmutableCacheStatsHolder);
         }
 
         // test gets for total (this also checks sum-of-children logic)

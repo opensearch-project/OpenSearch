@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -156,28 +157,7 @@ public class CacheStatsHolder {
      * Produce an immutable version of these stats.
      */
     public ImmutableCacheStatsHolder getImmutableCacheStatsHolder() {
-        ImmutableCacheStatsHolder.Node snapshot = new ImmutableCacheStatsHolder.Node("", true, statsRoot.getImmutableStats());
-        // Traverse the tree and build a corresponding tree of MDCSDimensionNode, to pass to MultiDimensionCacheStats.
-        if (statsRoot.getChildren() != null) {
-            for (Node child : statsRoot.getChildren().values()) {
-                getImmutableCacheStatsHelper(child, snapshot);
-            }
-        }
-        return new ImmutableCacheStatsHolder(snapshot, dimensionNames);
-    }
-
-    private void getImmutableCacheStatsHelper(Node currentNodeInOriginalTree, ImmutableCacheStatsHolder.Node parentInNewTree) {
-        ImmutableCacheStatsHolder.Node newNode = createMatchingImmutableCacheStatsHolderNode(currentNodeInOriginalTree);
-        parentInNewTree.getChildren().put(newNode.getDimensionValue(), newNode);
-        for (Node child : currentNodeInOriginalTree.children.values()) {
-            getImmutableCacheStatsHelper(child, newNode);
-        }
-    }
-
-    private ImmutableCacheStatsHolder.Node createMatchingImmutableCacheStatsHolderNode(Node node) {
-        ImmutableCacheStats immutableCacheStats = node.getImmutableStats();
-        boolean isLeafNode = node.getChildren().isEmpty();
-        return new ImmutableCacheStatsHolder.Node(node.getDimensionValue(), !isLeafNode, immutableCacheStats);
+        return new ImmutableCacheStatsHolder(statsRoot.snapshot(), dimensionNames);
     }
 
     public void removeDimensions(List<String> dimensionValues) {
@@ -299,6 +279,17 @@ public class CacheStatsHolder {
 
         Node createChild(String dimensionValue, boolean createMapInChild) {
             return children.computeIfAbsent(dimensionValue, (key) -> new Node(dimensionValue, createMapInChild));
+        }
+
+        ImmutableCacheStatsHolder.Node snapshot() {
+            TreeMap<String, ImmutableCacheStatsHolder.Node> snapshotChildren = null;
+            if (!children.isEmpty()) {
+                snapshotChildren = new TreeMap<>();
+                for (Node child : children.values()) {
+                    snapshotChildren.put(child.getDimensionValue(), child.snapshot());
+                }
+            }
+            return new ImmutableCacheStatsHolder.Node(dimensionValue, snapshotChildren, getImmutableStats());
         }
     }
 }

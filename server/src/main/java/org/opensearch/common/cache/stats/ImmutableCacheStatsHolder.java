@@ -10,6 +10,7 @@ package org.opensearch.common.cache.stats;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,17 +76,17 @@ public class ImmutableCacheStatsHolder { // TODO: extends Writeable, ToXContent
 
         // The stats for this node. If a leaf node, corresponds to the stats for this combination of dimensions; if not,
         // contains the sum of its children's stats.
-        private ImmutableCacheStats stats;
+        private final ImmutableCacheStats stats;
         private static final Map<String, Node> EMPTY_CHILDREN_MAP = new HashMap<>();
 
-        Node(String dimensionValue, boolean createChildrenMap, ImmutableCacheStats stats) {
+        Node(String dimensionValue, TreeMap<String, Node> snapshotChildren, ImmutableCacheStats stats) {
             this.dimensionValue = dimensionValue;
-            if (createChildrenMap) {
-                this.children = new TreeMap<>(); // This map should be ordered to enforce a consistent order in API response
-            } else {
-                this.children = EMPTY_CHILDREN_MAP;
-            }
             this.stats = stats;
+            if (snapshotChildren == null) {
+                this.children = EMPTY_CHILDREN_MAP;
+            } else {
+                this.children = Collections.unmodifiableMap(snapshotChildren);
+            }
         }
 
         Map<String, Node> getChildren() {
@@ -94,10 +95,6 @@ public class ImmutableCacheStatsHolder { // TODO: extends Writeable, ToXContent
 
         public ImmutableCacheStats getStats() {
             return stats;
-        }
-
-        public void setStats(ImmutableCacheStats stats) {
-            this.stats = stats;
         }
 
         public String getDimensionValue() {
