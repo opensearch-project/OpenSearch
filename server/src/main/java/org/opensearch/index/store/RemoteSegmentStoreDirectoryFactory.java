@@ -113,7 +113,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
             // The path for lock is derived within the RemoteStoreLockManagerFactory
             RemoteStoreLockManager mdLockManager = RemoteStoreLockManagerFactory.newLockManager(
                 repositoriesService.get(),
-                dataRepositoryName,
+                metadataRepositoryName,
                 indexUUID,
                 shardIdStr,
                 pathStrategy
