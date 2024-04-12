@@ -663,7 +663,11 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 return Optional.empty();
             }
             return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }), new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(), threadPool, ClusterServiceUtils.createClusterService(threadPool));
+        }),
+            new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
+            threadPool,
+            ClusterServiceUtils.createClusterService(threadPool)
+        );
     }
 
     private Loader getLoader(DirectoryReader reader) {
