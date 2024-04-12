@@ -7,6 +7,6 @@
  */
 
 /**
- * Package for cancellation related abstracts
+ * Query Sandboxing related artifacts
  */
-package org.opensearch.search.sandbox.cancellation;
+package org.opensearch.search.resource_limit_group;
