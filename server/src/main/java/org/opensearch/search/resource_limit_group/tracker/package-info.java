@@ -7,7 +7,6 @@
  */
 
 /**
- * Guice Module
+ * ResourceLimitGroup resource tracking artifacts
  */
-
-package org.opensearch.search.sandbox.module;
+package org.opensearch.search.resource_limit_group.tracker;

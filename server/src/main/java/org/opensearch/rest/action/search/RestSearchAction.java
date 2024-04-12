@@ -223,6 +223,11 @@ public class RestSearchAction extends BaseRestHandler {
             );
         }
 
+        // As part of first phase in enforcing the resource limits on the groups of queries
+        if (request.hasParam("resource_limit_group_id")) {
+            searchRequest.resourceLimitGroupId(request.param("resource_limit_group_id"));
+        }
+
         searchRequest.setCancelAfterTimeInterval(request.paramAsTime("cancel_after_time_interval", null));
     }
 

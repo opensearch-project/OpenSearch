@@ -1104,6 +1104,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             concreteLocalIndices,
             localShardIterators.size() + remoteShardIterators.size()
         );
+
+        task.setResourceLimitGroupId(searchRequest.resourceLimitGroupId());
+
         searchAsyncActionProvider.asyncSearchAction(
             task,
             searchRequest,

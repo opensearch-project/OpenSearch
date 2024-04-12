@@ -6,12 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.sandbox.tracker;
+package org.opensearch.search.resource_limit_group.tracker;
 
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
-import org.opensearch.search.sandbox.SandboxPruner;
-import org.opensearch.search.sandbox.cancellation.SandboxRequestCanceller;
+import org.opensearch.search.resource_limit_group.ResourceLimitGroupPruner;
+import org.opensearch.search.resource_limit_group.cancellation.ResourceLimitGroupRequestCanceller;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.tasks.TaskManager;
@@ -24,14 +24,14 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /**
- * This class tracks requests per sandboxes
+ * This class tracks requests per resourceLimitGroups
  */
-public class SandboxResourceTrackerService
+public class ResourceLimitsGroupResourceUsageTrackerService
     implements
         TaskManager.TaskEventListeners,
-        SandboxResourceTracker,
-        SandboxRequestCanceller,
-    SandboxPruner {
+    ResourceLimitGroupResourceUsageTracker,
+    ResourceLimitGroupRequestCanceller,
+    ResourceLimitGroupPruner {
 
     private static final String CPU = "CPU";
     private static final String JVM_ALLOCATIONS = "JVM_Allocations";
@@ -39,10 +39,11 @@ public class SandboxResourceTrackerService
     private static final long totalAvailableJvmMemory = Runtime.getRuntime().totalMemory();
     private final LongSupplier timeNanosSupplier;
     /**
-     * Sandbox ids which are marked for deletion in between the @link SandboxService runs
+     * ResourceLimitGroup ids which are marked for deletion in between the
+     * {@link org.opensearch.search.resource_limit_group.ResourceLimitGroupService} runs
      */
-    private List<String> toDeleteSandboxes;
-    private List<Object> activeSandboxes;
+    private List<String> toDeleteResourceLimitGroups;
+    private List<Object> activeResourceLimitGroups;
     private final TaskManager taskManager;
     private final TaskResourceTrackingService taskResourceTrackingService;
 
@@ -52,18 +53,18 @@ public class SandboxResourceTrackerService
      * @param taskResourceTrackingService
      */
     @Inject
-    public SandboxResourceTrackerService(
+    public ResourceLimitsGroupResourceUsageTrackerService(
         TaskManager taskManager,
         TaskResourceTrackingService taskResourceTrackingService
     ) {
         this.taskManager = taskManager;
         this.taskResourceTrackingService = taskResourceTrackingService;
-        toDeleteSandboxes = Collections.synchronizedList(new ArrayList<>());
+        toDeleteResourceLimitGroups = Collections.synchronizedList(new ArrayList<>());
         this.timeNanosSupplier = System::nanoTime;
     }
 
     @Override
-    public void updateSandboxResourceUsages() {
+    public void updateResourceLimitGroupsResourceUsage() {
 
     }
 
@@ -114,8 +115,8 @@ public class SandboxResourceTrackerService
     /**
      * filter out the deleted sandboxes which still has unfi
      */
-    public void pruneSandboxes() {
-        toDeleteSandboxes = toDeleteSandboxes.stream().filter(this::hasUnfinishedTasks).collect(Collectors.toList());
+    public void pruneResourceLimitGroup() {
+        toDeleteResourceLimitGroups = toDeleteResourceLimitGroups.stream().filter(this::hasUnfinishedTasks).collect(Collectors.toList());
     }
 
     private boolean hasUnfinishedTasks(String sandboxId) {
@@ -146,15 +147,19 @@ public class SandboxResourceTrackerService
         }
     }
 
+    /**
+     *
+     * @return list of cancellable tasks
+     */
     private List<TaskCancellation> getCancellableTasks() {
-        // perform cancellations from enforced type sandboxes
+        // get cancellations from enforced type sandboxes
         List<String> inViolationSandboxes = getBreachingSandboxIds();
         List<TaskCancellation> cancellableTasks = new ArrayList<>();
         for (String sandboxId : inViolationSandboxes) {
             cancellableTasks.addAll(getCancellableTasksFrom(sandboxId));
         }
 
-        // perform cancellations from soft type sandboxes if the node is in duress (hitting node level cancellation
+        // get cancellations from soft type sandboxes if the node is in duress (hitting node level cancellation
         // threshold)
 
 
@@ -163,7 +168,7 @@ public class SandboxResourceTrackerService
 
     public void deleteSandbox(String sandboxId) {
         if (hasUnfinishedTasks(sandboxId)) {
-            toDeleteSandboxes.add(sandboxId);
+            toDeleteResourceLimitGroups.add(sandboxId);
         }
         // remove this sandbox from the active sandboxes
     }
