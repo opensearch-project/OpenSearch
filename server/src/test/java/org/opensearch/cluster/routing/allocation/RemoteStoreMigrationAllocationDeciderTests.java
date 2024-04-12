@@ -60,16 +60,16 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
-import static org.opensearch.cluster.coordination.JoinTaskExecutorTests.SEGMENT_REPO;
-import static org.opensearch.cluster.coordination.JoinTaskExecutorTests.TRANSLOG_REPO;
-import static org.opensearch.cluster.coordination.JoinTaskExecutorTests.remoteStoreNodeAttributes;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.hamcrest.core.Is.is;
@@ -659,16 +659,21 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
     }
 
     // get a dummy non-remote node
-    public static DiscoveryNode getNonRemoteNode() {
+    private DiscoveryNode getNonRemoteNode() {
         return new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
     }
 
     // get a dummy remote node
-    public static DiscoveryNode getRemoteNode() {
+    private DiscoveryNode getRemoteNode() {
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put(
+            REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            "REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_VALUE"
+        );
         return new DiscoveryNode(
             UUIDs.base64UUID(),
             buildNewFakeTransportAddress(),
-            remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO),
+            attributes,
             DiscoveryNodeRole.BUILT_IN_ROLES,
             Version.CURRENT
         );

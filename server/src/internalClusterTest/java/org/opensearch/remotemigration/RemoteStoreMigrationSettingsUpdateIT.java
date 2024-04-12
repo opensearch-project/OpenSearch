@@ -39,46 +39,46 @@ public class RemoteStoreMigrationSettingsUpdateIT extends ShardAllocationBaseTes
     // remote store backed index setting tests
 
     public void testNewIndexIsRemoteStoreBackedForRemoteStoreDirectionAndMixedMode() {
-        logger.info(" --> initialize cluster: gives non remote cluster manager");
+        logger.info("Initialize cluster: gives non remote cluster manager");
         initializeCluster(false);
 
         String indexName1 = "test_index_1";
         String indexName2 = "test_index_2";
 
-        logger.info(" --> add non-remote node");
+        logger.info("Add non-remote node");
         addRemote = false;
         String nonRemoteNodeName = internalCluster().startNode();
         internalCluster().validateClusterFormed();
         assertNodeInCluster(nonRemoteNodeName);
 
-        logger.info(" --> create an index");
+        logger.info("Create an index");
         prepareIndexWithoutReplica(Optional.of(indexName1));
 
-        logger.info(" --> verify that non remote-backed index is created");
+        logger.info("Verify that non remote-backed index is created");
         assertNonRemoteStoreBackedIndex(indexName1);
 
-        logger.info(" --> set mixed cluster compatibility mode and remote_store direction");
+        logger.info("Set mixed cluster compatibility mode and remote_store direction");
         setClusterMode(MIXED.mode);
         setDirection(REMOTE_STORE.direction);
 
-        logger.info(" --> add remote node");
+        logger.info("Add remote node");
         addRemote = true;
         String remoteNodeName = internalCluster().startNode();
         internalCluster().validateClusterFormed();
         assertNodeInCluster(remoteNodeName);
 
-        logger.info(" --> create another index");
+        logger.info("Create another index");
         prepareIndexWithoutReplica(Optional.of(indexName2));
 
-        logger.info(" --> verify that remote backed index is created");
+        logger.info("Verify that remote backed index is created");
         assertRemoteStoreBackedIndex(indexName2);
     }
 
     public void testNewRestoredIndexIsRemoteStoreBackedForRemoteStoreDirectionAndMixedMode() throws Exception {
-        logger.info(" --> initialize cluster: gives non remote cluster manager");
+        logger.info("Initialize cluster: gives non remote cluster manager");
         initializeCluster(false);
 
-        logger.info(" --> add remote and non-remote nodes");
+        logger.info("Add remote and non-remote nodes");
         setClusterMode(MIXED.mode);
         addRemote = false;
         String nonRemoteNodeName = internalCluster().startNode();
@@ -88,7 +88,7 @@ public class RemoteStoreMigrationSettingsUpdateIT extends ShardAllocationBaseTes
         assertNodeInCluster(nonRemoteNodeName);
         assertNodeInCluster(remoteNodeName);
 
-        logger.info(" --> create a non remote-backed index");
+        logger.info("Create a non remote-backed index");
         client.admin()
             .indices()
             .prepareCreate(TEST_INDEX)
@@ -97,10 +97,10 @@ public class RemoteStoreMigrationSettingsUpdateIT extends ShardAllocationBaseTes
             )
             .get();
 
-        logger.info(" --> verify that non remote stored backed index is created");
+        logger.info("Verify that non remote stored backed index is created");
         assertNonRemoteStoreBackedIndex(TEST_INDEX);
 
-        logger.info(" --> create repository");
+        logger.info("Create repository");
         String snapshotName = "test-snapshot";
         String snapshotRepoName = "test-restore-snapshot-repo";
         Path snapshotRepoNameAbsolutePath = randomRepoPath().toAbsolutePath();
@@ -110,7 +110,7 @@ public class RemoteStoreMigrationSettingsUpdateIT extends ShardAllocationBaseTes
                 .setSettings(Settings.builder().put("location", snapshotRepoNameAbsolutePath))
         );
 
-        logger.info(" --> create snapshot of non remote stored backed index");
+        logger.info("Create snapshot of non remote stored backed index");
 
         SnapshotInfo snapshotInfo = client().admin()
             .cluster()
@@ -124,19 +124,19 @@ public class RemoteStoreMigrationSettingsUpdateIT extends ShardAllocationBaseTes
         assertTrue(snapshotInfo.successfulShards() > 0);
         assertEquals(0, snapshotInfo.failedShards());
 
-        logger.info(" --> restore index from snapshot under NONE direction");
+        logger.info("Restore index from snapshot under NONE direction");
         String restoredIndexName1 = TEST_INDEX + "-restored1";
         restoreSnapshot(snapshotRepoName, snapshotName, restoredIndexName1);
 
-        logger.info(" --> verify that restored index is non remote-backed");
+        logger.info("Verify that restored index is non remote-backed");
         assertNonRemoteStoreBackedIndex(restoredIndexName1);
 
-        logger.info(" --> restore index from snapshot under REMOTE_STORE direction");
+        logger.info("Restore index from snapshot under REMOTE_STORE direction");
         setDirection(REMOTE_STORE.direction);
         String restoredIndexName2 = TEST_INDEX + "-restored2";
         restoreSnapshot(snapshotRepoName, snapshotName, restoredIndexName2);
 
-        logger.info(" --> verify that restored index is non remote-backed");
+        logger.info("Verify that restored index is non remote-backed");
         assertRemoteStoreBackedIndex(restoredIndexName2);
     }
 

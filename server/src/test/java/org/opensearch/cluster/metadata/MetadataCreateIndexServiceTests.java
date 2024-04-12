@@ -121,8 +121,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
-import static org.opensearch.cluster.coordination.JoinTaskExecutorTests.SEGMENT_REPO;
-import static org.opensearch.cluster.coordination.JoinTaskExecutorTests.TRANSLOG_REPO;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
@@ -141,8 +139,6 @@ import static org.opensearch.cluster.metadata.MetadataCreateIndexService.cluster
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.getIndexNumberOfRoutingShards;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.parseV1Mappings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
-import static org.opensearch.cluster.routing.allocation.RemoteStoreMigrationAllocationDeciderTests.getNonRemoteNode;
-import static org.opensearch.cluster.routing.allocation.RemoteStoreMigrationAllocationDeciderTests.getRemoteNode;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
@@ -1364,8 +1360,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .build();
         Settings settings = Settings.builder()
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
-            .put(segmentRepositoryNameAttributeKey, SEGMENT_REPO)
-            .put(translogRepositoryNameAttributeKey, TRANSLOG_REPO)
+            .put(segmentRepositoryNameAttributeKey, "my-segment-repo-1")
+            .put(translogRepositoryNameAttributeKey, "my-translog-repo-1")
             .build();
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
@@ -1385,8 +1381,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         verifyRemoteStoreIndexSettings(
             indexSettings,
             "true",
-            SEGMENT_REPO,
-            TRANSLOG_REPO,
+            "my-segment-repo-1",
+            "my-translog-repo-1",
             ReplicationType.SEGMENT.toString(),
             IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
         );
@@ -1397,8 +1393,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .nodes(DiscoveryNodes.builder().add(getRemoteNode()).build())
             .build();
         Settings settings = Settings.builder()
-            .put(segmentRepositoryNameAttributeKey, SEGMENT_REPO)
-            .put(translogRepositoryNameAttributeKey, TRANSLOG_REPO)
+            .put(segmentRepositoryNameAttributeKey, "my-segment-repo-1")
+            .put(translogRepositoryNameAttributeKey, "my-translog-repo-1")
             .build();
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
@@ -1417,8 +1413,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         verifyRemoteStoreIndexSettings(
             indexSettings,
             "true",
-            SEGMENT_REPO,
-            TRANSLOG_REPO,
+            "my-segment-repo-1",
+            "my-translog-repo-1",
             ReplicationType.SEGMENT.toString(),
             IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
         );
@@ -1430,8 +1426,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .build();
         Settings settings = Settings.builder()
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(segmentRepositoryNameAttributeKey, SEGMENT_REPO)
-            .put(translogRepositoryNameAttributeKey, TRANSLOG_REPO)
+            .put(segmentRepositoryNameAttributeKey, "my-segment-repo-1")
+            .put(translogRepositoryNameAttributeKey, "my-translog-repo-1")
             .build();
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         Settings indexSettings = aggregateIndexSettings(
@@ -1448,8 +1444,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         verifyRemoteStoreIndexSettings(
             indexSettings,
             "true",
-            SEGMENT_REPO,
-            TRANSLOG_REPO,
+            "my-segment-repo-1",
+            "my-translog-repo-1",
             ReplicationType.SEGMENT.toString(),
             IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
         );
@@ -1571,7 +1567,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         FeatureFlags.initializeFeatureFlags(Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build());
 
         // non-remote cluster manager node
-        DiscoveryNode nonRemoteClusterManagerNode = getNonRemoteNode();
+        DiscoveryNode nonRemoteClusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(nonRemoteClusterManagerNode)
@@ -1634,8 +1630,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         verifyRemoteStoreIndexSettings(
             indexSettings,
             "true",
-            SEGMENT_REPO,
-            TRANSLOG_REPO,
+            "my-segment-repo-1",
+            "my-translog-repo-1",
             ReplicationType.SEGMENT.toString(),
             IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
         );
@@ -2246,6 +2242,19 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals(remoteSegmentRepo, indexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
         assertEquals(remoteTranslogRepo, indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
         assertEquals(translogBufferInterval, INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings));
+    }
+
+    private DiscoveryNode getRemoteNode() {
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
+        attributes.put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
+        return new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            attributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
     }
 
     @After
