@@ -145,10 +145,7 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             assertThat(client2.getAccountUrl(), equalTo("https://myaccount2.blob.core.windows.net"));
 
             // Expect azure client 3 to fail due to invalid endpoint suffix
-            final RuntimeException e = expectThrows(
-                RuntimeException.class,
-                () -> azureStorageService.client("azure3").v1()
-            );
+            final RuntimeException e = expectThrows(RuntimeException.class, () -> azureStorageService.client("azure3").v1());
         }
     }
 
@@ -163,7 +160,10 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService;
             final Map<String, AzureStorageSettings> prevSettings = azureStorageService.refreshAndClearCache(Collections.emptyMap());
-            final Map<String, AzureStorageSettings> newSettings = AzureStorageSettings.overrideLocationMode(prevSettings, LocationMode.SECONDARY_ONLY);
+            final Map<String, AzureStorageSettings> newSettings = AzureStorageSettings.overrideLocationMode(
+                prevSettings,
+                LocationMode.SECONDARY_ONLY
+            );
             azureStorageService.refreshAndClearCache(newSettings);
             final BlobServiceClient client1 = azureStorageService.client("azure1").v1();
             assertThat(client1.getAccountUrl(), equalTo("https://myaccount1-secondary.blob.core.windows.net"));
