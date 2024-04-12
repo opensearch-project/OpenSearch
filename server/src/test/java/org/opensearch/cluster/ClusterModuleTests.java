@@ -76,7 +76,6 @@ import org.opensearch.test.gateway.TestShardBatchGatewayAllocator;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -293,8 +292,10 @@ public class ClusterModuleTests extends ModuleTestCase {
             null,
             threadContext
         );
-        expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator(),
-            new TestShardBatchGatewayAllocator()));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator(), new TestShardBatchGatewayAllocator())
+        );
     }
 
     public void testRejectsDuplicateExistingShardsAllocatorName() {
@@ -306,8 +307,10 @@ public class ClusterModuleTests extends ModuleTestCase {
             null,
             threadContext
         );
-        expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator(),
-            new TestShardBatchGatewayAllocator()));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator(), new TestShardBatchGatewayAllocator())
+        );
     }
 
     private static ClusterPlugin existingShardsAllocatorPlugin(final String allocatorName) {

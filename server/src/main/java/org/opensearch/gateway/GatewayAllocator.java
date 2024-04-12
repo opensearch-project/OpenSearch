@@ -83,7 +83,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     private final ConcurrentMap<
         ShardId,
         AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>> asyncFetchStarted = ConcurrentCollections
-        .newConcurrentMap();
+            .newConcurrentMap();
     private final ConcurrentMap<ShardId, AsyncShardFetch<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata>> asyncFetchStore =
         ConcurrentCollections.newConcurrentMap();
     private Set<String> lastSeenEphemeralIds = Collections.emptySet();

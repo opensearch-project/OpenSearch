@@ -255,9 +255,9 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
             for (String batchId : primaryBatches) {
                 if (shardRouting.primary() == true
                     && testShardsBatchGatewayAllocator.getBatchIdToStartedShardBatch()
-                    .get(batchId)
-                    .getBatchedShards()
-                    .contains(shardRouting.shardId())) {
+                        .get(batchId)
+                        .getBatchedShards()
+                        .contains(shardRouting.shardId())) {
                     if (shardIdToBatchIdForStartedShards.containsKey(shardRouting.shardId())) {
                         fail("found duplicate shard routing for shard. One shard cant be in multiple batches " + shardRouting.shardId());
                     }
@@ -272,9 +272,9 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
             for (String batchId : replicaBatches) {
                 if (shardRouting.primary() == false
                     && testShardsBatchGatewayAllocator.getBatchIdToStoreShardBatch()
-                    .get(batchId)
-                    .getBatchedShards()
-                    .contains(shardRouting.shardId())) {
+                        .get(batchId)
+                        .getBatchedShards()
+                        .contains(shardRouting.shardId())) {
                     if (shardIdToBatchIdForStoreShards.containsKey(shardRouting.shardId())) {
                         fail("found duplicate shard routing for shard. One shard cant be in multiple batches " + shardRouting.shardId());
                     }

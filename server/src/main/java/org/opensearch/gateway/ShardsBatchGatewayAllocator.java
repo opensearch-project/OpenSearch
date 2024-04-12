@@ -33,10 +33,13 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayStartedShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.store.ShardAttributes;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch;
+import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper;
+import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -48,10 +51,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentMap;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -110,9 +110,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     @Override
     public void cleanCaches() {
         Stream.of(batchIdToStartedShardBatch, batchIdToStoreShardBatch).forEach(b -> {
-            Releasables.close(
-                b.values().stream().map(shardsBatch -> shardsBatch.asyncBatch).collect(Collectors.toList())
-            );
+            Releasables.close(b.values().stream().map(shardsBatch -> shardsBatch.asyncBatch).collect(Collectors.toList()));
             b.clear();
         });
     }
@@ -227,9 +225,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         // get all batched shards
         Map<ShardId, String> currentBatchedShards = new HashMap<>();
         for (Map.Entry<String, ShardsBatch> batchEntry : currentBatches.entrySet()) {
-            batchEntry.getValue().getBatchedShards()
-                .forEach(shardId -> currentBatchedShards.put(shardId,
-                    batchEntry.getKey()));
+            batchEntry.getValue().getBatchedShards().forEach(shardId -> currentBatchedShards.put(shardId, batchEntry.getKey()));
         }
 
         Set<ShardRouting> newShardsToBatch = Sets.newHashSet();
@@ -447,23 +443,11 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
             AsyncShardFetch.Lister<? extends BaseNodesResponse<T>, T> action,
             String batchUUId,
             Class<V> clazz,
-            BiFunction<DiscoveryNode, Map<ShardId, V>, T> responseBuilder,
-            Function<T, Map<ShardId, V>> shardsBatchDataGetter,
-            Supplier<V> emptyResponseBuilder,
-            Consumer<ShardId> handleFailedShard
+            V emptyShardResponse,
+            Predicate<V> emptyShardResponsePredicate,
+            ShardBatchResponseFactory<T, V> responseFactory
         ) {
-            super(
-                logger,
-                type,
-                map,
-                action,
-                batchUUId,
-                clazz,
-                responseBuilder,
-                shardsBatchDataGetter,
-                emptyResponseBuilder,
-                handleFailedShard
-            );
+            super(logger, type, map, action, batchUUId, clazz, emptyShardResponse, emptyShardResponsePredicate, responseFactory);
         }
 
         @Override
@@ -622,11 +606,10 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                     shardIdsMap,
                     batchStartedAction,
                     batchId,
-                    TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard.class,
-                    TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch::new,
-                    TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch::getNodeGatewayStartedShardsBatch,
-                    () -> new TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard(null, false, null, null),
-                    this::removeShard
+                    GatewayStartedShard.class,
+                    new GatewayStartedShard(null, false, null, null),
+                    GatewayStartedShard::isEmpty,
+                    new ShardBatchResponseFactory<>(true)
                 );
             } else {
                 asyncBatch = new InternalBatchAsyncFetch<>(
@@ -635,11 +618,10 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                     shardIdsMap,
                     batchStoreAction,
                     batchId,
-                    TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata.class,
-                    TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch::new,
-                    TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch::getNodeStoreFilesMetadataBatch,
-                    this::buildEmptyReplicaShardResponse,
-                    this::removeShard
+                    NodeStoreFilesMetadata.class,
+                    new NodeStoreFilesMetadata(new StoreFilesMetadata(null, Store.MetadataSnapshot.EMPTY, Collections.emptyList()), null),
+                    NodeStoreFilesMetadata::isEmpty,
+                    new ShardBatchResponseFactory<>(false)
                 );
             }
         }

@@ -18,6 +18,7 @@ import org.opensearch.gateway.AsyncShardFetch;
 import org.opensearch.gateway.PrimaryShardBatchAllocator;
 import org.opensearch.gateway.ReplicaShardBatchAllocator;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
+import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShardsBatch;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch;
@@ -46,15 +47,15 @@ public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator 
             for (Map.Entry<String, Map<ShardId, ShardRouting>> entry : knownAllocations.entrySet()) {
                 String nodeId = entry.getKey();
                 Map<ShardId, ShardRouting> shardsOnNode = entry.getValue();
-                HashMap<ShardId, TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard> adaptedResponse = new HashMap<>();
+                HashMap<ShardId, TransportNodesGatewayStartedShardHelper.GatewayStartedShard> adaptedResponse = new HashMap<>();
 
                 for (ShardRouting shardRouting : eligibleShards) {
                     ShardId shardId = shardRouting.shardId();
                     Set<String> ignoreNodes = allocation.getIgnoreNodes(shardId);
 
                     if (shardsOnNode.containsKey(shardId) && ignoreNodes.contains(nodeId) == false && currentNodes.nodeExists(nodeId)) {
-                        TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard nodeShard =
-                            new TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard(
+                        TransportNodesGatewayStartedShardHelper.GatewayStartedShard nodeShard =
+                            new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(
                                 shardsOnNode.get(shardId).allocationId().getId(),
                                 shardsOnNode.get(shardId).primary(),
                                 getReplicationCheckpoint(shardId, nodeId)

@@ -799,7 +799,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         ensureGreen("test");
         assertEquals(0, gatewayAllocator.getNumberOfStartedShardBatches());
         assertEquals(0, gatewayAllocator.getNumberOfStoreShardBatches());
-        assertEquals(0,gatewayAllocator.getNumberOfInFlightFetches());
+        assertEquals(0, gatewayAllocator.getNumberOfInFlightFetches());
     }
 
     public void testBatchModeDisabled() throws Exception {
