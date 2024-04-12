@@ -45,6 +45,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.regex.Regex;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.ParsingException;
@@ -77,6 +78,7 @@ import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -118,6 +120,8 @@ public class QueryShardContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private BitSetProducer parentFilter;
+
+    private Map<String, MappedFieldType> derivedFieldTypeMap = new HashMap<>();
 
     public QueryShardContext(
         int shardId,
@@ -329,7 +333,17 @@ public class QueryShardContext extends QueryRewriteContext {
      * type then the fields will be returned with a type prefix.
      */
     public Set<String> simpleMatchToIndexNames(String pattern) {
-        return mapperService.simpleMatchToFullName(pattern);
+        Set<String> matchingFields = mapperService.simpleMatchToFullName(pattern);
+        if (derivedFieldTypeMap != null && !derivedFieldTypeMap.isEmpty()) {
+            Set<String> matchingDerivedFields = new HashSet<>(matchingFields);
+            for (String fieldName : derivedFieldTypeMap.keySet()) {
+                if (!matchingDerivedFields.contains(fieldName) && Regex.simpleMatch(pattern, fieldName)) {
+                    matchingDerivedFields.add(fieldName);
+                }
+            }
+            return matchingDerivedFields;
+        }
+        return matchingFields;
     }
 
     /**
@@ -395,6 +409,14 @@ public class QueryShardContext extends QueryRewriteContext {
         return valuesSourceRegistry;
     }
 
+    public void setDerivedFieldTypes(Map<String, MappedFieldType> derivedFieldTypeMap) {
+        this.derivedFieldTypeMap = derivedFieldTypeMap;
+    }
+
+    public MappedFieldType getDerivedFieldType(String fieldName) {
+        return derivedFieldTypeMap == null ? null : derivedFieldTypeMap.get(fieldName);
+    }
+
     public void setAllowUnmappedFields(boolean allowUnmappedFields) {
         this.allowUnmappedFields = allowUnmappedFields;
     }
@@ -404,7 +426,11 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
-        if (fieldMapping != null || allowUnmappedFields) {
+        if (fieldMapping != null) {
+            return fieldMapping;
+        } else if (getDerivedFieldType(name) != null) {
+            return getDerivedFieldType(name);
+        } else if (allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, mapperService.getIndexAnalyzers());
