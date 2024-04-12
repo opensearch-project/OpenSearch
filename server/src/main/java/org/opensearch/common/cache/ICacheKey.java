@@ -57,7 +57,16 @@ public class ICacheKey<K> {
             return false;
         }
         ICacheKey other = (ICacheKey) o;
-        return key.equals(other.key) && dimensions.equals(other.dimensions);
+        if (!dimensions.equals(other.dimensions)) {
+            return false;
+        }
+        if (this.key == null && other.key == null) {
+            return true;
+        }
+        if (this.key == null || other.key == null) {
+            return false;
+        }
+        return this.key.equals(other.key);
     }
 
     @Override

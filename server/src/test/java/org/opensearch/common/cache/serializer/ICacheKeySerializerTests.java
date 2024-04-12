@@ -70,8 +70,17 @@ public class ICacheKeySerializerTests extends OpenSearchTestCase {
         ICacheKey<String> key1 = new ICacheKey<>("key", List.of("dimension_value"));
         ICacheKey<String> key2 = new ICacheKey<>("key", List.of("dimension_value"));
 
+        ICacheKey<String> key3 = new ICacheKey<>(null, List.of("dimension_value"));
+        ICacheKey<String> key4 = new ICacheKey<>(null, List.of("dimension_value"));
+
         assertEquals(key1, key2);
         assertEquals(key1.hashCode(), key2.hashCode());
+
+        assertEquals(key3, key4);
+        assertEquals(key3.hashCode(), key4.hashCode());
+
+        assertNotEquals(key1, key3);
+        assertNotEquals("string", key3);
     }
 
     public void testNullInputs() throws Exception {
