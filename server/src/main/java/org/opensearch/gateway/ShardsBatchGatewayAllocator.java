@@ -251,7 +251,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
             }
         });
 
-        refreshShardBatches(currentBatches, batchedShardsToAssign);
+        refreshShardBatches(currentBatches, batchedShardsToAssign, primary);
 
         Iterator<ShardRouting> iterator = newShardsToBatch.iterator();
         assert maxBatchSize > 0 : "Shards batch size must be greater than 0";
@@ -283,7 +283,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         return batchesToBeAssigned;
     }
 
-    private void refreshShardBatches(ConcurrentMap<String, ShardsBatch> currentBatches, Set<ShardId> batchedShardsToAssign) {
+    private void refreshShardBatches(ConcurrentMap<String, ShardsBatch> currentBatches, Set<ShardId> batchedShardsToAssign, boolean primary) {
         // cleanup shard from batches if they are not present in unassigned list from allocation object. This is
         // needed as AllocationService.reroute can also be called directly by API flows for example DeleteIndices.
         // So, as part of calling reroute, those shards will be removed from allocation object. It'll handle the
@@ -297,6 +297,8 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                     batchEntry.getValue().clearShardFromCache(shardId);
                 }
             }
+            ConcurrentMap<String, ShardsBatch> batches = primary ? batchIdToStartedShardBatch : batchIdToStoreShardBatch;
+            deleteBatchIfEmpty(batches, batchEntry.getValue().getBatchId());
         }
     }
 
