@@ -11,25 +11,20 @@ package org.opensearch.remotemigration;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.indices.shrink.ResizeType;
 import org.opensearch.action.support.ActiveShardCount;
-import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
-
-import java.util.List;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ResizeIndexMigrationTestCase extends MigrationBaseTestCase {
     private static final String TEST_INDEX = "test_index";
     private final static String REMOTE_STORE_DIRECTION = "remote_store";
     private final static String DOC_REP_DIRECTION = "docrep";
-    private final static String NONE_DIRECTION = "none";
-    private final static String STRICT_MODE = "strict";
     private final static String MIXED_MODE = "mixed";
 
     /*
@@ -37,38 +32,43 @@ public class ResizeIndexMigrationTestCase extends MigrationBaseTestCase {
     * and index is on DocRep node, and migration to remote store is in progress.
     * */
     public void testFailResizeIndexWhileDocRepToRemoteStoreMigration() throws Exception {
-
-        internalCluster().setBootstrapClusterManagerNodeIndex(0);
-        List<String> cmNodes = internalCluster().startNodes(1);
-        Client client = internalCluster().client(cmNodes.get(0));
-        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), MIXED_MODE));
-        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
-
-        // Adding a non remote and a remote node
         addRemote = false;
-        String nonRemoteNodeName = internalCluster().startNode();
+        // create a docrep cluster
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().validateClusterFormed();
 
-        addRemote = true;
-        String remoteNodeName = internalCluster().startNode();
+        // add a non-remote node
+        String nonRemoteNodeName = internalCluster().startDataOnlyNode();
+        internalCluster().validateClusterFormed();
 
         logger.info("-->Create index on non-remote node and SETTING_REMOTE_STORE_ENABLED is false. Resize should not happen");
         Settings.Builder builder = Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
-        client.admin()
+        internalCluster().client()
+            .admin()
             .indices()
             .prepareCreate(TEST_INDEX)
             .setSettings(
                 builder.put("index.number_of_shards", 10)
                     .put("index.number_of_replicas", 0)
                     .put("index.routing.allocation.include._name", nonRemoteNodeName)
-                    .put("index.routing.allocation.exclude._name", remoteNodeName)
             )
             .setWaitForActiveShards(ActiveShardCount.ALL)
             .execute()
             .actionGet();
 
+        // set mixed mode
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), MIXED_MODE));
+        assertAcked(internalCluster().client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        // add a remote node
+        addRemote = true;
+        String remoteNodeName = internalCluster().startDataOnlyNode();
+        internalCluster().validateClusterFormed();
+
+        // set remote store migration direction
         updateSettingsRequest.persistentSettings(Settings.builder().put(MIGRATION_DIRECTION_SETTING.getKey(), REMOTE_STORE_DIRECTION));
-        assertAcked(client.admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        assertAcked(internalCluster().client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         ResizeType resizeType;
         int resizeShardsNum;
@@ -90,7 +90,8 @@ public class ResizeIndexMigrationTestCase extends MigrationBaseTestCase {
                 cause = "clone_index";
         }
 
-        client.admin()
+        internalCluster().client()
+            .admin()
             .indices()
             .prepareUpdateSettings(TEST_INDEX)
             .setSettings(Settings.builder().put("index.blocks.write", true))
@@ -106,7 +107,8 @@ public class ResizeIndexMigrationTestCase extends MigrationBaseTestCase {
 
         IllegalStateException ex = expectThrows(
             IllegalStateException.class,
-            () -> client().admin()
+            () -> internalCluster().client()
+                .admin()
                 .indices()
                 .prepareResizeIndex(TEST_INDEX, "first_split")
                 .setResizeType(resizeType)
@@ -124,38 +126,43 @@ public class ResizeIndexMigrationTestCase extends MigrationBaseTestCase {
      * and index is on Remote Store node, and migration to DocRep node is in progress.
      * */
     public void testFailResizeIndexWhileRemoteStoreToDocRepMigration() throws Exception {
-
+        // creates a remote cluster
         addRemote = true;
-        internalCluster().setBootstrapClusterManagerNodeIndex(0);
-        List<String> cmNodes = internalCluster().startNodes(1);
-        Client client = internalCluster().client(cmNodes.get(0));
-        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), MIXED_MODE));
-        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().validateClusterFormed();
 
-        // Adding a non remote and a remote node
-        String remoteNodeName = internalCluster().startNode();
+        // add a remote node
+        String remoteNodeName = internalCluster().startDataOnlyNode();
+        internalCluster().validateClusterFormed();
 
-        addRemote = false;
-        String nonRemoteNodeName = internalCluster().startNode();
-
-        logger.info("-->Create index on remote node and SETTING_REMOTE_STORE_ENABLED is true. Resize should not happen");
+        logger.info("--> Create index on remote node and SETTING_REMOTE_STORE_ENABLED is true. Resize should not happen");
         Settings.Builder builder = Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
-        client.admin()
+        internalCluster().client()
+            .admin()
             .indices()
             .prepareCreate(TEST_INDEX)
             .setSettings(
                 builder.put("index.number_of_shards", 10)
                     .put("index.number_of_replicas", 0)
                     .put("index.routing.allocation.include._name", remoteNodeName)
-                    .put("index.routing.allocation.exclude._name", nonRemoteNodeName)
             )
             .setWaitForActiveShards(ActiveShardCount.ALL)
             .execute()
             .actionGet();
 
+        // set mixed mode
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), MIXED_MODE));
+        assertAcked(internalCluster().client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        // add a non-remote node
+        addRemote = false;
+        String nonRemoteNodeName = internalCluster().startDataOnlyNode();
+        internalCluster().validateClusterFormed();
+
+        // set docrep migration direction
         updateSettingsRequest.persistentSettings(Settings.builder().put(MIGRATION_DIRECTION_SETTING.getKey(), DOC_REP_DIRECTION));
-        assertAcked(client.admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        assertAcked(internalCluster().client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         ResizeType resizeType;
         int resizeShardsNum;
@@ -177,7 +184,8 @@ public class ResizeIndexMigrationTestCase extends MigrationBaseTestCase {
                 cause = "clone_index";
         }
 
-        client.admin()
+        internalCluster().client()
+            .admin()
             .indices()
             .prepareUpdateSettings(TEST_INDEX)
             .setSettings(Settings.builder().put("index.blocks.write", true))
@@ -193,7 +201,8 @@ public class ResizeIndexMigrationTestCase extends MigrationBaseTestCase {
 
         IllegalStateException ex = expectThrows(
             IllegalStateException.class,
-            () -> client().admin()
+            () -> internalCluster().client()
+                .admin()
                 .indices()
                 .prepareResizeIndex(TEST_INDEX, "first_split")
                 .setResizeType(resizeType)
