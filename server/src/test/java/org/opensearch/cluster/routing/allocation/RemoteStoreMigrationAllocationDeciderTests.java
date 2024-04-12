@@ -664,7 +664,7 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
     }
 
     // get a dummy remote node
-    public DiscoveryNode getRemoteNode() {
+    private DiscoveryNode getRemoteNode() {
         Map<String, String> attributes = new HashMap<>();
         attributes.put(
             REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,

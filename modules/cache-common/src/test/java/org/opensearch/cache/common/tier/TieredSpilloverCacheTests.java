@@ -19,14 +19,17 @@ import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
 import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -38,9 +41,19 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
 import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES_KEY;
 
 public class TieredSpilloverCacheTests extends OpenSearchTestCase {
+
+    private ClusterSettings clusterSettings;
+
+    @Before
+    public void setup() {
+        Settings settings = Settings.EMPTY;
+        clusterSettings = new ClusterSettings(settings, new HashSet<>());
+        clusterSettings.registerSetting(TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE));
+    }
 
     public void testComputeIfAbsentWithoutAnyOnHeapCacheEviction() throws Exception {
         int onHeapCacheSize = randomIntBetween(10, 30);
@@ -134,6 +147,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setSettings(settings)
                 .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(20_000_000L)) // Values will always appear to have taken
                                                                                              // 20_000_000 ns = 20 ms to compute
+                .setClusterSettings(clusterSettings)
                 .build(),
             CacheType.INDICES_REQUEST_CACHE,
             Map.of(
@@ -959,9 +973,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 onHeapCacheSize * keyValueSize + "b"
             )
             .put(
-                TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD.getConcreteSettingForNamespace(
-                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
-                ).getKey(),
+                TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
                 new TimeValue(timeValueThresholdNanos / 1_000_000)
             )
             .build();
@@ -979,6 +991,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                         return new CachedQueryResult.PolicyValues(tookTimeMap.get(s));
                     }
                 })
+                .setClusterSettings(clusterSettings)
                 .build(),
             CacheType.INDICES_REQUEST_CACHE,
             Map.of(
@@ -1024,8 +1037,9 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
     public void testMinimumThresholdSettingValue() throws Exception {
         // Confirm we can't set TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD to below
         // TimeValue.ZERO (for example, MINUS_ONE)
-        Setting<TimeValue> concreteSetting = TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD
-            .getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix());
+        Setting<TimeValue> concreteSetting = TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(
+            CacheType.INDICES_REQUEST_CACHE
+        );
         TimeValue validDuration = new TimeValue(0, TimeUnit.MILLISECONDS);
         Settings validSettings = Settings.builder().put(concreteSetting.getKey(), validDuration).build();
 
