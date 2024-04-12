@@ -231,8 +231,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         final Key key = new Key(((IndexShard) cacheEntity.getCacheIdentity()).shardId(), cacheKey, readerCacheKeyId);
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = cache.computeIfAbsent(key, cacheLoader);
-        IndexShard indexShard = (IndexShard) cacheEntity.getCacheIdentity();
-        indexShard.refresh("test");
         if (cacheLoader.isLoaded()) {
             cacheEntity.onMiss();
             // see if it's the first time we see this reader, and make sure to register a cleanup key
