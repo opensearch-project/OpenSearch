@@ -54,14 +54,14 @@ public class CacheStats {
         internalAdd(other.getHits(), other.getMisses(), other.getEvictions(), other.getSizeInBytes(), other.getEntries());
     }
 
-    public void add(CacheStatsSnapshot snapshot) {
+    public void add(ImmutableCacheStats snapshot) {
         if (snapshot == null) {
             return;
         }
         internalAdd(snapshot.getHits(), snapshot.getMisses(), snapshot.getEvictions(), snapshot.getSizeInBytes(), snapshot.getEntries());
     }
 
-    public void subtract(CacheStatsSnapshot other) {
+    public void subtract(ImmutableCacheStats other) {
         if (other == null) {
             return;
         }
@@ -126,7 +126,7 @@ public class CacheStats {
         entries = new CounterMetric();
     }
 
-    public CacheStatsSnapshot snapshot() {
-        return new CacheStatsSnapshot(hits.count(), misses.count(), evictions.count(), sizeInBytes.count(), entries.count());
+    public ImmutableCacheStats immutableSnapshot() {
+        return new ImmutableCacheStats(hits.count(), misses.count(), evictions.count(), sizeInBytes.count(), entries.count());
     }
 }

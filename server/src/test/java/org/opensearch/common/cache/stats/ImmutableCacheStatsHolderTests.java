@@ -26,12 +26,12 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
         for (List<String> dimensionValues : expected.keySet()) {
             CacheStats expectedCounter = expected.get(dimensionValues);
 
-            CacheStatsSnapshot actualStatsHolder = CacheStatsHolderTests.getNode(dimensionValues, cacheStatsHolder.getStatsRoot())
-                .getStatsSnapshot();
-            CacheStatsSnapshot actualCacheStats = getNode(dimensionValues, stats.getStatsRoot()).getStats();
+            ImmutableCacheStats actualStatsHolder = CacheStatsHolderTests.getNode(dimensionValues, cacheStatsHolder.getStatsRoot())
+                .getImmutableStats();
+            ImmutableCacheStats actualCacheStats = getNode(dimensionValues, stats.getStatsRoot()).getStats();
 
-            assertEquals(expectedCounter.snapshot(), actualStatsHolder);
-            assertEquals(expectedCounter.snapshot(), actualCacheStats);
+            assertEquals(expectedCounter.immutableSnapshot(), actualStatsHolder);
+            assertEquals(expectedCounter.immutableSnapshot(), actualCacheStats);
         }
 
         // test gets for total (this also checks sum-of-children logic)
@@ -39,7 +39,7 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
         for (List<String> dims : expected.keySet()) {
             expectedTotal.add(expected.get(dims));
         }
-        assertEquals(expectedTotal.snapshot(), stats.getTotalStats());
+        assertEquals(expectedTotal.immutableSnapshot(), stats.getTotalStats());
 
         assertEquals(expectedTotal.getHits(), stats.getTotalHits());
         assertEquals(expectedTotal.getMisses(), stats.getTotalMisses());
@@ -79,7 +79,7 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
             for (ImmutableCacheStatsHolder.Node child : current.children.values()) {
                 expectedTotal.add(child.getStats());
             }
-            assertEquals(expectedTotal.snapshot(), current.getStats());
+            assertEquals(expectedTotal.immutableSnapshot(), current.getStats());
             for (ImmutableCacheStatsHolder.Node child : current.children.values()) {
                 assertSumOfChildrenStats(child);
             }

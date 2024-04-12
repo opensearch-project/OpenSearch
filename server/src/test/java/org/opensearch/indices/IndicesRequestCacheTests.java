@@ -52,7 +52,7 @@ import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.module.CacheModule;
 import org.opensearch.common.cache.service.CacheService;
-import org.opensearch.common.cache.stats.CacheStatsSnapshot;
+import org.opensearch.common.cache.stats.ImmutableCacheStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
@@ -804,9 +804,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         }
         ThreadPool threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.001%").build();
-        IndicesRequestCache cache = new IndicesRequestCache(
-            settings,
-            (shardId -> {
+        IndicesRequestCache cache = new IndicesRequestCache(settings, (shardId -> {
             IndexService indexService = null;
             try {
                 indexService = indicesService.indexServiceSafe(shardId.getIndex());
@@ -818,7 +816,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             } catch (ShardNotFoundException ex) {
                 return Optional.empty();
             }
-            }),
+        }),
             new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
             threadPool,
             ClusterServiceUtils.createClusterService(threadPool)
@@ -862,7 +860,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 ShardId shardId = indexService.getShard(i).shardId();
                 List<String> dimensionValues = List.of(shardId.getIndexName(), shardId.toString());
                 initialDimensionValues.add(dimensionValues);
-                CacheStatsSnapshot snapshot = cache.stats().getStatsForDimensionValues(dimensionValues);
+                ImmutableCacheStats snapshot = cache.stats().getStatsForDimensionValues(dimensionValues);
                 assertNotNull(snapshot);
                 // check the values are not empty by confirming entries != 0, this should always be true since the missed value is loaded
                 // into the cache
@@ -883,7 +881,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
         // Now stats for the closed index should be gone
         for (List<String> dimensionValues : initialDimensionValues) {
-            CacheStatsSnapshot snapshot = cache.stats().getStatsForDimensionValues(dimensionValues);
+            ImmutableCacheStats snapshot = cache.stats().getStatsForDimensionValues(dimensionValues);
             if (dimensionValues.get(0).equals(indexToCloseName)) {
                 assertNull(snapshot);
             } else {

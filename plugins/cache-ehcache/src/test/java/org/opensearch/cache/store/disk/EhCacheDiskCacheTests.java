@@ -20,7 +20,7 @@ import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.serializer.BytesReferenceSerializer;
 import org.opensearch.common.cache.serializer.Serializer;
-import org.opensearch.common.cache.stats.CacheStatsSnapshot;
+import org.opensearch.common.cache.stats.ImmutableCacheStats;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Settings;
@@ -828,7 +828,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
             ICacheKey<String> keyToDrop = keysAdded.get(0);
 
-            CacheStatsSnapshot snapshot = ehCacheDiskCachingTier.stats().getStatsForDimensionValues(keyToDrop.dimensions);
+            ImmutableCacheStats snapshot = ehCacheDiskCachingTier.stats().getStatsForDimensionValues(keyToDrop.dimensions);
             assertNotNull(snapshot);
 
             keyToDrop.setDropStatsForDimensions(true);

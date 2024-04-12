@@ -22,14 +22,14 @@ import java.util.Objects;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CacheStatsSnapshot implements Writeable { // TODO: Make this extend ToXContent (in API PR)
+public class ImmutableCacheStats implements Writeable { // TODO: Make this extend ToXContent (in API PR)
     private final long hits;
     private final long misses;
     private final long evictions;
     private final long sizeInBytes;
     private final long entries;
 
-    public CacheStatsSnapshot(long hits, long misses, long evictions, long sizeInBytes, long entries) {
+    public ImmutableCacheStats(long hits, long misses, long evictions, long sizeInBytes, long entries) {
         this.hits = hits;
         this.misses = misses;
         this.evictions = evictions;
@@ -37,12 +37,12 @@ public class CacheStatsSnapshot implements Writeable { // TODO: Make this extend
         this.entries = entries;
     }
 
-    public CacheStatsSnapshot(StreamInput in) throws IOException {
+    public ImmutableCacheStats(StreamInput in) throws IOException {
         this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
     }
 
-    public static CacheStatsSnapshot addSnapshots(CacheStatsSnapshot s1, CacheStatsSnapshot s2) {
-        return new CacheStatsSnapshot(
+    public static ImmutableCacheStats addSnapshots(ImmutableCacheStats s1, ImmutableCacheStats s2) {
+        return new ImmutableCacheStats(
             s1.hits + s2.hits,
             s1.misses + s2.misses,
             s1.evictions + s2.evictions,
@@ -85,10 +85,10 @@ public class CacheStatsSnapshot implements Writeable { // TODO: Make this extend
         if (o == null) {
             return false;
         }
-        if (o.getClass() != CacheStatsSnapshot.class) {
+        if (o.getClass() != ImmutableCacheStats.class) {
             return false;
         }
-        CacheStatsSnapshot other = (CacheStatsSnapshot) o;
+        ImmutableCacheStats other = (ImmutableCacheStats) o;
         return (hits == other.hits)
             && (misses == other.misses)
             && (evictions == other.evictions)

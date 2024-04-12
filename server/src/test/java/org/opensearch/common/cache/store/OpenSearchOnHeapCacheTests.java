@@ -15,7 +15,7 @@ import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
-import org.opensearch.common.cache.stats.CacheStatsSnapshot;
+import org.opensearch.common.cache.stats.ImmutableCacheStats;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
 import org.opensearch.common.metrics.CounterMetric;
@@ -114,7 +114,7 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
 
         ICacheKey<String> keyToDrop = keysAdded.get(0);
 
-        CacheStatsSnapshot snapshot = cache.stats().getStatsForDimensionValues(keyToDrop.dimensions);
+        ImmutableCacheStats snapshot = cache.stats().getStatsForDimensionValues(keyToDrop.dimensions);
         assertNotNull(snapshot);
 
         keyToDrop.setDropStatsForDimensions(true);

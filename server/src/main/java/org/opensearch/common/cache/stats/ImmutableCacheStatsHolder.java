@@ -23,7 +23,7 @@ import java.util.TreeMap;
 
 @ExperimentalApi
 public class ImmutableCacheStatsHolder { // TODO: extends Writeable, ToXContent
-    // A snapshot of a StatsHolder containing stats maintained by the cache.
+    // An immutable snapshot of a stats within a CacheStatsHolder, containing all the stats maintained by the cache.
     // Pkg-private for testing.
     final Node statsRoot;
     final List<String> dimensionNames;
@@ -33,7 +33,7 @@ public class ImmutableCacheStatsHolder { // TODO: extends Writeable, ToXContent
         this.dimensionNames = dimensionNames;
     }
 
-    public CacheStatsSnapshot getTotalStats() {
+    public ImmutableCacheStats getTotalStats() {
         return statsRoot.getStats();
     }
 
@@ -57,7 +57,7 @@ public class ImmutableCacheStatsHolder { // TODO: extends Writeable, ToXContent
         return getTotalStats().getEntries();
     }
 
-    public CacheStatsSnapshot getStatsForDimensionValues(List<String> dimensionValues) {
+    public ImmutableCacheStats getStatsForDimensionValues(List<String> dimensionValues) {
         Node current = statsRoot;
         for (String dimensionValue : dimensionValues) {
             current = current.children.get(dimensionValue);
@@ -75,10 +75,10 @@ public class ImmutableCacheStatsHolder { // TODO: extends Writeable, ToXContent
 
         // The stats for this node. If a leaf node, corresponds to the stats for this combination of dimensions; if not,
         // contains the sum of its children's stats.
-        private CacheStatsSnapshot stats;
+        private ImmutableCacheStats stats;
         private static final Map<String, Node> EMPTY_CHILDREN_MAP = new HashMap<>();
 
-        Node(String dimensionValue, boolean createChildrenMap, CacheStatsSnapshot stats) {
+        Node(String dimensionValue, boolean createChildrenMap, ImmutableCacheStats stats) {
             this.dimensionValue = dimensionValue;
             if (createChildrenMap) {
                 this.children = new TreeMap<>(); // This map should be ordered to enforce a consistent order in API response
@@ -92,11 +92,11 @@ public class ImmutableCacheStatsHolder { // TODO: extends Writeable, ToXContent
             return children;
         }
 
-        public CacheStatsSnapshot getStats() {
+        public ImmutableCacheStats getStats() {
             return stats;
         }
 
-        public void setStats(CacheStatsSnapshot stats) {
+        public void setStats(ImmutableCacheStats stats) {
             this.stats = stats;
         }
 

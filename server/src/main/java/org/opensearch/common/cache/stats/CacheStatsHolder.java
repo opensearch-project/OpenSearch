@@ -156,7 +156,7 @@ public class CacheStatsHolder {
      * Produce an immutable version of these stats.
      */
     public ImmutableCacheStatsHolder getImmutableCacheStatsHolder() {
-        ImmutableCacheStatsHolder.Node snapshot = new ImmutableCacheStatsHolder.Node("", true, statsRoot.getStatsSnapshot());
+        ImmutableCacheStatsHolder.Node snapshot = new ImmutableCacheStatsHolder.Node("", true, statsRoot.getImmutableStats());
         // Traverse the tree and build a corresponding tree of MDCSDimensionNode, to pass to MultiDimensionCacheStats.
         if (statsRoot.getChildren() != null) {
             for (Node child : statsRoot.getChildren().values()) {
@@ -175,9 +175,9 @@ public class CacheStatsHolder {
     }
 
     private ImmutableCacheStatsHolder.Node createMatchingImmutableCacheStatsHolderNode(Node node) {
-        CacheStatsSnapshot nodeSnapshot = node.getStatsSnapshot();
+        ImmutableCacheStats immutableCacheStats = node.getImmutableStats();
         boolean isLeafNode = node.getChildren().isEmpty();
-        return new ImmutableCacheStatsHolder.Node(node.getDimensionValue(), !isLeafNode, nodeSnapshot);
+        return new ImmutableCacheStatsHolder.Node(node.getDimensionValue(), !isLeafNode, immutableCacheStats);
     }
 
     public void removeDimensions(List<String> dimensionValues) {
@@ -192,16 +192,16 @@ public class CacheStatsHolder {
     }
 
     // Returns a CacheStatsCounterSnapshot object for the stats to decrement if the removal happened, null otherwise.
-    private CacheStatsSnapshot removeDimensionsHelper(List<String> dimensionValues, Node node, int depth) {
+    private ImmutableCacheStats removeDimensionsHelper(List<String> dimensionValues, Node node, int depth) {
         if (depth == dimensionValues.size()) {
             // Pass up a snapshot of the original stats to avoid issues when the original is decremented by other fn invocations
-            return node.getStatsSnapshot();
+            return node.getImmutableStats();
         }
         Node child = node.getChild(dimensionValues.get(depth));
         if (child == null) {
             return null;
         }
-        CacheStatsSnapshot statsToDecrement = removeDimensionsHelper(dimensionValues, child, depth + 1);
+        ImmutableCacheStats statsToDecrement = removeDimensionsHelper(dimensionValues, child, depth + 1);
         if (statsToDecrement != null) {
             // The removal took place, decrement values and remove this node from its parent if it's now empty
             node.decrementBySnapshot(statsToDecrement);
@@ -281,11 +281,11 @@ public class CacheStatsHolder {
             return this.stats.getEntries();
         }
 
-        CacheStatsSnapshot getStatsSnapshot() {
-            return this.stats.snapshot();
+        ImmutableCacheStats getImmutableStats() {
+            return this.stats.immutableSnapshot();
         }
 
-        void decrementBySnapshot(CacheStatsSnapshot snapshot) {
+        void decrementBySnapshot(ImmutableCacheStats snapshot) {
             this.stats.subtract(snapshot);
         }
 

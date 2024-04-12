@@ -32,12 +32,12 @@ public class CacheStatsHolderTests extends OpenSearchTestCase {
         for (List<String> dimensionValues : expected.keySet()) {
             CacheStats expectedCounter = expected.get(dimensionValues);
 
-            CacheStatsSnapshot actualStatsHolder = CacheStatsHolderTests.getNode(dimensionValues, cacheStatsHolder.getStatsRoot())
-                .getStatsSnapshot();
-            CacheStatsSnapshot actualCacheStats = getNode(dimensionValues, cacheStatsHolder.getStatsRoot()).getStatsSnapshot();
+            ImmutableCacheStats actualStatsHolder = CacheStatsHolderTests.getNode(dimensionValues, cacheStatsHolder.getStatsRoot())
+                .getImmutableStats();
+            ImmutableCacheStats actualCacheStats = getNode(dimensionValues, cacheStatsHolder.getStatsRoot()).getImmutableStats();
 
-            assertEquals(expectedCounter.snapshot(), actualStatsHolder);
-            assertEquals(expectedCounter.snapshot(), actualCacheStats);
+            assertEquals(expectedCounter.immutableSnapshot(), actualStatsHolder);
+            assertEquals(expectedCounter.immutableSnapshot(), actualCacheStats);
         }
 
         // Check overall total matches
@@ -45,7 +45,7 @@ public class CacheStatsHolderTests extends OpenSearchTestCase {
         for (List<String> dims : expected.keySet()) {
             expectedTotal.add(expected.get(dims));
         }
-        assertEquals(expectedTotal.snapshot(), cacheStatsHolder.getStatsRoot().getStatsSnapshot());
+        assertEquals(expectedTotal.immutableSnapshot(), cacheStatsHolder.getStatsRoot().getImmutableStats());
 
         // Check sum of children stats are correct
         assertSumOfChildrenStats(cacheStatsHolder.getStatsRoot());
@@ -65,8 +65,8 @@ public class CacheStatsHolderTests extends OpenSearchTestCase {
             originalCounter.entries = new CounterMetric();
 
             CacheStatsHolder.Node node = getNode(dimensionValues, cacheStatsHolder.getStatsRoot());
-            CacheStatsSnapshot actual = node.getStatsSnapshot();
-            assertEquals(originalCounter.snapshot(), actual);
+            ImmutableCacheStats actual = node.getImmutableStats();
+            assertEquals(originalCounter.immutableSnapshot(), actual);
         }
     }
 
@@ -80,13 +80,13 @@ public class CacheStatsHolderTests extends OpenSearchTestCase {
             cacheStatsHolder.incrementHits(dims);
         }
 
-        assertEquals(3, cacheStatsHolder.getStatsRoot().getStatsSnapshot().getHits());
+        assertEquals(3, cacheStatsHolder.getStatsRoot().getImmutableStats().getHits());
 
         // When we invalidate A2, B2, we should lose the node for B2, but not B3 or A2.
 
         cacheStatsHolder.removeDimensions(List.of("A2", "B2"));
 
-        assertEquals(2, cacheStatsHolder.getStatsRoot().getStatsSnapshot().getHits());
+        assertEquals(2, cacheStatsHolder.getStatsRoot().getImmutableStats().getHits());
         assertNull(getNode(List.of("A2", "B2"), cacheStatsHolder.getStatsRoot()));
         assertNotNull(getNode(List.of("A2"), cacheStatsHolder.getStatsRoot()));
         assertNotNull(getNode(List.of("A2", "B3"), cacheStatsHolder.getStatsRoot()));
@@ -95,14 +95,14 @@ public class CacheStatsHolderTests extends OpenSearchTestCase {
 
         cacheStatsHolder.removeDimensions(List.of("A1", "B1"));
 
-        assertEquals(1, cacheStatsHolder.getStatsRoot().getStatsSnapshot().getHits());
+        assertEquals(1, cacheStatsHolder.getStatsRoot().getImmutableStats().getHits());
         assertNull(getNode(List.of("A1", "B1"), cacheStatsHolder.getStatsRoot()));
         assertNull(getNode(List.of("A1"), cacheStatsHolder.getStatsRoot()));
 
         // When we invalidate the last node, all nodes should be deleted except the root node
 
         cacheStatsHolder.removeDimensions(List.of("A2", "B3"));
-        assertEquals(0, cacheStatsHolder.getStatsRoot().getStatsSnapshot().getHits());
+        assertEquals(0, cacheStatsHolder.getStatsRoot().getImmutableStats().getHits());
         assertEquals(0, cacheStatsHolder.getStatsRoot().children.size());
     }
 
@@ -156,12 +156,12 @@ public class CacheStatsHolderTests extends OpenSearchTestCase {
         assertNull(getNode(List.of("A1"), cacheStatsHolder.getStatsRoot()));
         assertNotNull(getNode(List.of("A2", "B2"), cacheStatsHolder.getStatsRoot()));
         assertEquals(
-            new CacheStatsSnapshot(0, 1, 0, 0, 0),
-            getNode(List.of("A2", "B2"), cacheStatsHolder.getStatsRoot()).getStatsSnapshot()
+            new ImmutableCacheStats(0, 1, 0, 0, 0),
+            getNode(List.of("A2", "B2"), cacheStatsHolder.getStatsRoot()).getImmutableStats()
         );
         assertEquals(
-            new CacheStatsSnapshot(1, 1, 0, 0, 0),
-            getNode(List.of("A2", "B3"), cacheStatsHolder.getStatsRoot()).getStatsSnapshot()
+            new ImmutableCacheStats(1, 1, 0, 0, 0),
+            getNode(List.of("A2", "B3"), cacheStatsHolder.getStatsRoot()).getImmutableStats()
         );
     }
 
@@ -256,9 +256,9 @@ public class CacheStatsHolderTests extends OpenSearchTestCase {
         if (!current.children.isEmpty()) {
             CacheStats expectedTotal = new CacheStats();
             for (CacheStatsHolder.Node child : current.children.values()) {
-                expectedTotal.add(child.getStatsSnapshot());
+                expectedTotal.add(child.getImmutableStats());
             }
-            assertEquals(expectedTotal.snapshot(), current.getStatsSnapshot());
+            assertEquals(expectedTotal.immutableSnapshot(), current.getImmutableStats());
             for (CacheStatsHolder.Node child : current.children.values()) {
                 assertSumOfChildrenStats(child);
             }
