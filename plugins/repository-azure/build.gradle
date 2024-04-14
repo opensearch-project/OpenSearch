@@ -59,9 +59,7 @@ dependencies {
   api 'com.azure:azure-identity:1.11.4'
   // Start of transitive dependencies for azure-identity
   api 'com.microsoft.azure:msal4j-persistence-extension:1.2.0'
-  // Both azure-identity:1.11.4 and msal4j-persistence-extension:1.2.0 has compile dependency on different versions of jna-platform,
-  // selected the higher version which is 5.13.0
-  api 'net.java.dev.jna:jna-platform:5.13.0'
+  api "net.java.dev.jna:jna-platform:${versions.jna}"
   api 'com.microsoft.azure:msal4j:1.14.3'
   api 'com.nimbusds:oauth2-oidc-sdk:11.9.1'
   api 'com.nimbusds:nimbus-jose-jwt:9.37.3'
