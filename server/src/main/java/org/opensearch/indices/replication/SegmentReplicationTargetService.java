@@ -635,7 +635,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             try (ReplicationRef<SegmentReplicationTarget> ref = onGoingReplications.getSafe(request.recoveryId(), request.shardId())) {
                 final SegmentReplicationTarget target = ref.get();
                 final ActionListener<Void> listener = target.createOrFinishListener(channel, Actions.FILE_CHUNK, request);
-                target.handleFileChunk(request, target, bytesSinceLastPause, recoverySettings.rateLimiter(), listener);
+                target.handleFileChunk(request, target, bytesSinceLastPause, recoverySettings.replicationRateLimiter(), listener);
             }
         }
     }

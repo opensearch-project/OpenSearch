@@ -124,7 +124,8 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
                 request.getCheckpoint().getShardId(),
                 SegmentReplicationTargetService.Actions.FILE_CHUNK,
                 new AtomicLong(0),
-                (throttleTime) -> {}
+                (throttleTime) -> {},
+                recoverySettings::replicationRateLimiter
             );
             final CopyState copyState = ongoingSegmentReplications.prepareForReplication(request, segmentSegmentFileChunkWriter);
             channel.sendResponse(
