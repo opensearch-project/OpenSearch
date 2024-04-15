@@ -22,9 +22,6 @@ public class IngestServiceHelper {
     private IngestServiceHelper() {}
 
     public static void updateIndexRequestWithIngestDocument(IndexRequest indexRequest, IngestDocument ingestDocument) {
-        if (ingestDocument == null || indexRequest == null) {
-            return;
-        }
         Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
         // it's fine to set all metadata fields all the time, as ingest document holds their starting values
         // before ingestion, which might also get modified during ingestion.

@@ -41,7 +41,7 @@ import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.bulk.BatchIngestionOption;
 import org.opensearch.action.bulk.BulkRequest;
-import org.opensearch.action.bulk.TransportBulkActionHelper;
+import org.opensearch.action.bulk.TransportBulkAction;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.ingest.DeletePipelineRequest;
 import org.opensearch.action.ingest.PutPipelineRequest;
@@ -530,7 +530,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         BiConsumer<Thread, Exception> onCompletion,
         IntConsumer onDropped,
         String executorName,
-        BulkRequest originalBulkRequst
+        BulkRequest originalBulkRequest
     ) {
         threadPool.executor(executorName).execute(new AbstractRunnable() {
 
@@ -547,7 +547,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 int i = 0;
                 List<IndexRequestWrapper> indexRequestWrappers = new ArrayList<>();
                 for (DocWriteRequest<?> actionRequest : actionRequests) {
-                    IndexRequest indexRequest = TransportBulkActionHelper.getIndexWriteRequest(actionRequest);
+                    IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
                     if (indexRequest == null) {
                         if (counter.decrementAndGet() == 0) {
                             onCompletion.accept(originalThread, null);
@@ -581,15 +581,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     }
 
                     indexRequestWrappers.add(new IndexRequestWrapper(i, indexRequest, pipelines, hasFinalPipeline));
-
                     i++;
                 }
 
-                BatchIngestionOption batchOption = originalBulkRequst.batchIngestionOption();
-                int batchSize = originalBulkRequst.maximumBatchSize();
+                BatchIngestionOption batchOption = originalBulkRequest.batchIngestionOption();
+                int batchSize = originalBulkRequest.maximumBatchSize();
                 if (shouldExecutePipelineInBatch(batchOption, indexRequestWrappers.size(), batchSize)) {
-                    List<List<IndexRequestWrapper>> batches = handleBatch(batchSize, indexRequestWrappers);
-                    logger.info("batchSize: {}, batches: {}", batchSize, batches.size());
+                    List<List<IndexRequestWrapper>> batches = prepareBatches(batchSize, indexRequestWrappers);
+                    logger.debug("batchSize: {}, batches: {}", batchSize, batches.size());
                     for (List<IndexRequestWrapper> batch : batches) {
                         executePipelinesInBatchRequests(batch.stream()
                                 .map(IndexRequestWrapper::getSlot)
@@ -621,19 +620,37 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return batchOption == BatchIngestionOption.ENABLED && documentSize > 1 && batchSize > 1;
     }
 
-    private List<List<IndexRequestWrapper>> handleBatch(int batchSize, List<IndexRequestWrapper> indexRequestWrappers) {
-        final Map<String, List<IndexRequestWrapper>> indexRequestsPerIndexMap = new HashMap<>();
+    /**
+     * IndexRequests are grouped by unique (index + pipeline_ids) before batching.
+     * Only IndexRequests in the same group could be batched. It's to ensure batched documents always
+     * flow through the same pipeline together.
+     *
+     * An IndexRequest could be preprocessed by at most two pipelines: default_pipeline and final_pipeline.
+     * A final_pipeline is configured on index level. The default_pipeline for a IndexRequest in a _bulk API
+     * could come from three places:
+     * 1. bound with index
+     * 2. a request parameter of _bulk API
+     * 3. a parameter of an IndexRequest.
+     */
+    private List<List<IndexRequestWrapper>> prepareBatches(int batchSize, List<IndexRequestWrapper> indexRequestWrappers) {
+        final Map<Integer, List<IndexRequestWrapper>> indexRequestsPerIndexAndPipelines = new HashMap<>();
         for (IndexRequestWrapper indexRequestWrapper : indexRequestWrappers) {
+            // IndexRequests are grouped by their index + pipeline ids
+            List<String> indexAndPipelineIds = new ArrayList<>();
             String index = indexRequestWrapper.getIndexRequest().index();
-            indexRequestsPerIndexMap.putIfAbsent(index, new ArrayList<>());
-            indexRequestsPerIndexMap.get(index).add(indexRequestWrapper);
+            List<String> pipelines = indexRequestWrapper.getPipelines();
+            indexAndPipelineIds.add(index);
+            indexAndPipelineIds.addAll(pipelines);
+            int hashCode = indexAndPipelineIds.hashCode();
+            indexRequestsPerIndexAndPipelines.putIfAbsent(hashCode, new ArrayList<>());
+            indexRequestsPerIndexAndPipelines.get(hashCode).add(indexRequestWrapper);
         }
         List<List<IndexRequestWrapper>> batchedIndexRequests = new ArrayList<>();
-        for (Map.Entry<String, List<IndexRequestWrapper>> indexRequestsPerIndex : indexRequestsPerIndexMap.entrySet()) {
-            for (int i = 0; i < indexRequestsPerIndex.getValue().size(); i += batchSize) {
+        for (Map.Entry<Integer, List<IndexRequestWrapper>> indexRequestsPerKey : indexRequestsPerIndexAndPipelines.entrySet()) {
+            for (int i = 0; i < indexRequestsPerKey.getValue().size(); i += batchSize) {
                 batchedIndexRequests.add(new ArrayList<>(
-                    indexRequestsPerIndex.getValue().subList(i,
-                    i + Math.min(batchSize, indexRequestsPerIndex.getValue().size() - i))));
+                    indexRequestsPerKey.getValue().subList(i,
+                    i + Math.min(batchSize, indexRequestsPerKey.getValue().size() - i))));
             }
         }
         return batchedIndexRequests;
@@ -695,7 +712,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 String originalIndex = indexRequests.get(0).indices()[0];
                 Map<Integer, IndexRequest> slotIndexRequestMap = IngestServiceHelper.createSlotIndexRequestMap(slots,
                     indexRequests);
-                innerExecute(slots, indexRequests, pipeline, onDropped, results -> {
+                innerBatchExecute(slots, indexRequests, pipeline, onDropped, results -> {
                     for (int i = 0; i < results.size(); ++i) {
                         if (results.get(i).getException() != null) {
                             IndexRequest indexRequest = slotIndexRequestMap.get(results.get(i).getSlot());
@@ -980,7 +997,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         });
     }
 
-    private void innerExecute(
+    private void innerBatchExecute(
         List<Integer> slots,
         List<IndexRequest> indexRequests,
         Pipeline pipeline,
@@ -1006,6 +1023,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         AtomicInteger counter = new AtomicInteger(size);
         List<IngestDocumentWrapper> allResults = Collections.synchronizedList(new ArrayList<>());
         pipeline.batchExecute(ingestDocumentWrappers, results -> {
+            if (results.isEmpty()) return;
             allResults.addAll(results);
             if (counter.addAndGet(-results.size()) == 0) {
                 long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
