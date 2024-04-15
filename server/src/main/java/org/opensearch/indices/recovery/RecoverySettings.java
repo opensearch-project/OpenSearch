@@ -242,6 +242,16 @@ public class RecoverySettings {
 
     }
 
+    /**
+     * Method unused as of 2.14 but left as part of public API.
+     * Use recoveryRateLimiter or replicationRateLimiter instead.
+     * @return {@link RateLimiter} Recovery rate limiter
+     */
+    @Deprecated(forRemoval = true, since = "2.14")
+    public RateLimiter rateLimiter() {
+        return recoveryRateLimiter;
+    }
+
     public RateLimiter recoveryRateLimiter() {
         return recoveryRateLimiter;
     }
