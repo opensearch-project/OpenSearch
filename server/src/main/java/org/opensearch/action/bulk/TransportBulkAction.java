@@ -246,7 +246,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         boolean hasIndexRequestsWithPipelines = false;
         final Metadata metadata = clusterService.state().getMetadata();
         final Version minNodeVersion = clusterService.state().getNodes().getMinNodeVersion();
-
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
@@ -1002,7 +1001,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         synchronized void markItemAsDropped(int slot) {
-            IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(bulkRequest.requests().get(slot));
+            IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
             failedSlots.set(slot);
             final String id = indexRequest.id() == null ? DROPPED_ITEM_WITH_AUTO_GENERATED_ID : indexRequest.id();
             itemResponses.add(
@@ -1022,8 +1021,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         synchronized void markItemAsFailed(int slot, Exception e) {
-            IndexRequest indexRequest = TransportBulkAction.
-                getIndexWriteRequest(bulkRequest.requests().get(slot));
+            IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
             logger.debug(
                 String.format(
                     Locale.ROOT,
@@ -1045,5 +1043,4 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
     }
-
 }

@@ -372,7 +372,11 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      * @return {@link BulkRequest}
      */
     public final BulkRequest maximumBatchSize(int size) {
-        this.maximumBatchSize = size;
+        if (size > 1) {
+            this.maximumBatchSize = size;
+        } else {
+            this.maximumBatchSize = 1;
+        }
         return this;
     }
 
