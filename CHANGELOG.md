@@ -41,7 +41,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Improve built-in secure transports support ([#12907](https://github.com/opensearch-project/OpenSearch/pull/12907))
 - Update links to documentation in rest-api-spec ([#13043](https://github.com/opensearch-project/OpenSearch/pull/13043))
 - Refactoring globMatch using simpleMatchWithNormalizedStrings from Regex ([#13104](https://github.com/opensearch-project/OpenSearch/pull/13104))
-- Triage meetings have moved to Zoom ([#13208](https://github.com/opensearch-project/OpenSearch/pull/13208))
 
 ### Deprecated
 
