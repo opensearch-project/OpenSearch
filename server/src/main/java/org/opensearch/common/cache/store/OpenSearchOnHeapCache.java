@@ -62,7 +62,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         }
         cache = cacheBuilder.build();
         this.dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
-        this.cacheStatsHolder = new CacheStatsHolder(dimensionNames);
+        this.cacheStatsHolder = new CacheStatsHolder(dimensionNames, OpenSearchOnHeapCacheFactory.NAME);
         this.removalListener = builder.getRemovalListener();
         this.weigher = builder.getWeigher();
     }

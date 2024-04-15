@@ -162,7 +162,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         this.ehCacheEventListener = new EhCacheEventListener(builder.getRemovalListener(), builder.getWeigher());
         this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
         List<String> dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
-        this.cacheStatsHolder = new CacheStatsHolder(dimensionNames);
+        this.cacheStatsHolder = new CacheStatsHolder(dimensionNames, EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME);
     }
 
     @SuppressWarnings({ "rawtypes" })

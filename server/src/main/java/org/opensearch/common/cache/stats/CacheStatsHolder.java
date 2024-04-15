@@ -8,6 +8,8 @@
 
 package org.opensearch.common.cache.stats;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +30,7 @@ import java.util.function.Consumer;
  *
  * @opensearch.experimental
  */
+@ExperimentalApi
 public class CacheStatsHolder {
 
     // The list of permitted dimensions. Should be ordered from "outermost" to "innermost", as you would like to
@@ -41,9 +44,12 @@ public class CacheStatsHolder {
     // To avoid sync problems, obtain a lock before creating or removing nodes in the stats tree.
     // No lock is needed to edit stats on existing nodes.
     private final Lock lock = new ReentrantLock();
+    // The name of the cache type using these stats
+    private final String storeName;
 
-    public CacheStatsHolder(List<String> dimensionNames) {
+    public CacheStatsHolder(List<String> dimensionNames, String storeName) {
         this.dimensionNames = Collections.unmodifiableList(dimensionNames);
+        this.storeName = storeName;
         this.statsRoot = new Node("", true); // The root node has the empty string as its dimension value
     }
 
@@ -157,7 +163,7 @@ public class CacheStatsHolder {
      * Produce an immutable version of these stats.
      */
     public ImmutableCacheStatsHolder getImmutableCacheStatsHolder() {
-        return new ImmutableCacheStatsHolder(statsRoot.snapshot(), dimensionNames);
+        return new ImmutableCacheStatsHolder(statsRoot.snapshot(), dimensionNames, storeName);
     }
 
     public void removeDimensions(List<String> dimensionValues) {

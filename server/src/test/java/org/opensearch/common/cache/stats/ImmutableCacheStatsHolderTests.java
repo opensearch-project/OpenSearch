@@ -8,16 +8,64 @@
 
 package org.opensearch.common.cache.stats;
 
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.BytesStreamInput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
+    private final String storeName = "dummy_store";
+
+    public void testSerialization() throws Exception {
+        List<String> dimensionNames = List.of("dim1", "dim2", "dim3");
+        CacheStatsHolder statsHolder = new CacheStatsHolder(dimensionNames, storeName);
+        Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
+        CacheStatsHolderTests.populateStats(statsHolder, usedDimensionValues, 100, 10);
+        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder();
+
+        BytesStreamOutput os = new BytesStreamOutput();
+        stats.writeTo(os);
+        BytesStreamInput is = new BytesStreamInput(BytesReference.toBytes(os.bytes()));
+        ImmutableCacheStatsHolder deserialized = new ImmutableCacheStatsHolder(is);
+
+        assertEquals(stats.dimensionNames, deserialized.dimensionNames);
+        assertEquals(stats.storeName, deserialized.storeName);
+
+        assertEquals(stats, deserialized);
+    }
+
+    public void testEquals() throws Exception {
+        List<String> dimensionNames = List.of("dim1", "dim2", "dim3");
+        CacheStatsHolder statsHolder = new CacheStatsHolder(dimensionNames, storeName);
+        CacheStatsHolder differentStoreNameStatsHolder = new CacheStatsHolder(dimensionNames, "nonMatchingStoreName");
+        CacheStatsHolder nonMatchingStatsHolder = new CacheStatsHolder(dimensionNames, storeName);
+        Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
+        CacheStatsHolderTests.populateStats(List.of(statsHolder, differentStoreNameStatsHolder), usedDimensionValues, 100, 10);
+        CacheStatsHolderTests.populateStats(nonMatchingStatsHolder, usedDimensionValues, 100, 10);
+        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder();
+
+        ImmutableCacheStatsHolder secondStats = statsHolder.getImmutableCacheStatsHolder();
+        assertEquals(stats, secondStats);
+        ImmutableCacheStatsHolder nonMatchingStats = nonMatchingStatsHolder.getImmutableCacheStatsHolder();
+        assertNotEquals(stats, nonMatchingStats);
+        ImmutableCacheStatsHolder differentStoreNameStats = differentStoreNameStatsHolder.getImmutableCacheStatsHolder();
+        assertNotEquals(stats, differentStoreNameStats);
+    }
 
     public void testGet() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
-        CacheStatsHolder cacheStatsHolder = new CacheStatsHolder(dimensionNames);
+        CacheStatsHolder cacheStatsHolder = new CacheStatsHolder(dimensionNames, storeName);
         Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(cacheStatsHolder, 10);
         Map<List<String>, CacheStats> expected = CacheStatsHolderTests.populateStats(cacheStatsHolder, usedDimensionValues, 1000, 10);
         ImmutableCacheStatsHolder stats = cacheStatsHolder.getImmutableCacheStatsHolder();
@@ -52,7 +100,7 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
 
     public void testEmptyDimsList() throws Exception {
         // If the dimension list is empty, the tree should have only the root node containing the total stats.
-        CacheStatsHolder cacheStatsHolder = new CacheStatsHolder(List.of());
+        CacheStatsHolder cacheStatsHolder = new CacheStatsHolder(List.of(), storeName);
         Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(cacheStatsHolder, 100);
         CacheStatsHolderTests.populateStats(cacheStatsHolder, usedDimensionValues, 10, 100);
         ImmutableCacheStatsHolder stats = cacheStatsHolder.getImmutableCacheStatsHolder();
@@ -60,6 +108,158 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
         ImmutableCacheStatsHolder.Node statsRoot = stats.getStatsRoot();
         assertEquals(0, statsRoot.children.size());
         assertEquals(stats.getTotalStats(), statsRoot.getStats());
+    }
+
+    public void testAggregateByAllDimensions() throws Exception {
+        // Aggregating with all dimensions as levels should just give us the same values that were in the original map
+        List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
+        CacheStatsHolder statsHolder = new CacheStatsHolder(dimensionNames, storeName);
+        Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
+        Map<List<String>, CacheStats> expected = CacheStatsHolderTests.populateStats(statsHolder, usedDimensionValues, 1000, 10);
+        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder();
+
+        ImmutableCacheStatsHolder.Node aggregated = stats.aggregateByLevels(dimensionNames);
+        for (Map.Entry<List<String>, CacheStats> expectedEntry : expected.entrySet()) {
+            List<String> dimensionValues = new ArrayList<>();
+            for (String dimValue : expectedEntry.getKey()) {
+                dimensionValues.add(dimValue);
+            }
+            assertEquals(expectedEntry.getValue().immutableSnapshot(), getNode(dimensionValues, aggregated).getStats());
+        }
+        assertSumOfChildrenStats(aggregated);
+    }
+
+    public void testAggregateBySomeDimensions() throws Exception {
+        List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
+        CacheStatsHolder statsHolder = new CacheStatsHolder(dimensionNames, storeName);
+        Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
+        Map<List<String>, CacheStats> expected = CacheStatsHolderTests.populateStats(statsHolder, usedDimensionValues, 1000, 10);
+        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder();
+
+        for (int i = 0; i < (1 << dimensionNames.size()); i++) {
+            // Test each combination of possible levels
+            List<String> levels = new ArrayList<>();
+            for (int nameIndex = 0; nameIndex < dimensionNames.size(); nameIndex++) {
+                if ((i & (1 << nameIndex)) != 0) {
+                    levels.add(dimensionNames.get(nameIndex));
+                }
+            }
+            if (levels.size() == 0) {
+                assertThrows(IllegalArgumentException.class, () -> stats.aggregateByLevels(levels));
+            } else {
+                ImmutableCacheStatsHolder.Node aggregated = stats.aggregateByLevels(levels);
+                Map<List<String>, ImmutableCacheStatsHolder.Node> aggregatedLeafNodes = getAllLeafNodes(aggregated);
+
+                for (Map.Entry<List<String>, ImmutableCacheStatsHolder.Node> aggEntry : aggregatedLeafNodes.entrySet()) {
+                    CacheStats expectedCounter = new CacheStats();
+                    for (List<String> expectedDims : expected.keySet()) {
+                        if (expectedDims.containsAll(aggEntry.getKey())) {
+                            expectedCounter.add(expected.get(expectedDims));
+                        }
+                    }
+                    assertEquals(expectedCounter.immutableSnapshot(), aggEntry.getValue().getStats());
+                }
+                assertSumOfChildrenStats(aggregated);
+            }
+        }
+    }
+
+    public void testXContentForLevels() throws Exception {
+        List<String> dimensionNames = List.of("A", "B", "C");
+
+        CacheStatsHolder statsHolder = new CacheStatsHolder(dimensionNames, storeName);
+        CacheStatsHolderTests.populateStatsHolderFromStatsValueMap(
+            statsHolder,
+            Map.of(
+                List.of("A1", "B1", "C1"),
+                new CacheStats(1, 1, 1, 1, 1),
+                List.of("A1", "B1", "C2"),
+                new CacheStats(2, 2, 2, 2, 2),
+                List.of("A1", "B2", "C1"),
+                new CacheStats(3, 3, 3, 3, 3),
+                List.of("A2", "B1", "C3"),
+                new CacheStats(4, 4, 4, 4, 4)
+            )
+        );
+        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder();
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        ToXContent.Params params = ToXContent.EMPTY_PARAMS;
+
+        builder.startObject();
+        stats.toXContentForLevels(builder, params, List.of("A", "B", "C"));
+        builder.endObject();
+        String resultString = builder.toString();
+        Map<String, Object> result = XContentHelper.convertToMap(MediaTypeRegistry.JSON.xContent(), resultString, true);
+
+        Map<String, BiConsumer<CacheStats, Integer>> fieldNamesMap = Map.of(
+            ImmutableCacheStats.Fields.MEMORY_SIZE_IN_BYTES,
+            (counter, value) -> counter.sizeInBytes.inc(value),
+            ImmutableCacheStats.Fields.EVICTIONS,
+            (counter, value) -> counter.evictions.inc(value),
+            ImmutableCacheStats.Fields.HIT_COUNT,
+            (counter, value) -> counter.hits.inc(value),
+            ImmutableCacheStats.Fields.MISS_COUNT,
+            (counter, value) -> counter.misses.inc(value),
+            ImmutableCacheStats.Fields.ENTRIES,
+            (counter, value) -> counter.entries.inc(value)
+        );
+
+        Map<List<String>, ImmutableCacheStatsHolder.Node> leafNodes = getAllLeafNodes(stats.getStatsRoot());
+        for (Map.Entry<List<String>, ImmutableCacheStatsHolder.Node> entry : leafNodes.entrySet()) {
+            List<String> xContentKeys = new ArrayList<>();
+            for (int i = 0; i < dimensionNames.size(); i++) {
+                xContentKeys.add(dimensionNames.get(i));
+                xContentKeys.add(entry.getKey().get(i));
+            }
+            CacheStats counterFromXContent = new CacheStats();
+
+            for (Map.Entry<String, BiConsumer<CacheStats, Integer>> fieldNamesEntry : fieldNamesMap.entrySet()) {
+                List<String> fullXContentKeys = new ArrayList<>(xContentKeys);
+                fullXContentKeys.add(fieldNamesEntry.getKey());
+                int valueInXContent = (int) getValueFromNestedXContentMap(result, fullXContentKeys);
+                BiConsumer<CacheStats, Integer> incrementer = fieldNamesEntry.getValue();
+                incrementer.accept(counterFromXContent, valueInXContent);
+            }
+
+            ImmutableCacheStats expected = entry.getValue().getStats();
+            assertEquals(counterFromXContent.immutableSnapshot(), expected);
+        }
+    }
+
+    public static Object getValueFromNestedXContentMap(Map<String, Object> xContentMap, List<String> keys) {
+        Map<String, Object> current = xContentMap;
+        for (int i = 0; i < keys.size() - 1; i++) {
+            Object next = current.get(keys.get(i));
+            if (next == null) {
+                return null;
+            }
+            current = (Map<String, Object>) next;
+        }
+        return current.get(keys.get(keys.size() - 1));
+    }
+
+    // Get a map from the list of dimension values to the corresponding leaf node.
+    private Map<List<String>, ImmutableCacheStatsHolder.Node> getAllLeafNodes(ImmutableCacheStatsHolder.Node root) {
+        Map<List<String>, ImmutableCacheStatsHolder.Node> result = new HashMap<>();
+        getAllLeafNodesHelper(result, root, new ArrayList<>());
+        return result;
+    }
+
+    private void getAllLeafNodesHelper(
+        Map<List<String>, ImmutableCacheStatsHolder.Node> result,
+        ImmutableCacheStatsHolder.Node current,
+        List<String> pathToCurrent
+    ) {
+        if (current.children.isEmpty()) {
+            result.put(pathToCurrent, current);
+        } else {
+            for (Map.Entry<String, ImmutableCacheStatsHolder.Node> entry : current.children.entrySet()) {
+                List<String> newPath = new ArrayList<>(pathToCurrent);
+                newPath.add(entry.getKey());
+                getAllLeafNodesHelper(result, entry.getValue(), newPath);
+            }
+        }
     }
 
     private ImmutableCacheStatsHolder.Node getNode(List<String> dimensionValues, ImmutableCacheStatsHolder.Node root) {
