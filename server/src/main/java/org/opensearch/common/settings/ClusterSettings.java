@@ -732,7 +732,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_TRANSFER_TIMEOUT_SETTING,
 
-                SearchService.FILTER_REWRITE_SETTING
+                SearchService.MAX_AGGREGATION_REWRITE_FILTERS
             )
         )
     );

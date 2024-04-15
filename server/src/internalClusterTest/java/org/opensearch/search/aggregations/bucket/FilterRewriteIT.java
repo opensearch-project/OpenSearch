@@ -35,6 +35,7 @@ import java.util.Set;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.SearchService.MAX_AGGREGATION_REWRITE_FILTERS;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -117,10 +118,10 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
         final ClusterUpdateSettingsResponse updateSettingResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("search.filter_rewrite.enabled", false))
+            .setTransientSettings(Settings.builder().put(MAX_AGGREGATION_REWRITE_FILTERS.getKey(), 0))
             .get();
 
-        assertEquals(updateSettingResponse.getTransientSettings().get("search.filter_rewrite.enabled"), "false");
+        assertEquals(updateSettingResponse.getTransientSettings().get(MAX_AGGREGATION_REWRITE_FILTERS.getKey()), "0");
 
         response = client().prepareSearch("idx")
             .setSize(0)
@@ -134,7 +135,7 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putNull("search.filter_rewrite.enabled"))
+            .setTransientSettings(Settings.builder().putNull(MAX_AGGREGATION_REWRITE_FILTERS.getKey()))
             .get();
     }
 }

@@ -523,7 +523,7 @@ public abstract class SearchContext implements Releasable {
 
     public abstract boolean shouldUseTimeSeriesDescSortOptimization();
 
-    public boolean isFilterRewriteEnabled() {
-        return false;
+    public int maxAggRewriteFilters() {
+        return 0;
     }
 }
