@@ -102,6 +102,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private Boolean allowPartialSearchResults;
 
+    private Boolean ignoreUnavailableShards;
+
     private Scroll scroll;
 
     private int batchedReduceSize = DEFAULT_BATCHED_REDUCE_SIZE;
@@ -198,6 +200,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         boolean finalReduce
     ) {
         this.allowPartialSearchResults = searchRequest.allowPartialSearchResults;
+        this.ignoreUnavailableShards = searchRequest.ignoreUnavailableShards;
         this.batchedReduceSize = searchRequest.batchedReduceSize;
         this.ccsMinimizeRoundtrips = searchRequest.ccsMinimizeRoundtrips;
         this.indices = indices;
@@ -246,6 +249,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         maxConcurrentShardRequests = in.readVInt();
         preFilterShardSize = in.readOptionalVInt();
         allowPartialSearchResults = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_2_14_0)) {
+            ignoreUnavailableShards = in.readOptionalBoolean();
+        }
         localClusterAlias = in.readOptionalString();
         if (localClusterAlias != null) {
             absoluteStartMillis = in.readVLong();
@@ -283,6 +289,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeVInt(maxConcurrentShardRequests);
         out.writeOptionalVInt(preFilterShardSize);
         out.writeOptionalBoolean(allowPartialSearchResults);
+        if (out.getVersion().onOrAfter(Version.V_2_14_0)) {
+            out.writeOptionalBoolean(ignoreUnavailableShards);
+        }
         out.writeOptionalString(localClusterAlias);
         if (localClusterAlias != null) {
             out.writeVLong(absoluteStartMillis);
@@ -567,6 +576,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return this.allowPartialSearchResults;
     }
 
+    public SearchRequest ignoreUnavailableShards(boolean ignoreUnavailableShards) {
+        this.ignoreUnavailableShards = ignoreUnavailableShards;
+        return this;
+    }
+
+    public Boolean getIgnoreUnavailableShards() {
+        return this.ignoreUnavailableShards;
+    }
+
     /**
      * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
      * mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
@@ -747,6 +765,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && Objects.equals(preFilterShardSize, that.preFilterShardSize)
             && Objects.equals(indicesOptions, that.indicesOptions)
             && Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults)
+            && Objects.equals(ignoreUnavailableShards, that.ignoreUnavailableShards)
             && Objects.equals(localClusterAlias, that.localClusterAlias)
             && absoluteStartMillis == that.absoluteStartMillis
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
@@ -770,6 +789,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             maxConcurrentShardRequests,
             preFilterShardSize,
             allowPartialSearchResults,
+            ignoreUnavailableShards,
             localClusterAlias,
             absoluteStartMillis,
             ccsMinimizeRoundtrips,
@@ -805,6 +825,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + preFilterShardSize
             + ", allowPartialSearchResults="
             + allowPartialSearchResults
+            + ", ignoreUnavailableShards="
+            + ignoreUnavailableShards
             + ", localClusterAlias="
             + localClusterAlias
             + ", getOrCreateAbsoluteStartMillis="
