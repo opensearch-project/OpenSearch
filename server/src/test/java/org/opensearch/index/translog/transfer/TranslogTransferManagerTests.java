@@ -15,6 +15,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.FetchBlobResult;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
@@ -116,6 +117,16 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.ckp"))).thenAnswer(invocation -> {
             Thread.sleep(delayForBlobDownload);
             return new ByteArrayInputStream(ckpBytes);
+        });
+
+        when(transferService.downloadBlobWithMetadata(any(BlobPath.class), eq("translog-23.tlog"))).thenAnswer(invocation -> {
+            Thread.sleep(delayForBlobDownload);
+            return new FetchBlobResult(new ByteArrayInputStream(tlogBytes), null);
+        });
+
+        when(transferService.downloadBlobWithMetadata(any(BlobPath.class), eq("translog-23.ckp"))).thenAnswer(invocation -> {
+            Thread.sleep(delayForBlobDownload);
+            return new FetchBlobResult(new ByteArrayInputStream(ckpBytes), null);
         });
     }
 
@@ -460,7 +471,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         translogTransferManager.downloadTranslog("12", "23", location);
 
-        verify(transferService).downloadBlob(any(BlobPath.class), eq("translog-23.tlog"));
+        verify(transferService).downloadBlobWithMetadata(any(BlobPath.class), eq("translog-23.tlog"));
         verify(transferService).downloadBlob(any(BlobPath.class), eq("translog-23.ckp"));
         assertTrue(Files.exists(location.resolve("translog-23.tlog")));
         assertTrue(Files.exists(location.resolve("translog-23.ckp")));
@@ -475,7 +486,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         translogTransferManager.downloadTranslog("12", "23", location);
 
-        verify(transferService).downloadBlob(any(BlobPath.class), eq(translogFile));
+        verify(transferService).downloadBlobWithMetadata(any(BlobPath.class), eq(translogFile));
         verify(transferService).downloadBlob(any(BlobPath.class), eq(checkpointFile));
         assertTrue(Files.exists(location.resolve(translogFile)));
         assertTrue(Files.exists(location.resolve(checkpointFile)));

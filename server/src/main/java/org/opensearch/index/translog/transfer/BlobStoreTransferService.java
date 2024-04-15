@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -98,10 +99,28 @@ public class BlobStoreTransferService implements TransferService {
             if (!(blobStore.blobContainer(blobPath) instanceof AsyncMultiStreamBlobContainer)) {
                 uploadBlob(ThreadPool.Names.TRANSLOG_TRANSFER, fileSnapshot, blobPath, listener, writePriority);
             } else {
+                logger.info("uploading file = {}", fileSnapshot.getName());
                 uploadBlob(fileSnapshot, listener, blobPath, writePriority);
             }
         });
 
+    }
+
+    private Map<String, String> prepareFileMetadata(TransferFileSnapshot fileSnapshot) throws IOException {
+        if (!(fileSnapshot instanceof FileSnapshot.TranslogFileSnapshot)) {
+            return null;
+        }
+
+        FileSnapshot.TranslogFileSnapshot tlogFileSnapshot = (FileSnapshot.TranslogFileSnapshot) fileSnapshot;
+        String ckpAsString = tlogFileSnapshot.provideCheckpointDataAsString();
+        Long checkpointChecksum = tlogFileSnapshot.getCheckpointChecksum();
+
+        assert checkpointChecksum != null : "checksum can not be null";
+
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put(FileSnapshot.TranslogFileSnapshot.CHECKPOINT_FILE_DATA_KEY, ckpAsString);
+        metadata.put(FileSnapshot.TranslogFileSnapshot.CHECKPOINT_FILE_CHECKSUM_KEY, checkpointChecksum.toString());
+        return metadata;
     }
 
     private void uploadBlob(
@@ -111,7 +130,16 @@ public class BlobStoreTransferService implements TransferService {
         WritePriority writePriority
     ) {
 
+        if (fileSnapshot instanceof FileSnapshot.CheckpointFileSnapshot) {
+            logger.info("Skip uploading checkpoint file as this file = {} is stored as metadata of translog file", fileSnapshot.getName());
+            listener.onResponse(fileSnapshot);
+            return;
+        }
+
         try {
+
+            Map<String, String> metadata = prepareFileMetadata(fileSnapshot);
+
             ChannelFactory channelFactory = FileChannel::open;
             long contentLength;
             try (FileChannel channel = channelFactory.open(fileSnapshot.getPath(), StandardOpenOption.READ)) {
@@ -130,7 +158,8 @@ public class BlobStoreTransferService implements TransferService {
                 writePriority,
                 (size, position) -> new OffsetRangeFileInputStream(fileSnapshot.getPath(), size, position),
                 Objects.requireNonNull(fileSnapshot.getChecksum()),
-                remoteIntegrityEnabled
+                remoteIntegrityEnabled,
+                metadata
             );
             ActionListener<Void> completionListener = ActionListener.wrap(resp -> listener.onResponse(fileSnapshot), ex -> {
                 logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), ex);
