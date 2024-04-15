@@ -188,7 +188,9 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     List<String> dimensionValues = addTierValueToDimensionValues(key.dimensions, pair.v2());
                     statsHolder.removeDimensions(dimensionValues);
                 }
-                pair.v1().invalidate(key);
+                if (key.key != null) {
+                    pair.v1().invalidate(key);
+                }
             }
         }
     }
