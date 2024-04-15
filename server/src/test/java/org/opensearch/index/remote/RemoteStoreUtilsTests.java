@@ -259,7 +259,7 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
             "610010010111111"
         );
         for (Map.Entry<Long, String> entry : longToExpectedBase64String.entrySet()) {
-            String base64Str = RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding(entry.getKey());
+            String base64Str = RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding(entry.getKey(), 20);
             assertEquals(entry.getValue(), base64Str);
             assertEquals(15, entry.getValue().length());
             assertEquals(longToUrlBase64(entry.getKey()).charAt(0), base64Str.charAt(0));
@@ -268,7 +268,7 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
         int iters = randomInt(1000);
         for (int i = 0; i < iters; i++) {
             long value = randomLong();
-            assertEquals(RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding(value).charAt(0), longToUrlBase64(value).charAt(0));
+            assertEquals(RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding(value, 20).charAt(0), longToUrlBase64(value).charAt(0));
         }
     }
 
@@ -302,7 +302,7 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
             assertEquals(expectedCompositeEncoding, actualCompositeEncoding);
             assertEquals(59, expectedCompositeEncoding.length());
             assertEquals(longToUrlBase64(entry.getKey()).charAt(0), actualCompositeEncoding.charAt(0));
-            assertEquals(RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding(hashValue), actualCompositeEncoding.substring(0, 15));
+            assertEquals(RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding(hashValue, 20), actualCompositeEncoding.substring(0, 15));
 
             Long computedHashValue = compositeUrlBase64BinaryEncodingToLong(actualCompositeEncoding);
             assertEquals(hashValue, computedHashValue);

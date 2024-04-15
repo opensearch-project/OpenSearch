@@ -482,13 +482,13 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
                 case 12:
                     version = "1";
                     pathHashAlgorithm = PathHashAlgorithm.FNV_1A_COMPOSITE_1;
-                    failure = "Invalid combination of pathType=null pathHashAlgorithm=FNV_1A_COMPOSITE for version=1";
+                    failure = "Invalid combination of pathType=null pathHashAlgorithm=FNV_1A_COMPOSITE_1 for version=1";
                     break;
                 case 13:
                     version = "2";
                     pathType = PathType.FIXED;
                     pathHashAlgorithm = PathHashAlgorithm.FNV_1A_COMPOSITE_1;
-                    failure = "Invalid combination of pathType=FIXED pathHashAlgorithm=FNV_1A_COMPOSITE for version=2";
+                    failure = "Invalid combination of pathType=FIXED pathHashAlgorithm=FNV_1A_COMPOSITE_1 for version=2";
                     break;
                 case 14:
                     version = "2";
