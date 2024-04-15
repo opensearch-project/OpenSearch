@@ -174,7 +174,8 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
      * fully recursively while also passing in a completed map of children nodes before constructing the parent node.
      * For this reason, in this function we have to build the new tree top down rather than bottom up.
      * We use private methods allowing us to add children to/increment the stats for an existing node.
-     * This should be ok because the resulting trees are short-lived objects that are not exposed anywhere outside this class.
+     * This should be ok because the resulting trees are short-lived objects that are not exposed anywhere outside this class,
+     * and the original tree is never changed.
      */
     private void aggregateByLevelsHelper(Node parentInNewTree, Node currentInOriginalTree, List<String> levels, int depth) {
         if (levels.contains(dimensionNames.get(depth))) {
