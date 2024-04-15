@@ -36,6 +36,7 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.cache.CacheType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -175,6 +176,25 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
                     nodesStatsRequest.indices(flags);
                 }
+            } else if (metrics.contains("caches")) {
+                // Extract the list of caches we want to get stats for from the submetrics (which we get from index_metric)
+                Set<String> cacheMetrics = Strings.tokenizeByCommaToSet(request.param("index_metric", "_all"));
+                CommonStatsFlags cacheFlags = new CommonStatsFlags();
+                cacheFlags.clear();
+                if (cacheMetrics.size() == 1 && cacheMetrics.contains("_all")) {
+                    cacheFlags.includeAllCacheTypes();
+                } else {
+                    for (String cacheName : cacheMetrics) {
+                        try {
+                            cacheFlags.includeCacheType(CacheType.getByRepresentation(cacheName));
+                        } catch (IllegalArgumentException e) {
+                            throw new IllegalArgumentException(
+                                unrecognized(request, Set.of(cacheName), CacheType.allRepresentations(), "cache type")
+                            );
+                        }
+                    }
+                }
+                nodesStatsRequest.indices(cacheFlags);
             } else if (request.hasParam("index_metric")) {
                 throw new IllegalArgumentException(
                     String.format(
