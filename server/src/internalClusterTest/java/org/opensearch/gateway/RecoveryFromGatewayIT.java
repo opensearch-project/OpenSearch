@@ -1195,7 +1195,10 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             1,
             Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.getKey(), true).build()
         );
-        List<String> dataOnlyNodes = internalCluster().startDataOnlyNodes(2, Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.getKey(), true).build());
+        List<String> dataOnlyNodes = internalCluster().startDataOnlyNodes(
+            2,
+            Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.getKey(), true).build()
+        );
         createIndex(
             "test",
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()

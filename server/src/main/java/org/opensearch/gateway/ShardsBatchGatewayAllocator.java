@@ -283,7 +283,11 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         return batchesToBeAssigned;
     }
 
-    private void refreshShardBatches(ConcurrentMap<String, ShardsBatch> currentBatches, Set<ShardId> batchedShardsToAssign, boolean primary) {
+    private void refreshShardBatches(
+        ConcurrentMap<String, ShardsBatch> currentBatches,
+        Set<ShardId> batchedShardsToAssign,
+        boolean primary
+    ) {
         // cleanup shard from batches if they are not present in unassigned list from allocation object. This is
         // needed as AllocationService.reroute can also be called directly by API flows for example DeleteIndices.
         // So, as part of calling reroute, those shards will be removed from allocation object. It'll handle the
