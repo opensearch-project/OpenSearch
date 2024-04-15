@@ -46,6 +46,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -281,6 +282,15 @@ public class ShardStartedClusterStateTaskExecutorTests extends OpenSearchAllocat
             assertThat(shardRoutingTable.getByAllocationId(task.allocationId).state(), is(ShardRoutingState.STARTED));
             assertNotSame(clusterState, result.resultingState);
         }
+    }
+
+    public void testAddRemoteIndexSettingsDoesNotExecuteWithoutMixedModeSettings() throws Exception {
+        final String indexName = "test-remote-migration";
+        final ClusterState clusterState = state(indexName, randomBoolean(), ShardRoutingState.INITIALIZING, ShardRoutingState.INITIALIZING);
+        assertSame(
+            RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(clusterState.getMetadata().settings()),
+            RemoteStoreNodeService.CompatibilityMode.STRICT
+        );
     }
 
     private ClusterStateTaskExecutor.ClusterTasksResult executeTasks(final ClusterState state, final List<StartedShardEntry> tasks)

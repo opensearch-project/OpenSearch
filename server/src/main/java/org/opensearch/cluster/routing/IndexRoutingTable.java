@@ -267,6 +267,18 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
     }
 
     /**
+     * Returns <code>true</code> if all shards for the index are in {@link ShardRoutingState#STARTED} state. Otherwise <code>false</code>.
+     */
+    public boolean allShardsStarted() {
+        for (IndexShardRoutingTable shardRoutingTable : this) {
+            if (shardRoutingTable.allShardsStarted() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Returns <code>true</code> if all primary shards are in
      * {@link ShardRoutingState#UNASSIGNED} state. Otherwise <code>false</code>.
      */

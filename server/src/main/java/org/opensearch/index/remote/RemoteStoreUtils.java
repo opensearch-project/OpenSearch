@@ -8,7 +8,14 @@
 
 package org.opensearch.index.remote;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -17,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -26,6 +34,7 @@ import java.util.function.Function;
  */
 public class RemoteStoreUtils {
     public static final int LONG_MAX_LENGTH = String.valueOf(Long.MAX_VALUE).length();
+    private static final Logger logger = LogManager.getLogger(RemoteStoreUtils.class);
 
     /**
      * URL safe base 64 character set. This must not be changed as this is used in deriving the base64 equivalent of binary.
@@ -145,5 +154,26 @@ public class RemoteStoreUtils {
         int base64DecimalValue = Integer.valueOf(base64Part, 2);
         assert base64DecimalValue >= 0 && base64DecimalValue < 64;
         return URL_BASE64_CHARSET[base64DecimalValue] + binaryPart;
+    }
+
+    public static boolean ongoingDocrepToRemoteMigration(Settings settings) {
+        return RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(
+            settings
+        ) == RemoteStoreNodeService.CompatibilityMode.MIXED
+            && RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING.get(settings) == RemoteStoreNodeService.Direction.REMOTE_STORE;
+    }
+
+    public static Tuple<String, String> getRemoteStoreRepositoryNames(DiscoveryNodes discoveryNodes) {
+        Optional<DiscoveryNode> remoteNode = discoveryNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DiscoveryNode::isRemoteStoreNode)
+            .findFirst();
+        assert remoteNode.isPresent() : "Cannot fetch remote store repository names as no remote nodes are present in the cluster";
+        Map<String, String> remoteNodeAttributes = remoteNode.get().getAttributes();
+        return new Tuple<>(
+            remoteNodeAttributes.get(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY),
+            remoteNodeAttributes.get(RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY)
+        );
     }
 }
