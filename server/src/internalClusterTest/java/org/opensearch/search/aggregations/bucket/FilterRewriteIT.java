@@ -10,6 +10,7 @@ package org.opensearch.search.aggregations.bucket;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
@@ -93,7 +94,7 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
         final SearchResponse allResponse = client().prepareSearch("idx")
             .setSize(0)
             .setQuery(QUERY)
-            .addAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY).minDocCount(0))
+            .addAggregation(dateHistogram("histo").field("date").calendarInterval(DateHistogramInterval.DAY).minDocCount(0))
             .get();
 
         final Histogram allHisto = allResponse.getAggregations().get("histo");
@@ -103,5 +104,39 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
         for (Map.Entry<String, Long> entry : expected.entrySet()) {
             assertEquals(entry.getValue(), results.get(entry.getKey()));
         }
+    }
+
+    public void testDisableOptimizationGivesSameResults() throws Exception {
+        SearchResponse response = client().prepareSearch("idx")
+            .setSize(0)
+            .setQuery(QUERY)
+            .addAggregation(dateHistogram("histo").field("date").calendarInterval(DateHistogramInterval.DAY).minDocCount(0))
+            .get();
+
+        final Histogram allHisto1 = response.getAggregations().get("histo");
+
+        final ClusterUpdateSettingsResponse updateSettingResponse = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("search.filter_rewrite.enabled", false))
+            .get();
+
+        assertEquals(updateSettingResponse.getTransientSettings().get("search.filter_rewrite.enabled"), "false");
+
+        response = client().prepareSearch("idx")
+            .setSize(0)
+            .setQuery(QUERY)
+            .addAggregation(dateHistogram("histo").field("date").calendarInterval(DateHistogramInterval.DAY).minDocCount(0))
+            .get();
+
+        final Histogram allHisto2 = response.getAggregations().get("histo");
+
+        assertEquals(allHisto1, allHisto2);
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().putNull("search.filter_rewrite.enabled"))
+            .get();
     }
 }
