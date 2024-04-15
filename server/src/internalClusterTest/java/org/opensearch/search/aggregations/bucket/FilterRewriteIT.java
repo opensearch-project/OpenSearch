@@ -109,7 +109,6 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
     public void testDisableOptimizationGivesSameResults() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
             .setSize(0)
-            .setQuery(QUERY)
             .addAggregation(dateHistogram("histo").field("date").calendarInterval(DateHistogramInterval.DAY).minDocCount(0))
             .get();
 
@@ -125,7 +124,6 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
 
         response = client().prepareSearch("idx")
             .setSize(0)
-            .setQuery(QUERY)
             .addAggregation(dateHistogram("histo").field("date").calendarInterval(DateHistogramInterval.DAY).minDocCount(0))
             .get();
 
