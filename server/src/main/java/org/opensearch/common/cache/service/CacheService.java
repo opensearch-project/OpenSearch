@@ -8,10 +8,12 @@
 
 package org.opensearch.common.cache.service;
 
+import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.settings.CacheSettings;
+import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.settings.Setting;
@@ -61,5 +63,13 @@ public class CacheService {
         ICache<K, V> iCache = factory.create(config, cacheType, cacheStoreTypeFactories);
         cacheTypeMap.put(cacheType, iCache);
         return iCache;
+    }
+
+    public NodeCacheStats stats(CommonStatsFlags flags) {
+        Map<CacheType, ImmutableCacheStatsHolder> statsMap = new HashMap<>();
+        for (CacheType type : cacheTypeMap.keySet()) {
+            statsMap.put(type, cacheTypeMap.get(type).stats());
+        }
+        return new NodeCacheStats(statsMap, flags);
     }
 }
