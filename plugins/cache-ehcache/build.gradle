@@ -1,0 +1,97 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.opensearch.gradle.Architecture
+import org.opensearch.gradle.OS
+import org.opensearch.gradle.info.BuildParams
+
+apply plugin: 'opensearch.internal-cluster-test'
+
+opensearchplugin {
+  description 'Ehcache based cache implementation.'
+  classname 'org.opensearch.cache.EhcacheCachePlugin'
+}
+
+versions << [
+  'ehcache'  : '3.10.8'
+]
+
+dependencies {
+  api "org.ehcache:ehcache:${versions.ehcache}"
+}
+
+thirdPartyAudit {
+  ignoreViolations(
+    'org.ehcache.impl.internal.concurrent.ConcurrentHashMap',
+    'org.ehcache.impl.internal.concurrent.ConcurrentHashMap$CounterCell',
+    'org.ehcache.impl.internal.concurrent.ConcurrentHashMap$TreeBin',
+    'org.ehcache.impl.internal.concurrent.ThreadLocalRandomUtil',
+    'org.ehcache.sizeof.impl.UnsafeSizeOf'
+  )
+
+  ignoreMissingClasses(
+    'javax.cache.Cache',
+    'javax.cache.Cache$Entry',
+    'javax.cache.CacheException',
+    'javax.cache.CacheManager',
+    'javax.cache.configuration.CacheEntryListenerConfiguration',
+    'javax.cache.configuration.CompleteConfiguration',
+    'javax.cache.configuration.Configuration',
+    'javax.cache.configuration.Factory',
+    'javax.cache.configuration.OptionalFeature',
+    'javax.cache.event.CacheEntryCreatedListener',
+    'javax.cache.event.CacheEntryEvent',
+    'javax.cache.event.CacheEntryEventFilter',
+    'javax.cache.event.CacheEntryExpiredListener',
+    'javax.cache.event.CacheEntryListener',
+    'javax.cache.event.CacheEntryRemovedListener',
+    'javax.cache.event.CacheEntryUpdatedListener',
+    'javax.cache.event.EventType',
+    'javax.cache.expiry.Duration',
+    'javax.cache.expiry.EternalExpiryPolicy',
+    'javax.cache.expiry.ExpiryPolicy',
+    'javax.cache.integration.CacheLoader',
+    'javax.cache.integration.CacheLoaderException',
+    'javax.cache.integration.CacheWriter',
+    'javax.cache.integration.CacheWriterException',
+    'javax.cache.integration.CompletionListener',
+    'javax.cache.management.CacheMXBean',
+    'javax.cache.management.CacheStatisticsMXBean',
+    'javax.cache.processor.EntryProcessor',
+    'javax.cache.processor.EntryProcessorResult',
+    'javax.cache.processor.MutableEntry',
+    'javax.cache.spi.CachingProvider',
+    'javax.xml.bind.JAXBContext',
+    'javax.xml.bind.JAXBElement',
+    'javax.xml.bind.Marshaller',
+    'javax.xml.bind.Unmarshaller',
+    'javax.xml.bind.annotation.XmlElement',
+    'javax.xml.bind.annotation.XmlRootElement',
+    'javax.xml.bind.annotation.XmlSchema',
+    'javax.xml.bind.annotation.adapters.XmlAdapter',
+    'org.osgi.framework.BundleActivator',
+    'org.osgi.framework.BundleContext',
+    'org.osgi.framework.ServiceReference',
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory',
+    'org.slf4j.Marker',
+    'org.slf4j.event.Level'
+  )
+}
+
+tasks.named("bundlePlugin").configure {
+  from('config/cache-ehcache') {
+    into 'config'
+  }
+}
+
+test {
+  // TODO: Adding permission in plugin-security.policy doesn't seem to work.
+  systemProperty 'tests.security.manager', 'false'
+}

@@ -50,6 +50,8 @@ import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
+import java.util.concurrent.ExecutionException;
+
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -118,6 +120,63 @@ public class RemoteCloneIndexIT extends RemoteStoreBaseIntegTestCase {
             GetSettingsResponse target = client().admin().indices().prepareGetSettings("target").get();
             assertEquals(version, target.getIndexToSettings().get("target").getAsVersion("index.version.created", null));
         } finally {
+            // clean up
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String) null)
+                )
+                .get();
+        }
+
+    }
+
+    public void testCreateCloneIndexFailure() throws ExecutionException, InterruptedException {
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        int numPrimaryShards = 1;
+        prepareCreate("source").setSettings(
+            Settings.builder().put(indexSettings()).put("number_of_shards", numPrimaryShards).put("index.version.created", version)
+        ).get();
+        final int docs = 2;
+        for (int i = 0; i < docs; i++) {
+            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
+        }
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
+        // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
+        // to the require._name below.
+        ensureGreen();
+        // relocate all shards to one node such that we can merge it.
+        client().admin().indices().prepareUpdateSettings("source").setSettings(Settings.builder().put("index.blocks.write", true)).get();
+        ensureGreen();
+
+        // disable rebalancing to be able to capture the right stats. balancing can move the target primary
+        // making it hard to pin point the source shards.
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"))
+            .get();
+        try {
+            setFailRate(REPOSITORY_NAME, 100);
+
+            client().admin()
+                .indices()
+                .prepareResizeIndex("source", "target")
+                .setResizeType(ResizeType.CLONE)
+                .setWaitForActiveShards(0)
+                .setSettings(Settings.builder().put("index.number_of_replicas", 0).putNull("index.blocks.write").build())
+                .get();
+
+            Thread.sleep(2000);
+            ensureYellow("target");
+
+        } catch (ExecutionException | InterruptedException e) {
+            throw new RuntimeException(e);
+        } finally {
+            setFailRate(REPOSITORY_NAME, 0);
+            ensureGreen();
             // clean up
             client().admin()
                 .cluster()

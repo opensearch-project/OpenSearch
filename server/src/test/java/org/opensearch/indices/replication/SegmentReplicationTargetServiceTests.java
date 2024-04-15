@@ -273,10 +273,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             ) {
                 try {
                     blockGetCheckpointMetadata.await();
-                    final CopyState copyState = new CopyState(
-                        ReplicationCheckpoint.empty(primaryShard.shardId(), primaryShard.getLatestReplicationCheckpoint().getCodec()),
-                        primaryShard
-                    );
+                    final CopyState copyState = new CopyState(primaryShard);
                     listener.onResponse(
                         new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
                     );
@@ -620,6 +617,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testTargetCancelledBeforeStartInvoked() {
+        final String cancelReason = "test";
         final SegmentReplicationTarget target = new SegmentReplicationTarget(
             replicaShard,
             primaryShard.getLatestReplicationCheckpoint(),
@@ -633,12 +631,12 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
                 @Override
                 public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
                     // failures leave state object in last entered stage.
-                    assertEquals(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO, state.getStage());
-                    assertTrue(e.getCause() instanceof CancellableThreads.ExecutionCancelledException);
+                    assertEquals(SegmentReplicationState.Stage.INIT, state.getStage());
+                    assertEquals(cancelReason, e.getMessage());
                 }
             }
         );
-        target.cancel("test");
+        target.cancel(cancelReason);
         sut.startReplication(target);
     }
 

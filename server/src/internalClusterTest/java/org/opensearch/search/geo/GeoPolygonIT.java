@@ -39,10 +39,9 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.SearchHit;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
@@ -60,10 +59,10 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class GeoPolygonIT extends ParameterizedOpenSearchIntegTestCase {
+public class GeoPolygonIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public GeoPolygonIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public GeoPolygonIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -72,11 +71,6 @@ public class GeoPolygonIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override

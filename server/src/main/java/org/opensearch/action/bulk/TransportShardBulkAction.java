@@ -442,7 +442,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     public ReplicationMode getReplicationMode(IndexShard indexShard) {
-        if (indexShard.isRemoteTranslogEnabled()) {
+        if (indexShard.indexSettings().isAssignedOnRemoteNode()) {
             return ReplicationMode.PRIMARY_TERM_VALIDATION;
         }
         return super.getReplicationMode(indexShard);
@@ -593,6 +593,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     context.setRequestToExecute(updateResult.action());
                     break;
                 case NOOP:
+                    context.getPrimary().noopUpdate();
                     context.markOperationAsNoOp(updateResult.action());
                     context.markAsCompleted(context.getExecutionResult());
                     return true;

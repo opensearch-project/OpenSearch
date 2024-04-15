@@ -23,6 +23,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Priority;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
@@ -31,6 +32,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.translog.Translog.Durability;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -56,7 +58,11 @@ import java.util.stream.Stream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
+import static org.opensearch.test.OpenSearchTestCase.getShardLevelBlobPath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.comparesEqualTo;
@@ -181,15 +187,11 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, true, INDEX_NAME);
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(INDEX_NAME)
-            .get()
-            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
-        Path indexPath = Path.of(String.valueOf(segmentRepoPath), indexUUID, "/0/segments/metadata");
-
+        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, METADATA).buildAsString();
+        Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
+        ;
         IndexShard indexShard = getIndexShard(dataNode, INDEX_NAME);
-        int lastNMetadataFilesToKeep = indexShard.getRecoverySettings().getMinRemoteSegmentMetadataFiles();
+        int lastNMetadataFilesToKeep = indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles();
         // Delete is async.
         assertBusy(() -> {
             int actualFileCount = getFileCount(indexPath);
@@ -211,12 +213,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, false, INDEX_NAME);
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(INDEX_NAME)
-            .get()
-            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
-        Path indexPath = Path.of(String.valueOf(segmentRepoPath), indexUUID, "/0/segments/metadata");
+        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, METADATA).buildAsString();
+        Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
         int actualFileCount = getFileCount(indexPath);
         // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
         MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations - 1, numberOfIterations, numberOfIterations + 1)));
@@ -224,18 +222,14 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testStaleCommitDeletionWithMinSegmentFiles_3() throws Exception {
         Settings.Builder settings = Settings.builder()
-            .put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), "3");
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), "3");
         internalCluster().startNode(settings);
 
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, true, INDEX_NAME);
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(INDEX_NAME)
-            .get()
-            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
-        Path indexPath = Path.of(String.valueOf(segmentRepoPath), indexUUID, "/0/segments/metadata");
+        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, METADATA).buildAsString();
+        Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
         int actualFileCount = getFileCount(indexPath);
         // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
         MatcherAssert.assertThat(actualFileCount, is(oneOf(4)));
@@ -243,18 +237,15 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testStaleCommitDeletionWithMinSegmentFiles_Disabled() throws Exception {
         Settings.Builder settings = Settings.builder()
-            .put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), "-1");
+            .put(RemoteStoreSettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), "-1");
         internalCluster().startNode(settings);
 
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(12, 18);
         indexData(numberOfIterations, true, INDEX_NAME);
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(INDEX_NAME)
-            .get()
-            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
-        Path indexPath = Path.of(String.valueOf(segmentRepoPath), indexUUID, "/0/segments/metadata");
+        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, METADATA).buildAsString();
+        Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
+        ;
         int actualFileCount = getFileCount(indexPath);
         // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
         MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations + 1)));
@@ -469,7 +460,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     private void assertClusterRemoteBufferInterval(TimeValue expectedBufferInterval, String dataNode) {
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, dataNode);
-        assertEquals(expectedBufferInterval, indicesService.getClusterRemoteTranslogBufferInterval());
+        assertEquals(expectedBufferInterval, indicesService.getRemoteStoreSettings().getClusterRemoteTranslogBufferInterval());
     }
 
     private void assertBufferInterval(TimeValue expectedBufferInterval, IndexShard indexShard) {
@@ -588,12 +579,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         flushAndRefresh(INDEX_NAME);
 
         // 3. Delete data from remote segment store
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(INDEX_NAME)
-            .get()
-            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
-        Path segmentDataPath = Path.of(String.valueOf(segmentRepoPath), indexUUID, "/0/segments/data");
+        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, DATA).buildAsString();
+        Path segmentDataPath = Path.of(segmentRepoPath + "/" + shardPath);
 
         try (Stream<Path> files = Files.list(segmentDataPath)) {
             files.forEach(p -> {

@@ -47,7 +47,6 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.network.NetworkAddress;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -304,24 +303,22 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("search.query_current", "alias:sqc,searchQueryCurrent;default:false;text-align:right;desc:current query phase ops");
         table.addCell("search.query_time", "alias:sqti,searchQueryTime;default:false;text-align:right;desc:time spent in query phase");
         table.addCell("search.query_total", "alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops");
-        if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
-            table.addCell(
-                "search.concurrent_query_current",
-                "alias:scqc,searchConcurrentQueryCurrent;default:false;text-align:right;desc:current concurrent query phase ops"
-            );
-            table.addCell(
-                "search.concurrent_query_time",
-                "alias:scqti,searchConcurrentQueryTime;default:false;text-align:right;desc:time spent in concurrent query phase"
-            );
-            table.addCell(
-                "search.concurrent_query_total",
-                "alias:scqto,searchConcurrentQueryTotal;default:false;text-align:right;desc:total concurrent query phase ops"
-            );
-            table.addCell(
-                "search.concurrent_avg_slice_count",
-                "alias:casc,searchConcurrentAvgSliceCount;default:false;text-align:right;desc:average query concurrency"
-            );
-        }
+        table.addCell(
+            "search.concurrent_query_current",
+            "alias:scqc,searchConcurrentQueryCurrent;default:false;text-align:right;desc:current concurrent query phase ops"
+        );
+        table.addCell(
+            "search.concurrent_query_time",
+            "alias:scqti,searchConcurrentQueryTime;default:false;text-align:right;desc:time spent in concurrent query phase"
+        );
+        table.addCell(
+            "search.concurrent_query_total",
+            "alias:scqto,searchConcurrentQueryTotal;default:false;text-align:right;desc:total concurrent query phase ops"
+        );
+        table.addCell(
+            "search.concurrent_avg_slice_count",
+            "alias:casc,searchConcurrentAvgSliceCount;default:false;text-align:right;desc:average query concurrency"
+        );
         table.addCell("search.scroll_current", "alias:scc,searchScrollCurrent;default:false;text-align:right;desc:open scroll contexts");
         table.addCell(
             "search.scroll_time",
@@ -548,12 +545,10 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryCount());
-            if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
-                table.addCell(searchStats == null ? null : searchStats.getTotal().getConcurrentQueryCurrent());
-                table.addCell(searchStats == null ? null : searchStats.getTotal().getConcurrentQueryTime());
-                table.addCell(searchStats == null ? null : searchStats.getTotal().getConcurrentQueryCount());
-                table.addCell(searchStats == null ? null : searchStats.getTotal().getConcurrentAvgSliceCount());
-            }
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getConcurrentQueryCurrent());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getConcurrentQueryTime());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getConcurrentQueryCount());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getConcurrentAvgSliceCount());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getScrollCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getScrollTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getScrollCount());

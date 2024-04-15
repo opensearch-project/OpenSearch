@@ -38,8 +38,10 @@ import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.ingest.TestTemplateService;
+import org.opensearch.script.TemplateScript;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -57,10 +59,26 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
             randomAlphaOfLength(10),
             null,
             Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory(field)),
+            null,
             false
         );
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(field), equalTo(false));
+    }
+
+    public void testRemoveByExcludeFields() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        ingestDocument.setFieldValue("foo_1", "value");
+        ingestDocument.setFieldValue("foo_2", "value");
+        ingestDocument.setFieldValue("foo_3", "value");
+        List<TemplateScript.Factory> excludeFields = new ArrayList<>();
+        excludeFields.add(new TestTemplateService.MockTemplateScript.Factory("foo_1"));
+        excludeFields.add(new TestTemplateService.MockTemplateScript.Factory("foo_2"));
+        Processor processor = new RemoveProcessor(randomAlphaOfLength(10), null, null, excludeFields, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.hasField("foo_1"), equalTo(true));
+        assertThat(ingestDocument.hasField("foo_2"), equalTo(true));
+        assertThat(ingestDocument.hasField("foo_3"), equalTo(false));
     }
 
     public void testRemoveNonExistingField() throws Exception {
@@ -181,6 +199,34 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
                         assertThat(ingestDocument.hasField(metadataFieldName), equalTo(false));
                     }
         }
+    }
+
+    public void testCreateRemoveProcessorWithBothFieldsAndExcludeFields() throws Exception {
+        assertThrows(
+            "either fields or excludeFields must be set",
+            IllegalArgumentException.class,
+            () -> new RemoveProcessor(randomAlphaOfLength(10), null, null, null, false)
+        );
+
+        final List<TemplateScript.Factory> fields;
+        if (randomBoolean()) {
+            fields = new ArrayList<>();
+        } else {
+            fields = List.of(new TestTemplateService.MockTemplateScript.Factory("foo_1"));
+        }
+
+        final List<TemplateScript.Factory> excludeFields;
+        if (randomBoolean()) {
+            excludeFields = new ArrayList<>();
+        } else {
+            excludeFields = List.of(new TestTemplateService.MockTemplateScript.Factory("foo_2"));
+        }
+
+        assertThrows(
+            "either fields or excludeFields must be set",
+            IllegalArgumentException.class,
+            () -> new RemoveProcessor(randomAlphaOfLength(10), null, fields, excludeFields, false)
+        );
     }
 
     public void testRemoveDocumentId() throws Exception {

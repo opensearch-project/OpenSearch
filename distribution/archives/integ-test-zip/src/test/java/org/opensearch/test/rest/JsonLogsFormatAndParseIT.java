@@ -51,6 +51,7 @@ public class JsonLogsFormatAndParseIT extends JsonLogsIntegTestCase {
         return is("integTest-0");
     }
 
+    @SuppressWarnings("removal")
     @Override
     protected BufferedReader openReader(Path logFile) {
         assumeFalse("Skipping test because it is being run against an external cluster.",

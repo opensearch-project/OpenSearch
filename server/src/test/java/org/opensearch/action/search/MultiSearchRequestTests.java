@@ -73,6 +73,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.singletonList;
 import static org.opensearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -558,6 +559,13 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
 
     public void testEqualsAndHashcode() {
         checkEqualsAndHashCode(createMultiSearchRequest(), MultiSearchRequestTests::copyRequest, MultiSearchRequestTests::mutate);
+    }
+
+    public void testToString() {
+        MultiSearchRequest req = createMultiSearchRequest();
+        for (SearchRequest subReq : req.requests()) {
+            assertThat(req.toString(), containsString(subReq.toString()));
+        }
     }
 
     private static MultiSearchRequest mutate(MultiSearchRequest searchRequest) throws IOException {

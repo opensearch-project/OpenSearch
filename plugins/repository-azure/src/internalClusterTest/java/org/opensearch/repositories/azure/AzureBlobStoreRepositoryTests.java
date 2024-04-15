@@ -39,6 +39,8 @@ import com.azure.storage.blob.models.ParallelTransferOptions;
 import com.azure.storage.common.implementation.Constants;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.MockSecureSettings;
@@ -188,6 +190,7 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
     private static class AzureHTTPStatsCollectorHandler extends HttpStatsCollectorHandler {
 
+        private static final Logger testLogger = LogManager.getLogger(AzureHTTPStatsCollectorHandler.class);
         private static final Pattern listPattern = Pattern.compile("GET /[a-zA-Z0-9]+\\??.+");
         private static final Pattern getPattern = Pattern.compile("GET /[^?/]+/[^?/]+\\??.*");
 
@@ -197,6 +200,7 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
 
         @Override
         protected void maybeTrack(String request, Headers headers) {
+            testLogger.info(request, headers);
             if (getPattern.matcher(request).matches()) {
                 trackRequest("GetBlob");
             } else if (Regex.simpleMatch("HEAD /*/*", request)) {

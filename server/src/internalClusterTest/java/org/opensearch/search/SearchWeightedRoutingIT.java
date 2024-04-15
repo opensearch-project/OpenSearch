@@ -57,7 +57,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.opensearch.action.search.TransportSearchAction.SEARCH_REQUEST_STATS_ENABLED_KEY;
+import static org.opensearch.action.search.SearchRequestStats.SEARCH_REQUEST_STATS_ENABLED_KEY;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -480,6 +480,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
      * Assertions are put to make sure such shard search requests are served by data node in zone c.
      * @throws IOException throws exception
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10673")
     public void testShardRoutingWithNetworkDisruption_FailOpenEnabled() throws Exception {
 
         Settings commonSettings = Settings.builder()
@@ -978,6 +979,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
      * MultiGet with fail open enabled. No request failure on network disruption
      * @throws IOException throws exception
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10755")
     public void testMultiGetWithNetworkDisruption_FailOpenEnabled() throws Exception {
 
         Settings commonSettings = Settings.builder()

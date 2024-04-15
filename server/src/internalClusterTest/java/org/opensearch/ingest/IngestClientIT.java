@@ -32,6 +32,8 @@
 
 package org.opensearch.ingest;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
@@ -57,6 +59,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -73,7 +76,16 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
 @OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class IngestClientIT extends OpenSearchIntegTestCase {
+public class IngestClientIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public IngestClientIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return replicationSettings;
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

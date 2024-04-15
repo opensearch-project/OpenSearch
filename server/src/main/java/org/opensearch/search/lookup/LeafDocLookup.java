@@ -78,6 +78,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         this.docId = docId;
     }
 
+    @SuppressWarnings("removal")
     @Override
     public ScriptDocValues<?> get(Object key) {
         // assume its a string...

@@ -78,15 +78,14 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
         PluginInfo info = PluginInfo.readFromProperties(env.pluginsDir().resolve(plugin));
         terminal.println(Terminal.Verbosity.SILENT, prefix + info.getName());
         terminal.println(Terminal.Verbosity.VERBOSE, info.toString(prefix));
-        if (info.getOpenSearchVersion().equals(Version.CURRENT) == false) {
+        if (!PluginsService.isPluginVersionCompatible(info, Version.CURRENT)) {
             terminal.errorPrintln(
                 "WARNING: plugin ["
                     + info.getName()
                     + "] was built for OpenSearch version "
-                    + info.getVersion()
-                    + " but version "
+                    + info.getOpenSearchVersionRangesString()
+                    + " and is not compatible with "
                     + Version.CURRENT
-                    + " is required"
             );
         }
     }

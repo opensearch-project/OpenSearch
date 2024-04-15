@@ -36,6 +36,7 @@ import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfi
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.action.search.SearchRequestSlowLog;
+import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
@@ -80,6 +81,9 @@ import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.cache.CacheType;
+import org.opensearch.common.cache.settings.CacheSettings;
+import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.network.NetworkService;
@@ -114,6 +118,7 @@ import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.analysis.HunspellService;
 import org.opensearch.indices.breaker.BreakerSettings;
@@ -137,6 +142,7 @@ import org.opensearch.persistent.decider.EnableAssignmentDecider;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
+import org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionControllerSettings;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.script.ScriptService;
@@ -247,7 +253,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING,
                 BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
                 BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,
+                BalancedShardsAllocator.PRIMARY_SHARD_REBALANCE_BUFFER,
                 BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE,
+                BalancedShardsAllocator.PREFER_PRIMARY_SHARD_REBALANCE,
                 BalancedShardsAllocator.SHARD_MOVE_PRIMARY_FIRST_SETTING,
                 BalancedShardsAllocator.SHARD_MOVEMENT_STRATEGY_SETTING,
                 BalancedShardsAllocator.THRESHOLD_SETTING,
@@ -284,6 +292,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_CLUSTER,
                 ShardLimitValidator.SETTING_CLUSTER_IGNORE_DOT_INDEXES,
                 RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
+                RecoverySettings.INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,
                 RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
@@ -292,7 +301,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING,
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING,
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING,
-                RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING,
+                RecoverySettings.INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
@@ -326,6 +335,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
                 NetworkModule.HTTP_TYPE_SETTING,
                 NetworkModule.TRANSPORT_TYPE_SETTING,
+                NetworkModule.TRANSPORT_SSL_DUAL_MODE_ENABLED,
+                NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION,
+                NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_RESOLVE_HOST_NAME,
                 HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS,
                 HttpTransportSettings.SETTING_CORS_ENABLED,
                 HttpTransportSettings.SETTING_CORS_MAX_AGE,
@@ -380,9 +392,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                 TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                 TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING,
-                TransportSearchAction.SEARCH_REQUEST_STATS_ENABLED,
-                TransportSearchAction.SEARCH_PHASE_TOOK_ENABLED,
                 TransportSearchAction.SEARCH_QUERY_METRICS_ENABLED_SETTING,
+                TransportSearchAction.SEARCH_PHASE_TOOK_ENABLED,
+                SearchRequestStats.SEARCH_REQUEST_STATS_ENABLED,
                 RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
                 SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,
                 RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
@@ -665,6 +677,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Settings related to resource trackers
                 ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING,
                 ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING,
+                ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING,
 
                 // Settings related to Searchable Snapshots
                 Node.NODE_SEARCH_CACHE_SIZE_SETTING,
@@ -696,13 +709,28 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteClusterStateService.GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING,
                 RemoteClusterStateService.METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING,
                 RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
-                IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
+                RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING,
                 IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING,
+                IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING,
+                IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING,
+
+                // Admission Control Settings
                 AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE,
                 CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                 CpuBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT,
                 CpuBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT,
-                IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING
+                CpuBasedAdmissionControllerSettings.CLUSTER_ADMIN_CPU_USAGE_LIMIT,
+                IoBasedAdmissionControllerSettings.IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
+                IoBasedAdmissionControllerSettings.SEARCH_IO_USAGE_LIMIT,
+                IoBasedAdmissionControllerSettings.INDEXING_IO_USAGE_LIMIT,
+
+                // Concurrent segment search settings
+                SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING,
+                SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING,
+
+                RemoteStoreSettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING,
+                RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
+                RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_TRANSFER_TIMEOUT_SETTING
             )
         )
     );
@@ -715,11 +743,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
      * setting should be moved to {@link #BUILT_IN_CLUSTER_SETTINGS}.
      */
     public static final Map<List<String>, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
-        List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),
-        List.of(
-            SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING,
-            SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING
-        ),
         List.of(FeatureFlags.TELEMETRY),
         List.of(
             TelemetrySettings.TRACER_ENABLED_SETTING,
@@ -727,6 +750,16 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TelemetrySettings.METRICS_PUBLISH_INTERVAL_SETTING,
             TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING,
             TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING
+        ),
+        List.of(FeatureFlags.PLUGGABLE_CACHE),
+        List.of(
+            CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE),
+            OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES.getConcreteSettingForNamespace(
+                CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+            ),
+            OpenSearchOnHeapCacheSettings.EXPIRE_AFTER_ACCESS_SETTING.getConcreteSettingForNamespace(
+                CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+            )
         )
     );
 }

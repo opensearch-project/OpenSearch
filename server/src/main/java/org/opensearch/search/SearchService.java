@@ -77,6 +77,9 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.mapper.DerivedField;
+import org.opensearch.index.mapper.DerivedFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.InnerHitContextBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -250,7 +253,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final Setting<Boolean> CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING = Setting.boolSetting(
         "search.concurrent_segment_search.enabled",
-        true,
+        false,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -1066,6 +1069,28 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // might end up with incorrect state since we are using now() or script services
             // during rewrite and normalized / evaluate templates etc.
             QueryShardContext context = new QueryShardContext(searchContext.getQueryShardContext());
+            if (request.source() != null
+                && request.source().size() != 0
+                && (request.source().getDerivedFieldsObject() != null || request.source().getDerivedFields() != null)) {
+                Map<String, MappedFieldType> derivedFieldTypeMap = new HashMap<>();
+                if (request.source().getDerivedFieldsObject() != null) {
+                    Map<String, Object> derivedFieldObject = new HashMap<>();
+                    derivedFieldObject.put(DerivedFieldMapper.CONTENT_TYPE, request.source().getDerivedFieldsObject());
+                    derivedFieldTypeMap.putAll(
+                        DerivedFieldMapper.getAllDerivedFieldTypeFromObject(derivedFieldObject, searchContext.mapperService())
+                    );
+                }
+                if (request.source().getDerivedFields() != null) {
+                    for (DerivedField derivedField : request.source().getDerivedFields()) {
+                        derivedFieldTypeMap.put(
+                            derivedField.getName(),
+                            DerivedFieldMapper.getDerivedFieldType(derivedField, searchContext.mapperService())
+                        );
+                    }
+                }
+                context.setDerivedFieldTypes(derivedFieldTypeMap);
+                searchContext.getQueryShardContext().setDerivedFieldTypes(derivedFieldTypeMap);
+            }
             Rewriteable.rewrite(request.getRewriteable(), context, true);
             assert searchContext.getQueryShardContext().isCacheable();
             success = true;
@@ -1274,6 +1299,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         context.trackScores(source.trackScores());
+        context.includeNamedQueriesScore(source.includeNamedQueriesScore());
         if (source.trackTotalHitsUpTo() != null
             && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE
             && context.scrollContext() != null) {

@@ -36,6 +36,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentContraints;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -62,9 +63,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -156,6 +160,26 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             () -> indexService1.mapperService().merge("type", objectMapping, updateOrPreflight())
         );
         assertThat(e.getMessage(), containsString("Limit of mapping depth [1] has been exceeded"));
+    }
+
+    public void testMappingDepthExceedsXContentLimit() throws Throwable {
+        final IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> createIndex(
+                "test1",
+                Settings.builder()
+                    .put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), XContentContraints.DEFAULT_MAX_DEPTH + 1)
+                    .build()
+            )
+        );
+
+        assertThat(
+            ex.getMessage(),
+            is(
+                "The provided value 1001 of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of 1000. "
+                    + "Please change the setting value or increase per-JVM limit using 'opensearch.xcontent.depth.max' system property."
+            )
+        );
     }
 
     public void testUnmappedFieldType() {
@@ -298,6 +322,26 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             ).mapperService().merge("type", new CompressedXContent(mapping), updateOrPreflight());
         });
         assertEquals("Limit of total fields [" + numberOfNonAliasFields + "] has been exceeded", e.getMessage());
+    }
+
+    public void testFieldNameLengthExceedsXContentLimit() throws Throwable {
+        final IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> createIndex(
+                "test1",
+                Settings.builder()
+                    .put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), XContentContraints.DEFAULT_MAX_NAME_LEN + 1)
+                    .build()
+            )
+        );
+
+        assertThat(
+            ex.getMessage(),
+            is(
+                "The provided value 50001 of the index setting 'index.mapping.field_name_length.limit' exceeds per-JVM configured limit of 50000. "
+                    + "Please change the setting value or increase per-JVM limit using 'opensearch.xcontent.name.length.max' system property."
+            )
+        );
     }
 
     public void testFieldNameLengthLimit() throws Throwable {
@@ -496,6 +540,28 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
                 originalTokenFilters,
                 mapperService.fieldType("otherField").getTextSearchInfo().getSearchQuoteAnalyzer()
             )
+        );
+    }
+
+    public void testMapperDynamicAllowedIgnored() {
+        final List<Function<Settings.Builder, Settings.Builder>> scenarios = List.of(
+            (builder) -> builder.putNull(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey()),
+            (builder) -> builder.put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), true),
+            (builder) -> builder.put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), false)
+        );
+
+        for (int i = 0; i < scenarios.size(); i++) {
+            final Settings.Builder defaultSettingsBuilder = Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+
+            final Settings settings = scenarios.get(i).apply(defaultSettingsBuilder).build();
+
+            createIndex("test" + i, settings).mapperService();
+        }
+
+        assertWarnings(
+            "[index.mapper.dynamic] setting was deprecated in OpenSearch and will be removed in a future release! See the breaking changes documentation for the next major version."
         );
     }
 

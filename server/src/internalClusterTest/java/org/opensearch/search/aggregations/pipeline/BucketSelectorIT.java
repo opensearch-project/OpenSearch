@@ -37,7 +37,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -50,7 +49,7 @@ import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,7 +76,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class BucketSelectorIT extends ParameterizedOpenSearchIntegTestCase {
+public class BucketSelectorIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String FIELD_1_NAME = "field1";
     private static final String FIELD_2_NAME = "field2";
@@ -89,8 +88,8 @@ public class BucketSelectorIT extends ParameterizedOpenSearchIntegTestCase {
     private static int minNumber;
     private static int maxNumber;
 
-    public BucketSelectorIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public BucketSelectorIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -99,11 +98,6 @@ public class BucketSelectorIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override

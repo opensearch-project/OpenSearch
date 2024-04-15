@@ -138,13 +138,15 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         );
         final SetOnce<Supplier<SearchLookup>> searchLookupSetOnce = new SetOnce<>();
         MappedFieldType ft = mock(MappedFieldType.class);
+        final int shardId = randomInt();
         when(ft.fielddataBuilder(Mockito.any(), Mockito.any())).thenAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             Supplier<SearchLookup> searchLookup = (Supplier<SearchLookup>) invocationOnMock.getArguments()[1];
             searchLookupSetOnce.set(searchLookup);
+            assertEquals(searchLookup.get().shardId(), shardId);
             return (IndexFieldData.Builder) (cache, breakerService) -> null;
         });
-        SearchLookup searchLookup = new SearchLookup(null, null);
+        SearchLookup searchLookup = new SearchLookup(null, null, shardId);
         ifdService.getForField(ft, "qualified", () -> searchLookup);
         assertSame(searchLookup, searchLookupSetOnce.get().get());
     }

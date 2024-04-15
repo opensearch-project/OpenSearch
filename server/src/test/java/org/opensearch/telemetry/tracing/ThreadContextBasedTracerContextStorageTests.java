@@ -252,4 +252,20 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
         assertThat(threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(not(nullValue())));
         assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(nullValue()));
     }
+
+    public void testSpanNotPropagatedToChildSystemThreadContext() {
+        final Span span = tracer.startSpan(SpanCreationContext.internal().name("test"));
+
+        try (SpanScope scope = tracer.withSpanInScope(span)) {
+            try (StoredContext ignored = threadContext.stashContext()) {
+                assertThat(threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(not(nullValue())));
+                assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(span));
+                threadContext.markAsSystemContext();
+                assertThat(threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(nullValue()));
+            }
+        }
+
+        assertThat(threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(not(nullValue())));
+        assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(nullValue()));
+    }
 }
