@@ -51,6 +51,10 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
     }
 
     private void add(TranslogFileSnapshot translogFileSnapshot, CheckpointFileSnapshot checkPointFileSnapshot) {
+        // set checkpoint file path and checkpoint file checksum for a translog file
+        translogFileSnapshot.setCheckpointFilePath(checkPointFileSnapshot.getPath());
+        translogFileSnapshot.setCheckpointChecksum(checkPointFileSnapshot.getChecksum());
+
         translogCheckpointFileInfoTupleSet.add(Tuple.tuple(translogFileSnapshot, checkPointFileSnapshot));
         assert translogFileSnapshot.getGeneration() == checkPointFileSnapshot.getGeneration();
     }
