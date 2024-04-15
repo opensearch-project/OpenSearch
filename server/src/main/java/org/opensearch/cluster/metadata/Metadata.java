@@ -835,6 +835,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return Optional.ofNullable((ViewMetadata) this.custom(ViewMetadata.TYPE)).map(ViewMetadata::views).orElse(Collections.emptyMap());
     }
 
+    public Map<String, ResourceLimitGroup> resourceLimitGroups() {
+        return
+            Optional.ofNullable(
+                (ResourceLimitGroupMetadata) this.custom(ResourceLimitGroupMetadata.TYPE)).
+                map(ResourceLimitGroupMetadata::resourceLimitGroups)
+                .orElse(Collections.emptyMap());
+
+    }
+
     public DecommissionAttributeMetadata decommissionAttributeMetadata() {
         return custom(DecommissionAttributeMetadata.TYPE);
     }
@@ -1327,6 +1336,36 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             existingDataStreams.remove(name);
             this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams));
             return this;
+        }
+
+        public Builder resourceLimitGroups(final Map<String, ResourceLimitGroup> resourceLimitGroups) {
+            this.customs.put(ResourceLimitGroupMetadata.TYPE, new ResourceLimitGroupMetadata(resourceLimitGroups));
+            return this;
+        }
+
+        public ResourceLimitGroup getResourceLimitGroup(final String resourceLimitGroupName) {
+            return getResourceLimitGroups().get(resourceLimitGroupName);
+        }
+
+        public Builder put(final ResourceLimitGroup resourceLimitGroup) {
+            Objects.requireNonNull(resourceLimitGroup, "resourceLimitGroup should not be null");
+            Map<String, ResourceLimitGroup> existing = new HashMap<>(getResourceLimitGroups());
+            existing.put(resourceLimitGroup.getName(), resourceLimitGroup);
+            return resourceLimitGroups(existing);
+        }
+
+        public Builder removeResourceLimitGroup(final String resourceLimitGroupName) {
+            Objects.requireNonNull(resourceLimitGroupName, "resourceLimitGroup should not be null");
+            Map<String, ResourceLimitGroup> existing = new HashMap<>(getResourceLimitGroups());
+            existing.remove(resourceLimitGroupName);
+            return resourceLimitGroups(existing);
+        }
+
+        private Map<String, ResourceLimitGroup> getResourceLimitGroups() {
+            return Optional.ofNullable(this.customs.get(ResourceLimitGroupMetadata.TYPE))
+                .map(o -> (ResourceLimitGroupMetadata) o)
+                .map(ResourceLimitGroupMetadata::resourceLimitGroups)
+                .orElse(Collections.emptyMap());
         }
 
         private Map<String, View> getViews() {
