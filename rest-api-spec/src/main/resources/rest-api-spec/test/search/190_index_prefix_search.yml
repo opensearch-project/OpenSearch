@@ -134,11 +134,12 @@ setup:
 
   - match: {hits.total: 1}
 
+# related issue: https://github.com/opensearch-project/OpenSearch/issues/9203
 ---
-"search index prefixes with multiple value":
+"search index prefixes with multiple values":
   - skip:
       version: " - 2.99.99"
-      reason: "the position_increment_gap was fixed in 3.0.0"
+      reason: "the bug was fixed in 3.0.0"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -151,10 +152,10 @@ setup:
   - match: {hits.total: 1}
 
 ---
-"search index prefixes with multiple value and custom position_increment_gap":
+"search index prefixes with multiple values and custom position_increment_gap":
   - skip:
       version: " - 2.99.99"
-      reason: "the position_increment_gap was fixed in 3.0.0"
+      reason: "the bug was fixed in 3.0.0"
   - do:
       search:
         rest_total_hits_as_int: true
