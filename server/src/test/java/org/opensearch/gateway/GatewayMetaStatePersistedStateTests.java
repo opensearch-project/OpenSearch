@@ -67,6 +67,7 @@ import org.opensearch.env.TestEnvironment;
 import org.opensearch.gateway.GatewayMetaState.RemotePersistedState;
 import org.opensearch.gateway.PersistedClusterStateService.Writer;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
+import org.opensearch.gateway.remote.IndexCreationPreIndexMetadataUploadListener;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.gateway.remote.RemotePersistenceStats;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
@@ -88,6 +89,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -486,7 +488,19 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
                         settings,
                         new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                         () -> 0L,
-                        threadPool
+                        threadPool,
+                        new IndexCreationPreIndexMetadataUploadListener() {
+                            @Override
+                            public int latchCount(List<IndexMetadata> newIndexMetadataList) {
+                                return 0;
+                            }
+
+                            @Override
+                            public void run(List<IndexMetadata> newIndexMetadataList, CountDownLatch latch, List<Exception> exceptionList)
+                                throws IOException {
+
+                            }
+                        }
                     );
                 } else {
                     return null;

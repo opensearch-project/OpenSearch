@@ -147,6 +147,7 @@ import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
+import org.opensearch.index.remote.RemoteUploadPathIndexCreationListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
@@ -726,17 +727,21 @@ public class Node implements Closeable {
                 threadPool::relativeTimeInMillis
             );
             final RemoteClusterStateService remoteClusterStateService;
+            final RemoteUploadPathIndexCreationListener indexCreationListener;
             if (isRemoteStoreClusterStateEnabled(settings)) {
+                indexCreationListener = new RemoteUploadPathIndexCreationListener(settings, repositoriesServiceReference::get);
                 remoteClusterStateService = new RemoteClusterStateService(
                     nodeEnvironment.nodeId(),
                     repositoriesServiceReference::get,
                     settings,
                     clusterService.getClusterSettings(),
                     threadPool::preciseRelativeTimeInNanos,
-                    threadPool
+                    threadPool,
+                    indexCreationListener
                 );
             } else {
                 remoteClusterStateService = null;
+                indexCreationListener = null;
             }
 
             // collect engine factory providers from plugins
@@ -1313,6 +1318,7 @@ public class Node implements Closeable {
                 b.bind(SearchRequestSlowLog.class).toInstance(searchRequestSlowLog);
                 b.bind(MetricsRegistry.class).toInstance(metricsRegistry);
                 b.bind(RemoteClusterStateService.class).toProvider(() -> remoteClusterStateService);
+                b.bind(RemoteUploadPathIndexCreationListener.class).toProvider(() -> indexCreationListener);
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
                 b.bind(SearchRequestOperationsCompositeListenerFactory.class).toInstance(searchRequestOperationsCompositeListenerFactory);
@@ -1461,6 +1467,12 @@ public class Node implements Closeable {
         final RemoteClusterStateService remoteClusterStateService = injector.getInstance(RemoteClusterStateService.class);
         if (remoteClusterStateService != null) {
             remoteClusterStateService.start();
+        }
+        final RemoteUploadPathIndexCreationListener indexCreationListener = injector.getInstance(
+            RemoteUploadPathIndexCreationListener.class
+        );
+        if (indexCreationListener != null) {
+            indexCreationListener.start();
         }
         // Load (and maybe upgrade) the metadata stored on disk
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);

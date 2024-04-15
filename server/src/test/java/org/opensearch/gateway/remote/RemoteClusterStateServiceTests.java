@@ -154,7 +154,19 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             settings,
             clusterSettings,
             () -> 0L,
-            threadPool
+            threadPool,
+            new IndexCreationPreIndexMetadataUploadListener() {
+                @Override
+                public int latchCount(List<IndexMetadata> newIndexMetadataList) {
+                    return 0;
+                }
+
+                @Override
+                public void run(List<IndexMetadata> newIndexMetadataList, CountDownLatch latch, List<Exception> exceptionList)
+                    throws IOException {
+
+                }
+            }
         );
     }
 
@@ -181,7 +193,19 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L,
-                threadPool
+                threadPool,
+                new IndexCreationPreIndexMetadataUploadListener() {
+                    @Override
+                    public int latchCount(List<IndexMetadata> newIndexMetadataList) {
+                        return 0;
+                    }
+
+                    @Override
+                    public void run(List<IndexMetadata> newIndexMetadataList, CountDownLatch latch, List<Exception> exceptionList)
+                        throws IOException {
+
+                    }
+                }
             )
         );
     }
