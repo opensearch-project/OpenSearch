@@ -1,7 +1,7 @@
 {
   "nodes.reload_secure_settings":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/secure-settings.html#reloadable-secure-settings",
+      "url":"https://opensearch.org/docs/latest/api-reference/nodes-apis/nodes-reload-secure/",
       "description":"Reloads secure settings."
     },
     "stability":"stable",

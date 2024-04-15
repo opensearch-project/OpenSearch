@@ -15,19 +15,21 @@ import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.common.util.iterable.Iterables;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -46,6 +48,9 @@ import java.util.function.Predicate;
  */
 @ExperimentalApi
 public class TieredSpilloverCache<K, V> implements ICache<K, V> {
+
+    // Used to avoid caching stale entries in lower tiers.
+    private static final List<RemovalReason> SPILLOVER_REMOVAL_REASONS = List.of(RemovalReason.EVICTED, RemovalReason.CAPACITY);
 
     private final ICache<K, V> diskCache;
     private final ICache<K, V> onHeapCache;
@@ -69,8 +74,11 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 @Override
                 public void onRemoval(RemovalNotification<K, V> notification) {
                     try (ReleasableLock ignore = writeLock.acquire()) {
-                        if (evaluatePolicies(notification.getValue())) {
+                        if (SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason())
+                            && evaluatePolicies(notification.getValue())) {
                             diskCache.put(notification.getKey(), notification.getValue());
+                        } else {
+                            removalListener.onRemoval(notification);
                         }
                     }
                 }
@@ -81,6 +89,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 .setWeigher(builder.cacheConfig.getWeigher())
                 .setMaxSizeInBytes(builder.cacheConfig.getMaxSizeInBytes())
                 .setExpireAfterAccess(builder.cacheConfig.getExpireAfterAccess())
+                .setClusterSettings(builder.cacheConfig.getClusterSettings())
                 .build(),
             builder.cacheType,
             builder.cacheFactories
@@ -156,10 +165,11 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
      * Provides an iteration over both onHeap and disk keys. This is not protected from any mutations to the cache.
      * @return An iterable over (onHeap + disk) keys
      */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked" })
     @Override
     public Iterable<K> keys() {
-        return Iterables.concat(onHeapCache.keys(), diskCache.keys());
+        Iterable<K>[] iterables = (Iterable<K>[]) new Iterable<?>[] { onHeapCache.keys(), diskCache.keys() };
+        return new ConcatenatedIterables<K>(iterables);
     }
 
     @Override
@@ -214,6 +224,67 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     }
 
     /**
+     * ConcatenatedIterables which combines cache iterables and supports remove() functionality as well if underlying
+     * iterator supports it.
+     * @param <K> Type of key.
+     */
+    static class ConcatenatedIterables<K> implements Iterable<K> {
+
+        final Iterable<K>[] iterables;
+
+        ConcatenatedIterables(Iterable<K>[] iterables) {
+            this.iterables = iterables;
+        }
+
+        @SuppressWarnings({ "unchecked" })
+        @Override
+        public Iterator<K> iterator() {
+            Iterator<K>[] iterators = (Iterator<K>[]) new Iterator<?>[iterables.length];
+            for (int i = 0; i < iterables.length; i++) {
+                iterators[i] = iterables[i].iterator();
+            }
+            return new ConcatenatedIterator<>(iterators);
+        }
+
+        static class ConcatenatedIterator<T> implements Iterator<T> {
+            private final Iterator<T>[] iterators;
+            private int currentIteratorIndex;
+            private Iterator<T> currentIterator;
+
+            public ConcatenatedIterator(Iterator<T>[] iterators) {
+                this.iterators = iterators;
+                this.currentIteratorIndex = 0;
+                this.currentIterator = iterators[currentIteratorIndex];
+            }
+
+            @Override
+            public boolean hasNext() {
+                while (!currentIterator.hasNext()) {
+                    currentIteratorIndex++;
+                    if (currentIteratorIndex == iterators.length) {
+                        return false;
+                    }
+                    currentIterator = iterators[currentIteratorIndex];
+                }
+                return true;
+            }
+
+            @Override
+            public T next() {
+                if (!hasNext()) {
+                    throw new NoSuchElementException();
+                }
+                return currentIterator.next();
+            }
+
+            @Override
+            public void remove() {
+                currentIterator.remove();
+            }
+        }
+    }
+
+    /**
      * Factory to create TieredSpilloverCache objects.
      */
     public static class TieredSpilloverCacheFactory implements ICache.Factory {
@@ -253,8 +324,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             }
             ICache.Factory diskCacheFactory = cacheFactories.get(diskCacheStoreName);
 
-            TimeValue diskPolicyThreshold = TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD
-                .getConcreteSettingForNamespace(cacheType.getSettingPrefix())
+            TimeValue diskPolicyThreshold = TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType)
                 .get(settings);
             Function<V, CachedQueryResult.PolicyValues> cachedResultParser = Objects.requireNonNull(
                 config.getCachedResultParser(),
@@ -266,7 +336,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 .setRemovalListener(config.getRemovalListener())
                 .setCacheConfig(config)
                 .setCacheType(cacheType)
-                .addPolicy(new TookTimePolicy<V>(diskPolicyThreshold, cachedResultParser))
+                .addPolicy(new TookTimePolicy<V>(diskPolicyThreshold, cachedResultParser, config.getClusterSettings(), cacheType))
                 .build();
         }
 
