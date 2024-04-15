@@ -35,6 +35,8 @@ package org.opensearch.indices.recovery;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.TimeUnit;
@@ -47,7 +49,27 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         clusterSettings.applySettings(
             Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build()
         );
-        assertEquals(null, recoverySettings.rateLimiter());
+        assertNull(recoverySettings.recoveryRateLimiter());
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build()
+        );
+        assertNull(recoverySettings.replicationRateLimiter());
+    }
+
+    public void testSetReplicationMaxBytesPerSec() {
+        assertEquals(40, (int) recoverySettings.replicationRateLimiter().getMBPerSec());
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), new ByteSizeValue(60, ByteSizeUnit.MB))
+                .build()
+        );
+        assertEquals(60, (int) recoverySettings.replicationRateLimiter().getMBPerSec());
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.getKey(), new ByteSizeValue(80, ByteSizeUnit.MB))
+                .build()
+        );
+        assertEquals(80, (int) recoverySettings.replicationRateLimiter().getMBPerSec());
     }
 
     public void testRetryDelayStateSync() {
