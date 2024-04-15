@@ -62,14 +62,14 @@ public class RemoteStorePathStrategyResolverTests extends OpenSearchTestCase {
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         resolver = new RemoteStorePathStrategyResolver(clusterSettings, () -> Version.CURRENT);
         assertEquals(PathType.HASHED_PREFIX, resolver.get().getType());
-        assertEquals(PathHashAlgorithm.FNV_1A_COMPOSITE, resolver.get().getHashAlgorithm());
+        assertEquals(PathHashAlgorithm.FNV_1A_COMPOSITE_1, resolver.get().getHashAlgorithm());
 
         // HASHED_PREFIX type with FNV_1A_COMPOSITE
         settings = Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), PathType.HASHED_PREFIX).build();
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         resolver = new RemoteStorePathStrategyResolver(clusterSettings, () -> Version.CURRENT);
         assertEquals(PathType.HASHED_PREFIX, resolver.get().getType());
-        assertEquals(PathHashAlgorithm.FNV_1A_COMPOSITE, resolver.get().getHashAlgorithm());
+        assertEquals(PathHashAlgorithm.FNV_1A_COMPOSITE_1, resolver.get().getHashAlgorithm());
 
         // HASHED_PREFIX type with FNV_1A_BASE64
         settings = Settings.builder()
@@ -106,7 +106,7 @@ public class RemoteStorePathStrategyResolverTests extends OpenSearchTestCase {
             Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), PathType.HASHED_PREFIX).build()
         );
         assertEquals(PathType.HASHED_PREFIX, resolver.get().getType());
-        assertEquals(PathHashAlgorithm.FNV_1A_COMPOSITE, resolver.get().getHashAlgorithm());
+        assertEquals(PathHashAlgorithm.FNV_1A_COMPOSITE_1, resolver.get().getHashAlgorithm());
 
         // Set HASHED_PREFIX with FNV_1A_BASE64 hash algorithm
         clusterSettings.applySettings(
@@ -123,7 +123,7 @@ public class RemoteStorePathStrategyResolverTests extends OpenSearchTestCase {
             Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), PathType.HASHED_INFIX).build()
         );
         assertEquals(PathType.HASHED_INFIX, resolver.get().getType());
-        assertEquals(PathHashAlgorithm.FNV_1A_COMPOSITE, resolver.get().getHashAlgorithm());
+        assertEquals(PathHashAlgorithm.FNV_1A_COMPOSITE_1, resolver.get().getHashAlgorithm());
 
         // Set HASHED_INFIX with FNV_1A_BASE64 hash algorithm
         clusterSettings.applySettings(

@@ -23,7 +23,7 @@ import java.util.Set;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
-import static org.opensearch.index.remote.RemoteStoreUtils.longToCompositeUrlBase64AndBinaryEncodingUsing20Bits;
+import static org.opensearch.index.remote.RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding;
 import static org.opensearch.index.remote.RemoteStoreUtils.longToUrlBase64;
 
 /**
@@ -231,13 +231,13 @@ public class RemoteStoreEnums {
          * This hash algorithm will generate a hash value which will use 1st 6 bits to create bas64 character and next 14
          * bits to create binary string.
          */
-        FNV_1A_COMPOSITE(1) {
+        FNV_1A_COMPOSITE_1(1) {
             @Override
             String hash(PathInput pathInput) {
                 String input = pathInput.indexUUID() + pathInput.shardId() + pathInput.dataCategory().getName() + pathInput.dataType()
                     .getName();
                 long hash = FNV1a.hash64(input);
-                return longToCompositeUrlBase64AndBinaryEncodingUsing20Bits(hash);
+                return longToCompositeBase64AndBinaryEncoding(hash);
             }
         };
 

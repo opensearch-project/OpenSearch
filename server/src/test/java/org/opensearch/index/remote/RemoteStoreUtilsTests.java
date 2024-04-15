@@ -14,15 +14,17 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.opensearch.index.remote.RemoteStoreUtils.compositeUrlBase64BinaryEncodingToLong;
+import static org.opensearch.index.remote.RemoteStoreUtils.URL_BASE64_CHARSET;
 import static org.opensearch.index.remote.RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding;
-import static org.opensearch.index.remote.RemoteStoreUtils.longToCompositeUrlBase64AndBinaryEncodingUsing20Bits;
 import static org.opensearch.index.remote.RemoteStoreUtils.longToUrlBase64;
 import static org.opensearch.index.remote.RemoteStoreUtils.urlBase64ToLong;
 import static org.opensearch.index.remote.RemoteStoreUtils.verifyNoMultipleWriters;
@@ -31,6 +33,16 @@ import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFil
 import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.METADATA_SEPARATOR;
 
 public class RemoteStoreUtilsTests extends OpenSearchTestCase {
+
+    private static Map<Character, Integer> BASE64_CHARSET_IDX_MAP;
+
+    static {
+        Map<Character, Integer> charToIndexMap = new HashMap<>();
+        for (int i = 0; i < URL_BASE64_CHARSET.length; i++) {
+            charToIndexMap.put(URL_BASE64_CHARSET[i], i);
+        }
+        BASE64_CHARSET_IDX_MAP = Collections.unmodifiableMap(charToIndexMap);
+    }
 
     private final String metadataFilename = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
         12,
@@ -247,7 +259,7 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
             "610010010111111"
         );
         for (Map.Entry<Long, String> entry : longToExpectedBase64String.entrySet()) {
-            String base64Str = longToCompositeUrlBase64AndBinaryEncodingUsing20Bits(entry.getKey());
+            String base64Str = RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding(entry.getKey());
             assertEquals(entry.getValue(), base64Str);
             assertEquals(15, entry.getValue().length());
             assertEquals(longToUrlBase64(entry.getKey()).charAt(0), base64Str.charAt(0));
@@ -256,7 +268,7 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
         int iters = randomInt(1000);
         for (int i = 0; i < iters; i++) {
             long value = randomLong();
-            assertEquals(longToCompositeUrlBase64AndBinaryEncodingUsing20Bits(value).charAt(0), longToUrlBase64(value).charAt(0));
+            assertEquals(RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding(value).charAt(0), longToUrlBase64(value).charAt(0));
         }
     }
 
@@ -290,7 +302,7 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
             assertEquals(expectedCompositeEncoding, actualCompositeEncoding);
             assertEquals(59, expectedCompositeEncoding.length());
             assertEquals(longToUrlBase64(entry.getKey()).charAt(0), actualCompositeEncoding.charAt(0));
-            assertEquals(longToCompositeUrlBase64AndBinaryEncodingUsing20Bits(hashValue), actualCompositeEncoding.substring(0, 15));
+            assertEquals(RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding(hashValue), actualCompositeEncoding.substring(0, 15));
 
             Long computedHashValue = compositeUrlBase64BinaryEncodingToLong(actualCompositeEncoding);
             assertEquals(hashValue, computedHashValue);
@@ -302,5 +314,13 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
             String compositeEncoding = longToCompositeBase64AndBinaryEncoding(value, 64);
             assertEquals(value, compositeUrlBase64BinaryEncodingToLong(compositeEncoding));
         }
+    }
+
+    static long compositeUrlBase64BinaryEncodingToLong(String encodedValue) {
+        char ch = encodedValue.charAt(0);
+        int base64BitsIntValue = BASE64_CHARSET_IDX_MAP.get(ch);
+        String base64PartBinary = Integer.toBinaryString(base64BitsIntValue);
+        String binaryString = base64PartBinary + encodedValue.substring(1);
+        return new BigInteger(binaryString, 2).longValue();
     }
 }

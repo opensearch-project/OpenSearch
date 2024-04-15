@@ -326,7 +326,7 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public static final Setting<PathHashAlgorithm> CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING = new Setting<>(
         "cluster.remote_store.index.path.hash_algorithm",
-        PathHashAlgorithm.FNV_1A_COMPOSITE.toString(),
+        PathHashAlgorithm.FNV_1A_COMPOSITE_1.toString(),
         PathHashAlgorithm::parseString,
         Property.NodeScope,
         Property.Dynamic

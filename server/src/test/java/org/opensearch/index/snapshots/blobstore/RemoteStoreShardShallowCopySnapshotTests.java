@@ -150,7 +150,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             repositoryBasePath,
             fileNames,
             PathType.HASHED_PREFIX,
-            PathHashAlgorithm.FNV_1A_COMPOSITE
+            PathHashAlgorithm.FNV_1A_COMPOSITE_1
         );
         try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
             builder.startObject();
@@ -212,7 +212,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             repositoryBasePath,
             fileNames,
             PathType.HASHED_INFIX,
-            PathHashAlgorithm.FNV_1A_COMPOSITE
+            PathHashAlgorithm.FNV_1A_COMPOSITE_1
         );
         try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
             builder.startObject();
@@ -343,7 +343,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             repositoryBasePath,
             fileNames,
             PathType.HASHED_PREFIX,
-            PathHashAlgorithm.FNV_1A_COMPOSITE
+            PathHashAlgorithm.FNV_1A_COMPOSITE_1
         );
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
             RemoteStoreShardShallowCopySnapshot actualShardShallowCopySnapshot = RemoteStoreShardShallowCopySnapshot.fromXContent(parser);
@@ -397,7 +397,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             repositoryBasePath,
             fileNames,
             PathType.HASHED_INFIX,
-            PathHashAlgorithm.FNV_1A_COMPOSITE
+            PathHashAlgorithm.FNV_1A_COMPOSITE_1
         );
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
             RemoteStoreShardShallowCopySnapshot actualShardShallowCopySnapshot = RemoteStoreShardShallowCopySnapshot.fromXContent(parser);
@@ -481,13 +481,13 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
                     break;
                 case 12:
                     version = "1";
-                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_COMPOSITE;
+                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_COMPOSITE_1;
                     failure = "Invalid combination of pathType=null pathHashAlgorithm=FNV_1A_COMPOSITE for version=1";
                     break;
                 case 13:
                     version = "2";
                     pathType = PathType.FIXED;
-                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_COMPOSITE;
+                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_COMPOSITE_1;
                     failure = "Invalid combination of pathType=FIXED pathHashAlgorithm=FNV_1A_COMPOSITE for version=2";
                     break;
                 case 14:
@@ -498,7 +498,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
                 case 15:
                     version = "2";
                     pathType = PathType.HASHED_PREFIX;
-                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_COMPOSITE;
+                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_COMPOSITE_1;
                     break;
                 case 16:
                     version = "2";
@@ -508,7 +508,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
                 case 17:
                     version = "2";
                     pathType = PathType.HASHED_INFIX;
-                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_COMPOSITE;
+                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_COMPOSITE_1;
                     break;
                 case 18:
                     break;

@@ -10,11 +10,9 @@ package org.opensearch.index.remote;
 
 import org.opensearch.common.collect.Tuple;
 
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -32,17 +30,7 @@ public class RemoteStoreUtils {
     /**
      * URL safe base 64 character set. This must not be changed as this is used in deriving the base64 equivalent of binary.
      */
-    private static final char[] URL_BASE64_CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_".toCharArray();
-
-    private static Map<Character, Integer> BASE64_CHARSET_IDX_MAP;
-
-    static {
-        Map<Character, Integer> charToIndexMap = new HashMap<>();
-        for (int i = 0; i < URL_BASE64_CHARSET.length; i++) {
-            charToIndexMap.put(URL_BASE64_CHARSET[i], i);
-        }
-        BASE64_CHARSET_IDX_MAP = Collections.unmodifiableMap(charToIndexMap);
-    }
+    static final char[] URL_BASE64_CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_".toCharArray();
 
     /**
      * This method subtracts given numbers from Long.MAX_VALUE and returns a string representation of the result.
@@ -147,14 +135,14 @@ public class RemoteStoreUtils {
      * 1. Base 64 string and 2. Binary String. We will use the first 6 bits for creating the base 64 string.
      * For the second part, we will use the next 14 bits. For eg - A010001010100010.
      */
-    static String longToCompositeUrlBase64AndBinaryEncodingUsing20Bits(long value) {
+    static String longToCompositeBase64AndBinaryEncoding(long value) {
         return longToCompositeBase64AndBinaryEncoding(value, 20);
     }
 
     /**
      * Converts an input hash which occupies 64 bits of memory into a composite encoded string. The string will have 2 parts -
      * 1. Base 64 string and 2. Binary String. We will use the first 6 bits for creating the base 64 string.
-     * For the second part, the rest of the bits will be used as is in string form.
+     * For the second part, the rest of the bits (of length {@code len}-6) will be used as is in string form.
      */
     static String longToCompositeBase64AndBinaryEncoding(long value, int len) {
         if (len < 7 || len > 64) {
@@ -166,13 +154,5 @@ public class RemoteStoreUtils {
         int base64DecimalValue = Integer.valueOf(base64Part, 2);
         assert base64DecimalValue >= 0 && base64DecimalValue < 64;
         return URL_BASE64_CHARSET[base64DecimalValue] + binaryPart;
-    }
-
-    static long compositeUrlBase64BinaryEncodingToLong(String encodedValue) {
-        char ch = encodedValue.charAt(0);
-        int base64BitsIntValue = BASE64_CHARSET_IDX_MAP.get(ch);
-        String base64PartBinary = Integer.toBinaryString(base64BitsIntValue);
-        String binaryString = base64PartBinary + encodedValue.substring(1);
-        return new BigInteger(binaryString, 2).longValue();
     }
 }
