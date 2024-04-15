@@ -1875,7 +1875,7 @@ public class InternalEngine extends Engine {
                         logger.trace("finished commit for flush");
 
                         // a temporary debugging to investigate test failure - issue#32827. Remove when the issue is resolved
-                        logger.debug(
+                        logger.info(
                             "new commit on flush, hasUncommittedChanges:{}, force:{}, shouldPeriodicallyFlush:{}",
                             hasUncommittedChanges,
                             force,

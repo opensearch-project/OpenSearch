@@ -70,8 +70,8 @@ public class RemoteStoreSettings {
      */
     public static final Setting<Integer> CLUSTER_REMOTE_MAX_TRANSLOG_READERS = Setting.intSetting(
         "cluster.remote_store.translog.max_readers",
-        300,
-        1,
+        1000,
+        100,
         Property.Dynamic,
         Property.NodeScope
     );

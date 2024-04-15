@@ -2911,7 +2911,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @return {@code true} if the engine should be flushed
      */
-    boolean shouldPeriodicallyFlush() {
+    public boolean shouldPeriodicallyFlush() {
         final Engine engine = getEngineOrNull();
         if (engine != null) {
             try {
@@ -4484,26 +4484,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // we can not protect with a lock since we "release" on a different thread
     private final AtomicBoolean flushOrRollRunning = new AtomicBoolean();
 
-    /**
-     * Checks if the shard need to be refreshed depending on translog constraints.
-     * each translog type can have it's own decider
-     * @return {@code true} if the shard should be refreshed
-     */
-    public boolean shouldRefreshShard() {
+    // For testing purpose
+    public int getNumberofTranslogReaders() {
         final Engine engine = getEngineOrNull();
         if (engine != null) {
             try {
-                return engine.translogManager().shouldRefreshShard();
+                return engine.translogManager().getNumberofTranslogReaders();
             } catch (final AlreadyClosedException e) {
-                // we are already closed, no need to Refresh
+                // we are already closed
             }
         }
-        return false;
-    }
-
-    private void maybeRefreshShard(String source) {
-        verifyNotClosed();
-        getEngine().maybeRefresh(source);
+        return -1;
     }
 
     /**
@@ -4571,20 +4562,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     flushOrRollRunning.compareAndSet(true, false);
                 }
             }
-        } else if (shouldRefreshShard()) {
-            logger.debug("submitting async Refresh request");
-            final AbstractRunnable refreshRunnable = new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    logger.warn("refresh failed after translog manager decided to refresh the shard", e);
-                }
-
-                @Override
-                protected void doRun() throws Exception {
-                    maybeRefreshShard("Translog manager decided to refresh the shard");
-                }
-            };
-            threadPool.executor(ThreadPool.Names.REFRESH).execute(refreshRunnable);
         }
     }
 

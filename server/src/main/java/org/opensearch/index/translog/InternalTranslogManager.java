@@ -437,6 +437,13 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
      * @return if the translog should be flushed
      */
     public boolean shouldPeriodicallyFlush(long localCheckpointOfLastCommit, long flushThreshold) {
+        /*
+         * This triggers flush if number of translog files have breached a threshold.
+         * each translog type can have it's own decider.
+         */
+        if (translog.shouldFlushOnMaxTranslogFiles()) {
+            return true;
+        }
         // This is the minimum seqNo that is referred in translog and considered for calculating translog size
         long minTranslogRefSeqNo = translog.getMinUnreferencedSeqNoInSegments(localCheckpointOfLastCommit + 1);
         final long minReferencedTranslogGeneration = translog.getMinGenerationForSeqNo(minTranslogRefSeqNo).translogFileGeneration;
@@ -470,8 +477,11 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         IOUtils.closeWhileHandlingException(translog);
     }
 
-    @Override
-    public boolean shouldRefreshShard() {
-        return getTranslog(true).shouldRefreshShard();
+    /**
+     * Retrieves the number of translog readers
+     * @return number of translog readers
+     */
+    public int getNumberofTranslogReaders() {
+        return translog.getNumberofTranslogReaders();
     }
 }

@@ -790,32 +790,34 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         );
     }
 
-    public void testRefreshOnTooManyRemoteTranslogFiles() throws Exception {
-
+    public void testFlushOnTooManyRemoteTranslogFiles() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNodes(1).get(0);
+        String datanode = internalCluster().startDataOnlyNodes(1).get(0);
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0, 10000L, -1));
         ensureGreen(INDEX_NAME);
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(
-            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS.getKey(), "5")
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS.getKey(), "100")
         );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-        // indexing 35 documents (7 bulk requests), which should trigger refresh, and hence number of documents(searchable) should be 35.
-        // Here refresh will be triggered on 6th and 7th bulk request. One extra since translogs will be marked
-        // unreferenced after 6th refresh completes and will be trimmed on 7th bulk request call.
-        for (int i = 0; i < 7; i++) {
-            indexBulk(INDEX_NAME, 5);
+        IndexShard indexShard = getIndexShard(datanode, INDEX_NAME);
+
+        assertFalse(indexShard.shouldPeriodicallyFlush());
+        assertEquals(0, indexShard.getNumberofTranslogReaders());
+
+        // indexing 100 documents (100 bulk requests), no flush will be triggered yet
+        for (int i = 0; i < 100; i++) {
+            indexBulk(INDEX_NAME, 1);
         }
 
-        assertBusy(() -> assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), 35), 30, TimeUnit.SECONDS);
+        assertEquals(100, indexShard.getNumberofTranslogReaders());
 
-        // refresh will not trigger here, hence total searchable documents will be 35 (not 40)
-        indexBulk(INDEX_NAME, 5);
+        // Will flush and trim the translog readers
+        indexBulk(INDEX_NAME, 1);
 
-        long currentDocCount = client().prepareSearch(INDEX_NAME).setSize(0).get().getHits().getTotalHits().value;
-        assertEquals(35, currentDocCount);
+        assertBusy(() -> assertEquals(0, indexShard.getNumberofTranslogReaders()), 30, TimeUnit.SECONDS);
+        assertFalse(indexShard.shouldPeriodicallyFlush());
     }
 }

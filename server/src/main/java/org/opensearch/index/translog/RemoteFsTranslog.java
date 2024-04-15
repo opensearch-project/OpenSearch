@@ -654,13 +654,13 @@ public class RemoteFsTranslog extends Translog {
     }
 
     /**
-     * Checks whether or not the shard should be refreshed.
+     * Checks whether or not the shard should be flushed based on translog files.
      * This checks if number of translog files breaches the threshold count determined by
      * {@code cluster.remote_store.translog.max_readers} setting
-     * @return {@code true} if the shard should be refreshed
+     * @return {@code true} if the shard should be flushed
      */
     @Override
-    public boolean shouldRefreshShard() {
+    public boolean shouldFlushOnMaxTranslogFiles() {
         return readers.size() >= translogTransferManager.getMaxRemoteTranslogReadersSettings();
     }
 }

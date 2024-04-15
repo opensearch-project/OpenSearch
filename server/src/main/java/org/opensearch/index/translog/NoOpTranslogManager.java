@@ -136,7 +136,7 @@ public class NoOpTranslogManager implements TranslogManager {
     }
 
     @Override
-    public boolean shouldRefreshShard() {
-        return false;
+    public int getNumberofTranslogReaders() {
+        return 0;
     }
 }
