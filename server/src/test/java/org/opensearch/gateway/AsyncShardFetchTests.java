@@ -39,7 +39,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.indices.store.ShardAttributes;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -47,7 +46,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -86,16 +84,7 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         this.threadPool = new TestThreadPool(getTestName());
-        if (randomBoolean()) {
-            this.test = new TestFetch(threadPool);
-        } else {
-            HashMap<ShardId, ShardAttributes> shardToCustomDataPath = new HashMap<>();
-            ShardId shardId0 = new ShardId("index1", "index_uuid1", 0);
-            ShardId shardId1 = new ShardId("index2", "index_uuid2", 0);
-            shardToCustomDataPath.put(shardId0, new ShardAttributes(shardId0, ""));
-            shardToCustomDataPath.put(shardId1, new ShardAttributes(shardId1, ""));
-            this.test = new TestFetch(threadPool, shardToCustomDataPath);
-        }
+        this.test = new TestFetch(threadPool);
     }
 
     @After
@@ -411,11 +400,6 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
 
         TestFetch(ThreadPool threadPool) {
             super(LogManager.getLogger(TestFetch.class), "test", new ShardId("test", "_na_", 1), "", null);
-            this.threadPool = threadPool;
-        }
-
-        TestFetch(ThreadPool threadPool, Map<ShardId, ShardAttributes> shardAttributesMap) {
-            super(LogManager.getLogger(TestFetch.class), "test", shardAttributesMap, null, "test-batch");
             this.threadPool = threadPool;
         }
 
