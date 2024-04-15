@@ -39,6 +39,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.index.remote.RemoteStoreUtils;
+import org.opensearch.index.remote.RemoteUploadPathIndexCreationListener;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.repositories.FilterRepository;
 import org.opensearch.repositories.RepositoriesService;
@@ -155,18 +156,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             clusterSettings,
             () -> 0L,
             threadPool,
-            new IndexCreationPreIndexMetadataUploadListener() {
-                @Override
-                public int latchCount(List<IndexMetadata> newIndexMetadataList) {
-                    return 0;
-                }
-
-                @Override
-                public void run(List<IndexMetadata> newIndexMetadataList, CountDownLatch latch, List<Exception> exceptionList)
-                    throws IOException {
-
-                }
-            }
+            new RemoteUploadPathIndexCreationListener(settings, repositoriesServiceSupplier)
         );
     }
 
@@ -194,18 +184,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L,
                 threadPool,
-                new IndexCreationPreIndexMetadataUploadListener() {
-                    @Override
-                    public int latchCount(List<IndexMetadata> newIndexMetadataList) {
-                        return 0;
-                    }
-
-                    @Override
-                    public void run(List<IndexMetadata> newIndexMetadataList, CountDownLatch latch, List<Exception> exceptionList)
-                        throws IOException {
-
-                    }
-                }
+                new RemoteUploadPathIndexCreationListener(settings, repositoriesServiceSupplier)
             )
         );
     }
