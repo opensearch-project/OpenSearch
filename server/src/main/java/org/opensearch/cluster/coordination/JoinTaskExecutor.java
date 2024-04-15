@@ -57,6 +57,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -520,12 +521,24 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     );
                 }
             }
-        } else {
-            if (remoteStoreCompatibilityMode == CompatibilityMode.MIXED) {
-                if (joiningNode.isRemoteStoreNode()) {
-                    Optional<DiscoveryNode> remoteDN = existingNodes.stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
-                    remoteDN.ifPresent(discoveryNode -> ensureRemoteStoreNodesCompatibility(joiningNode, discoveryNode));
-                }
+        } else if (remoteStoreCompatibilityMode == CompatibilityMode.MIXED) {
+            Version joiningNodeVersion = joiningNode.getVersion();
+            if (joiningNodeVersion.after(currentNodes.getMaxNodeVersion()) || joiningNodeVersion.before(currentNodes.getMinNodeVersion())) {
+                boolean isAfter = joiningNodeVersion.after(currentNodes.getMaxNodeVersion());
+                String reason = String.format(
+                    Locale.ROOT,
+                    "mixed mode: a %s version [%s] node [%s] is not allowed to join cluster with %s version [%s]",
+                    isAfter ? "higher" : "lower",
+                    joiningNode.getVersion(),
+                    joiningNode,
+                    isAfter ? "maximum" : "minimum",
+                    isAfter ? currentNodes.getMaxNodeVersion() : currentNodes.getMinNodeVersion()
+                );
+                throw new IllegalStateException(reason);
+            }
+            if (joiningNode.isRemoteStoreNode()) {
+                Optional<DiscoveryNode> remoteDN = existingNodes.stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
+                remoteDN.ifPresent(discoveryNode -> ensureRemoteStoreNodesCompatibility(joiningNode, discoveryNode));
             }
         }
     }
