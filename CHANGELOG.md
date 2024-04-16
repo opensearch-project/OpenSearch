@@ -36,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump Apache Tika from 2.6.0 to 2.9.2 ([#12627](https://github.com/opensearch-project/OpenSearch/pull/12627))
 - Bump `com.gradle.enterprise` from 3.16.2 to 3.17.1 ([#13116](https://github.com/opensearch-project/OpenSearch/pull/13116), [#13191](https://github.com/opensearch-project/OpenSearch/pull/13191))
 - Bump `gradle/wrapper-validation-action` from 2 to 3 ([#13192](https://github.com/opensearch-project/OpenSearch/pull/13192))
+- Bump joda from 2.12.2 to 2.12.7 ([#13193](https://github.com/opensearch-project/OpenSearch/pull/13193))
 
 ### Changed
 - [BWC and API enforcement] Enforcing the presence of API annotations at build time ([#12872](https://github.com/opensearch-project/OpenSearch/pull/12872))
