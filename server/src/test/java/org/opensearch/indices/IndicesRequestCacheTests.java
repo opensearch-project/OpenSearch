@@ -803,7 +803,10 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             assertNotNull(indexToClose.getShard(i));
         }
         ThreadPool threadPool = getThreadPool();
-        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.001%").build();
+        Settings settings = Settings.builder()
+            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.001%")
+            .put(FeatureFlags.PLUGGABLE_CACHE, true)
+            .build();
         IndicesRequestCache cache = new IndicesRequestCache(settings, (shardId -> {
             IndexService indexService = null;
             try {
@@ -930,15 +933,16 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             assertEquals("foo", value1.streamInput().readString());
             BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, secondReader, termBytes);
             assertEquals("bar", value2.streamInput().readString());
-            size = new ByteSizeValue(cache.getSizeInBytes());
+            size = indexShard.requestCache().stats().getMemorySize(); // Value from old API
             IOUtils.close(reader, secondReader, writer, dir, cache);
             terminate(threadPool);
         }
         IndexShard indexShard = createIndex("test1").getShard(0);
         ThreadPool threadPool = getThreadPool();
         IndicesRequestCache cache = new IndicesRequestCache(
-            // Add 5 instead of 1; the key size now depends on the length of dimension names and values so there's more variation
-            Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.getBytes() + 5 + "b").build(),
+            // TODO: Add wiggle room to max size to allow for overhead of ICacheKey. This can be removed once API PR goes in, as it updates
+            // the old API to account for the ICacheKey overhead.
+            Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), (int) (size.getBytes() * 1.2) + "b").build(),
             (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
             new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
             threadPool,
