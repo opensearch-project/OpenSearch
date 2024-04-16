@@ -95,18 +95,24 @@ public class RemoteStoreMigrationAllocationDecider extends AllocationDecider {
             );
         }
 
-        if (migrationDirection.equals(Direction.REMOTE_STORE) == false) {
-            // docrep migration direction is currently not supported
+        IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        boolean remoteStoreBackedIndex = IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexMetadata.getSettings());
+
+        if (migrationDirection.equals(Direction.NONE)) {
+            boolean isNoDecision = (remoteStoreBackedIndex && targetNode.isRemoteStoreNode() == false)
+                || (remoteStoreBackedIndex == false && targetNode.isRemoteStoreNode());
+            String reason = String.format(Locale.ROOT, " for %sremote store backed index", remoteStoreBackedIndex ? "" : "non ");
             return allocation.decision(
-                Decision.YES,
+                isNoDecision ? Decision.NO : Decision.YES,
                 NAME,
-                getDecisionDetails(true, shardRouting, targetNode, " for non remote_store direction")
+                getDecisionDetails(!isNoDecision, shardRouting, targetNode, reason)
             );
+        } else if (migrationDirection.equals(Direction.DOCREP)) {
+            // docrep migration direction is currently not supported
+            return allocation.decision(Decision.YES, NAME, getDecisionDetails(true, shardRouting, targetNode, " for DOCREP direction"));
         }
 
         // check for remote store backed indices
-        IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-        boolean remoteStoreBackedIndex = IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexMetadata.getSettings());
         if (remoteStoreBackedIndex && targetNode.isRemoteStoreNode() == false) {
             // allocations and relocations must be to a remote node
             String reason = String.format(
