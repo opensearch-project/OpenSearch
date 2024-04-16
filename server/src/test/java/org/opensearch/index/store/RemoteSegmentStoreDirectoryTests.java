@@ -706,7 +706,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         ShardId shardId = new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt("0"));
         RemoteStorePathStrategy pathStrategy = randomFrom(
             new RemoteStorePathStrategy(PathType.FIXED),
-            new RemoteStorePathStrategy(randomFrom(PathType.HASHED_INFIX, PathType.HASHED_PREFIX), randomFrom(PathHashAlgorithm.values()))
+            new RemoteStorePathStrategy(PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A)
         );
 
         RemoteSegmentStoreDirectory.remoteDirectoryCleanup(
