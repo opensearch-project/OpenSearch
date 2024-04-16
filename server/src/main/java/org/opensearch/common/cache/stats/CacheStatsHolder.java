@@ -28,7 +28,7 @@ import java.util.function.Consumer;
  *
  * @opensearch.experimental
  */
-public class CacheStatsHolder {
+public class CacheStatsHolder implements CacheStatsHolderInterface {
 
     // The list of permitted dimensions. Should be ordered from "outermost" to "innermost", as you would like to
     // aggregate them in an API response.
@@ -53,32 +53,39 @@ public class CacheStatsHolder {
 
     // For all these increment functions, the dimensions list comes from the key, and contains all dimensions present in dimensionNames.
     // The order has to match the order given in dimensionNames.
+    @Override
     public void incrementHits(List<String> dimensionValues) {
         internalIncrement(dimensionValues, Node::incrementHits, true);
     }
 
+    @Override
     public void incrementMisses(List<String> dimensionValues) {
         internalIncrement(dimensionValues, Node::incrementMisses, true);
     }
 
+    @Override
     public void incrementEvictions(List<String> dimensionValues) {
         internalIncrement(dimensionValues, Node::incrementEvictions, true);
     }
 
+    @Override
     public void incrementSizeInBytes(List<String> dimensionValues, long amountBytes) {
         internalIncrement(dimensionValues, (node) -> node.incrementSizeInBytes(amountBytes), true);
     }
 
     // For decrements, we should not create nodes if they are absent. This protects us from erroneously decrementing values for keys
     // which have been entirely deleted, for example in an async removal listener.
+    @Override
     public void decrementSizeInBytes(List<String> dimensionValues, long amountBytes) {
         internalIncrement(dimensionValues, (node) -> node.decrementSizeInBytes(amountBytes), false);
     }
 
+    @Override
     public void incrementEntries(List<String> dimensionValues) {
         internalIncrement(dimensionValues, Node::incrementEntries, true);
     }
 
+    @Override
     public void decrementEntries(List<String> dimensionValues) {
         internalIncrement(dimensionValues, Node::decrementEntries, false);
     }
@@ -87,6 +94,7 @@ public class CacheStatsHolder {
      * Reset number of entries and memory size when all keys leave the cache, but don't reset hit/miss/eviction numbers.
      * This is in line with the behavior of the existing API when caches are cleared.
      */
+    @Override
     public void reset() {
         resetHelper(statsRoot);
     }
@@ -98,6 +106,7 @@ public class CacheStatsHolder {
         }
     }
 
+    @Override
     public long count() {
         // Include this here so caches don't have to create an entire CacheStats object to run count().
         return statsRoot.getEntries();
@@ -156,10 +165,12 @@ public class CacheStatsHolder {
     /**
      * Produce an immutable version of these stats.
      */
+    @Override
     public ImmutableCacheStatsHolder getImmutableCacheStatsHolder() {
         return new ImmutableCacheStatsHolder(statsRoot.snapshot(), dimensionNames);
     }
 
+    @Override
     public void removeDimensions(List<String> dimensionValues) {
         assert dimensionValues.size() == dimensionNames.size() : "Must specify a value for every dimension when removing from StatsHolder";
         // As we are removing nodes from the tree, obtain the lock
