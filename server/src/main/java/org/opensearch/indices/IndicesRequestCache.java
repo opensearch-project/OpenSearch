@@ -217,15 +217,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         // In case this event happens for an old shard, we can safely ignore this as we don't keep track for old
         // shards as part of request cache.
 
-        // Pass a new removal notification containing Key rather than ICacheKey<Key> to the CacheEntity for backwards compatibility.
         Key key = notification.getKey().key;
-        RemovalNotification<Key, BytesReference> newNotification = new RemovalNotification<>(
-            key,
-            notification.getValue(),
-            notification.getRemovalReason()
-        );
-
-        cacheEntityLookup.apply(key.shardId).ifPresent(entity -> entity.onRemoval(newNotification));
+        cacheEntityLookup.apply(key.shardId).ifPresent(entity -> entity.onRemoval(notification));
         cacheCleanupManager.updateCleanupKeyToCountMapOnCacheEviction(
             new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId)
         );
@@ -318,7 +311,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         @Override
         public BytesReference load(ICacheKey<Key> key) throws Exception {
             BytesReference value = loader.get();
-            entity.onCached(key.key, value);
+            entity.onCached(key, value);
             loaded = true;
             return value;
         }
@@ -332,7 +325,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         /**
          * Called after the value was loaded.
          */
-        void onCached(Key key, BytesReference value);
+        void onCached(ICacheKey<Key> key, BytesReference value);
 
         /**
          * Returns <code>true</code> iff the resource behind this entity is still open ie.
@@ -359,7 +352,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         /**
          * Called when this entity instance is removed
          */
-        void onRemoval(RemovalNotification<Key, BytesReference> notification);
+        void onRemoval(RemovalNotification<ICacheKey<Key>, BytesReference> notification);
 
     }
 
