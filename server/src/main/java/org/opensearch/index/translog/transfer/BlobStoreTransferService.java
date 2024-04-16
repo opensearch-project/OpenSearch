@@ -58,6 +58,11 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
+    public boolean isObjectMetadataUploadSupported() {
+        return blobStore.isObjectMetadataUploadSupported();
+    }
+
+    @Override
     public void uploadBlob(
         String threadPoolName,
         final TransferFileSnapshot fileSnapshot,
@@ -130,15 +135,11 @@ public class BlobStoreTransferService implements TransferService {
         WritePriority writePriority
     ) {
 
-        if (fileSnapshot instanceof FileSnapshot.CheckpointFileSnapshot) {
-            logger.info("Skip uploading checkpoint file as this file = {} is stored as metadata of translog file", fileSnapshot.getName());
-            listener.onResponse(fileSnapshot);
-            return;
-        }
-
         try {
-
-            Map<String, String> metadata = prepareFileMetadata(fileSnapshot);
+            Map<String, String> metadata = null;
+            if (isObjectMetadataUploadSupported()) {
+                metadata = prepareFileMetadata(fileSnapshot);
+            }
 
             ChannelFactory channelFactory = FileChannel::open;
             long contentLength;

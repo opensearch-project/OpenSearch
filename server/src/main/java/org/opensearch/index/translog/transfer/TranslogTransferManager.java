@@ -115,8 +115,14 @@ public class TranslogTransferManager {
         long prevUploadTimeInMillis = remoteTranslogTransferTracker.getTotalUploadTimeInMillis();
 
         try {
+            boolean isObjectMetadataUploadSupported = transferService.isObjectMetadataUploadSupported();
             toUpload.addAll(fileTransferTracker.exclusionFilter(transferSnapshot.getTranslogFileSnapshots()));
-            toUpload.addAll(fileTransferTracker.exclusionFilter((transferSnapshot.getCheckpointFileSnapshots())));
+
+            // if the transferService support uploading object metadata, we don't need to transfer checkpoint file snapshots separately.
+            if (!isObjectMetadataUploadSupported) {
+                toUpload.addAll(fileTransferTracker.exclusionFilter((transferSnapshot.getCheckpointFileSnapshots())));
+            }
+
             if (toUpload.isEmpty()) {
                 logger.trace("Nothing to upload for transfer");
                 return true;
@@ -244,11 +250,11 @@ public class TranslogTransferManager {
 
         // Download translog file with object metadata from remote to local FS
         String translogFilename = Translog.getFilename(Long.parseLong(generation));
-        downloadTranslogFileToFS(translogFilename, location, primaryTerm, generation);
+        downloadTlogFileToFS(translogFilename, location, primaryTerm, generation);
         return true;
     }
 
-    private void downloadTranslogFileToFS(String fileName, Path location, String primaryTerm, String generation) throws IOException {
+    private void downloadTlogFileToFS(String fileName, Path location, String primaryTerm, String generation) throws IOException {
         Path filePath = location.resolve(fileName);
         // Here, we always override the existing file if present.
         // We need to change this logic when we introduce incremental download
@@ -285,16 +291,16 @@ public class TranslogTransferManager {
             if (metadata == null || metadata.isEmpty()) {
                 logger.info("metadata is null. Download checkpoint file from remote store separately");
                 String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
-                downloadCheckpointFileToFS(ckpFileName, location, primaryTerm);
+                downloadCkpFileToFS(ckpFileName, location, primaryTerm);
             } else {
-                writeCheckpointFileFromMetadata(metadata, location, generation, fileName);
+                writeCkpFileFromMetadata(metadata, location, generation, fileName);
             }
         } catch (Exception e) {
             throw new IOException("Failed to download translog file from remote", e);
         }
     }
 
-    private void downloadCheckpointFileToFS(String fileName, Path location, String primaryTerm) throws IOException {
+    private void downloadCkpFileToFS(String fileName, Path location, String primaryTerm) throws IOException {
         Path filePath = location.resolve(fileName);
         // Here, we always override the existing file if present.
         // We need to change this logic when we introduce incremental download
@@ -320,7 +326,7 @@ public class TranslogTransferManager {
         fileTransferTracker.add(fileName, true);
     }
 
-    private void writeCheckpointFileFromMetadata(Map<String, String> metadata, Path location, String generation, String fileName)
+    private void writeCkpFileFromMetadata(Map<String, String> metadata, Path location, String generation, String fileName)
         throws IOException {
 
         try {

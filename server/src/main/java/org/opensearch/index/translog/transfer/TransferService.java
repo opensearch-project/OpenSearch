@@ -147,4 +147,6 @@ public interface TransferService {
         ActionListener<List<BlobMetadata>> listener
     );
 
+    boolean isObjectMetadataUploadSupported();
+
 }
