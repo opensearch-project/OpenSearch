@@ -115,6 +115,9 @@ public class ImmutableCacheStats implements Writeable, ToXContent {
         return builder;
     }
 
+    /**
+     * Field names used to write the values in this object to XContent.
+     */
     public static final class Fields {
         public static final String MEMORY_SIZE = "size";
         public static final String MEMORY_SIZE_IN_BYTES = "size_in_bytes";
