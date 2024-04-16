@@ -67,7 +67,6 @@ import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.pipeline.MovingFunctionScript;
-import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
 
@@ -147,8 +146,7 @@ public final class PainlessModulePlugin extends Plugin implements ScriptPlugin, 
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TaskResourceTrackingService taskResourceTrackingService
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         // this is a hack to bind the painless script engine in guice (all components are added to guice), so that
         // the painless context api. this is a temporary measure until transport actions do no require guice

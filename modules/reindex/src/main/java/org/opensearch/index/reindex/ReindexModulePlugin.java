@@ -58,7 +58,6 @@ import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
 
@@ -123,8 +122,7 @@ public class ReindexModulePlugin extends Plugin implements ActionPlugin, Extensi
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TaskResourceTrackingService taskResourceTrackingService
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         return Collections.singletonList(new ReindexSslConfig(environment.settings(), environment, resourceWatcherService));
     }

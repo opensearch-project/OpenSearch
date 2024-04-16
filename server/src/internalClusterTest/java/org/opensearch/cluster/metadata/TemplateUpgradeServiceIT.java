@@ -45,7 +45,6 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
-import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -98,8 +97,7 @@ public class TemplateUpgradeServiceIT extends OpenSearchIntegTestCase {
             NodeEnvironment nodeEnvironment,
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver expressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier,
-            TaskResourceTrackingService taskResourceTrackingService
+            Supplier<RepositoriesService> repositoriesServiceSupplier
         ) {
             clusterService.getClusterSettings().addSettingsUpdateConsumer(UPDATE_TEMPLATE_DUMMY_SETTING, integer -> {
                 logger.debug("the template dummy setting was updated to {}", integer);
@@ -115,8 +113,7 @@ public class TemplateUpgradeServiceIT extends OpenSearchIntegTestCase {
                 nodeEnvironment,
                 namedWriteableRegistry,
                 expressionResolver,
-                repositoriesServiceSupplier,
-                taskResourceTrackingService
+                repositoriesServiceSupplier
             );
         }
 

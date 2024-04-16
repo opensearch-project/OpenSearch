@@ -63,7 +63,6 @@ import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
-import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -470,8 +469,7 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
-            final Supplier<RepositoriesService> repositoriesServiceSupplier,
-            final TaskResourceTrackingService taskResourceTrackingService
+            final Supplier<RepositoriesService> repositoriesServiceSupplier
         ) {
             clusterService.addListener(event -> {
                 final ClusterState state = event.state();

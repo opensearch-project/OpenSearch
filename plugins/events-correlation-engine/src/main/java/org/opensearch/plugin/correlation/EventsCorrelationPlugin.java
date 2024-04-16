@@ -44,7 +44,6 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
-import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
 
@@ -88,8 +87,7 @@ public class EventsCorrelationPlugin extends Plugin implements ActionPlugin, Map
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TaskResourceTrackingService taskResourceTrackingService
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         correlationRuleIndices = new CorrelationRuleIndices(client, clusterService);
         return List.of(correlationRuleIndices);

@@ -54,6 +54,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.node.Node;
+import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -91,6 +92,7 @@ public class ClusterService extends AbstractLifecycleComponent {
     private RerouteService rerouteService;
 
     private IndexingPressureService indexingPressureService;
+    private TaskResourceTrackingService taskResourceTrackingService;
 
     public ClusterService(
         Settings settings,
@@ -258,6 +260,24 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     public IndexingPressureService getIndexingPressureService() {
         return indexingPressureService;
+    }
+
+    /**
+     * Getter for {@link TaskResourceTrackingService}, This method exposes task level resource usage for other plugins to use.
+     *
+     * @return TaskResourceTrackingService
+     */
+    public TaskResourceTrackingService getTaskResourceTrackingService() {
+        return taskResourceTrackingService;
+    }
+
+    /**
+     * Setter for {@link TaskResourceTrackingService}
+     *
+     * @param taskResourceTrackingService taskResourceTrackingService
+     */
+    public void setTaskResourceTrackingService(TaskResourceTrackingService taskResourceTrackingService) {
+        this.taskResourceTrackingService = taskResourceTrackingService;
     }
 
     public ClusterApplierService getClusterApplierService() {

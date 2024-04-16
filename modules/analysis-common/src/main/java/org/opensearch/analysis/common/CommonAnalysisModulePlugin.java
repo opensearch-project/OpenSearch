@@ -153,7 +153,6 @@ import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptService;
-import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
 
@@ -188,8 +187,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TaskResourceTrackingService taskResourceTrackingService
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.scriptService.set(scriptService);
         return Collections.emptyList();

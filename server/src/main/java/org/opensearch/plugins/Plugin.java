@@ -56,7 +56,6 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
-import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -151,8 +150,7 @@ public abstract class Plugin implements Closeable {
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TaskResourceTrackingService taskResourceTrackingService
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         return Collections.emptyList();
     }
