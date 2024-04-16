@@ -8,7 +8,15 @@
 
 package org.opensearch.index.remote;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -26,6 +34,8 @@ import java.util.function.Function;
  */
 public class RemoteStoreUtils {
     public static final int LONG_MAX_LENGTH = String.valueOf(Long.MAX_VALUE).length();
+
+    private static final Logger logger = LogManager.getLogger(RemoteStoreUtils.class);
 
     /**
      * URL safe base 64 character set. This must not be changed as this is used in deriving the base64 equivalent of binary.
@@ -145,5 +155,27 @@ public class RemoteStoreUtils {
         int base64DecimalValue = Integer.valueOf(base64Part, 2);
         assert base64DecimalValue >= 0 && base64DecimalValue < 64;
         return URL_BASE64_CHARSET[base64DecimalValue] + binaryPart;
+    }
+
+    /**
+     * Returns if the latest segments_N file is uploaded to the remote store. We fetch latest segment_N filename that is
+     * present in local directory and check if it is present in remote directory.
+     * @param storeDirectory instance of local directory
+     * @param remoteDirectory instance of RemoteSegmentStoreDirectory
+     * @return true if latest semgents_N from local is present in remote. If otherwise or on exception, returns false.
+     */
+    public static boolean isLatestSegmentInfosUploadedToRemote(Directory storeDirectory, RemoteSegmentStoreDirectory remoteDirectory) {
+        try {
+            String lastCommittedLocalSegmentFileName = SegmentInfos.getLastCommitSegmentsFileName(storeDirectory);
+            if (lastCommittedLocalSegmentFileName != null) {
+                try (IndexInput indexInput = storeDirectory.openInput(lastCommittedLocalSegmentFileName, IOContext.DEFAULT)) {
+                    String checksum = Long.toString(CodecUtil.retrieveChecksum(indexInput));
+                    return remoteDirectory.containsFile(lastCommittedLocalSegmentFileName, checksum);
+                }
+            }
+        } catch (Exception e) {
+            logger.info("Exception occurred while checking isLatestSegmentInfosUploadedToRemote", e);
+        }
+        return false;
     }
 }

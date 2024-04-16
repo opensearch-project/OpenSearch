@@ -29,6 +29,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
@@ -89,6 +90,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     private volatile long primaryTerm;
     private volatile Iterator<TimeValue> backoffDelayIterator;
     private final SegmentReplicationCheckpointPublisher checkpointPublisher;
+    private final RemoteSegmentGarbageCollector remoteSegmentGarbageCollector;
 
     public RemoteStoreRefreshListener(
         IndexShard indexShard,
@@ -116,6 +118,12 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         this.segmentTracker = segmentTracker;
         resetBackOffDelayIterator();
         this.checkpointPublisher = checkpointPublisher;
+        this.remoteSegmentGarbageCollector = new CommitTriggeredRemoteSegmentGarbageCollector(
+            indexShard.shardId(),
+            storeDirectory,
+            remoteDirectory,
+            indexShard.getRemoteStoreSettings()
+        );
     }
 
     @Override
@@ -172,7 +180,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             // When the shouldSync is called the first time, then 1st condition on primary term is true. But after that
             // we update the primary term and the same condition would not evaluate to true again in syncSegments.
             // Below check ensures that if there is commit, then that gets picked up by both 1st and 2nd shouldSync call.
-            || isRefreshAfterCommitSafe()
+            || isRefreshAfterCommit()
             || isRemoteSegmentStoreInSync() == false;
         if (shouldSync || skipPrimaryTermCheck) {
             return shouldSync;
@@ -220,12 +228,10 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         try {
             try {
                 initializeRemoteDirectoryOnTermUpdate();
-                // if a new segments_N file is present in local that is not uploaded to remote store yet, it
-                // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
-                // This is done to avoid delete post each refresh.
-                if (isRefreshAfterCommit()) {
-                    remoteDirectory.deleteStaleSegmentsAsync(indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles());
-                }
+
+                // We notify the garbage collector each time, the implementation of garbage collector will decide on
+                // trigger and frequency of deleting stale segments.
+                remoteSegmentGarbageCollector.deleteStaleSegments(RemoteSegmentGarbageCollector.DEFAULT_NOOP_LISTENER);
 
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                     SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
@@ -362,23 +368,12 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return ThreadPool.Names.REMOTE_REFRESH_RETRY;
     }
 
-    private boolean isRefreshAfterCommit() throws IOException {
-        String lastCommittedLocalSegmentFileName = SegmentInfos.getLastCommitSegmentsFileName(storeDirectory);
-        return (lastCommittedLocalSegmentFileName != null
-            && !remoteDirectory.containsFile(lastCommittedLocalSegmentFileName, getChecksumOfLocalFile(lastCommittedLocalSegmentFileName)));
-    }
-
     /**
      * Returns if the current refresh has happened after a commit.
      * @return true if this refresh has happened on account of a commit. If otherwise or exception, returns false.
      */
-    private boolean isRefreshAfterCommitSafe() {
-        try {
-            return isRefreshAfterCommit();
-        } catch (Exception e) {
-            logger.info("Exception occurred in isRefreshAfterCommitSafe", e);
-        }
-        return false;
+    private boolean isRefreshAfterCommit() {
+        return RemoteStoreUtils.isLatestSegmentInfosUploadedToRemote(storeDirectory, remoteDirectory) == false;
     }
 
     void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos, ReplicationCheckpoint replicationCheckpoint)
