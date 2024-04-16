@@ -1032,6 +1032,7 @@ public class MetadataCreateIndexService {
 
     public static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, String segmentRepository, String translogRepository) {
         settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
+            .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepository)
             .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, translogRepository);
     }

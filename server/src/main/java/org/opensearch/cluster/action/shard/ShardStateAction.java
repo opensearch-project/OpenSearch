@@ -67,7 +67,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
@@ -76,7 +75,6 @@ import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStorePathStrategyResolver;
 import org.opensearch.index.remote.RemoteStoreUtils;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -103,10 +101,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.REMOTE_STORE_CUSTOM_KEY;
-import static org.opensearch.cluster.metadata.IndexMetadata.REMOTE_STORE_SEEDED_SHARDS_KEY;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.index.remote.RemoteStoreUtils.ongoingDocrepToRemoteMigration;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
 
@@ -839,13 +834,7 @@ public class ShardStateAction {
                 maybeUpdatedState = allocationService.applyStartedShards(currentState, shardRoutingsToBeApplied);
                 // Run remote store migration based tasks
                 if (ongoingDocrepToRemoteMigration(currentState.metadata().settings())) {
-                    DiscoveryNodes discoveryNodes = currentState.getNodes();
-                    if (discoveryNodes.getNodes().values().stream().noneMatch(DiscoveryNode::isRemoteStoreNode)) {
-                        logger.debug("Cluster is in mixed mode but does not have any remote enabled nodes. No-Op");
-                    } else {
-                        maybeUpdatedState = maybeAppendShardIdToSeededSet(maybeUpdatedState, seenShardRoutings, discoveryNodes);
-                        maybeUpdatedState = maybeAddRemoteIndexSettings(maybeUpdatedState, seenShardRoutings, discoveryNodes);
-                    }
+                    maybeUpdatedState = maybeAddRemoteIndexSettings(maybeUpdatedState, seenShardRoutings);
                 }
                 builder.successes(tasksToBeApplied);
             } catch (Exception e) {
@@ -878,16 +867,16 @@ public class ShardStateAction {
         }
 
         /**
-         * @param state
-         * @param seenShardRoutings
-         * @param discoveryNodes
-         * @return
+         * During docrep to remote store migration, applies the following remote store based index settings
+         * once all shards of an index have moved over to remote store enabled nodes
+         * <br>
+         * Also appends the requisite Remote Store Path based custom metadata to the existing index metadata
+         *
+         * @param state updated state from allocation service
+         * @param seenShardRoutings {@link ShardRouting} set being processed in the task executor
+         * @return Mutated {@link ClusterState} with the remote store based settings applied
          */
-        private ClusterState maybeAddRemoteIndexSettings(
-            ClusterState state,
-            Set<ShardRouting> seenShardRoutings,
-            DiscoveryNodes discoveryNodes
-        ) {
+        ClusterState maybeAddRemoteIndexSettings(ClusterState state, Set<ShardRouting> seenShardRoutings) {
             final Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
             HashSet<String> indexNames = seenShardRoutings.stream()
                 .map(ShardRouting::getIndexName)
@@ -895,23 +884,27 @@ public class ShardStateAction {
             logger.debug(
                 "Cluster is going through a docrep to remote store migration. Checking if any index has completely moved over to remote nodes"
             );
+            DiscoveryNodes discoveryNodes = state.getNodes();
             Tuple<String, String> remoteStoreRepoNames = RemoteStoreUtils.getRemoteStoreRepositoryNames(discoveryNodes);
             for (String index : indexNames) {
-                if (needsRemoteIndexSettingsUpdate(state, index, discoveryNodes, state.metadata().index(index))) {
+                if (needsRemoteIndexSettingsUpdate(
+                    state.routingTable().indicesRouting().get(index),
+                    discoveryNodes,
+                    state.metadata().index(index)
+                )) {
                     logger.info(
                         "Index {} does not have remote store based index settings but all shards have moved to remote enabled nodes. Applying remote store settings to the index",
                         index
                     );
                     final IndexMetadata indexMetadata = metadataBuilder.get(index);
                     Settings.Builder indexSettingsBuilder = Settings.builder().put(indexMetadata.getSettings());
-                    indexSettingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
                     MetadataCreateIndexService.updateRemoteStoreSettings(
                         indexSettingsBuilder,
                         remoteStoreRepoNames.v1(),
                         remoteStoreRepoNames.v2()
                     );
 
-                    // Overriding all existing customs with only path and path has algorithm based settings
+                    // Overriding all existing customs with only path and path hash algorithm based settings
                     Map<String, String> newCustomRemoteStoreMetadata = new HashMap<>();
                     if (remoteStorePathStrategyResolver != null) {
                         RemoteStorePathStrategy newPathStrategy = remoteStorePathStrategyResolver.get();
@@ -935,103 +928,25 @@ public class ShardStateAction {
         }
 
         /**
-         * @param state
-         * @param seenShardRoutings
-         * @param discoveryNodes
-         * @return
-         */
-        private ClusterState maybeAppendShardIdToSeededSet(
-            ClusterState state,
-            Set<ShardRouting> seenShardRoutings,
-            DiscoveryNodes discoveryNodes
-        ) {
-            final Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
-
-            for (ShardRouting shardRouting : seenShardRoutings) {
-                if (shardRouting.primary()) {
-                    IndexMetadata currentIndexMetadata = metadataBuilder.get(shardRouting.getIndexName());
-                    Map<String, String> existingCustomData = currentIndexMetadata.getCustomData(REMOTE_STORE_CUSTOM_KEY);
-                    final IndexMetadata.Builder newIndexMetadataBuilder = IndexMetadata.builder(currentIndexMetadata);
-                    if (existingCustomData == null) {
-                        logger.debug("Index {} does not have any custom metadata. Initializing", shardRouting.getIndexName());
-                        buildCustomMetadataForShardSeeded(discoveryNodes, shardRouting, new HashMap<>(), newIndexMetadataBuilder);
-                        metadataBuilder.put(newIndexMetadataBuilder);
-                    } else if (INDEX_REMOTE_STORE_ENABLED_SETTING.get(currentIndexMetadata.getSettings()) == false
-                        && existingCustomData.containsKey(REMOTE_STORE_SEEDED_SHARDS_KEY)) {
-                            logger.debug("Index {} already has custom metadata {}", shardRouting.getIndexName(), existingCustomData);
-                            buildCustomMetadataForShardSeeded(
-                                discoveryNodes,
-                                shardRouting,
-                                new HashMap<>(existingCustomData),
-                                newIndexMetadataBuilder
-                            );
-                            metadataBuilder.put(newIndexMetadataBuilder);
-                        }
-                } else {
-                    logger.debug("No-Op for a replica shard copy");
-                }
-            }
-            return ClusterState.builder(state).metadata(metadataBuilder).build();
-        }
-
-        /**
+         * Returns <code>true</code> iff all shards for the index are in `STARTED` state
+         * all those `STARTED` shard copies are present in remote store enabled nodes
          *
-         * @param discoveryNodes
-         * @param shardRouting
-         * @param existingCustomData
-         * @param newIndexMetadataBuilder
-         */
-        private void buildCustomMetadataForShardSeeded(
-            DiscoveryNodes discoveryNodes,
-            ShardRouting shardRouting,
-            Map<String, String> existingCustomData,
-            IndexMetadata.Builder newIndexMetadataBuilder
-        ) {
-            if (discoveryNodes.getNodes().get(shardRouting.currentNodeId()).isRemoteStoreNode()) {
-                Set<String> seededShardIds = Strings.commaDelimitedListToSet(existingCustomData.get(REMOTE_STORE_SEEDED_SHARDS_KEY));
-                if (seededShardIds.contains(shardRouting.shardId().toString()) == false) {
-                    logger.info(
-                        "Found primary shard copy {} seeded to remote node. Adding custom metadata",
-                        shardRouting.shardId().toString()
-                    );
-                    seededShardIds.add(shardRouting.shardId().toString());
-                    existingCustomData.put(REMOTE_STORE_SEEDED_SHARDS_KEY, Strings.collectionToCommaDelimitedString(seededShardIds));
-                    newIndexMetadataBuilder.putCustom(REMOTE_STORE_CUSTOM_KEY, existingCustomData);
-                }
-            } else {
-                Set<String> seededShardIds = Strings.commaDelimitedListToSet(existingCustomData.get(REMOTE_STORE_SEEDED_SHARDS_KEY));
-                if (seededShardIds.contains(shardRouting.shardId().toString()) == true) {
-                    logger.info(
-                        "Found remote seeded primary shard copy {} on docrep node. Removing custom metadata",
-                        shardRouting.shardId().toString()
-                    );
-                    seededShardIds.remove(shardRouting.shardId().toString());
-                    existingCustomData.put(REMOTE_STORE_SEEDED_SHARDS_KEY, Strings.collectionToCommaDelimitedString(seededShardIds));
-                    newIndexMetadataBuilder.putCustom(REMOTE_STORE_CUSTOM_KEY, existingCustomData);
-                }
-            }
-        }
-
-        /**
-         * @param state
-         * @param index
-         * @param discoveryNodes
-         * @param indexMetadata
-         * @return
+         * @param indexRoutingTable current {@link IndexRoutingTable} from cluster state
+         * @param discoveryNodes set of discovery nodes from cluster state
+         * @param indexMetadata current {@link IndexMetadata} from cluster state
+         * @return <code>true</code> or <code>false</code> depending on the met conditions
          */
         private boolean needsRemoteIndexSettingsUpdate(
-            ClusterState state,
-            String index,
+            IndexRoutingTable indexRoutingTable,
             DiscoveryNodes discoveryNodes,
             IndexMetadata indexMetadata
         ) {
             assert indexMetadata != null : "IndexMetadata for a STARTED shard cannot be null";
-            IndexRoutingTable indexRoutingTable = state.routingTable().indicesRouting().get(index);
-            boolean allStartedShardsOnRemote = indexRoutingTable.shardsMatchingPredicateCount(ShardRouting::started) == indexRoutingTable
-                .shardsMatchingPredicateCount(shardRouting -> discoveryNodes.get(shardRouting.currentNodeId()).isRemoteStoreNode());
-            return indexRoutingTable.allShardsStarted()
-                && allStartedShardsOnRemote
-                && IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexMetadata.getSettings()) == false;
+            boolean allStartedShardsOnRemote = indexRoutingTable.allShardsStarted()
+                && (indexRoutingTable.shardsMatchingPredicateCount(ShardRouting::started) == indexRoutingTable.shardsMatchingPredicateCount(
+                    shardRouting -> discoveryNodes.get(shardRouting.currentNodeId()).isRemoteStoreNode()
+                ));
+            return allStartedShardsOnRemote && IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexMetadata.getSettings()) == false;
         }
     }
 

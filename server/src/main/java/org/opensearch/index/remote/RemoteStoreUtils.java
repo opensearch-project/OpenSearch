@@ -8,8 +8,6 @@
 
 package org.opensearch.index.remote;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.collect.Tuple;
@@ -34,7 +32,11 @@ import java.util.function.Function;
  */
 public class RemoteStoreUtils {
     public static final int LONG_MAX_LENGTH = String.valueOf(Long.MAX_VALUE).length();
-    private static final Logger logger = LogManager.getLogger(RemoteStoreUtils.class);
+
+    /**
+     * URL safe base 64 character set. This must not be changed as this is used in deriving the base64 equivalent of binary.
+     */
+    static final char[] URL_BASE64_CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_".toCharArray();
 
     /**
      * URL safe base 64 character set. This must not be changed as this is used in deriving the base64 equivalent of binary.
@@ -156,6 +158,18 @@ public class RemoteStoreUtils {
         return URL_BASE64_CHARSET[base64DecimalValue] + binaryPart;
     }
 
+    /**
+     * Returns <code>true</code> iff current cluster settings have:
+     * <br>
+     * - <code>remote_store.compatibility_mode</code> set to <code>mixed</code>
+     * <br>
+     * - <code>migration.direction</code> set to <code>remote_store</code>
+     * <br>
+     * <code>false</code> otherwise
+     *
+     * @param settings Current Cluster Settings
+     * @return <code>true</code> or <code>false</code> depending upon the above-mentioned condition
+     */
     public static boolean ongoingDocrepToRemoteMigration(Settings settings) {
         return RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(
             settings
@@ -163,6 +177,11 @@ public class RemoteStoreUtils {
             && RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING.get(settings) == RemoteStoreNodeService.Direction.REMOTE_STORE;
     }
 
+    /**
+     * Fetches segment and translog repository names from remote store node attributes
+     * @param discoveryNodes Current set of {@link DiscoveryNodes} in the cluster
+     * @return {@link Tuple} with segment repository name as first element and translog repository name as second element
+     */
     public static Tuple<String, String> getRemoteStoreRepositoryNames(DiscoveryNodes discoveryNodes) {
         Optional<DiscoveryNode> remoteNode = discoveryNodes.getNodes()
             .values()

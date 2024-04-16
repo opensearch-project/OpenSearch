@@ -1913,6 +1913,7 @@ public final class IndexSettings {
 
     private RemoteStorePathStrategy determineRemoteStorePathStrategy() {
         Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        assert remoteCustomData == null || remoteCustomData.containsKey(PathType.NAME);
         if (remoteCustomData != null && remoteCustomData.containsKey(PathType.NAME)) {
             PathType pathType = PathType.parseString(remoteCustomData.get(PathType.NAME));
             String hashAlgoStr = remoteCustomData.get(PathHashAlgorithm.NAME);

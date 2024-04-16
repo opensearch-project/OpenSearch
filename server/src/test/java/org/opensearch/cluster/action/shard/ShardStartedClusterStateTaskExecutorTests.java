@@ -32,25 +32,34 @@
 
 package org.opensearch.cluster.action.shard;
 
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.RerouteService;
+import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.index.shard.IndexShardTestUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -59,11 +68,17 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.opensearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
 import static org.opensearch.action.support.replication.ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas;
+import static org.opensearch.action.support.replication.ClusterStateCreationUtils.stateWithMixedNodes;
 import static org.opensearch.action.support.replication.ClusterStateCreationUtils.stateWithNoShard;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 public class ShardStartedClusterStateTaskExecutorTests extends OpenSearchAllocationTestCase {
 
@@ -284,13 +299,109 @@ public class ShardStartedClusterStateTaskExecutorTests extends OpenSearchAllocat
         }
     }
 
-    public void testAddRemoteIndexSettingsDoesNotExecuteWithoutMixedModeSettings() throws Exception {
-        final String indexName = "test-remote-migration";
-        final ClusterState clusterState = state(indexName, randomBoolean(), ShardRoutingState.INITIALIZING, ShardRoutingState.INITIALIZING);
-        assertSame(
-            RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(clusterState.getMetadata().settings()),
-            RemoteStoreNodeService.CompatibilityMode.STRICT
-        );
+    public void testMaybeAddRemoteIndexSettings() {
+        final String indexName = "test-add-remote-index-settings";
+        final ShardId shardId = new ShardId(indexName, UUID.randomUUID().toString(), 0);
+        final int numberOfNodes = 3;
+        final int numberOfShards = 1;
+        final int numberOfReplicas = 2;
+        final ShardStateAction.ShardStartedClusterStateTaskExecutor mockShardStartedClusterStateTaskExecutor =
+            new ShardStateAction.ShardStartedClusterStateTaskExecutor(
+                mock(AllocationService.class),
+                mock(RerouteService.class),
+                mock(Supplier.class),
+                mock(Logger.class)
+            );
+        // Index Settings are not updated when all shard copies are in docrep nodes
+        {
+            ClusterState initialClusterState = stateWithMixedNodes(
+                numberOfNodes,
+                numberOfNodes,
+                true,
+                List.of(indexName).toArray(String[]::new),
+                numberOfShards,
+                numberOfReplicas,
+                ShardRoutingState.STARTED
+            );
+            assertRemoteStoreIndexSettingsAreAbsent(initialClusterState, indexName);
+            List<DiscoveryNode> docrepNodeSet = initialClusterState.getNodes()
+                .getDataNodes()
+                .values()
+                .stream()
+                .filter(discoveryNode -> discoveryNode.isRemoteStoreNode() == false)
+                .collect(Collectors.toList());
+            List<ShardRouting> seenShardRoutings = generateMockShardRoutings(shardId, docrepNodeSet);
+            ClusterState resultingState = mockShardStartedClusterStateTaskExecutor.maybeAddRemoteIndexSettings(
+                loadShardRoutingsIntoClusterState(shardId, initialClusterState, seenShardRoutings),
+                new HashSet<>(seenShardRoutings)
+            );
+            assertRemoteStoreIndexSettingsAreAbsent(resultingState, indexName);
+        }
+        // Index Settings are updated when all shard copies are in remote nodes and existing metadata
+        // does not have remote enabled settings
+        {
+            ClusterState initialClusterState = stateWithMixedNodes(
+                numberOfNodes,
+                numberOfNodes,
+                true,
+                List.of(indexName).toArray(String[]::new),
+                numberOfShards,
+                numberOfReplicas,
+                ShardRoutingState.STARTED
+            );
+            assertRemoteStoreIndexSettingsAreAbsent(initialClusterState, indexName);
+            List<DiscoveryNode> remoteNodeSet = initialClusterState.getNodes()
+                .getDataNodes()
+                .values()
+                .stream()
+                .filter(DiscoveryNode::isRemoteStoreNode)
+                .collect(Collectors.toList());
+            List<ShardRouting> seenShardRoutings = generateMockShardRoutings(shardId, remoteNodeSet);
+
+            ClusterState resultingState = mockShardStartedClusterStateTaskExecutor.maybeAddRemoteIndexSettings(
+                loadShardRoutingsIntoClusterState(shardId, initialClusterState, seenShardRoutings),
+                new HashSet<>(seenShardRoutings)
+            );
+            assertRemoteStoreIndexSettingsArePresent(resultingState, indexName);
+        }
+        // Index Settings are updated when some shard copies are in remote nodes while others are still on docrep
+        {
+            ClusterState initialClusterState = stateWithMixedNodes(
+                numberOfNodes,
+                numberOfNodes,
+                true,
+                List.of(indexName).toArray(String[]::new),
+                numberOfShards,
+                numberOfReplicas,
+                ShardRoutingState.STARTED
+            );
+            assertRemoteStoreIndexSettingsAreAbsent(initialClusterState, indexName);
+            List<DiscoveryNode> mixedNodeSet = new ArrayList<>();
+            mixedNodeSet.addAll(
+                initialClusterState.getNodes()
+                    .getDataNodes()
+                    .values()
+                    .stream()
+                    .filter(DiscoveryNode::isRemoteStoreNode)
+                    .limit(2)
+                    .collect(Collectors.toList())
+            );
+            mixedNodeSet.addAll(
+                initialClusterState.getNodes()
+                    .getDataNodes()
+                    .values()
+                    .stream()
+                    .filter(discoveryNode -> discoveryNode.isRemoteStoreNode() == false)
+                    .limit(1)
+                    .collect(Collectors.toList())
+            );
+            List<ShardRouting> seenShardRoutings = generateMockShardRoutings(shardId, mixedNodeSet);
+            ClusterState resultingState = mockShardStartedClusterStateTaskExecutor.maybeAddRemoteIndexSettings(
+                loadShardRoutingsIntoClusterState(shardId, initialClusterState, seenShardRoutings),
+                new HashSet<>(seenShardRoutings)
+            );
+            assertRemoteStoreIndexSettingsAreAbsent(resultingState, indexName);
+        }
     }
 
     private ClusterStateTaskExecutor.ClusterTasksResult executeTasks(final ClusterState state, final List<StartedShardEntry> tasks)
@@ -298,5 +409,49 @@ public class ShardStartedClusterStateTaskExecutorTests extends OpenSearchAllocat
         final ClusterStateTaskExecutor.ClusterTasksResult<StartedShardEntry> result = executor.execute(state, tasks);
         assertThat(result, notNullValue());
         return result;
+    }
+
+    private static void assertRemoteStoreIndexSettingsArePresent(ClusterState resultingState, String indexName) {
+        Settings resultingIndexSettings = resultingState.metadata().index(indexName).getSettings();
+        assertEquals("true", resultingIndexSettings.get(SETTING_REMOTE_STORE_ENABLED));
+        assertEquals("SEGMENT", resultingIndexSettings.get(SETTING_REPLICATION_TYPE));
+        assertEquals(IndexShardTestUtils.MOCK_SEGMENT_REPO_NAME, resultingIndexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
+        assertEquals(IndexShardTestUtils.MOCK_TLOG_REPO_NAME, resultingIndexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
+    }
+
+    private static void assertRemoteStoreIndexSettingsAreAbsent(ClusterState initialClusterState, String indexName) {
+        Settings initialIndexSettings = initialClusterState.metadata().index(indexName).getSettings();
+        assertNull(initialIndexSettings.get(SETTING_REMOTE_STORE_ENABLED));
+        assertNull(initialIndexSettings.get(SETTING_REPLICATION_TYPE));
+        assertNull(initialIndexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
+        assertNull(initialIndexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
+    }
+
+    private List<ShardRouting> generateMockShardRoutings(ShardId shardId, List<DiscoveryNode> nodeSet) {
+        List<ShardRouting> seenShardRoutings = new ArrayList<>(nodeSet.size());
+        for (DiscoveryNode node : nodeSet) {
+            if (node.getId().contains("node_0")) {
+                seenShardRoutings.add(TestShardRouting.newShardRouting(shardId, node.getId(), true, ShardRoutingState.STARTED));
+            } else {
+                seenShardRoutings.add(TestShardRouting.newShardRouting(shardId, node.getId(), false, ShardRoutingState.STARTED));
+            }
+        }
+        return seenShardRoutings;
+    }
+
+    private ClusterState loadShardRoutingsIntoClusterState(ShardId shardId, ClusterState currentState, List<ShardRouting> shardRoutings) {
+        ClusterState.Builder clusterStateBuilder = ClusterState.builder(currentState);
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(
+            currentState.metadata().index(shardId.getIndexName()).getIndex()
+        );
+        IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+
+        for (ShardRouting shardRouting : shardRoutings) {
+            indexShardRoutingBuilder.addShard(shardRouting);
+        }
+        return clusterStateBuilder.routingTable(
+            routingTableBuilder.add(indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build()).build()).build()
+        ).build();
     }
 }
