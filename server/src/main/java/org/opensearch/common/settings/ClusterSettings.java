@@ -516,6 +516,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.MAX_OPEN_SCROLL_CONTEXT,
                 SearchService.MAX_OPEN_PIT_CONTEXT,
                 SearchService.MAX_PIT_KEEPALIVE_SETTING,
+                SearchService.MAX_AGGREGATION_REWRITE_FILTERS,
                 CreatePitController.PIT_INIT_KEEP_ALIVE,
                 Node.WRITE_PORTS_FILE_SETTING,
                 Node.NODE_NAME_SETTING,

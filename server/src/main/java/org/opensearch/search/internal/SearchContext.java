@@ -489,4 +489,8 @@ public abstract class SearchContext implements Releasable {
     public abstract boolean shouldUseTimeSeriesDescSortOptimization();
 
     public abstract int getTargetMaxSliceCount();
+
+    public int maxAggRewriteFilters() {
+        return 0;
+    }
 }
