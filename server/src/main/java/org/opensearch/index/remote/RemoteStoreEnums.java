@@ -23,6 +23,8 @@ import java.util.Set;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
+import static org.opensearch.index.remote.RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding;
+import static org.opensearch.index.remote.RemoteStoreUtils.longToUrlBase64;
 
 /**
  * This class contains the different enums related to remote store like data categories and types, path types
@@ -216,13 +218,26 @@ public class RemoteStoreEnums {
     @PublicApi(since = "2.14.0")
     public enum PathHashAlgorithm {
 
-        FNV_1A(0) {
+        FNV_1A_BASE64(0) {
             @Override
             String hash(PathInput pathInput) {
                 String input = pathInput.indexUUID() + pathInput.shardId() + pathInput.dataCategory().getName() + pathInput.dataType()
                     .getName();
                 long hash = FNV1a.hash64(input);
-                return RemoteStoreUtils.longToUrlBase64(hash);
+                return longToUrlBase64(hash);
+            }
+        },
+        /**
+         * This hash algorithm will generate a hash value which will use 1st 6 bits to create bas64 character and next 14
+         * bits to create binary string.
+         */
+        FNV_1A_COMPOSITE_1(1) {
+            @Override
+            String hash(PathInput pathInput) {
+                String input = pathInput.indexUUID() + pathInput.shardId() + pathInput.dataCategory().getName() + pathInput.dataType()
+                    .getName();
+                long hash = FNV1a.hash64(input);
+                return longToCompositeBase64AndBinaryEncoding(hash, 20);
             }
         };
 
