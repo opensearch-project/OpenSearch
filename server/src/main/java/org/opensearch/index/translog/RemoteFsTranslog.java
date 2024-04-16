@@ -334,7 +334,7 @@ public class RemoteFsTranslog extends Translog {
     }
 
     private boolean upload(long primaryTerm, long generation, long maxSeqNo) throws IOException {
-        logger.trace("uploading translog for {} {}", primaryTerm, generation);
+        logger.trace("uploading translog for primary term {} generation {}", primaryTerm, generation);
         try (
             TranslogCheckpointTransferSnapshot transferSnapshotProvider = new TranslogCheckpointTransferSnapshot.Builder(
                 primaryTerm,

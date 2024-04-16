@@ -77,7 +77,7 @@ public class ExpressionFieldScriptTests extends OpenSearchTestCase {
         when(fieldData.load(any())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(mapperService, (ignored, lookup) -> fieldData);
+        lookup = new SearchLookup(mapperService, (ignored, lookup) -> fieldData, SearchLookup.UNKNOWN_SHARD_ID);
     }
 
     private FieldScript.LeafFactory compile(String expression) {

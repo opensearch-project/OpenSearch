@@ -67,15 +67,25 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     final Set<ShardSearchContextId> releasedSearchContexts = new HashSet<>();
     final SearchRequest searchRequest;
     final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
+    final SearchPhase currentPhase;
 
     public MockSearchPhaseContext(int numShards) {
         this(numShards, new SearchRequest());
     }
 
     public MockSearchPhaseContext(int numShards, SearchRequest searchRequest) {
+        this(numShards, searchRequest, null);
+    }
+
+    public MockSearchPhaseContext(int numShards, SearchRequest searchRequest, SearchPhase currentPhase) {
         this.numShards = numShards;
         this.searchRequest = searchRequest;
+        this.currentPhase = currentPhase;
         numSuccess = new AtomicInteger(numShards);
+    }
+
+    public MockSearchPhaseContext(int numShards, SearchPhase currentPhase) {
+        this(numShards, new SearchRequest(), currentPhase);
     }
 
     public void assertNoFailure() {
@@ -106,7 +116,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
 
     @Override
     public SearchPhase getCurrentPhase() {
-        return null;
+        return currentPhase;
     }
 
     @Override

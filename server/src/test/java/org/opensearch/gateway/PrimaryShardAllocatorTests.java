@@ -843,10 +843,12 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
                 node,
                 new TransportNodesListGatewayStartedShards.NodeGatewayStartedShards(
                     node,
-                    allocationId,
-                    primary,
-                    replicationCheckpoint,
-                    storeException
+                    new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(
+                        allocationId,
+                        primary,
+                        replicationCheckpoint,
+                        storeException
+                    )
                 )
             );
             return this;
@@ -857,7 +859,11 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
             ShardRouting shard,
             RoutingAllocation allocation
         ) {
-            return new AsyncShardFetch.FetchResult<>(shardId, data, Collections.<String>emptySet());
+            return new AsyncShardFetch.FetchResult<>(data, new HashMap<>() {
+                {
+                    put(shardId, Collections.<String>emptySet());
+                }
+            });
         }
     }
 }

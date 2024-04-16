@@ -68,6 +68,7 @@ import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
+import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
 import org.junit.Before;
 
@@ -665,7 +666,7 @@ public class ReplicaShardAllocatorTests extends OpenSearchAllocationTestCase {
 
     class TestAllocator extends ReplicaShardAllocator {
 
-        private Map<DiscoveryNode, TransportNodesListShardStoreMetadata.StoreFilesMetadata> data = null;
+        private Map<DiscoveryNode, StoreFilesMetadata> data = null;
         private AtomicBoolean fetchDataCalled = new AtomicBoolean(false);
 
         public void clean() {
@@ -703,7 +704,7 @@ public class ReplicaShardAllocatorTests extends OpenSearchAllocationTestCase {
             }
             data.put(
                 node,
-                new TransportNodesListShardStoreMetadata.StoreFilesMetadata(
+                new StoreFilesMetadata(
                     shardId,
                     new Store.MetadataSnapshot(unmodifiableMap(filesAsMap), unmodifiableMap(commitData), randomInt()),
                     peerRecoveryRetentionLeases
@@ -721,14 +722,18 @@ public class ReplicaShardAllocatorTests extends OpenSearchAllocationTestCase {
             Map<DiscoveryNode, TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> tData = null;
             if (data != null) {
                 tData = new HashMap<>();
-                for (Map.Entry<DiscoveryNode, TransportNodesListShardStoreMetadata.StoreFilesMetadata> entry : data.entrySet()) {
+                for (Map.Entry<DiscoveryNode, StoreFilesMetadata> entry : data.entrySet()) {
                     tData.put(
                         entry.getKey(),
                         new TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata(entry.getKey(), entry.getValue())
                     );
                 }
             }
-            return new AsyncShardFetch.FetchResult<>(shardId, tData, Collections.emptySet());
+            return new AsyncShardFetch.FetchResult<>(tData, new HashMap<>() {
+                {
+                    put(shardId, Collections.emptySet());
+                }
+            });
         }
 
         @Override

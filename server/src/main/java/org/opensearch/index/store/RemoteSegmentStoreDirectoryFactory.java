@@ -9,6 +9,7 @@
 package org.opensearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
@@ -28,8 +29,9 @@ import java.util.function.Supplier;
 /**
  * Factory for a remote store directory
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.3.0")
 public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     private static final String SEGMENTS = "segments";
 
@@ -76,4 +78,5 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", e);
         }
     }
+
 }

@@ -11,6 +11,7 @@ package org.opensearch.index.shard;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.Version;
+import org.opensearch.action.StepListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
@@ -371,7 +372,6 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
      * prevent FileAlreadyExistsException. It does so by only copying files in first round of segment replication without
      * committing locally so that in next round of segment replication those files are not considered for download again
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10885")
     public void testSegRepSucceedsOnPreviousCopiedFiles() throws Exception {
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
             shards.startAll();
@@ -388,6 +388,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             );
             CountDownLatch latch = new CountDownLatch(1);
 
+            logger.info("--> Starting first round of replication");
             // Start first round of segment replication. This should fail with simulated error but with replica having
             // files in its local store but not in active reader.
             final SegmentReplicationTarget target = targetService.startReplication(
@@ -427,6 +428,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             // Start next round of segment replication and not throwing exception resulting in commit on replica
             when(sourceFactory.get(any())).thenReturn(getRemoteStoreReplicationSource(replica, () -> {}));
             CountDownLatch waitForSecondRound = new CountDownLatch(1);
+            logger.info("--> Starting second round of replication");
             final SegmentReplicationTarget newTarget = targetService.startReplication(
                 replica,
                 primary.getLatestReplicationCheckpoint(),
@@ -559,8 +561,19 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
                 BiConsumer<String, Long> fileProgressTracker,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
-                super.getSegmentFiles(replicationId, checkpoint, filesToFetch, indexShard, (fileName, bytesRecovered) -> {}, listener);
-                postGetFilesRunnable.run();
+                StepListener<GetSegmentFilesResponse> waitForCopyFilesListener = new StepListener();
+                super.getSegmentFiles(
+                    replicationId,
+                    checkpoint,
+                    filesToFetch,
+                    indexShard,
+                    (fileName, bytesRecovered) -> {},
+                    waitForCopyFilesListener
+                );
+                waitForCopyFilesListener.whenComplete(response -> {
+                    postGetFilesRunnable.run();
+                    listener.onResponse(response);
+                }, listener::onFailure);
             }
 
             @Override
