@@ -683,6 +683,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final Map<String, RolloverInfo> rolloverInfos;
     private final boolean isSystem;
 
+    private final int compressedID;
+
+    private final boolean hasOrdinal;
+
     private IndexMetadata(
         final Index index,
         final long version,
@@ -708,7 +712,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final int routingPartitionSize,
         final ActiveShardCount waitForActiveShards,
         final Map<String, RolloverInfo> rolloverInfos,
-        final boolean isSystem
+        final boolean isSystem,
+        final int compressedID,
+        final boolean hasOrdinal
     ) {
 
         this.index = index;
@@ -742,6 +748,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.waitForActiveShards = waitForActiveShards;
         this.rolloverInfos = Collections.unmodifiableMap(rolloverInfos);
         this.isSystem = isSystem;
+        this.compressedID = compressedID;
+        this.hasOrdinal = hasOrdinal;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -749,7 +757,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return index;
     }
 
-    public String getIndexUUID() {
+      public String getIndexUUID() {
         return index.getUUID();
     }
 
@@ -861,6 +869,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return cursor;
         }
         return null;
+    }
+
+    public int getCompressedID() {
+        return this.compressedID;
+    }
+
+    public boolean isHasOrdinal() {
+        return this.hasOrdinal;
     }
 
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";
@@ -1029,6 +1045,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final Diff<Map<String, RolloverInfo>> rolloverInfos;
         private final boolean isSystem;
 
+        private final int compressedID;
+
+        private final boolean hashOrdinal;
+
         IndexMetadataDiff(IndexMetadata before, IndexMetadata after) {
             index = after.index.getName();
             version = after.version;
@@ -1050,6 +1070,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             );
             rolloverInfos = DiffableUtils.diff(before.rolloverInfos, after.rolloverInfos, DiffableUtils.getStringKeySerializer());
             isSystem = after.isSystem;
+            compressedID = after.compressedID;
+            hashOrdinal = after.hasOrdinal;
         }
 
         private static final DiffableUtils.DiffableValueReader<String, AliasMetadata> ALIAS_METADATA_DIFF_VALUE_READER =
@@ -1081,6 +1103,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             );
             rolloverInfos = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), ROLLOVER_INFO_DIFF_VALUE_READER);
             isSystem = in.readBoolean();
+            compressedID = in.readVInt();
+            hashOrdinal = in.readBoolean();
         }
 
         @Override
@@ -1100,6 +1124,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             inSyncAllocationIds.writeTo(out);
             rolloverInfos.writeTo(out);
             out.writeBoolean(isSystem);
+            out.writeVInt(compressedID);
+            out.writeBoolean(hashOrdinal);
         }
 
         @Override
@@ -1119,6 +1145,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
             builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
             builder.system(part.isSystem);
+            builder.compressedID(part.compressedID);
+            builder.hasOrdinal(part.hasOrdinal);
             return builder.build();
         }
     }
@@ -1160,6 +1188,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.putRolloverInfo(new RolloverInfo(in));
         }
         builder.system(in.readBoolean());
+        builder.compressedID(in.readVInt());
+        builder.hasOrdinal(in.readBoolean());
         return builder.build();
     }
 
@@ -1197,6 +1227,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             cursor.writeTo(out);
         }
         out.writeBoolean(isSystem);
+        out.writeVInt(compressedID);
+        out.writeBoolean(hasOrdinal);
     }
 
     public boolean isSystem() {
@@ -1235,6 +1267,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private Integer routingNumShards;
         private boolean isSystem;
 
+        private int compressedID;
+
+        private boolean hasOrdinal;
+
         public Builder(String index) {
             this.index = index;
             this.mappings = new HashMap<>();
@@ -1261,6 +1297,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.inSyncAllocationIds = new HashMap<>(indexMetadata.inSyncAllocationIds);
             this.rolloverInfos = new HashMap<>(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
+            this.compressedID = indexMetadata.compressedID;
+            this.hasOrdinal = indexMetadata.hasOrdinal;
         }
 
         public Builder index(String index) {
@@ -1477,6 +1515,24 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return isSystem;
         }
 
+        public Builder compressedID(int compressedID) {
+            this.compressedID = compressedID;
+            return this;
+        }
+
+        public int getCompressedID() {
+            return compressedID;
+        }
+
+        public Builder hasOrdinal(boolean hasOrdinal) {
+            this.hasOrdinal = hasOrdinal;
+            return this;
+        }
+
+        public boolean isHasOrdinal() {
+            return hasOrdinal;
+        }
+
         public IndexMetadata build() {
             final Map<String, AliasMetadata> tmpAliases = aliases;
             Settings tmpSettings = settings;
@@ -1576,7 +1632,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
-
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -1602,7 +1657,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 routingPartitionSize,
                 waitForActiveShards,
                 rolloverInfos,
-                isSystem
+                isSystem,
+                compressedID,
+                hasOrdinal
             );
         }
 
@@ -1704,6 +1761,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             builder.endObject();
             builder.field(KEY_SYSTEM, indexMetadata.isSystem);
+            builder.field("cID", indexMetadata.compressedID);
+            builder.field("hasOrdinal", indexMetadata.hasOrdinal);
 
             builder.endObject();
         }
@@ -1834,6 +1893,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         builder.setRoutingNumShards(parser.intValue());
                     } else if (KEY_SYSTEM.equals(currentFieldName)) {
                         builder.system(parser.booleanValue());
+                    } else if ("cID".equals(currentFieldName)) {
+                        builder.compressedID(parser.intValue());
+                    } else if ("hasOrdinal".equals(currentFieldName)) {
+                        builder.hasOrdinal(parser.booleanValue());
                     } else {
                         throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }

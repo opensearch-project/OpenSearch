@@ -47,8 +47,10 @@ import org.opensearch.common.Randomness;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.index.CompressedIndex;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.indices.cluster.IndicesClusterStateService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -469,6 +471,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             }
             for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
                 ShardId shardId = new ShardId(index, shardNumber);
+
                 if (indexShardRoutingTableMap.containsKey(shardId) == false) {
                     throw new IllegalStateException("IndexShardRoutingTable is not present for shardId: " + shardId);
                 }
@@ -556,7 +559,14 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
             for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
-                ShardId shardId = new ShardId(index, shardNumber);
+                ShardId shardId;
+                if (indexMetadata.isHasOrdinal()) {
+                    shardId = new ShardId(new CompressedIndex(indexMetadata.getCompressedID(), indexMetadata.getIndexUUID()),shardNumber);
+                }
+                else {
+                    shardId = new ShardId(index, shardNumber);
+
+                }
                 final RecoverySource primaryRecoverySource;
                 if (indexMetadata.inSyncAllocationIds(shardNumber).isEmpty() == false) {
                     // we have previous valid copies for this shard. use them for recovery
@@ -587,6 +597,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
         public Builder addReplica() {
             for (final int shardNumber : shards.keySet()) {
+
                 ShardId shardId = new ShardId(index, shardNumber);
                 // version 0, will get updated when reroute will happen
                 ShardRouting shard = ShardRouting.newUnassigned(

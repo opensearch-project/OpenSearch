@@ -60,6 +60,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.OrdinalIndexMap;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.gateway.GatewayService;

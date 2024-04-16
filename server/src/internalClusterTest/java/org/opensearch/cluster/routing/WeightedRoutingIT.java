@@ -8,6 +8,9 @@
 
 package org.opensearch.cluster.routing;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefHash;
+import org.apache.lucene.util.packed.PackedInts;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
@@ -25,7 +28,11 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.transport.MockTransportService;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -856,5 +863,68 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
                 .weightedRoutingMetadata()
         );
 
+    }
+
+    public void testIntegerCompression() throws IOException {
+        int value = 12345;
+        MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+        // System.out.println("One" + memoryMXBean.getHeapMemoryUsage());
+        PackedInts.Mutable packedInts = PackedInts.getMutable(1, PackedInts.bitsRequired(value), PackedInts.COMPACT);
+        // System.out.println("Two" + memoryMXBean.getHeapMemoryUsage());
+        System.out.println("One" + packedInts.ramBytesUsed());
+
+        packedInts.set(0, value);
+        System.out.println("Two" + packedInts.ramBytesUsed());
+
+        // System.out.println("Three" + memoryMXBean.getHeapMemoryUsage());
+        int result = (int) packedInts.get(0);
+        System.out.println("Compressed Value: " + result);
+        value = 300;
+
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(5);
+
+        // Encode VarInt to byte array
+        writeVarInt(byteArrayOutputStream, value);
+
+        byte[] encodedVarInt = byteArrayOutputStream.toByteArray();
+
+        // Decode VarInt from input stream
+        java.io.ByteArrayInputStream byteArrayInputStream = new java.io.ByteArrayInputStream(encodedVarInt);
+        int decodedVarInt = readVarInt(byteArrayInputStream);
+
+        // Print results
+        System.out.println("Original value: " + value);
+        System.out.println("Encoded VarInt: " + byteArrayOutputStream.toString());
+        System.out.println("Encoded VarInt2: " + encodedVarInt);
+        System.out.println("Decoded VarInt: " + decodedVarInt);
+
+        BytesRefHash bytesRefHash = new BytesRefHash();
+        bytesRefHash.add(new BytesRef("apple"));
+        bytesRefHash.add(new BytesRef("banana"));
+        bytesRefHash.add(new BytesRef("apple-pie"));
+
+    }
+
+    private void writeVarInt(ByteArrayOutputStream out, int value) {
+        while ((value & 0xFFFFFF80) != 0L) {
+            out.write((byte) ((value & 0x7F) | 0x80));
+            value >>>= 7;
+        }
+        out.write((byte) (value & 0x7F));
+    }
+
+    private int readVarInt(InputStream in) throws IOException {
+        int result = 0;
+        int shift = 0;
+        int b;
+        do {
+            b = in.read();
+            result |= (b & 0x7F) << shift;
+            if ((b & 0x80) == 0) {
+                return result;
+            }
+            shift += 7;
+        } while (shift < 32);
+        throw new IOException("Malformed VarInt");
     }
 }

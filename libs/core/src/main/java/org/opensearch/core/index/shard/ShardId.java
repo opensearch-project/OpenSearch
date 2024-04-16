@@ -38,7 +38,9 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.CompressedIndex;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.OrdinalIndexMap;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -56,6 +58,10 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
     private final int shardId;
     private final int hashCode;
 
+    private final CompressedIndex compressedIndex;
+
+    private boolean hasCompressedIndex;
+
     private final static long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ShardId.class);
 
     /**
@@ -67,6 +73,16 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
         this.index = index;
         this.shardId = shardId;
         this.hashCode = computeHashCode();
+        this.compressedIndex = null;
+        this.hasCompressedIndex = false;
+    }
+
+    public ShardId(CompressedIndex compressedIndex,  int shardId) {
+        this.index = null;
+        this.shardId = shardId;
+        this.hashCode = computeHashCode();
+        this.compressedIndex = compressedIndex;
+        this.hasCompressedIndex = true;
     }
 
     /**
@@ -86,7 +102,14 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
      * @see #writeTo(StreamOutput)
      */
     public ShardId(StreamInput in) throws IOException {
-        index = new Index(in);
+        hasCompressedIndex = in.readBoolean();
+        if (hasCompressedIndex==true) {
+            compressedIndex = new CompressedIndex(in);
+            index = null;
+        } else {
+            index = new Index(in);
+            compressedIndex = null;
+        }
         shardId = in.readVInt();
         hashCode = computeHashCode();
     }
@@ -102,7 +125,13 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        index.writeTo(out);
+        out.writeBoolean(hasCompressedIndex);
+        if(hasCompressedIndex) {
+            compressedIndex.writeTo(out);
+        }
+        else {
+            index.writeTo(out);
+        }
         out.writeVInt(shardId);
     }
 
@@ -111,6 +140,7 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
      * @return the index of this shard id
      */
     public Index getIndex() {
+        // TODO : for compressed index, create an index object
         return index;
     }
 
@@ -119,6 +149,11 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
      * @return the name of the index of this shard id
      */
     public String getIndexName() {
+        // TODO : for compressed index, use index lookup table to get name
+        if (hasCompressedIndex) {
+            OrdinalIndexMap  ordinalIndexMap = OrdinalIndexMap.getInstance();
+            return ordinalIndexMap.getOrdinalIndex(compressedIndex.getOrdinal());
+        }
         return index.getName();
     }
 
@@ -145,6 +180,7 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
      */
     @Override
     public String toString() {
+        //TODO : handle compressed index
         return "[" + index.getName() + "][" + shardId + "]";
     }
 
@@ -159,6 +195,7 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
      *                      (Expect a string of format "[indexName][shardId]" (square brackets included))
      */
     public static ShardId fromString(String shardIdString) {
+        //TODO : handle compressed index
         int splitPosition = shardIdString.indexOf("][");
         if (splitPosition <= 0 || shardIdString.charAt(0) != '[' || shardIdString.charAt(shardIdString.length() - 1) != ']') {
             throw new IllegalArgumentException("Unexpected shardId string format, expected [indexName][shardId] but got " + shardIdString);

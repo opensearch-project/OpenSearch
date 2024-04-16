@@ -508,7 +508,8 @@ public class MetadataCreateIndexService {
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
                     temporaryIndexMeta.isSystem(),
-                    temporaryIndexMeta.getCustomData()
+                    temporaryIndexMeta.getCustomData(),
+                    currentState
                 );
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
@@ -1183,7 +1184,8 @@ public class MetadataCreateIndexService {
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
         boolean isSystem,
-        Map<String, DiffableStringMap> customData
+        Map<String, DiffableStringMap> customData,
+        ClusterState clusterState
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
@@ -1207,7 +1209,8 @@ public class MetadataCreateIndexService {
         for (Map.Entry<String, DiffableStringMap> entry : customData.entrySet()) {
             indexMetadataBuilder.putCustom(entry.getKey(), entry.getValue());
         }
-
+        indexMetadataBuilder.compressedID(clusterState.getMetadata().getIndices().size() + 1);
+        indexMetadataBuilder.hasOrdinal(true);
         indexMetadataBuilder.state(IndexMetadata.State.OPEN);
         return indexMetadataBuilder.build();
     }

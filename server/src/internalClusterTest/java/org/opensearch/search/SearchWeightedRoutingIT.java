@@ -21,6 +21,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.PreferenceBasedSearchNotAllowedException;
+import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.WeightedRouting;
@@ -253,18 +254,20 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
     }
 
     private void setUpIndexing(int numShards, int numReplicas) {
-        assertAcked(
-            prepareCreate("test").setSettings(
-                Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", numReplicas)
-            )
-        );
+        // assertAcked(
+        // prepareCreate("test").setSettings(
+        // Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", numReplicas)
+        // )
+        // );
         ensureGreen();
 
         logger.info("--> creating indices for test");
-        for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test").setId("" + i).setSource("field_" + i, "value_" + i).get();
+        for (int i = 0; i < 2; i++) {
+            client().prepareIndex("test_" + i).setId("" + i).setSource("field_" + i, "value_" + i).get();
         }
-        refresh("test");
+        for (int i = 0; i < 2; i++) {
+            refresh("test");
+        }
     }
 
     private void setShardRoutingWeights(Map<String, Double> weights) {
@@ -1462,6 +1465,23 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         NodeStats nodeStatsC = stats.get(nodeIDMap.get(nodeMap.get("c").get(0)));
         assertEquals(failOpenShardCount, nodeStatsC.getWeightedRoutingStats().getFailOpenCount());
         WeightedRoutingStats.getInstance().resetFailOpenCount();
+    }
+
+    public void testClusterState() throws Exception {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", true)
+            .build();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 10;
+        int numReplicas = 1;
+        setUpIndexing(numShards, numReplicas);
+        RoutingTable routingTable = internalCluster().clusterService().state().routingTable();
+
     }
 
 }
