@@ -6,7 +6,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 ### Dependencies
-- Bump `netty` from 4.1.107.Final to 4.1.108.Final ([#12924](https://github.com/opensearch-project/OpenSearch/pull/12924))
+- Bump `netty` from 4.1.107.Final to 4.1.109.Final ([#12924](https://github.com/opensearch-project/OpenSearch/pull/12924), [#13233](https://github.com/opensearch-project/OpenSearch/pull/13233))
 
 ### Changed
 ### Deprecated
