@@ -82,8 +82,14 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     private final List<Predicate<V>> policies;
 
     // Common values used for tier dimension
+
+    /** The name for the tier dimension. */
     public static final String TIER_DIMENSION_NAME = "tier";
+
+    /** Dimension value for on-heap cache, like OpenSearchOnHeapCache.*/
     public static final String TIER_DIMENSION_VALUE_ON_HEAP = "on_heap";
+
+    /** Dimension value for on-disk cache, like EhcacheDiskCache. */
     public static final String TIER_DIMENSION_VALUE_DISK = "disk";
 
     TieredSpilloverCache(Builder<K, V> builder) {
