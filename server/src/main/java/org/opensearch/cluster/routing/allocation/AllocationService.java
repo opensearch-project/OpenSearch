@@ -55,7 +55,6 @@ import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PriorityComparator;
@@ -201,9 +200,9 @@ public class AllocationService {
         if (restoreInProgress != null) {
             RestoreInProgress updatedRestoreInProgress = allocation.updateRestoreInfoWithRoutingChanges(restoreInProgress);
             if (updatedRestoreInProgress != restoreInProgress) {
-                ImmutableOpenMap.Builder<String, ClusterState.Custom> customsBuilder = ImmutableOpenMap.builder(allocation.getCustoms());
+                final Map<String, ClusterState.Custom> customsBuilder = new HashMap<>(allocation.getCustoms());
                 customsBuilder.put(RestoreInProgress.TYPE, updatedRestoreInProgress);
-                newStateBuilder.customs(customsBuilder.build());
+                newStateBuilder.customs(customsBuilder);
             }
         }
         return newStateBuilder.build();
@@ -575,11 +574,7 @@ public class AllocationService {
              If we do not have any custom allocator set then we will be using ShardsBatchGatewayAllocator
              Currently AllocationService will not run any custom Allocator that implements allocateAllUnassignedShards
              */
-            ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
-            allocator.allocateAllUnassignedShards(allocation, true);
-            allocator.afterPrimariesBeforeReplicas(allocation);
-            // Replicas Assignment
-            allocator.allocateAllUnassignedShards(allocation, false);
+            allocateAllUnassignedShards(allocation);
             return;
         }
         logger.warn("Falling back to single shard assignment since batch mode disable or multiple custom allocators set");
@@ -605,30 +600,12 @@ public class AllocationService {
         }
     }
 
-    /**
-     * Verify if all unassigned shards are allocated by the same allocator, if yes then return the allocator, else
-     * return null
-     * @param allocation {@link RoutingAllocation}
-     * @return {@link ExistingShardsAllocator} or null
-     */
-    private ExistingShardsAllocator getAndVerifySameAllocatorForAllUnassignedShards(RoutingAllocation allocation) {
-        // if there is a single Allocator set in Allocation Service then use it for all shards
-        if (existingShardsAllocators.size() == 1) {
-            return existingShardsAllocators.values().iterator().next();
-        }
-        RoutingNodes.UnassignedShards unassignedShards = allocation.routingNodes().unassigned();
-        RoutingNodes.UnassignedShards.UnassignedIterator iterator = unassignedShards.iterator();
-        ExistingShardsAllocator currentAllocatorForShard = null;
-        if (unassignedShards.size() > 0) {
-            currentAllocatorForShard = getAllocatorForShard(iterator.next(), allocation);
-            while (iterator.hasNext()) {
-                ExistingShardsAllocator allocatorForShard = getAllocatorForShard(iterator.next(), allocation);
-                if (currentAllocatorForShard.getClass().getName().equals(allocatorForShard.getClass().getName()) == false) {
-                    return null;
-                }
-            }
-        }
-        return currentAllocatorForShard;
+    private void allocateAllUnassignedShards(RoutingAllocation allocation) {
+        ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
+        allocator.allocateAllUnassignedShards(allocation, true);
+        allocator.afterPrimariesBeforeReplicas(allocation);
+        // Replicas Assignment
+        allocator.allocateAllUnassignedShards(allocation, false);
     }
 
     private void disassociateDeadNodes(RoutingAllocation allocation) {

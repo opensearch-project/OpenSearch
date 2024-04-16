@@ -480,48 +480,12 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
             List<ShardRouting> inEligibleShards,
             RoutingAllocation allocation
         ) {
-            ShardRouting shardRouting = eligibleShards.iterator().hasNext() ? eligibleShards.iterator().next() : null;
-            shardRouting = shardRouting == null && inEligibleShards.iterator().hasNext()
-                ? inEligibleShards.iterator().next()
-                : shardRouting;
-            if (shardRouting == null) {
-                return new AsyncShardFetch.FetchResult<>(null, Collections.emptyMap());
-            }
-            String batchId = getBatchId(shardRouting, shardRouting.primary());
-            if (batchId == null) {
-                logger.debug("Shard {} has no batch id", shardRouting);
-                throw new IllegalStateException("Shard " + shardRouting + " has no batch id. Shard should batched before fetching");
-            }
-
-            if (batchIdToStartedShardBatch.containsKey(batchId) == false) {
-                logger.debug("Batch {} has no started shard batch", batchId);
-                throw new IllegalStateException("Batch " + batchId + " has no started shard batch");
-            }
-
-            ShardsBatch shardsBatch = batchIdToStartedShardBatch.get(batchId);
-            // remove in eligible shards which allocator is not responsible for
-            inEligibleShards.forEach(sr -> safelyRemoveShardFromBatch(sr, sr.primary()));
-
-            if (shardsBatch.getBatchedShards().isEmpty() && eligibleShards.isEmpty()) {
-                logger.debug("Batch {} is empty", batchId);
-                return new AsyncShardFetch.FetchResult<>(null, Collections.emptyMap());
-            }
-
-            Map<ShardId, Set<String>> shardToIgnoreNodes = new HashMap<>();
-
-            for (ShardId shardId : shardsBatch.asyncBatch.shardAttributesMap.keySet()) {
-                shardToIgnoreNodes.put(shardId, allocation.getIgnoreNodes(shardId));
-            }
-            AsyncShardBatchFetch<? extends BaseNodeResponse, ?> asyncFetcher = shardsBatch.getAsyncFetcher();
-            AsyncShardFetch.FetchResult<? extends BaseNodeResponse> shardBatchState = asyncFetcher.fetchData(
-                allocation.nodes(),
-                shardToIgnoreNodes
-            );
-
-            if (shardBatchState.hasData()) {
-                shardBatchState.processAllocation(allocation);
-            }
-            return (AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch>) shardBatchState;
+            return (AsyncShardFetch.FetchResult<
+                TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch>) fetchDataAndCleanIneligibleShards(
+                    eligibleShards,
+                    inEligibleShards,
+                    allocation
+                );
         }
 
     }
@@ -534,46 +498,12 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
             List<ShardRouting> inEligibleShards,
             RoutingAllocation allocation
         ) {
-            // get batch id for anyone given shard. We are assuming all shards will have same batchId
-            ShardRouting shardRouting = eligibleShards.iterator().hasNext() ? eligibleShards.iterator().next() : null;
-            shardRouting = shardRouting == null && inEligibleShards.iterator().hasNext()
-                ? inEligibleShards.iterator().next()
-                : shardRouting;
-            if (shardRouting == null) {
-                return new AsyncShardFetch.FetchResult<>(null, Collections.emptyMap());
-            }
-            String batchId = getBatchId(shardRouting, shardRouting.primary());
-            if (batchId == null) {
-                logger.debug("Shard {} has no batch id", shardRouting);
-                throw new IllegalStateException("Shard " + shardRouting + " has no batch id. Shard should batched before fetching");
-            }
-
-            if (batchIdToStoreShardBatch.containsKey(batchId) == false) {
-                logger.debug("Batch {} has no store shard batch", batchId);
-                throw new IllegalStateException("Batch " + batchId + " has no shard store batch");
-            }
-
-            ShardsBatch shardsBatch = batchIdToStoreShardBatch.get(batchId);
-            // remove in eligible shards which allocator is not responsible for
-            inEligibleShards.forEach(sr -> safelyRemoveShardFromBatch(sr, sr.primary()));
-
-            if (shardsBatch.getBatchedShards().isEmpty() && eligibleShards.isEmpty()) {
-                logger.debug("Batch {} is empty", batchId);
-                return new AsyncShardFetch.FetchResult<>(null, Collections.emptyMap());
-            }
-            Map<ShardId, Set<String>> shardToIgnoreNodes = new HashMap<>();
-            for (ShardId shardId : shardsBatch.asyncBatch.shardAttributesMap.keySet()) {
-                shardToIgnoreNodes.put(shardId, allocation.getIgnoreNodes(shardId));
-            }
-            AsyncShardBatchFetch<? extends BaseNodeResponse, ?> asyncFetcher = shardsBatch.getAsyncFetcher();
-            AsyncShardFetch.FetchResult<? extends BaseNodeResponse> shardBatchStores = asyncFetcher.fetchData(
-                allocation.nodes(),
-                shardToIgnoreNodes
-            );
-            if (shardBatchStores.hasData()) {
-                shardBatchStores.processAllocation(allocation);
-            }
-            return (AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch>) shardBatchStores;
+            return (AsyncShardFetch.FetchResult<
+                TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch>) fetchDataAndCleanIneligibleShards(
+                    eligibleShards,
+                    inEligibleShards,
+                    allocation
+                );
         }
 
         @Override
@@ -581,6 +511,52 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
             String batchId = getBatchId(shard, shard.primary());
             return batchId != null;
         }
+    }
+
+    AsyncShardFetch.FetchResult<? extends BaseNodeResponse> fetchDataAndCleanIneligibleShards(
+        List<ShardRouting> eligibleShards,
+        List<ShardRouting> inEligibleShards,
+        RoutingAllocation allocation
+    ) {
+        // get batch id for anyone given shard. We are assuming all shards will have same batchId
+        ShardRouting shardRouting = eligibleShards.iterator().hasNext() ? eligibleShards.iterator().next() : null;
+        shardRouting = shardRouting == null && inEligibleShards.iterator().hasNext() ? inEligibleShards.iterator().next() : shardRouting;
+        if (shardRouting == null) {
+            return new AsyncShardFetch.FetchResult<>(null, Collections.emptyMap());
+        }
+        String batchId = getBatchId(shardRouting, shardRouting.primary());
+        if (batchId == null) {
+            logger.debug("Shard {} has no batch id", shardRouting);
+            throw new IllegalStateException("Shard " + shardRouting + " has no batch id. Shard should batched before fetching");
+        }
+        ConcurrentMap<String, ShardsBatch> batches = shardRouting.primary() ? batchIdToStartedShardBatch : batchIdToStoreShardBatch;
+        if (batches.containsKey(batchId) == false) {
+            logger.debug("Batch {} has no shards batch", batchId);
+            throw new IllegalStateException("Batch " + batchId + " has no shards batch");
+        }
+
+        ShardsBatch shardsBatch = batches.get(batchId);
+        // remove in eligible shards which allocator is not responsible for
+        inEligibleShards.forEach(sr -> safelyRemoveShardFromBatch(sr, sr.primary()));
+
+        if (shardsBatch.getBatchedShards().isEmpty() && eligibleShards.isEmpty()) {
+            logger.debug("Batch {} is empty", batchId);
+            return new AsyncShardFetch.FetchResult<>(null, Collections.emptyMap());
+        }
+        Map<ShardId, Set<String>> shardToIgnoreNodes = new HashMap<>();
+        for (ShardId shardId : shardsBatch.asyncBatch.shardAttributesMap.keySet()) {
+            shardToIgnoreNodes.put(shardId, allocation.getIgnoreNodes(shardId));
+        }
+        AsyncShardBatchFetch<? extends BaseNodeResponse, ?> asyncFetcher = shardsBatch.getAsyncFetcher();
+        AsyncShardFetch.FetchResult<? extends BaseNodeResponse> fetchResult = asyncFetcher.fetchData(
+            allocation.nodes(),
+            shardToIgnoreNodes
+        );
+        if (fetchResult.hasData()) {
+            fetchResult.processAllocation(allocation);
+        }
+
+        return fetchResult;
     }
 
     /**
