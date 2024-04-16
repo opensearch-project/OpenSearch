@@ -132,7 +132,7 @@ public class RemoteIndexPath implements ToXContentFragment {
         return builder;
     }
 
-    public static RemoteIndexPath fromXContent(XContentParser ignored) throws IOException {
+    public static RemoteIndexPath fromXContent(XContentParser ignored) {
         throw new UnsupportedOperationException("RemoteIndexPath.fromXContent() is not supported");
     }
 }

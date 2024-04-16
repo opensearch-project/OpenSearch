@@ -63,6 +63,10 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadInterceptor {
 
     private static final String TIMEOUT_EXCEPTION_MSG = "Timed out waiting while uploading remote index path file for indexes=%s";
     private static final String UPLOAD_EXCEPTION_MSG = "Exception occurred while uploading remote index paths for indexes=%s";
+    static final String TRANSLOG_REPO_NAME_KEY = Node.NODE_ATTRIBUTES.getKey()
+        + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+    static final String SEGMENT_REPO_NAME_KEY = Node.NODE_ATTRIBUTES.getKey()
+        + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
     private static final Logger logger = LogManager.getLogger(RemoteIndexPathUploader.class);
 
@@ -76,11 +80,12 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadInterceptor {
     private BlobStoreRepository segmentRepository;
 
     public RemoteIndexPathUploader(Settings settings, Supplier<RepositoriesService> repositoriesService, ClusterSettings clusterSettings) {
-        this.settings = settings;
-        this.repositoriesService = repositoriesService;
+        this.settings = Objects.requireNonNull(settings);
+        this.repositoriesService = Objects.requireNonNull(repositoriesService);
         isRemoteDataAttributePresent = isRemoteDataAttributePresent(settings);
         // If the remote data attributes are not present, then there is no effect of translog and segment being same or different or null.
         isTranslogSegmentRepoSame = isTranslogSegmentRepoSame();
+        Objects.requireNonNull(clusterSettings);
         indexMetadataUploadTimeout = clusterSettings.get(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING);
         clusterSettings.addSettingsUpdateConsumer(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING, this::setIndexMetadataUploadTimeout);
     }
@@ -117,6 +122,7 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadInterceptor {
                 exception
             );
             actionListener.onFailure(ex);
+            return;
         }
         if (exceptionList.size() > 0) {
             RemoteStateTransferException ex = new RemoteStateTransferException(
@@ -124,6 +130,7 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadInterceptor {
             );
             exceptionList.forEach(ex::addSuppressed);
             actionListener.onFailure(ex);
+            return;
         }
         actionListener.onResponse(null);
     }
@@ -191,21 +198,13 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadInterceptor {
             // If remote store data attributes are not present than we skip this.
             return;
         }
-        translogRepository = (BlobStoreRepository) validateAndGetRepository(
-            Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
-        );
-        segmentRepository = (BlobStoreRepository) validateAndGetRepository(
-            Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
-        );
+        translogRepository = (BlobStoreRepository) validateAndGetRepository(TRANSLOG_REPO_NAME_KEY);
+        segmentRepository = (BlobStoreRepository) validateAndGetRepository(SEGMENT_REPO_NAME_KEY);
     }
 
     private boolean isTranslogSegmentRepoSame() {
-        String translogRepoName = settings.get(
-            Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
-        );
-        String segmentRepoName = settings.get(
-            Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
-        );
+        String translogRepoName = settings.get(TRANSLOG_REPO_NAME_KEY);
+        String segmentRepoName = settings.get(SEGMENT_REPO_NAME_KEY);
         return Objects.equals(translogRepoName, segmentRepoName);
     }
 
