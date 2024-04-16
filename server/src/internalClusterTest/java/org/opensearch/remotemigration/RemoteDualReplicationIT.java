@@ -41,6 +41,7 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
     private final String REMOTE_PRI_DOCREP_REP = "remote-primary-docrep-replica";
     private final String REMOTE_PRI_DOCREP_REMOTE_REP = "remote-primary-docrep-remote-replica";
     private final String FAILOVER_REMOTE_TO_DOCREP = "failover-remote-to-docrep";
+    private final String FAILOVER_REMOTE_TO_REMOTE = "failover-remote-to-remote";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -241,14 +242,63 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
         */
         extraSettings = Settings.builder().put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), "3s").build();
         testRemotePrimaryDocRepAndRemoteReplica();
-        DiscoveryNodes nodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
-        assertBusy(() -> {
-            for (ShardStats shardStats : internalCluster().client()
+        pollAndCheckRetentionLeases(REMOTE_PRI_DOCREP_REMOTE_REP);
+    }
+
+    public void testMissingRetentionLeaseCreatedOnFailedOverRemoteReplica() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+
+        logger.info("---> Starting docrep data node");
+        internalCluster().startDataOnlyNode();
+
+        Settings zeroReplicasAndOverridenSyncIntervals = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            .build();
+        createIndex(FAILOVER_REMOTE_TO_REMOTE, zeroReplicasAndOverridenSyncIntervals);
+        ensureGreen(FAILOVER_REMOTE_TO_REMOTE);
+
+        indexBulk(FAILOVER_REMOTE_TO_REMOTE, 100);
+
+        logger.info("---> Starting first remote node");
+        initDocRepToRemoteMigration();
+        addRemote = true;
+        String firstRemoteNode = internalCluster().startDataOnlyNode();
+        String primaryShardHostingNode = primaryNodeName(FAILOVER_REMOTE_TO_REMOTE);
+        logger.info("---> Moving primary copy from {} to remote enabled node {}", primaryShardHostingNode, firstRemoteNode);
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareReroute()
+                .add(new MoveAllocationCommand(FAILOVER_REMOTE_TO_REMOTE, 0, primaryShardHostingNode, firstRemoteNode))
+                .get()
+        );
+        ensureGreen(FAILOVER_REMOTE_TO_REMOTE);
+        assertReplicaAndPrimaryConsistency(FAILOVER_REMOTE_TO_REMOTE, 100, 0);
+
+        String secondRemoteNode = internalCluster().startDataOnlyNode();
+        Settings twoReplicas = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2).build();
+        assertAcked(
+            internalCluster().client()
                 .admin()
                 .indices()
-                .prepareStats(REMOTE_PRI_DOCREP_REMOTE_REP)
+                .prepareUpdateSettings()
+                .setIndices(FAILOVER_REMOTE_TO_REMOTE)
+                .setSettings(twoReplicas)
                 .get()
-                .getShards()) {
+        );
+        ensureGreen(FAILOVER_REMOTE_TO_REMOTE);
+
+        logger.info("---> Checking retention leases");
+        pollAndCheckRetentionLeases(FAILOVER_REMOTE_TO_REMOTE);
+    }
+
+    private void pollAndCheckRetentionLeases(String indexName) throws Exception {
+        DiscoveryNodes nodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
+        assertBusy(() -> {
+            for (ShardStats shardStats : internalCluster().client().admin().indices().prepareStats(indexName).get().getShards()) {
                 ShardRouting shardRouting = shardStats.getShardRouting();
                 DiscoveryNode discoveryNode = nodes.get(shardRouting.currentNodeId());
                 RetentionLeases retentionLeases = shardStats.getRetentionLeaseStats().retentionLeases();
