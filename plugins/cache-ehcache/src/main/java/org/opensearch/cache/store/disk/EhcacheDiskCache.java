@@ -25,6 +25,8 @@ import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.serializer.ICacheKeySerializer;
 import org.opensearch.common.cache.serializer.Serializer;
 import org.opensearch.common.cache.stats.CacheStatsHolder;
+import org.opensearch.common.cache.stats.CacheStatsHolderInterface;
+import org.opensearch.common.cache.stats.DummyCacheStatsHolder;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
@@ -32,6 +34,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 
 import java.io.File;
@@ -113,7 +116,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     private final Class<K> keyType;
     private final Class<V> valueType;
     private final TimeValue expireAfterAccess;
-    private final CacheStatsHolder cacheStatsHolder;
+    private final CacheStatsHolderInterface cacheStatsHolder;
     private final EhCacheEventListener ehCacheEventListener;
     private final String threadPoolAlias;
     private final Settings settings;
@@ -162,7 +165,12 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         this.ehCacheEventListener = new EhCacheEventListener(builder.getRemovalListener(), builder.getWeigher());
         this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
         List<String> dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
-        this.cacheStatsHolder = new CacheStatsHolder(dimensionNames);
+
+        if (FeatureFlags.PLUGGABLE_CACHE_SETTING.get(builder.getSettings())) {
+            this.cacheStatsHolder = new CacheStatsHolder(dimensionNames);
+        } else {
+            this.cacheStatsHolder = new DummyCacheStatsHolder(dimensionNames);
+        }
     }
 
     @SuppressWarnings({ "rawtypes" })

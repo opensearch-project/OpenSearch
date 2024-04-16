@@ -19,6 +19,8 @@ import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.stats.CacheStatsHolder;
+import org.opensearch.common.cache.stats.CacheStatsHolderInterface;
+import org.opensearch.common.cache.stats.DummyCacheStatsHolder;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
@@ -47,7 +49,7 @@ import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSe
 public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListener<ICacheKey<K>, V> {
 
     private final Cache<ICacheKey<K>, V> cache;
-    private final CacheStatsHolder cacheStatsHolder;
+    private final CacheStatsHolderInterface cacheStatsHolder;
     private final RemovalListener<ICacheKey<K>, V> removalListener;
     private final List<String> dimensionNames;
     private final ToLongBiFunction<ICacheKey<K>, V> weigher;
@@ -62,7 +64,11 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         }
         cache = cacheBuilder.build();
         this.dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
-        this.cacheStatsHolder = new CacheStatsHolder(dimensionNames);
+        if (FeatureFlags.PLUGGABLE_CACHE_SETTING.get(builder.getSettings())) {
+            this.cacheStatsHolder = new CacheStatsHolder(dimensionNames);
+        } else {
+            this.cacheStatsHolder = new DummyCacheStatsHolder(dimensionNames);
+        }
         this.removalListener = builder.getRemovalListener();
         this.weigher = builder.getWeigher();
     }
@@ -167,6 +173,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
                 .setMaximumWeightInBytes(((ByteSizeValue) settingList.get(MAXIMUM_SIZE_IN_BYTES_KEY).get(settings)).getBytes())
                 .setExpireAfterAccess(((TimeValue) settingList.get(EXPIRE_AFTER_ACCESS_KEY).get(settings)))
                 .setWeigher(config.getWeigher())
+                .setSettings(config.getSettings())
                 .setRemovalListener(config.getRemovalListener());
             Setting<String> cacheSettingForCacheType = CacheSettings.CACHE_TYPE_STORE_NAME.getConcreteSettingForNamespace(
                 cacheType.getSettingPrefix()

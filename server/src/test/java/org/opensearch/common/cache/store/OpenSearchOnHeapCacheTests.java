@@ -16,10 +16,12 @@ import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.stats.ImmutableCacheStats;
+import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -37,7 +39,9 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
         MockRemovalListener<String, String> listener = new MockRemovalListener<>();
         int maxKeys = between(10, 50);
         int numEvicted = between(10, 20);
-        OpenSearchOnHeapCache<String, String> cache = getCache(maxKeys, listener);
+        OpenSearchOnHeapCache<String, String> cache = getCache(maxKeys, listener, true);
+
+        // When the pluggable caches setting is on, we should get stats as expected from cache.stats().
 
         List<ICacheKey<String>> keysAdded = new ArrayList<>();
         int numAdded = maxKeys + numEvicted;
@@ -77,7 +81,34 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
         }
     }
 
-    private OpenSearchOnHeapCache<String, String> getCache(int maxSizeKeys, MockRemovalListener<String, String> listener) {
+    public void testStatsWithoutPluggableCaches() throws Exception {
+        // When the pluggable caches setting is off, we should get all-zero stats from cache.stats(), but count() should still work.
+        MockRemovalListener<String, String> listener = new MockRemovalListener<>();
+        int maxKeys = between(10, 50);
+        int numEvicted = between(10, 20);
+        OpenSearchOnHeapCache<String, String> cache = getCache(maxKeys, listener, false);
+
+        List<ICacheKey<String>> keysAdded = new ArrayList<>();
+        int numAdded = maxKeys + numEvicted;
+        for (int i = 0; i < numAdded; i++) {
+            ICacheKey<String> key = getICacheKey(UUID.randomUUID().toString());
+            keysAdded.add(key);
+            cache.computeIfAbsent(key, getLoadAwareCacheLoader());
+
+            assertEquals(Math.min(maxKeys, i + 1), cache.count());
+            assertZeroStats(cache.stats());
+        }
+    }
+
+    private void assertZeroStats(ImmutableCacheStatsHolder stats) {
+        assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), stats.getTotalStats());
+    }
+
+    private OpenSearchOnHeapCache<String, String> getCache(
+        int maxSizeKeys,
+        MockRemovalListener<String, String> listener,
+        boolean pluggableCachesSetting
+    ) {
         ICache.Factory onHeapCacheFactory = new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory();
         Settings settings = Settings.builder()
             .put(
@@ -86,6 +117,7 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
                     .getKey(),
                 maxSizeKeys * keyValueSize + "b"
             )
+            .put(FeatureFlags.PLUGGABLE_CACHE, pluggableCachesSetting)
             .build();
 
         CacheConfig<String, String> cacheConfig = new CacheConfig.Builder<String, String>().setKeyType(String.class)
@@ -102,7 +134,7 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
     public void testInvalidateWithDropDimensions() throws Exception {
         MockRemovalListener<String, String> listener = new MockRemovalListener<>();
         int maxKeys = 50;
-        OpenSearchOnHeapCache<String, String> cache = getCache(maxKeys, listener);
+        OpenSearchOnHeapCache<String, String> cache = getCache(maxKeys, listener, true);
 
         List<ICacheKey<String>> keysAdded = new ArrayList<>();
 
