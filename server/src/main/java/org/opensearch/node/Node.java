@@ -146,8 +146,8 @@ import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
+import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
-import org.opensearch.index.remote.RemoteUploadPathIndexCreationListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
@@ -727,9 +727,13 @@ public class Node implements Closeable {
                 threadPool::relativeTimeInMillis
             );
             final RemoteClusterStateService remoteClusterStateService;
-            final RemoteUploadPathIndexCreationListener indexCreationListener;
+            final RemoteIndexPathUploader remoteIndexPathUploader;
             if (isRemoteStoreClusterStateEnabled(settings)) {
-                indexCreationListener = new RemoteUploadPathIndexCreationListener(settings, repositoriesServiceReference::get);
+                remoteIndexPathUploader = new RemoteIndexPathUploader(
+                    settings,
+                    repositoriesServiceReference::get,
+                    clusterService.getClusterSettings()
+                );
                 remoteClusterStateService = new RemoteClusterStateService(
                     nodeEnvironment.nodeId(),
                     repositoriesServiceReference::get,
@@ -737,11 +741,11 @@ public class Node implements Closeable {
                     clusterService.getClusterSettings(),
                     threadPool::preciseRelativeTimeInNanos,
                     threadPool,
-                    indexCreationListener
+                    List.of(remoteIndexPathUploader)
                 );
             } else {
                 remoteClusterStateService = null;
-                indexCreationListener = null;
+                remoteIndexPathUploader = null;
             }
 
             // collect engine factory providers from plugins
@@ -1318,7 +1322,7 @@ public class Node implements Closeable {
                 b.bind(SearchRequestSlowLog.class).toInstance(searchRequestSlowLog);
                 b.bind(MetricsRegistry.class).toInstance(metricsRegistry);
                 b.bind(RemoteClusterStateService.class).toProvider(() -> remoteClusterStateService);
-                b.bind(RemoteUploadPathIndexCreationListener.class).toProvider(() -> indexCreationListener);
+                b.bind(RemoteIndexPathUploader.class).toProvider(() -> remoteIndexPathUploader);
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
                 b.bind(SearchRequestOperationsCompositeListenerFactory.class).toInstance(searchRequestOperationsCompositeListenerFactory);
@@ -1468,9 +1472,7 @@ public class Node implements Closeable {
         if (remoteClusterStateService != null) {
             remoteClusterStateService.start();
         }
-        final RemoteUploadPathIndexCreationListener indexCreationListener = injector.getInstance(
-            RemoteUploadPathIndexCreationListener.class
-        );
+        final RemoteIndexPathUploader indexCreationListener = injector.getInstance(RemoteIndexPathUploader.class);
         if (indexCreationListener != null) {
             indexCreationListener.start();
         }

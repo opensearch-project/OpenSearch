@@ -15,11 +15,14 @@ import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.gateway.remote.IndexCreationPreIndexMetadataUploadListener;
+import org.opensearch.core.index.Index;
+import org.opensearch.gateway.remote.IndexMetadataUploadInterceptor;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.gateway.remote.RemoteClusterStateService.RemoteStateTransferException;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
@@ -28,14 +31,19 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.opensearch.gateway.remote.RemoteClusterStateService.INDEX_METADATA_UPLOAD_TIMEOUT_SETTING;
 import static org.opensearch.index.remote.RemoteIndexPath.SEGMENT_PATH;
 import static org.opensearch.index.remote.RemoteIndexPath.TRANSLOG_PATH;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
@@ -45,7 +53,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteS
  * Uploads the remote store path for all possible combinations of {@link org.opensearch.index.remote.RemoteStoreEnums.DataCategory}
  * and {@link org.opensearch.index.remote.RemoteStoreEnums.DataType} for each shard of an index.
  */
-public class RemoteUploadPathIndexCreationListener implements IndexCreationPreIndexMetadataUploadListener {
+public class RemoteIndexPathUploader implements IndexMetadataUploadInterceptor {
 
     public static final ChecksumBlobStoreFormat<RemoteIndexPath> REMOTE_INDEX_PATH_FORMAT = new ChecksumBlobStoreFormat<>(
         "remote-index-path",
@@ -53,51 +61,71 @@ public class RemoteUploadPathIndexCreationListener implements IndexCreationPreIn
         RemoteIndexPath::fromXContent
     );
 
-    private static final Logger logger = LogManager.getLogger(RemoteUploadPathIndexCreationListener.class);
+    private static final String TIMEOUT_EXCEPTION_MSG = "Timed out waiting while uploading remote index path file for indexes=%s";
+    private static final String UPLOAD_EXCEPTION_MSG = "Exception occurred while uploading remote index paths for indexes=%s";
+
+    private static final Logger logger = LogManager.getLogger(RemoteIndexPathUploader.class);
 
     private final Settings settings;
     private final boolean isRemoteDataAttributePresent;
     private final boolean isTranslogSegmentRepoSame;
     private final Supplier<RepositoriesService> repositoriesService;
+    private volatile TimeValue indexMetadataUploadTimeout;
 
     private BlobStoreRepository translogRepository;
     private BlobStoreRepository segmentRepository;
 
-    public RemoteUploadPathIndexCreationListener(Settings settings, Supplier<RepositoriesService> repositoriesService) {
+    public RemoteIndexPathUploader(Settings settings, Supplier<RepositoriesService> repositoriesService, ClusterSettings clusterSettings) {
         this.settings = settings;
         this.repositoriesService = repositoriesService;
         isRemoteDataAttributePresent = isRemoteDataAttributePresent(settings);
         // If the remote data attributes are not present, then there is no effect of translog and segment being same or different or null.
         isTranslogSegmentRepoSame = isTranslogSegmentRepoSame();
+        indexMetadataUploadTimeout = clusterSettings.get(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING);
+        clusterSettings.addSettingsUpdateConsumer(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING, this::setIndexMetadataUploadTimeout);
     }
 
     @Override
-    public int latchCount(List<IndexMetadata> newIndexMetadataList) {
+    public void interceptIndexCreation(List<IndexMetadata> indexMetadataList, ActionListener<Void> actionListener) throws IOException {
         if (isRemoteDataAttributePresent == false) {
-            return 0;
-        }
-        int eligibleIndexCount = (int) newIndexMetadataList.stream().filter(this::uploadIndexPathFile).count();
-        return isTranslogSegmentRepoSame ? eligibleIndexCount : 2 * eligibleIndexCount;
-    }
-
-    @Override
-    public void run(List<IndexMetadata> newIndexMetadataList, CountDownLatch latch, List<Exception> exceptionList) throws IOException {
-        if (isRemoteDataAttributePresent == false) {
+            actionListener.onResponse(null);
             return;
         }
-        List<IndexMetadata> elibibleIndexMetadaList = newIndexMetadataList.stream()
-            .filter(this::uploadIndexPathFile)
-            .collect(Collectors.toList());
-        if (isTranslogSegmentRepoSame) {
-            assert latchCount(newIndexMetadataList) == elibibleIndexMetadaList.size()
-                : "Latch count is not equal to elibibleIndexMetadaList's size for path upload";
-        } else {
-            assert latchCount(newIndexMetadataList) == 2 * elibibleIndexMetadaList.size()
-                : "Latch count is not equal to (2 * elibibleIndexMetadaList's size) for path upload";
-        }
-        for (IndexMetadata indexMetadata : elibibleIndexMetadaList) {
+
+        List<IndexMetadata> eligibleList = indexMetadataList.stream().filter(this::requiresPathUpload).collect(Collectors.toList());
+        int latchCount = eligibleList.size() * (isTranslogSegmentRepoSame ? 1 : 2);
+        CountDownLatch latch = new CountDownLatch(latchCount);
+        List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(latchCount));
+        for (IndexMetadata indexMetadata : eligibleList) {
             writeIndexPathAsync(indexMetadata, latch, exceptionList);
         }
+        String indexNames = eligibleList.stream().map(IndexMetadata::getIndex).map(Index::toString).collect(Collectors.joining(","));
+
+        try {
+            if (latch.await(indexMetadataUploadTimeout.millis(), TimeUnit.MILLISECONDS) == false) {
+                RemoteStateTransferException ex = new RemoteStateTransferException(
+                    String.format(Locale.ROOT, TIMEOUT_EXCEPTION_MSG, indexNames)
+                );
+                exceptionList.forEach(ex::addSuppressed);
+                actionListener.onFailure(ex);
+                return;
+            }
+        } catch (InterruptedException exception) {
+            exceptionList.forEach(exception::addSuppressed);
+            RemoteStateTransferException ex = new RemoteStateTransferException(
+                String.format(Locale.ROOT, TIMEOUT_EXCEPTION_MSG, indexNames),
+                exception
+            );
+            actionListener.onFailure(ex);
+        }
+        if (exceptionList.size() > 0) {
+            RemoteStateTransferException ex = new RemoteStateTransferException(
+                String.format(Locale.ROOT, UPLOAD_EXCEPTION_MSG, indexNames)
+            );
+            exceptionList.forEach(ex::addSuppressed);
+            actionListener.onFailure(ex);
+        }
+        actionListener.onResponse(null);
     }
 
     private void writeIndexPathAsync(IndexMetadata idxMD, CountDownLatch latch, List<Exception> exceptionList) throws IOException {
@@ -122,9 +150,7 @@ public class RemoteUploadPathIndexCreationListener implements IndexCreationPreIn
                 indexUUID,
                 translogRepository.getCompressor(),
                 getUploadPathLatchedActionListener(idxMD, latch, exceptionList, pathCreationMap),
-                RemoteClusterStateService.FORMAT_PARAMS,
-                true,
-                XContentType.JSON
+                RemoteClusterStateService.FORMAT_PARAMS
             );
         } else {
             // If the repositories are different, then we need to upload one file per segment and translog containing their individual
@@ -135,9 +161,7 @@ public class RemoteUploadPathIndexCreationListener implements IndexCreationPreIn
                 indexUUID,
                 translogRepository.getCompressor(),
                 getUploadPathLatchedActionListener(idxMD, latch, exceptionList, TRANSLOG_PATH),
-                RemoteClusterStateService.FORMAT_PARAMS,
-                true,
-                XContentType.JSON
+                RemoteClusterStateService.FORMAT_PARAMS
             );
 
             BlobPath segmentBasePath = segmentRepository.basePath();
@@ -148,9 +172,7 @@ public class RemoteUploadPathIndexCreationListener implements IndexCreationPreIn
                 indexUUID,
                 segmentRepository.getCompressor(),
                 getUploadPathLatchedActionListener(idxMD, latch, exceptionList, SEGMENT_PATH),
-                RemoteClusterStateService.FORMAT_PARAMS,
-                true,
-                XContentType.JSON
+                RemoteClusterStateService.FORMAT_PARAMS
             );
         }
     }
@@ -218,7 +240,7 @@ public class RemoteUploadPathIndexCreationListener implements IndexCreationPreIn
      * This method checks if the index metadata has attributes that calls for uploading the index path for remote store
      * uploads. It checks if the remote store path type is {@code HASHED_PREFIX} and returns true if so.
      */
-    private boolean uploadIndexPathFile(IndexMetadata indexMetadata) {
+    private boolean requiresPathUpload(IndexMetadata indexMetadata) {
         // A cluster will have remote custom metadata only if the cluster is remote store enabled from data side.
         Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
         if (Objects.isNull(remoteCustomData) || remoteCustomData.isEmpty()) {
@@ -230,5 +252,9 @@ public class RemoteUploadPathIndexCreationListener implements IndexCreationPreIn
         }
         // We need to upload the path only if the path type for an index is hashed_prefix
         return RemoteStoreEnums.PathType.HASHED_PREFIX == RemoteStoreEnums.PathType.parseString(pathTypeStr);
+    }
+
+    private void setIndexMetadataUploadTimeout(TimeValue newIndexMetadataUploadTimeout) {
+        this.indexMetadataUploadTimeout = newIndexMetadataUploadTimeout;
     }
 }

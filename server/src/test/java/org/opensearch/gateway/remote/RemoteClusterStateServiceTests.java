@@ -38,8 +38,8 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
+import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreUtils;
-import org.opensearch.index.remote.RemoteUploadPathIndexCreationListener;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.repositories.FilterRepository;
 import org.opensearch.repositories.RepositoriesService;
@@ -156,7 +156,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             clusterSettings,
             () -> 0L,
             threadPool,
-            new RemoteUploadPathIndexCreationListener(settings, repositoriesServiceSupplier)
+            List.of(new RemoteIndexPathUploader(settings, repositoriesServiceSupplier, clusterSettings))
         );
     }
 
@@ -175,16 +175,17 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
     public void testFailInitializationWhenRemoteStateDisabled() {
         final Settings settings = Settings.builder().build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         assertThrows(
             AssertionError.class,
             () -> new RemoteClusterStateService(
                 "test-node-id",
                 repositoriesServiceSupplier,
                 settings,
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                clusterSettings,
                 () -> 0L,
                 threadPool,
-                new RemoteUploadPathIndexCreationListener(settings, repositoriesServiceSupplier)
+                List.of(new RemoteIndexPathUploader(settings, repositoriesServiceSupplier, clusterSettings))
             )
         );
     }
