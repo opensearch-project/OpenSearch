@@ -5,8 +5,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 ## Current Maintainers
 
 | Maintainer               | GitHub ID                                               | Affiliation |
-|--------------------------| ------------------------------------------------------- | ----------- |
-| Abbas Hussain            | [abbashus](https://github.com/abbashus)                 | Meta        |
+| ------------------------ | ------------------------------------------------------- | ----------- |
 | Anas Alkouz              | [anasalkouz](https://github.com/anasalkouz)             | Amazon      |
 | Andrew Ross              | [andrross](https://github.com/andrross)                 | Amazon      |
 | Andriy Redko             | [reta](https://github.com/reta)                         | Aiven       |
@@ -15,16 +14,13 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Dan Widdis               | [dbwiddis](https://github.com/dbwiddis)                 | Amazon      |
 | Daniel "dB." Doubrovkine | [dblock](https://github.com/dblock)                     | Amazon      |
 | Gaurav Bafna             | [gbbafna](https://github.com/gbbafna)                   | Amazon      |
-| Himanshu Setia           | [setiah](https://github.com/setiah)                     | Amazon      |
 | Kunal Kotwani            | [kotwanikunal](https://github.com/kotwanikunal)         | Amazon      |
 | Marc Handalian           | [mch2](https://github.com/mch2)                         | Amazon      |
 | Michael Froh             | [msfroh](https://github.com/msfroh)                     | Amazon      |
 | Nick Knize               | [nknize](https://github.com/nknize)                     | Amazon      |
 | Owais Kazi               | [owaiskazi19](https://github.com/owaiskazi19)           | Amazon      |
 | Peter Nied               | [peternied](https://github.com/peternied)               | Amazon      |
-| Rabi Panda               | [adnapibar](https://github.com/adnapibar)               | Independent |
 | Rishikesh Pasham         | [Rishikesh1159](https://github.com/Rishikesh1159)       | Amazon      |
-| Ryan Bogan               | [ryanbogan](https://github.com/ryanbogan)               | Amazon      |
 | Sachin Kale              | [sachinpkale](https://github.com/sachinpkale)           | Amazon      |
 | Sarat Vemulapalli        | [saratvemulapalli](https://github.com/saratvemulapalli) | Amazon      |
 | Shweta Thareja           | [shwetathareja](https://github.com/shwetathareja)       | Amazon      |
@@ -35,8 +31,12 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 
 ## Emeritus
 
-| Maintainer              | GitHub ID                                   | Affiliation |
-|-------------------------|---------------------------------------------|-------------|
-| Megha Sai Kavikondala   | [meghasaik](https://github.com/meghasaik)   | Amazon      |
-| Xue Zhou                | [xuezhou25](https://github.com/xuezhou25)   | Amazon      |
-| Kartik Ganesh           | [kartg](https://github.com/kartg)           | Amazon      |
+| Maintainer            | GitHub ID                                 | Affiliation |
+| --------------------- | ----------------------------------------- | ----------- |
+| Megha Sai Kavikondala | [meghasaik](https://github.com/meghasaik) | Amazon      |
+| Xue Zhou              | [xuezhou25](https://github.com/xuezhou25) | Amazon      |
+| Kartik Ganesh         | [kartg](https://github.com/kartg)         | Amazon      |
+| Abbas Hussain         | [abbashus](https://github.com/abbashus)   | Meta        |
+| Himanshu Setia        | [setiah](https://github.com/setiah)       | Amazon      |
+| Ryan Bogan            | [ryanbogan](https://github.com/ryanbogan) | Amazon      |
+| Rabi Panda            | [adnapibar](https://github.com/adnapibar) | Independent |
