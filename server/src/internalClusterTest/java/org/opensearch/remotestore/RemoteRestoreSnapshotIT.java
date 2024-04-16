@@ -59,7 +59,7 @@ import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -229,7 +229,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         client(clusterManagerNode).admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING.getKey(), PathType.FIXED))
+            .setTransientSettings(Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), PathType.FIXED))
             .get();
         createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
         Client client = client();
@@ -260,7 +260,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         client(clusterManagerNode).admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING.getKey(), PathType.HASHED_PREFIX))
+            .setTransientSettings(Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), PathType.HASHED_PREFIX))
             .get();
 
         restoreSnapshotResponse = client.admin()
@@ -272,13 +272,13 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertEquals(RestStatus.ACCEPTED, restoreSnapshotResponse.status());
         ensureGreen(restoredIndexName1version2);
-        validatePathType(restoredIndexName1version2, PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A);
+        validatePathType(restoredIndexName1version2, PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A_COMPOSITE_1);
 
-        // Create index with cluster setting cluster.remote_store.index.path.prefix.type as hashed_prefix.
+        // Create index with cluster setting cluster.remote_store.index.path.type as hashed_prefix.
         indexSettings = getIndexSettings(1, 0).build();
         createIndex(indexName2, indexSettings);
         ensureGreen(indexName2);
-        validatePathType(indexName2, PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A);
+        validatePathType(indexName2, PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A_COMPOSITE_1);
 
         // Validating that custom data has not changed for indexes which were created before the cluster setting got updated
         validatePathType(indexName1, PathType.FIXED);
@@ -294,7 +294,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         client(clusterManagerNode).admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING.getKey(), PathType.FIXED))
+            .setTransientSettings(Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), PathType.FIXED))
             .get();
 
         // Close index 2
@@ -309,7 +309,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen(indexName2);
 
         // Validating that custom data has not changed for testindex2 which was created before the cluster setting got updated
-        validatePathType(indexName2, PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A);
+        validatePathType(indexName2, PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A_COMPOSITE_1);
     }
 
     private void validatePathType(String index, PathType pathType) {

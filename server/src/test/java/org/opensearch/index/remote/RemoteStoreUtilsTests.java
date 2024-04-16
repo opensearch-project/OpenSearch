@@ -14,19 +14,35 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.opensearch.index.remote.RemoteStoreUtils.URL_BASE64_CHARSET;
+import static org.opensearch.index.remote.RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding;
 import static org.opensearch.index.remote.RemoteStoreUtils.longToUrlBase64;
+import static org.opensearch.index.remote.RemoteStoreUtils.urlBase64ToLong;
 import static org.opensearch.index.remote.RemoteStoreUtils.verifyNoMultipleWriters;
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX;
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils.SEPARATOR;
 import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.METADATA_SEPARATOR;
 
 public class RemoteStoreUtilsTests extends OpenSearchTestCase {
+
+    private static Map<Character, Integer> BASE64_CHARSET_IDX_MAP;
+
+    static {
+        Map<Character, Integer> charToIndexMap = new HashMap<>();
+        for (int i = 0; i < URL_BASE64_CHARSET.length; i++) {
+            charToIndexMap.put(URL_BASE64_CHARSET[i], i);
+        }
+        BASE64_CHARSET_IDX_MAP = Collections.unmodifiableMap(charToIndexMap);
+    }
 
     private final String metadataFilename = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
         12,
@@ -205,8 +221,106 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
             "6kv3yZNv9kY"
         );
         for (Map.Entry<Long, String> entry : longToExpectedBase64String.entrySet()) {
-            assertEquals(entry.getValue(), longToUrlBase64(entry.getKey()));
+            String base64Str = longToUrlBase64(entry.getKey());
+            assertEquals(entry.getValue(), base64Str);
             assertEquals(11, entry.getValue().length());
+            assertEquals((long) entry.getKey(), urlBase64ToLong(base64Str));
         }
+
+        int iters = randomInt(100);
+        for (int i = 0; i < iters; i++) {
+            long value = randomLong();
+            String base64Str = longToUrlBase64(value);
+            assertEquals(value, urlBase64ToLong(base64Str));
+        }
+    }
+
+    public void testLongToCompositeUrlBase64AndBinaryEncodingUsing20Bits() {
+        Map<Long, String> longToExpectedBase64String = Map.of(
+            -5537941589147079860L,
+            "s11001001010100",
+            -5878421770170594047L,
+            "r10011010111010",
+            -5147010836697060622L,
+            "u00100100100010",
+            937096430362711837L,
+            "D01000000010011",
+            8422273604115462710L,
+            "d00111000011110",
+            -2528761975013221124L,
+            "300111010000000",
+            -5512387536280560513L,
+            "s11100000000001",
+            -5749656451579835857L,
+            "s00001101010001",
+            5569654857969679538L,
+            "T01010010110110",
+            -1563884000447039930L,
+            "610010010111111"
+        );
+        for (Map.Entry<Long, String> entry : longToExpectedBase64String.entrySet()) {
+            String base64Str = RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding(entry.getKey(), 20);
+            assertEquals(entry.getValue(), base64Str);
+            assertEquals(15, entry.getValue().length());
+            assertEquals(longToUrlBase64(entry.getKey()).charAt(0), base64Str.charAt(0));
+        }
+
+        int iters = randomInt(1000);
+        for (int i = 0; i < iters; i++) {
+            long value = randomLong();
+            assertEquals(RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding(value, 20).charAt(0), longToUrlBase64(value).charAt(0));
+        }
+    }
+
+    public void testLongToCompositeUrlBase64AndBinaryEncoding() {
+        Map<Long, String> longToExpectedBase64String = Map.of(
+            -5537941589147079860L,
+            "s1100100101010001110111011101001000000001101010101101001100",
+            -5878421770170594047L,
+            "r1001101011101001101000101110010101000011110000110100000001",
+            -5147010836697060622L,
+            "u0010010010001001001110100111111111100101011110101011110010",
+            937096430362711837L,
+            "D0100000001001111000011110100001100000011100101011100011101",
+            8422273604115462710L,
+            "d0011100001111011010011100001000110011100110111101000110110",
+            -2528761975013221124L,
+            "30011101000000010000110000110110101110100100101110011111100",
+            -5512387536280560513L,
+            "s1110000000000100001011110111011011101101001101110001111111",
+            -5749656451579835857L,
+            "s0000110101000111011110101110010111000011010000101000101111",
+            5569654857969679538L,
+            "T0101001011011000111001010110000010110011111011110010110010",
+            -1563884000447039930L,
+            "61001001011111101111100100110010011011011111111011001000110"
+        );
+        for (Map.Entry<Long, String> entry : longToExpectedBase64String.entrySet()) {
+            Long hashValue = entry.getKey();
+            String expectedCompositeEncoding = entry.getValue();
+            String actualCompositeEncoding = longToCompositeBase64AndBinaryEncoding(hashValue, 64);
+            assertEquals(expectedCompositeEncoding, actualCompositeEncoding);
+            assertEquals(59, expectedCompositeEncoding.length());
+            assertEquals(longToUrlBase64(entry.getKey()).charAt(0), actualCompositeEncoding.charAt(0));
+            assertEquals(RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding(hashValue, 20), actualCompositeEncoding.substring(0, 15));
+
+            Long computedHashValue = compositeUrlBase64BinaryEncodingToLong(actualCompositeEncoding);
+            assertEquals(hashValue, computedHashValue);
+        }
+
+        int iters = randomInt(1000);
+        for (int i = 0; i < iters; i++) {
+            long value = randomLong();
+            String compositeEncoding = longToCompositeBase64AndBinaryEncoding(value, 64);
+            assertEquals(value, compositeUrlBase64BinaryEncodingToLong(compositeEncoding));
+        }
+    }
+
+    static long compositeUrlBase64BinaryEncodingToLong(String encodedValue) {
+        char ch = encodedValue.charAt(0);
+        int base64BitsIntValue = BASE64_CHARSET_IDX_MAP.get(ch);
+        String base64PartBinary = Integer.toBinaryString(base64BitsIntValue);
+        String binaryString = base64PartBinary + encodedValue.substring(1);
+        return new BigInteger(binaryString, 2).longValue();
     }
 }
