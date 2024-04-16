@@ -107,6 +107,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.SearchService.MAX_AGGREGATION_REWRITE_FILTERS;
 
 /**
  * The main search context used during search phase
@@ -187,6 +188,7 @@ final class DefaultSearchContext extends SearchContext {
     private final Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
     private final boolean concurrentSearchSettingsEnabled;
     private final SetOnce<Boolean> requestShouldUseConcurrentSearch = new SetOnce<>();
+    private final int maxAggRewriteFilters;
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -240,6 +242,8 @@ final class DefaultSearchContext extends SearchContext {
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
+
+        this.maxAggRewriteFilters = evaluateFilterRewriteSetting();
     }
 
     @Override
@@ -993,5 +997,17 @@ final class DefaultSearchContext extends SearchContext {
             && sort != null
             && sort.isSortOnTimeSeriesField()
             && sort.sort.getSort()[0].getReverse() == false;
+    }
+
+    @Override
+    public int maxAggRewriteFilters() {
+        return maxAggRewriteFilters;
+    }
+
+    private int evaluateFilterRewriteSetting() {
+        if (clusterService != null) {
+            return clusterService.getClusterSettings().get(MAX_AGGREGATION_REWRITE_FILTERS);
+        }
+        return 0;
     }
 }
