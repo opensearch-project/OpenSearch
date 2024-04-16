@@ -508,21 +508,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
-    /**
-     *  Only used for testing
-     */
-    public void executeBulkRequest(
-        int numberOfActionRequests,
-        Iterable<DocWriteRequest<?>> actionRequests,
-        BiConsumer<Integer, Exception> onFailure,
-        BiConsumer<Thread, Exception> onCompletion,
-        IntConsumer onDropped,
-        String executorName
-    ) {
-        executeBulkRequest(numberOfActionRequests, actionRequests, onFailure, onCompletion,
-            onDropped, executorName, new BulkRequest());
-    }
-
     public void executeBulkRequest(
         int numberOfActionRequests,
         Iterable<DocWriteRequest<?>> actionRequests,
@@ -541,11 +526,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
             @Override
             protected void doRun() {
+                BatchIngestionOption batchOption = originalBulkRequest.batchIngestionOption();
+                int batchSize = originalBulkRequest.maximumBatchSize();
+                if (shouldExecuteBulkRequestInBatch(batchOption, originalBulkRequest.requests().size(), batchSize)) {
+                    runBulkRequestInBatch(numberOfActionRequests, actionRequests, onFailure, onCompletion, onDropped,
+                        originalBulkRequest);
+                    return;
+                }
+
                 final Thread originalThread = Thread.currentThread();
                 final AtomicInteger counter = new AtomicInteger(numberOfActionRequests);
-
                 int i = 0;
-                List<IndexRequestWrapper> indexRequestWrappers = new ArrayList<>();
                 for (DocWriteRequest<?> actionRequest : actionRequests) {
                     IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
                     if (indexRequest == null) {
@@ -556,7 +547,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         i++;
                         continue;
                     }
-
                     final String pipelineId = indexRequest.getPipeline();
                     indexRequest.setPipeline(NOOP_PIPELINE_NAME);
                     final String finalPipelineId = indexRequest.getFinalPipeline();
@@ -580,43 +570,94 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         continue;
                     }
 
-                    indexRequestWrappers.add(new IndexRequestWrapper(i, indexRequest, pipelines, hasFinalPipeline));
+                    executePipelines(
+                        i,
+                        pipelines.iterator(),
+                        hasFinalPipeline,
+                        indexRequest,
+                        onDropped,
+                        onFailure,
+                        counter,
+                        onCompletion,
+                        originalThread
+                    );
                     i++;
-                }
-
-                BatchIngestionOption batchOption = originalBulkRequest.batchIngestionOption();
-                int batchSize = originalBulkRequest.maximumBatchSize();
-                if (shouldExecutePipelineInBatch(batchOption, indexRequestWrappers.size(), batchSize)) {
-                    List<List<IndexRequestWrapper>> batches = prepareBatches(batchSize, indexRequestWrappers);
-                    logger.debug("batchSize: {}, batches: {}", batchSize, batches.size());
-                    for (List<IndexRequestWrapper> batch : batches) {
-                        executePipelinesInBatchRequests(batch.stream()
-                                .map(IndexRequestWrapper::getSlot)
-                                .collect(Collectors.toList()),
-                            batch.get(0).getPipelines().iterator(),
-                            batch.get(0).isHasFinalPipeline(),
-                            batch.stream().map(IndexRequestWrapper::getIndexRequest).collect(Collectors.toList()),
-                            onDropped,
-                            onFailure,
-                            counter,
-                            onCompletion,
-                            originalThread
-                        );
-                    }
-                } else {
-                    for (IndexRequestWrapper indexRequestWrapper : indexRequestWrappers) {
-                        executePipelines(indexRequestWrapper.getSlot(),
-                            indexRequestWrapper.getPipelines().iterator(),
-                            indexRequestWrapper.isHasFinalPipeline(),
-                            indexRequestWrapper.getIndexRequest(),
-                            onDropped, onFailure, counter, onCompletion, originalThread);
-                    }
                 }
             }
         });
     }
 
-    private boolean shouldExecutePipelineInBatch(BatchIngestionOption batchOption, int documentSize, int batchSize) {
+    private void runBulkRequestInBatch(int numberOfActionRequests,
+        Iterable<DocWriteRequest<?>> actionRequests,
+        BiConsumer<Integer, Exception> onFailure,
+        BiConsumer<Thread, Exception> onCompletion,
+        IntConsumer onDropped,
+        BulkRequest originalBulkRequest) {
+
+        final Thread originalThread = Thread.currentThread();
+        final AtomicInteger counter = new AtomicInteger(numberOfActionRequests);
+        int i = 0;
+        List<IndexRequestWrapper> indexRequestWrappers = new ArrayList<>();
+        for (DocWriteRequest<?> actionRequest : actionRequests) {
+            IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
+            if (indexRequest == null) {
+                if (counter.decrementAndGet() == 0) {
+                    onCompletion.accept(originalThread, null);
+                }
+                assert counter.get() >= 0;
+                i++;
+                continue;
+            }
+
+            final String pipelineId = indexRequest.getPipeline();
+            indexRequest.setPipeline(NOOP_PIPELINE_NAME);
+            final String finalPipelineId = indexRequest.getFinalPipeline();
+            indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
+            boolean hasFinalPipeline = true;
+            final List<String> pipelines;
+            if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false
+                && IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
+                pipelines = Arrays.asList(pipelineId, finalPipelineId);
+            } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false) {
+                pipelines = Collections.singletonList(pipelineId);
+                hasFinalPipeline = false;
+            } else if (IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
+                pipelines = Collections.singletonList(finalPipelineId);
+            } else {
+                if (counter.decrementAndGet() == 0) {
+                    onCompletion.accept(originalThread, null);
+                }
+                assert counter.get() >= 0;
+                i++;
+                continue;
+            }
+
+            indexRequestWrappers.add(new IndexRequestWrapper(i, indexRequest, pipelines, hasFinalPipeline));
+            i++;
+        }
+
+        BatchIngestionOption batchOption = originalBulkRequest.batchIngestionOption();
+        int batchSize = originalBulkRequest.maximumBatchSize();
+        List<List<IndexRequestWrapper>> batches = prepareBatches(batchSize, indexRequestWrappers);
+        logger.debug("batchSize: {}, batches: {}", batchSize, batches.size());
+
+        for (List<IndexRequestWrapper> batch : batches) {
+            executePipelinesInBatchRequests(batch.stream()
+                    .map(IndexRequestWrapper::getSlot)
+                    .collect(Collectors.toList()),
+                batch.get(0).getPipelines().iterator(),
+                batch.get(0).isHasFinalPipeline(),
+                batch.stream().map(IndexRequestWrapper::getIndexRequest).collect(Collectors.toList()),
+                onDropped,
+                onFailure,
+                counter,
+                onCompletion,
+                originalThread
+            );
+        }
+    }
+
+    private boolean shouldExecuteBulkRequestInBatch(BatchIngestionOption batchOption, int documentSize, int batchSize) {
         return batchOption == BatchIngestionOption.ENABLED && documentSize > 1 && batchSize > 1;
     }
 
@@ -710,8 +751,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
                 Pipeline pipeline = holder.pipeline;
                 String originalIndex = indexRequests.get(0).indices()[0];
-                Map<Integer, IndexRequest> slotIndexRequestMap = IngestServiceHelper.createSlotIndexRequestMap(slots,
-                    indexRequests);
+                Map<Integer, IndexRequest> slotIndexRequestMap = createSlotIndexRequestMap(slots, indexRequests);
                 innerBatchExecute(slots, indexRequests, pipeline, onDropped, results -> {
                     for (int i = 0; i < results.size(); ++i) {
                         if (results.get(i).getException() != null) {
@@ -991,7 +1031,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 itemDroppedHandler.accept(slot);
                 handler.accept(null);
             } else {
-                IngestServiceHelper.updateIndexRequestWithIngestDocument(indexRequest, ingestDocument);
+                updateIndexRequestWithIngestDocument(indexRequest, ingestDocument);
                 handler.accept(null);
             }
         });
@@ -1018,7 +1058,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Map<Integer, IndexRequest> slotToindexRequestMap = new HashMap<>();
         for (int i = 0; i < slots.size(); ++i) {
             slotToindexRequestMap.put(slots.get(i), indexRequests.get(i));
-            ingestDocumentWrappers.add(IngestServiceHelper.toIngestDocumentWrapper(slots.get(i), indexRequests.get(i)));
+            ingestDocumentWrappers.add(toIngestDocumentWrapper(slots.get(i), indexRequests.get(i)));
         }
         AtomicInteger counter = new AtomicInteger(size);
         List<IngestDocumentWrapper> allResults = Collections.synchronizedList(new ArrayList<>());
@@ -1046,7 +1086,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     dropped.forEach(t -> itemDroppedHandler.accept(t.getSlot()));
                 } else {
                     for (IngestDocumentWrapper ingestDocumentWrapper : succeeded) {
-                        IngestServiceHelper.updateIndexRequestWithIngestDocument(
+                        updateIndexRequestWithIngestDocument(
                             slotToindexRequestMap.get(ingestDocumentWrapper.getSlot()),
                             ingestDocumentWrapper.getIngestDocument());
                     }
@@ -1242,4 +1282,41 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
+    public static void updateIndexRequestWithIngestDocument(IndexRequest indexRequest, IngestDocument ingestDocument) {
+        Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
+        // it's fine to set all metadata fields all the time, as ingest document holds their starting values
+        // before ingestion, which might also get modified during ingestion.
+        indexRequest.index((String) metadataMap.get(IngestDocument.Metadata.INDEX));
+        indexRequest.id((String) metadataMap.get(IngestDocument.Metadata.ID));
+        indexRequest.routing((String) metadataMap.get(IngestDocument.Metadata.ROUTING));
+        indexRequest.version(((Number) metadataMap.get(IngestDocument.Metadata.VERSION)).longValue());
+        if (metadataMap.get(IngestDocument.Metadata.VERSION_TYPE) != null) {
+            indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.Metadata.VERSION_TYPE)));
+        }
+        if (metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO) != null) {
+            indexRequest.setIfSeqNo(((Number) metadataMap.get(IngestDocument.Metadata.IF_SEQ_NO)).longValue());
+        }
+        if (metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM) != null) {
+            indexRequest.setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
+        }
+        indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
+    }
+
+    private static IngestDocument toIngestDocument(IndexRequest indexRequest) {
+        return new IngestDocument(indexRequest.index(), indexRequest.id(), indexRequest.routing(),
+            indexRequest.version(), indexRequest.versionType(), indexRequest.sourceAsMap());
+    }
+
+    private static IngestDocumentWrapper toIngestDocumentWrapper(int slot, IndexRequest indexRequest) {
+        return new IngestDocumentWrapper(slot, toIngestDocument(indexRequest), null);
+    }
+
+    private static Map<Integer, IndexRequest> createSlotIndexRequestMap(List<Integer> slots,
+        List<IndexRequest> indexRequests) {
+        Map<Integer, IndexRequest> slotIndexRequestMap = new HashMap<>();
+        for (int i = 0; i < slots.size(); ++i) {
+            slotIndexRequestMap.put(slots.get(i), indexRequests.get(i));
+        }
+        return slotIndexRequestMap;
+    }
 }
