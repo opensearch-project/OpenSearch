@@ -10,11 +10,12 @@ package org.opensearch.search.sandbox;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.search.resource_limit_group.ResourceLimitGroupServiceSettings;
 import org.opensearch.test.OpenSearchTestCase;
 
-import static org.opensearch.search.sandbox.ResourceLimitGroupServiceSettings.NODE_CANCELLATION_THRESHOLD_SETTING_NAME;
-import static org.opensearch.search.sandbox.ResourceLimitGroupServiceSettings.NODE_REJECTION_THRESHOLD_SETTING_NAME;
-import static org.opensearch.search.sandbox.ResourceLimitGroupServiceSettings.RESOURCE_LIMIT_GROUP_COUNT_SETTING_NAME;
+import static org.opensearch.search.resource_limit_group.ResourceLimitGroupServiceSettings.NODE_CANCELLATION_THRESHOLD_SETTING_NAME;
+import static org.opensearch.search.resource_limit_group.ResourceLimitGroupServiceSettings.NODE_REJECTION_THRESHOLD_SETTING_NAME;
+import static org.opensearch.search.resource_limit_group.ResourceLimitGroupServiceSettings.RESOURCE_LIMIT_GROUP_COUNT_SETTING_NAME;
 
 public class ResourceLimitGroupServiceSettingsTests extends OpenSearchTestCase {
 
