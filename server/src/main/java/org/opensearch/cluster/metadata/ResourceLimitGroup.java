@@ -39,6 +39,7 @@ import java.util.Objects;
 @ExperimentalApi
 public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> implements ToXContentObject {
 
+    public static final int MAX_CHARS_ALLOWED_IN_NAME = 50;
     private final String name;
     private final List<ResourceLimit> resourceLimits;
 
@@ -59,7 +60,18 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> ResourceLimit.fromXContent(p), RESOURCE_LIMITS_FIELD);
     }
 
-    public ResourceLimitGroup(String name, List<ResourceLimit> resourceLimits) {
+    public ResourceLimitGroup(final String name, final List<ResourceLimit> resourceLimits) {
+        Objects.requireNonNull(name, "ResourceLimitGroup.name can't be null");
+        Objects.requireNonNull(resourceLimits, "ResourceLimitGroup.resourceLimits can't be null");
+
+        if (name.length() > MAX_CHARS_ALLOWED_IN_NAME) {
+            throw new IllegalArgumentException("ResourceLimitGroup.name shouldn't be more than 50 chars long");
+        }
+
+        if (resourceLimits.isEmpty()) {
+            throw new IllegalArgumentException("ResourceLimitGroup.resourceLimits should at least have 1 resource limit");
+        }
+
         this.name = name;
         this.resourceLimits = resourceLimits;
     }
@@ -207,5 +219,9 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
 
     public String getName() {
         return name;
+    }
+
+    public List<ResourceLimit> getResourceLimits() {
+        return resourceLimits;
     }
 }
