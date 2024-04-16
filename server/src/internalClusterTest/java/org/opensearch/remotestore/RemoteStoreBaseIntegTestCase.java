@@ -35,6 +35,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -135,14 +136,17 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             segmentRepoPath = randomRepoPath().toAbsolutePath();
             translogRepoPath = randomRepoPath().toAbsolutePath();
         }
+        Settings.Builder settingsBuilder = Settings.builder();
         if (clusterSettingsSuppliedByTest) {
-            return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
+            settingsBuilder.put(super.nodeSettings(nodeOrdinal));
         } else {
-            return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(remoteStoreClusterSettings(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, translogRepoPath))
-                .build();
+            settingsBuilder.put(super.nodeSettings(nodeOrdinal))
+                .put(remoteStoreClusterSettings(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, translogRepoPath));
         }
+        if (randomBoolean()) {
+            settingsBuilder.put(RemoteStoreSettings.CLUSTER_REMOTE_SEGMENT_SEPARATE_METADATA_SEGMENTINFOS_SETTING.getKey(), true);
+        }
+        return settingsBuilder.build();
     }
 
     protected void setFailRate(String repoName, int value) throws ExecutionException, InterruptedException {

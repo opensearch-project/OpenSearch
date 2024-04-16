@@ -401,7 +401,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 storeDirectory,
                 translogFileGeneration,
                 replicationCheckpoint,
-                indexShard.getNodeId()
+                indexShard.getNodeId(),
+                indexShard.getRemoteStoreSettings().getClusterRemoteSegmentSeparateMetadataSegmentInfos()
             );
         }
     }

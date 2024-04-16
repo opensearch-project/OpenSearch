@@ -5048,15 +5048,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal, onFileSync);
 
             if (remoteSegmentMetadata != null) {
-                final SegmentInfos infosSnapshot = store.buildSegmentInfos(
-                    remoteSegmentMetadata.getSegmentInfosBytes(),
-                    remoteSegmentMetadata.getGeneration()
-                );
+                final SegmentInfos infosSnapshot;
+                if (remoteSegmentMetadata.getSegmentInfosBytes().length == 0) {
+                    List<String> segmentInfosSnapshotFilenames = Arrays.stream(store.directory().listAll())
+                        .filter(file -> file.startsWith(RemoteSegmentStoreDirectory.SEGMENT_INFOS_SNAPSHOT_PREFIX))
+                        .collect(Collectors.toList());
+                    assert segmentInfosSnapshotFilenames.size() == 1;
+                    try (
+                        ChecksumIndexInput segmentInfosInput = store.directory()
+                            .openChecksumInput(segmentInfosSnapshotFilenames.get(0), IOContext.READ)
+                    ) {
+                        infosSnapshot = SegmentInfos.readCommit(
+                            store.directory(),
+                            segmentInfosInput,
+                            remoteSegmentMetadata.getGeneration()
+                        );
+                    }
+                } else {
+                    infosSnapshot = store.buildSegmentInfos(
+                        remoteSegmentMetadata.getSegmentInfosBytes(),
+                        remoteSegmentMetadata.getGeneration()
+                    );
+                }
                 long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
                 // delete any other commits, we want to start the engine only from a new commit made with the downloaded infos bytes.
                 // Extra segments will be wiped on engine open.
                 for (String file : List.of(store.directory().listAll())) {
-                    if (file.startsWith(IndexFileNames.SEGMENTS)) {
+                    if (file.startsWith(IndexFileNames.SEGMENTS)
+                        || file.startsWith(RemoteSegmentStoreDirectory.SEGMENT_INFOS_SNAPSHOT_PREFIX)) {
                         store.deleteQuiet(file);
                     }
                 }

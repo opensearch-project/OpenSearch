@@ -65,9 +65,17 @@ public class RemoteStoreSettings {
         Property.Dynamic
     );
 
+    public static final Setting<Boolean> CLUSTER_REMOTE_SEGMENT_SEPARATE_METADATA_SEGMENTINFOS_SETTING = Setting.boolSetting(
+        "cluster.remote_store.segemnt.separate_metadata_segmentinfos",
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     private volatile TimeValue clusterRemoteTranslogBufferInterval;
     private volatile int minRemoteSegmentMetadataFiles;
     private volatile TimeValue clusterRemoteTranslogTransferTimeout;
+    private volatile Boolean clusterRemoteSegmentSeparateMetadataSegmentInfos;
 
     public RemoteStoreSettings(Settings settings, ClusterSettings clusterSettings) {
         this.clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
@@ -86,6 +94,12 @@ public class RemoteStoreSettings {
         clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_REMOTE_TRANSLOG_TRANSFER_TIMEOUT_SETTING,
             this::setClusterRemoteTranslogTransferTimeout
+        );
+
+        this.clusterRemoteSegmentSeparateMetadataSegmentInfos = CLUSTER_REMOTE_SEGMENT_SEPARATE_METADATA_SEGMENTINFOS_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_REMOTE_SEGMENT_SEPARATE_METADATA_SEGMENTINFOS_SETTING,
+            this::setClusterRemoteSegmentSeparateMetadataSegmentInfos
         );
     }
 
@@ -111,5 +125,13 @@ public class RemoteStoreSettings {
 
     private void setClusterRemoteTranslogTransferTimeout(TimeValue clusterRemoteTranslogTransferTimeout) {
         this.clusterRemoteTranslogTransferTimeout = clusterRemoteTranslogTransferTimeout;
+    }
+
+    public Boolean getClusterRemoteSegmentSeparateMetadataSegmentInfos() {
+        return clusterRemoteSegmentSeparateMetadataSegmentInfos;
+    }
+
+    public void setClusterRemoteSegmentSeparateMetadataSegmentInfos(Boolean clusterRemoteSegmentSeparateMetadataSegmentInfos) {
+        this.clusterRemoteSegmentSeparateMetadataSegmentInfos = clusterRemoteSegmentSeparateMetadataSegmentInfos;
     }
 }

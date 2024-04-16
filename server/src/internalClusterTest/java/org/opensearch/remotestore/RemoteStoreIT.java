@@ -30,6 +30,7 @@ import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.translog.Translog.Durability;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -585,7 +586,9 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         try (Stream<Path> files = Files.list(segmentDataPath)) {
             files.forEach(p -> {
                 try {
-                    Files.delete(p);
+                    if (p.getFileName().toString().startsWith(RemoteSegmentStoreDirectory.SEGMENT_INFOS_SNAPSHOT_PREFIX) == false) {
+                        Files.delete(p);
+                    }
                 } catch (IOException e) {
                     // Ignore
                 }
