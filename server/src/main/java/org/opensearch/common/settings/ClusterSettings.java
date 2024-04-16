@@ -713,8 +713,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING,
                 IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING,
                 IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING,
-                IndicesService.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING,
-                IndicesService.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING,
+                IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING,
 
                 // Admission Control Settings
                 AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE,
