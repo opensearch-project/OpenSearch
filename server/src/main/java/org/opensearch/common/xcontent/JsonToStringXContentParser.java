@@ -109,7 +109,7 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
                 int dotIndex = path.lastIndexOf(DOT_SYMBOL);
 
                 if (dotIndex != -1 && path.length() > currentFieldName.length()) {
-                   path.setLength(path.length() - currentFieldName.length() - 1);
+                    path.setLength(path.length() - currentFieldName.length() - 1);
                 }
             } else {
                 if (!path.toString().contains(currentFieldName)) {
