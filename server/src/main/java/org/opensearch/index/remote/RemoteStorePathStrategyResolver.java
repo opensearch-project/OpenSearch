@@ -25,12 +25,16 @@ public class RemoteStorePathStrategyResolver {
 
     private volatile PathType type;
 
+    private volatile PathHashAlgorithm hashAlgorithm;
+
     private final Supplier<Version> minNodeVersionSupplier;
 
     public RemoteStorePathStrategyResolver(ClusterSettings clusterSettings, Supplier<Version> minNodeVersionSupplier) {
         this.minNodeVersionSupplier = minNodeVersionSupplier;
-        type = clusterSettings.get(IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING);
-        clusterSettings.addSettingsUpdateConsumer(IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING, this::setType);
+        type = clusterSettings.get(IndicesService.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING);
+        hashAlgorithm = clusterSettings.get(IndicesService.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING);
+        clusterSettings.addSettingsUpdateConsumer(IndicesService.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING, this::setType);
+        clusterSettings.addSettingsUpdateConsumer(IndicesService.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING, this::setHashAlgorithm);
     }
 
     public RemoteStorePathStrategy get() {
@@ -39,11 +43,15 @@ public class RemoteStorePathStrategyResolver {
         // Min node version check ensures that we are enabling the new prefix type only when all the nodes understand it.
         pathType = Version.CURRENT.compareTo(minNodeVersionSupplier.get()) <= 0 ? type : PathType.FIXED;
         // If the path type is fixed, hash algorithm is not applicable.
-        pathHashAlgorithm = pathType == PathType.FIXED ? null : PathHashAlgorithm.FNV_1A;
+        pathHashAlgorithm = pathType == PathType.FIXED ? null : hashAlgorithm;
         return new RemoteStorePathStrategy(pathType, pathHashAlgorithm);
     }
 
     private void setType(PathType type) {
         this.type = type;
+    }
+
+    private void setHashAlgorithm(PathHashAlgorithm hashAlgorithm) {
+        this.hashAlgorithm = hashAlgorithm;
     }
 }
