@@ -387,7 +387,7 @@ tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     onlyModified = true
     failOnModification = true
     ignoreMissingClasses = true
-    annotationIncludes = ['@org.opensearch.common.annotation.PublicApi']
+    annotationIncludes = ['@org.opensearch.common.annotation.PublicApi', '@org.opensearch.common.annotation.DeprecatedApi']
     txtOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.txt")
     htmlOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.html")
     dependsOn downloadSnapshot
@@ -411,14 +411,21 @@ tasks.register("downloadSnapshot", Copy) {
     def groupId = "org.opensearch"
     def artifactId = "opensearch"
 
-    repositories {
-        maven {
-            url mavenSnapshotRepoUrl
-        }
-    }
+    def repos = project.getRepositories();
+    MavenArtifactRepository opensearchRepo = repos.maven(repo -> {
+        repo.setName("opensearch-snapshots");
+        repo.setUrl(mavenSnapshotRepoUrl);
+    });
+
+    repos.exclusiveContent(exclusiveRepo -> {
+        exclusiveRepo.filter(descriptor -> descriptor.includeGroup(groupId));
+        exclusiveRepo.forRepositories(opensearchRepo);
+    });
 
     configurations {
-        snapshotArtifact
+        snapshotArtifact {
+            exclude group: 'org.apache.lucene'
+        }
     }
 
     dependencies {

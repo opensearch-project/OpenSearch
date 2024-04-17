@@ -13,11 +13,15 @@
 
 package org.opensearch.cache.common.policy;
 
+import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.policy.CachedQueryResult;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.function.Function;
 import java.util.function.Predicate;
+
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
 
 /**
  * A cache tier policy which accepts queries whose took time is greater than some threshold.
@@ -30,7 +34,7 @@ public class TookTimePolicy<V> implements Predicate<V> {
     /**
      * The minimum took time to allow a query. Set to TimeValue.ZERO to let all data through.
      */
-    private final TimeValue threshold;
+    private TimeValue threshold;
 
     /**
      * Function which extracts the relevant PolicyValues from a serialized CachedQueryResult
@@ -41,13 +45,25 @@ public class TookTimePolicy<V> implements Predicate<V> {
      * Constructs a took time policy.
      * @param threshold the threshold
      * @param cachedResultParser the function providing policy values
+     * @param clusterSettings cluster settings
+     * @param cacheType cache type
      */
-    public TookTimePolicy(TimeValue threshold, Function<V, CachedQueryResult.PolicyValues> cachedResultParser) {
+    public TookTimePolicy(
+        TimeValue threshold,
+        Function<V, CachedQueryResult.PolicyValues> cachedResultParser,
+        ClusterSettings clusterSettings,
+        CacheType cacheType
+    ) {
         if (threshold.compareTo(TimeValue.ZERO) < 0) {
             throw new IllegalArgumentException("Threshold for TookTimePolicy must be >= 0ms but was " + threshold.getStringRep());
         }
         this.threshold = threshold;
         this.cachedResultParser = cachedResultParser;
+        clusterSettings.addSettingsUpdateConsumer(TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType), this::setThreshold);
+    }
+
+    private void setThreshold(TimeValue threshold) {
+        this.threshold = threshold;
     }
 
     /**

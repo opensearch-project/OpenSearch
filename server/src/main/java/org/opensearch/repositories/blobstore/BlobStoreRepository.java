@@ -3162,7 +3162,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public InputStream maybeRateLimitRestores(InputStream stream) {
         return maybeRateLimit(
             maybeRateLimit(stream, () -> restoreRateLimiter, restoreRateLimitingTimeInNanos, BlobStoreTransferContext.SNAPSHOT_RESTORE),
-            recoverySettings::rateLimiter,
+            recoverySettings::recoveryRateLimiter,
             restoreRateLimitingTimeInNanos,
             BlobStoreTransferContext.SNAPSHOT_RESTORE
         );
@@ -3185,7 +3185,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 remoteDownloadRateLimitingTimeInNanos,
                 BlobStoreTransferContext.REMOTE_DOWNLOAD
             ),
-            recoverySettings::rateLimiter,
+            recoverySettings::recoveryRateLimiter,
             remoteDownloadRateLimitingTimeInNanos,
             BlobStoreTransferContext.REMOTE_DOWNLOAD
         );

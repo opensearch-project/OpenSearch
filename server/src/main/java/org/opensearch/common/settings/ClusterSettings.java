@@ -83,6 +83,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.settings.CacheSettings;
+import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.network.NetworkService;
@@ -291,6 +292,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_CLUSTER,
                 ShardLimitValidator.SETTING_CLUSTER_IGNORE_DOT_INDEXES,
                 RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
+                RecoverySettings.INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,
                 RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
@@ -523,6 +525,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.MAX_OPEN_SCROLL_CONTEXT,
                 SearchService.MAX_OPEN_PIT_CONTEXT,
                 SearchService.MAX_PIT_KEEPALIVE_SETTING,
+                SearchService.MAX_AGGREGATION_REWRITE_FILTERS,
                 CreatePitController.PIT_INIT_KEEP_ALIVE,
                 Node.WRITE_PORTS_FILE_SETTING,
                 Node.NODE_NAME_SETTING,
@@ -750,6 +753,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING
         ),
         List.of(FeatureFlags.PLUGGABLE_CACHE),
-        List.of(CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE))
+        List.of(
+            CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE),
+            OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES.getConcreteSettingForNamespace(
+                CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+            ),
+            OpenSearchOnHeapCacheSettings.EXPIRE_AFTER_ACCESS_SETTING.getConcreteSettingForNamespace(
+                CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+            )
+        )
     );
 }
