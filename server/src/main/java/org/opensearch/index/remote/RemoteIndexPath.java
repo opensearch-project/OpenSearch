@@ -20,9 +20,11 @@ import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
@@ -45,6 +47,7 @@ public class RemoteIndexPath implements ToXContentFragment {
     static final String KEY_VERSION = "version";
     static final String KEY_INDEX_UUID = "index_uuid";
     static final String KEY_SHARD_COUNT = "shard_count";
+    static final String KEY_PATH_CREATION_MAP = "path_creation_map";
     static final String KEY_PATHS = "paths";
     private final String indexUUID;
     private final int shardCount;
@@ -112,6 +115,13 @@ public class RemoteIndexPath implements ToXContentFragment {
         if (Objects.nonNull(pathHashAlgorithm)) {
             builder.field(PathHashAlgorithm.NAME, pathHashAlgorithm.name());
         }
+
+        Map<String, List<String>> pathMap = new HashMap<>();
+        for (Map.Entry<DataCategory, List<DataType>> entry : pathCreationMap.entrySet()) {
+            pathMap.put(entry.getKey().getName(), entry.getValue().stream().map(DataType::getName).collect(Collectors.toList()));
+        }
+        builder.field(KEY_PATH_CREATION_MAP);
+        builder.map(pathMap);
         builder.startArray(KEY_PATHS);
         for (Map.Entry<DataCategory, List<DataType>> entry : pathCreationMap.entrySet()) {
             DataCategory dataCategory = entry.getKey();

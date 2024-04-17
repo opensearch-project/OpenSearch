@@ -300,6 +300,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                 )
             ) {
                 CodecUtil.writeHeader(indexOutput, codec, VERSION);
+                XContentType xContentType = XContentType.SMILE;
                 try (OutputStream indexOutputOutputStream = new IndexOutputOutputStream(indexOutput) {
                     @Override
                     public void close() throws IOException {
@@ -308,7 +309,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                     }
                 };
                     XContentBuilder builder = MediaTypeRegistry.contentBuilder(
-                        XContentType.SMILE,
+                        xContentType,
                         compressor.threadLocalOutputStream(indexOutputOutputStream)
                     )
                 ) {
