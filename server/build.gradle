@@ -411,14 +411,21 @@ tasks.register("downloadSnapshot", Copy) {
     def groupId = "org.opensearch"
     def artifactId = "opensearch"
 
-    repositories {
-        maven {
-            url mavenSnapshotRepoUrl
-        }
-    }
+    def repos = project.getRepositories();
+    MavenArtifactRepository opensearchRepo = repos.maven(repo -> {
+        repo.setName("opensearch-snapshots");
+        repo.setUrl(mavenSnapshotRepoUrl);
+    });
+
+    repos.exclusiveContent(exclusiveRepo -> {
+        exclusiveRepo.filter(descriptor -> descriptor.includeGroup(groupId));
+        exclusiveRepo.forRepositories(opensearchRepo);
+    });
 
     configurations {
-        snapshotArtifact
+        snapshotArtifact {
+            exclude group: 'org.apache.lucene'
+        }
     }
 
     dependencies {

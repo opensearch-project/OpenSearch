@@ -41,7 +41,6 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.NettyAllocator;
 import org.opensearch.transport.SharedGroupFactory;
-import org.opensearch.transport.netty4.ssl.TrustAllManager;
 import org.junit.After;
 import org.junit.Before;
 
@@ -84,6 +83,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 import static org.opensearch.core.rest.RestStatus.BAD_REQUEST;
 import static org.opensearch.core.rest.RestStatus.OK;
@@ -131,7 +131,7 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
                     keyManagerFactory.init(keyStore, "password".toCharArray());
 
                     SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)
-                        .trustManager(TrustAllManager.INSTANCE)
+                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
                         .build()
                         .newEngine(NettyAllocator.getAllocator());
                     return Optional.of(engine);

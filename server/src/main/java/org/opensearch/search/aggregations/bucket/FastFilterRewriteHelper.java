@@ -63,7 +63,6 @@ public final class FastFilterRewriteHelper {
 
     private static final Logger logger = LogManager.getLogger(FastFilterRewriteHelper.class);
 
-    private static final int MAX_NUM_FILTER_BUCKETS = 1024;
     private static final Map<Class<?>, Function<Query, Query>> queryWrappers;
 
     // Initialize the wrapper map for unwrapping the query
@@ -186,8 +185,9 @@ public final class FastFilterRewriteHelper {
         int bucketCount = 0;
         while (roundedLow <= fieldType.convertNanosToMillis(high)) {
             bucketCount++;
-            if (bucketCount > MAX_NUM_FILTER_BUCKETS) {
-                logger.debug("Max number of filters reached [{}], skip the fast filter optimization", MAX_NUM_FILTER_BUCKETS);
+            int maxNumFilterBuckets = context.maxAggRewriteFilters();
+            if (bucketCount > maxNumFilterBuckets) {
+                logger.debug("Max number of filters reached [{}], skip the fast filter optimization", maxNumFilterBuckets);
                 return null;
             }
             // Below rounding is needed as the interval could return in
@@ -254,6 +254,8 @@ public final class FastFilterRewriteHelper {
         }
 
         public boolean isRewriteable(final Object parent, final int subAggLength) {
+            if (context.maxAggRewriteFilters() == 0) return false;
+
             boolean rewriteable = aggregationType.isRewriteable(parent, subAggLength);
             logger.debug("Fast filter rewriteable: {} for shard {}", rewriteable, context.indexShard().shardId());
             this.rewriteable = rewriteable;
