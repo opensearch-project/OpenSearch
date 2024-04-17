@@ -9,6 +9,7 @@
 package org.opensearch.index.remote;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.hash.FNV1a;
@@ -32,12 +33,14 @@ import static org.opensearch.index.remote.RemoteStoreUtils.longToUrlBase64;
  *
  * @opensearch.api
  */
+@ExperimentalApi
 public class RemoteStoreEnums {
 
     /**
      * Categories of the data in Remote store.
      */
     @PublicApi(since = "2.14.0")
+    @ExperimentalApi
     public enum DataCategory {
         SEGMENTS("segments", Set.of(DataType.values())),
         TRANSLOG("translog", Set.of(DATA, METADATA));
@@ -63,6 +66,7 @@ public class RemoteStoreEnums {
      * Types of data in remote store.
      */
     @PublicApi(since = "2.14.0")
+    @ExperimentalApi
     public enum DataType {
         DATA("data"),
         METADATA("metadata"),
@@ -84,6 +88,7 @@ public class RemoteStoreEnums {
      * For more information, see <a href="https://github.com/opensearch-project/OpenSearch/issues/12567">Github issue #12567</a>.
      */
     @PublicApi(since = "2.14.0")
+    @ExperimentalApi
     public enum PathType {
         FIXED(0) {
             @Override
@@ -216,6 +221,7 @@ public class RemoteStoreEnums {
      * Type of hashes supported for path types that have hashing.
      */
     @PublicApi(since = "2.14.0")
+    @ExperimentalApi
     public enum PathHashAlgorithm {
 
         FNV_1A_BASE64(0) {

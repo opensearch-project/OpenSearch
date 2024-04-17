@@ -62,6 +62,7 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.service.CacheService;
@@ -311,6 +312,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * This setting is used to set the remote store blob store path type strategy. This setting is effective only for
      * remote store enabled cluster.
      */
+    @ExperimentalApi
     public static final Setting<PathType> CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING = new Setting<>(
         "cluster.remote_store.index.path.type",
         PathType.FIXED.toString(),
@@ -324,6 +326,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * remote store enabled cluster. This setting will come to effect if the {@link #CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING}
      * is either {@code HASHED_PREFIX} or {@code HASHED_INFIX}.
      */
+    @ExperimentalApi
     public static final Setting<PathHashAlgorithm> CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING = new Setting<>(
         "cluster.remote_store.index.path.hash_algorithm",
         PathHashAlgorithm.FNV_1A_COMPOSITE_1.toString(),
