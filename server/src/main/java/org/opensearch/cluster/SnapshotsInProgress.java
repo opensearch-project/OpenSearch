@@ -747,7 +747,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             snapshot.writeTo(out);
             out.writeBoolean(includeGlobalState);
             out.writeBoolean(partial);
-            if ((out.getVersion().before(Version.V_3_0_0)) && state == State.PARTIAL) {
+            if ((out.getVersion().before(Version.V_2_14_0)) && state == State.PARTIAL) {
                 // Setting to SUCCESS for partial snapshots in older versions to maintain backward compatibility
                 out.writeByte(State.SUCCESS.value());
             } else {
