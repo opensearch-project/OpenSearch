@@ -22,6 +22,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.index.mapper.DerivedFieldSupportedTypes;
 import org.opensearch.index.mapper.DerivedFieldValueFetcher;
 import org.opensearch.script.DerivedFieldScript;
 import org.opensearch.script.Script;
@@ -67,22 +68,25 @@ public class DerivedFieldQueryTests extends OpenSearchTestCase {
             when(searchLookup.getLeafSearchLookup(ctx)).thenReturn(leafLookup);
             return new DerivedFieldScript(params, lookup, ctx) {
                 @Override
-                public Object execute() {
-                    return raw_requests[sourceLookup.docId()][2];
+                public void execute() {
+                    addEmittedValue(raw_requests[sourceLookup.docId()][2]);
                 }
             };
         };
 
         // Create ValueFetcher from mocked DerivedFieldScript.Factory
         DerivedFieldScript.LeafFactory leafFactory = factory.newFactory((new Script("")).getParams(), searchLookup);
-        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(leafFactory);
+        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(
+            leafFactory,
+            null,
+            DerivedFieldSupportedTypes.getIndexableFieldGeneratorType("keyword", "ip_from_raw_request")
+        );
 
         // Create DerivedFieldQuery
         DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             new TermQuery(new Term("ip_from_raw_request", "247.37.0.0")),
             valueFetcher,
             searchLookup,
-            (o -> new KeywordField("ip_from_raw_request", (String) o, Field.Store.NO)),
             Lucene.STANDARD_ANALYZER
         );
 

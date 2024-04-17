@@ -50,6 +50,7 @@ import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -99,7 +100,7 @@ import java.util.zip.CheckedInputStream;
 
 import static org.opensearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING;
-import static org.opensearch.index.remote.RemoteStoreDataEnums.DataCategory.TRANSLOG;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
 import static org.opensearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.contains;
@@ -188,7 +189,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             repository,
             threadPool,
             primaryMode::get,
-            new RemoteTranslogTransferTracker(shardId, 10)
+            new RemoteTranslogTransferTracker(shardId, 10),
+            DefaultRemoteStoreSettings.INSTANCE
         );
     }
 
@@ -459,7 +461,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 repository,
                 threadPool,
                 () -> Boolean.TRUE,
-                new RemoteTranslogTransferTracker(shardId, 10)
+                new RemoteTranslogTransferTracker(shardId, 10),
+                DefaultRemoteStoreSettings.INSTANCE
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1508,7 +1511,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 repository,
                 threadPool,
                 () -> Boolean.TRUE,
-                new RemoteTranslogTransferTracker(shardId, 10)
+                new RemoteTranslogTransferTracker(shardId, 10),
+                DefaultRemoteStoreSettings.INSTANCE
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1616,7 +1620,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 repository,
                 threadPool,
                 () -> Boolean.TRUE,
-                new RemoteTranslogTransferTracker(shardId, 10)
+                new RemoteTranslogTransferTracker(shardId, 10),
+                DefaultRemoteStoreSettings.INSTANCE
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {

@@ -18,6 +18,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
+
 /**
  * Plugin for TieredSpilloverCache.
  */
@@ -51,11 +53,7 @@ public class TieredSpilloverCachePlugin extends Plugin implements CachePlugin {
             settingList.add(
                 TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_NAME.getConcreteSettingForNamespace(cacheType.getSettingPrefix())
             );
-            settingList.add(
-                TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD.getConcreteSettingForNamespace(
-                    cacheType.getSettingPrefix()
-                )
-            );
+            settingList.add(TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType));
         }
         return settingList;
     }

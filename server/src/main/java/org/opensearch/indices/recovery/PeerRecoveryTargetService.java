@@ -260,7 +260,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         }
                     }
                     final boolean hasRemoteTranslog = recoveryTarget.state().getPrimary() == false
-                        && indexShard.indexSettings().isRemoteNode();
+                        && indexShard.indexSettings().isAssignedOnRemoteNode();
                     final boolean hasNoTranslog = indexShard.indexSettings().isRemoteSnapshot();
                     final boolean verifyTranslog = (hasRemoteTranslog || hasNoTranslog || hasRemoteSegmentStore) == false;
                     final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(!hasRemoteTranslog);
@@ -574,7 +574,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.get();
                 final ActionListener<Void> listener = recoveryTarget.createOrFinishListener(channel, Actions.FILE_CHUNK, request);
-                recoveryTarget.handleFileChunk(request, recoveryTarget, bytesSinceLastPause, recoverySettings.rateLimiter(), listener);
+                recoveryTarget.handleFileChunk(
+                    request,
+                    recoveryTarget,
+                    bytesSinceLastPause,
+                    recoverySettings.recoveryRateLimiter(),
+                    listener
+                );
             }
         }
     }

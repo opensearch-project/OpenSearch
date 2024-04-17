@@ -38,7 +38,6 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.NettyAllocator;
-import org.opensearch.transport.netty4.ssl.TrustAllManager;
 
 import java.io.Closeable;
 import java.net.SocketAddress;
@@ -90,6 +89,7 @@ import io.netty.handler.codec.http2.InboundHttp2ToHttpAdapterBuilder;
 import io.netty.handler.ssl.ClientAuth;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.util.AttributeKey;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
@@ -270,7 +270,7 @@ public class Netty4HttpClient implements Closeable {
                 final SslHandler sslHandler = new SslHandler(
                     SslContextBuilder.forClient()
                         .clientAuth(ClientAuth.NONE)
-                        .trustManager(TrustAllManager.INSTANCE)
+                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
                         .build()
                         .newEngine(ch.alloc())
                 );
