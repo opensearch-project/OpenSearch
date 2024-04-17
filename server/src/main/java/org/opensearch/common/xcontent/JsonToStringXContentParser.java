@@ -107,9 +107,9 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
             } else if (this.parser.currentToken() == Token.START_OBJECT) {
                 parseToken(path, currentFieldName);
                 int dotIndex = path.lastIndexOf(DOT_SYMBOL);
-                if (dotIndex != -1) {
-                    path.setLength(Math.max(0, path.length() - currentFieldName.length() - 1));
 
+                if (dotIndex != -1 && path.length() > currentFieldName.length()) {
+                   path.setLength(path.length() - currentFieldName.length() - 1);
                 }
             } else {
                 if (!path.toString().contains(currentFieldName)) {
