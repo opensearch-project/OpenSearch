@@ -35,6 +35,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
     public static final int CODEC_V0 = 0; // Older codec version, where we haven't introduced codec versions for manifest.
     public static final int CODEC_V1 = 1; // In Codec V1 we have introduced global-metadata and codec version in Manifest file.
+    public static final int CODEC_V2 = 2; // In Codec V2 we introduce index routing-metadata in manifest file.
 
     private static final ParseField CLUSTER_TERM_FIELD = new ParseField("cluster_term");
     private static final ParseField STATE_VERSION_FIELD = new ParseField("state_version");
@@ -48,6 +49,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     private static final ParseField INDICES_FIELD = new ParseField("indices");
     private static final ParseField PREVIOUS_CLUSTER_UUID = new ParseField("previous_cluster_uuid");
     private static final ParseField CLUSTER_UUID_COMMITTED = new ParseField("cluster_uuid_committed");
+    private static final ParseField INDICES_ROUTING_FIELD = new ParseField("indices_routing");
 
     private static long term(Object[] fields) {
         return (long) fields[0];
@@ -97,6 +99,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         return (String) fields[11];
     }
 
+    private static List<UploadedIndexMetadata> indicesRouting(Object[] fields) {
+        return (List<UploadedIndexMetadata>) fields[12];
+    }
+
     private static final ConstructingObjectParser<ClusterMetadataManifest, Void> PARSER_V0 = new ConstructingObjectParser<>(
         "cluster_metadata_manifest",
         fields -> new ClusterMetadataManifest(
@@ -133,11 +139,31 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         )
     );
 
-    private static final ConstructingObjectParser<ClusterMetadataManifest, Void> CURRENT_PARSER = PARSER_V1;
+    private static final ConstructingObjectParser<ClusterMetadataManifest, Void> PARSER_V2 = new ConstructingObjectParser<>(
+        "cluster_metadata_manifest",
+        fields -> new ClusterMetadataManifest(
+            term(fields),
+            version(fields),
+            clusterUUID(fields),
+            stateUUID(fields),
+            opensearchVersion(fields),
+            nodeId(fields),
+            committed(fields),
+            codecVersion(fields),
+            globalMetadataFileName(fields),
+            indices(fields),
+            previousClusterUUID(fields),
+            clusterUUIDCommitted(fields),
+            indicesRouting(fields)
+            )
+    );
+
+    private static final ConstructingObjectParser<ClusterMetadataManifest, Void> CURRENT_PARSER = PARSER_V2;
 
     static {
         declareParser(PARSER_V0, CODEC_V0);
         declareParser(PARSER_V1, CODEC_V1);
+        declareParser(PARSER_V2, CODEC_V2);
     }
 
     private static void declareParser(ConstructingObjectParser<ClusterMetadataManifest, Void> parser, long codec_version) {
@@ -160,6 +186,13 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             parser.declareInt(ConstructingObjectParser.constructorArg(), CODEC_VERSION_FIELD);
             parser.declareString(ConstructingObjectParser.constructorArg(), GLOBAL_METADATA_FIELD);
         }
+        if (codec_version >= CODEC_V2) {
+            parser.declareObjectArray(
+                ConstructingObjectParser.constructorArg(),
+                (p, c) -> UploadedIndexMetadata.fromXContent(p),
+                INDICES_ROUTING_FIELD
+            );
+        }
     }
 
     private final int codecVersion;
@@ -174,6 +207,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     private final boolean committed;
     private final String previousClusterUUID;
     private final boolean clusterUUIDCommitted;
+    private final List<UploadedIndexMetadata> indicesRouting;
 
     public List<UploadedIndexMetadata> getIndices() {
         return indices;
@@ -223,6 +257,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         return globalMetadataFileName;
     }
 
+    public List<UploadedIndexMetadata> getIndicesRouting() {
+        return indicesRouting;
+    }
+
     public ClusterMetadataManifest(
         long clusterTerm,
         long version,
@@ -237,6 +275,25 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         String previousClusterUUID,
         boolean clusterUUIDCommitted
     ) {
+        this(clusterTerm, version, clusterUUID, stateUUID, opensearchVersion, nodeId, committed, codecVersion,
+            globalMetadataFileName, indices, previousClusterUUID, clusterUUIDCommitted, null);
+    }
+
+    public ClusterMetadataManifest(
+        long clusterTerm,
+        long version,
+        String clusterUUID,
+        String stateUUID,
+        Version opensearchVersion,
+        String nodeId,
+        boolean committed,
+        int codecVersion,
+        String globalMetadataFileName,
+        List<UploadedIndexMetadata> indices,
+        String previousClusterUUID,
+        boolean clusterUUIDCommitted,
+        List<UploadedIndexMetadata> indicesRouting
+        ) {
         this.clusterTerm = clusterTerm;
         this.stateVersion = version;
         this.clusterUUID = clusterUUID;
@@ -249,6 +306,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         this.indices = Collections.unmodifiableList(indices);
         this.previousClusterUUID = previousClusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
+        this.indicesRouting = Collections.unmodifiableList(indicesRouting);
     }
 
     public ClusterMetadataManifest(StreamInput in) throws IOException {
@@ -262,12 +320,18 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         this.indices = Collections.unmodifiableList(in.readList(UploadedIndexMetadata::new));
         this.previousClusterUUID = in.readString();
         this.clusterUUIDCommitted = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_14_0)) {
             this.codecVersion = in.readInt();
             this.globalMetadataFileName = in.readString();
+            this.indicesRouting = Collections.unmodifiableList(in.readList(UploadedIndexMetadata::new));
+        } else if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
+            this.codecVersion = in.readInt();
+            this.globalMetadataFileName = in.readString();
+            this.indicesRouting = null;
         } else {
             this.codecVersion = CODEC_V0; // Default codec
             this.globalMetadataFileName = null;
+            this.indicesRouting = null;
         }
     }
 
@@ -301,6 +365,14 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             builder.field(CODEC_VERSION_FIELD.getPreferredName(), getCodecVersion());
             builder.field(GLOBAL_METADATA_FIELD.getPreferredName(), getGlobalMetadataFileName());
         }
+        if (onOrAfterCodecVersion(CODEC_V2)) {
+            builder.startArray(INDICES_ROUTING_FIELD.getPreferredName());
+            {
+                for (UploadedIndexMetadata uploadedIndexMetadata : indicesRouting) {
+                    uploadedIndexMetadata.toXContent(builder, params);
+                }
+            }
+        }
         return builder;
     }
 
@@ -319,6 +391,8 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeInt(codecVersion);
             out.writeString(globalMetadataFileName);
+        } else if (out.getVersion().onOrAfter(Version.V_2_14_0)) {
+            out.writeCollection(indicesRouting);
         }
     }
 
@@ -342,7 +416,8 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             && Objects.equals(previousClusterUUID, that.previousClusterUUID)
             && Objects.equals(clusterUUIDCommitted, that.clusterUUIDCommitted)
             && Objects.equals(globalMetadataFileName, that.globalMetadataFileName)
-            && Objects.equals(codecVersion, that.codecVersion);
+            && Objects.equals(codecVersion, that.codecVersion)
+            && Objects.equals(indicesRouting, that.indicesRouting);
     }
 
     @Override
@@ -359,7 +434,8 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             nodeId,
             committed,
             previousClusterUUID,
-            clusterUUIDCommitted
+            clusterUUIDCommitted,
+            indicesRouting
         );
     }
 
@@ -399,9 +475,15 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         private String previousClusterUUID;
         private boolean committed;
         private boolean clusterUUIDCommitted;
+        private List<UploadedIndexMetadata> indicesRouting;
 
         public Builder indices(List<UploadedIndexMetadata> indices) {
             this.indices = indices;
+            return this;
+        }
+
+        public Builder indicesRouting(List<UploadedIndexMetadata> indicesRouting) {
+            this.indicesRouting = indicesRouting;
             return this;
         }
 
@@ -454,6 +536,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             return indices;
         }
 
+        public List<UploadedIndexMetadata> getIndicesRouting() {
+            return indicesRouting;
+        }
+
         public Builder previousClusterUUID(String previousClusterUUID) {
             this.previousClusterUUID = previousClusterUUID;
             return this;
@@ -481,6 +567,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             this.indices = new ArrayList<>(manifest.indices);
             this.previousClusterUUID = manifest.previousClusterUUID;
             this.clusterUUIDCommitted = manifest.clusterUUIDCommitted;
+            this.indicesRouting = new ArrayList<>(manifest.indicesRouting);
         }
 
         public ClusterMetadataManifest build() {
@@ -496,7 +583,8 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
                 globalMetadataFileName,
                 indices,
                 previousClusterUUID,
-                clusterUUIDCommitted
+                clusterUUIDCommitted,
+                indicesRouting
             );
         }
 
