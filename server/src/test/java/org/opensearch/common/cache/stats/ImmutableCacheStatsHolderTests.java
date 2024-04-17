@@ -227,6 +227,64 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
         }
     }
 
+    public void testXContent() throws Exception {
+        // Tests logic of filtering levels out, logic for aggregating by those levels is already covered
+        List<String> dimensionNames = List.of("A", "B", "C");
+        CacheStatsHolder statsHolder = new CacheStatsHolder(dimensionNames, storeName);
+        Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
+        CacheStatsHolderTests.populateStats(statsHolder, usedDimensionValues, 100, 10);
+        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder();
+
+        // If the levels in the params are empty or contains only unrecognized levels, we should only see the total stats and no level
+        // aggregation
+        List<ToXContent.Params> paramsList = List.of(ToXContent.EMPTY_PARAMS, getLevelParams(List.of()), getLevelParams(List.of("D")));
+        for (ToXContent.Params params : paramsList) {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            stats.toXContent(builder, params);
+            builder.endObject();
+
+            String resultString = builder.toString();
+            Map<String, Object> result = XContentHelper.convertToMap(MediaTypeRegistry.JSON.xContent(), resultString, true);
+
+            assertTotalStatsPresentInXContentResponse(result);
+            // assert there are no other entries in the map besides these 6
+            assertEquals(6, result.size());
+        }
+
+        // if we pass recognized levels in any order, alongside ignored unrecognized levels, we should see the above plus level aggregation
+        ToXContent.Params params = getLevelParams(List.of("C", "A", "E"));
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(builder, params);
+        builder.endObject();
+
+        String resultString = builder.toString();
+        Map<String, Object> result = XContentHelper.convertToMap(MediaTypeRegistry.JSON.xContent(), resultString, true);
+        assertTotalStatsPresentInXContentResponse(result);
+        assertNotNull(result.get("A"));
+        assertEquals(7, result.size());
+    }
+
+    private void assertTotalStatsPresentInXContentResponse(Map<String, Object> result) {
+        // assert the total stats are present
+        assertNotEquals(0, (int) result.get(ImmutableCacheStats.Fields.MEMORY_SIZE_IN_BYTES));
+        assertNotEquals(0, (int) result.get(ImmutableCacheStats.Fields.EVICTIONS));
+        assertNotEquals(0, (int) result.get(ImmutableCacheStats.Fields.HIT_COUNT));
+        assertNotEquals(0, (int) result.get(ImmutableCacheStats.Fields.MISS_COUNT));
+        assertNotEquals(0, (int) result.get(ImmutableCacheStats.Fields.ENTRIES));
+        // assert the store name is present
+        assertEquals(storeName, (String) result.get(ImmutableCacheStatsHolder.STORE_NAME_FIELD));
+    }
+
+    private ToXContent.Params getLevelParams(List<String> levels) {
+        Map<String, String> paramMap = new HashMap<>();
+        if (!levels.isEmpty()) {
+            paramMap.put("level", String.join(",", levels));
+        }
+        return new ToXContent.MapParams(paramMap);
+    }
+
     public static Object getValueFromNestedXContentMap(Map<String, Object> xContentMap, List<String> keys) {
         Map<String, Object> current = xContentMap;
         for (int i = 0; i < keys.size() - 1; i++) {

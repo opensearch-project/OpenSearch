@@ -32,7 +32,7 @@ import java.util.TreeMap;
 
 @ExperimentalApi
 public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
-    // An immutable snapshot of a stats within a CacheStatsHolder, containing all the stats maintained by the cache.
+    // Root node of immutable snapshot of stats within a CacheStatsHolder, containing all the stats maintained by the cache.
     // Pkg-private for testing.
     final Node statsRoot;
     final List<String> dimensionNames;
@@ -46,9 +46,6 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
         this.storeName = storeName;
     }
 
-    /**
-     * Should not be used with StreamOutputs produced using writeToWithClassName.
-     */
     public ImmutableCacheStatsHolder(StreamInput in) throws IOException {
         // Because we write in preorder order, the parent of the next node we read will always be one of the ancestors
         // of the last node we read. This allows us to avoid ambiguity if nodes have the same dimension value, without
@@ -157,11 +154,14 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
     }
 
     /**
-     * Returns a new tree containing the stats aggregated by the levels passed in. The root node is a dummy node,
-     * whose name and value are null. The new tree only has dimensions matching the levels passed in.
+     * Returns a new tree containing the stats aggregated by the levels passed in.
+     * The new tree only has dimensions matching the levels passed in.
+     * The levels passed in must be in the proper order, as they would be in the output of filterLevels().
      */
-    Node aggregateByLevels(List<String> levels) {
-        List<String> filteredLevels = filterLevels(levels);
+    Node aggregateByLevels(List<String> filteredLevels) {
+        if (filteredLevels.isEmpty()) {
+            throw new IllegalArgumentException("Filtered levels passed to aggregateByLevels() cannot be empty");
+        }
         Node newRoot = new Node("", false, statsRoot.getStats());
         for (Node child : statsRoot.children.values()) {
             aggregateByLevelsHelper(newRoot, child, filteredLevels, 0);
@@ -208,17 +208,18 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
     }
 
     /**
-     * Filters out levels that aren't in dimensionNames. Unrecognized levels are ignored.
+     * Filters out levels that aren't in dimensionNames, and orders the resulting list to match the order in dimensionNames.
+     * Unrecognized levels are ignored.
      */
     private List<String> filterLevels(List<String> levels) {
-        List<String> filtered = new ArrayList<>();
-        for (String level : levels) {
-            if (dimensionNames.contains(level)) {
-                filtered.add(level);
-            }
+        if (levels == null) {
+            return new ArrayList<>();
         }
-        if (filtered.isEmpty()) {
-            throw new IllegalArgumentException("Levels cannot have size 0");
+        List<String> filtered = new ArrayList<>();
+        for (String dimensionName : dimensionNames) {
+            if (levels.contains(dimensionName)) {
+                filtered.add(dimensionName);
+            }
         }
         return filtered;
     }
@@ -228,9 +229,8 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
         // Always show total stats, regardless of levels
         getTotalStats().toXContent(builder, params);
 
-        List<String> levels = getLevels(params);
-        if (levels != null) {
-            List<String> filteredLevels = filterLevels(levels);
+        List<String> filteredLevels = filterLevels(getLevels(params));
+        if (!filteredLevels.isEmpty()) {
             toXContentForLevels(builder, params, filteredLevels);
         }
 
@@ -239,10 +239,10 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
         return builder;
     }
 
-    XContentBuilder toXContentForLevels(XContentBuilder builder, Params params, List<String> levels) throws IOException {
-        Node aggregated = aggregateByLevels(levels);
+    XContentBuilder toXContentForLevels(XContentBuilder builder, Params params, List<String> filteredLevels) throws IOException {
+        Node aggregated = aggregateByLevels(filteredLevels);
         // Depth -1 corresponds to the dummy root node
-        toXContentForLevelsHelper(-1, aggregated, levels, builder, params);
+        toXContentForLevelsHelper(-1, aggregated, filteredLevels, builder, params);
         return builder;
     }
 
