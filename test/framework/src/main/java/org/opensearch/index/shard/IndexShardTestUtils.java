@@ -23,6 +23,7 @@ import java.util.Map;
 public class IndexShardTestUtils {
     public static final String MOCK_SEGMENT_REPO_NAME = "segment-test-repo";
     public static final String MOCK_TLOG_REPO_NAME = "tlog-test-repo";
+
     public static DiscoveryNode getFakeDiscoNode(String id) {
         return new DiscoveryNode(
             id,
