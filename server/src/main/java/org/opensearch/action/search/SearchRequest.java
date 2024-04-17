@@ -102,7 +102,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private Boolean allowPartialSearchResults;
 
-    private Boolean ignoreUnavailableShards;
+    private Boolean ignoreUnavailable;
 
     private Scroll scroll;
 
@@ -200,7 +200,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         boolean finalReduce
     ) {
         this.allowPartialSearchResults = searchRequest.allowPartialSearchResults;
-        this.ignoreUnavailableShards = searchRequest.ignoreUnavailableShards;
+        this.ignoreUnavailable = searchRequest.ignoreUnavailable;
         this.batchedReduceSize = searchRequest.batchedReduceSize;
         this.ccsMinimizeRoundtrips = searchRequest.ccsMinimizeRoundtrips;
         this.indices = indices;
@@ -250,7 +250,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         preFilterShardSize = in.readOptionalVInt();
         allowPartialSearchResults = in.readOptionalBoolean();
         if (in.getVersion().onOrAfter(Version.V_2_14_0)) {
-            ignoreUnavailableShards = in.readOptionalBoolean();
+            ignoreUnavailable = in.readOptionalBoolean();
         }
         localClusterAlias = in.readOptionalString();
         if (localClusterAlias != null) {
@@ -290,7 +290,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeOptionalVInt(preFilterShardSize);
         out.writeOptionalBoolean(allowPartialSearchResults);
         if (out.getVersion().onOrAfter(Version.V_2_14_0)) {
-            out.writeOptionalBoolean(ignoreUnavailableShards);
+            out.writeOptionalBoolean(ignoreUnavailable);
         }
         out.writeOptionalString(localClusterAlias);
         if (localClusterAlias != null) {
@@ -576,13 +576,18 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return this.allowPartialSearchResults;
     }
 
-    public SearchRequest ignoreUnavailableShards(boolean ignoreUnavailableShards) {
-        this.ignoreUnavailableShards = ignoreUnavailableShards;
+    /**
+     * Sets if this request should ignore unavailable shards. This option is superseded
+     * by allowPartialSearchResults (ignores any type of shard failures) instead of just
+     * unavailable shards. (If method is not called, will default to the cluster level setting).
+     */
+    public SearchRequest ignoreUnavailable(boolean ignoreUnavailable) {
+        this.ignoreUnavailable = ignoreUnavailable;
         return this;
     }
 
-    public Boolean getIgnoreUnavailableShards() {
-        return this.ignoreUnavailableShards;
+    public Boolean ignoreUnavailable() {
+        return this.ignoreUnavailable;
     }
 
     /**
@@ -765,7 +770,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && Objects.equals(preFilterShardSize, that.preFilterShardSize)
             && Objects.equals(indicesOptions, that.indicesOptions)
             && Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults)
-            && Objects.equals(ignoreUnavailableShards, that.ignoreUnavailableShards)
+            && Objects.equals(ignoreUnavailable, that.ignoreUnavailable)
             && Objects.equals(localClusterAlias, that.localClusterAlias)
             && absoluteStartMillis == that.absoluteStartMillis
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
@@ -789,7 +794,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             maxConcurrentShardRequests,
             preFilterShardSize,
             allowPartialSearchResults,
-            ignoreUnavailableShards,
+            ignoreUnavailable,
             localClusterAlias,
             absoluteStartMillis,
             ccsMinimizeRoundtrips,
@@ -825,8 +830,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + preFilterShardSize
             + ", allowPartialSearchResults="
             + allowPartialSearchResults
-            + ", ignoreUnavailableShards="
-            + ignoreUnavailableShards
+            + ", ignoreUnavailable="
+            + ignoreUnavailable
             + ", localClusterAlias="
             + localClusterAlias
             + ", getOrCreateAbsoluteStartMillis="

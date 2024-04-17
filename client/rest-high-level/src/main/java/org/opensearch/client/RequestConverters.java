@@ -470,6 +470,9 @@ final class RequestConverters {
         if (searchRequest.allowPartialSearchResults() != null) {
             params.withAllowPartialResults(searchRequest.allowPartialSearchResults());
         }
+        if (searchRequest.ignoreUnavailable() != null) {
+            params.withIgnoreUnavailable(searchRequest.ignoreUnavailable());
+        }
         params.withBatchedReduceSize(searchRequest.getBatchedReduceSize());
         if (searchRequest.scroll() != null) {
             params.putParam("scroll", searchRequest.scroll().keepAlive());

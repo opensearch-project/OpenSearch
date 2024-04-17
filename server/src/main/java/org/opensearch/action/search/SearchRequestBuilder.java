@@ -557,6 +557,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Sets if this request should ignore unavailable shards.  (If method is not called,
+     * will default to the cluster level setting).
+     */
+    public SearchRequestBuilder setIgnoreUnavailable(boolean ignoreUnavailable) {
+        request.ignoreUnavailable(ignoreUnavailable);
+        return this;
+    }
+
+    /**
      * Should the query be profiled. Defaults to <code>false</code>
      */
     public SearchRequestBuilder setProfile(boolean profile) {

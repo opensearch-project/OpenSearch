@@ -101,6 +101,7 @@ public class RandomSearchRequestGenerator {
     public static SearchRequest randomSearchRequest(Supplier<SearchSourceBuilder> randomSearchSourceBuilder) {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(true);
+        searchRequest.ignoreUnavailable(randomBoolean());
         if (randomBoolean()) {
             searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
         }

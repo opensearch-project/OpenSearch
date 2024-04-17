@@ -183,9 +183,9 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results", null));
         }
 
-        if (request.hasParam("ignore_unavailable_shards")) {
+        if (request.hasParam("ignore_unavailable")) {
             // only set if we have the parameter passed to override the cluster-level default
-            searchRequest.ignoreUnavailableShards(request.paramAsBoolean("ignore_unavailable_shards", null));
+            searchRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", null));
         }
 
         if (request.hasParam("phase_took")) {

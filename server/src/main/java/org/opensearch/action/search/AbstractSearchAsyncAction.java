@@ -425,7 +425,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             currentPhase.getName()
                         );
                     }
-                    if (!request.getIgnoreUnavailableShards()) {
+                    if (!request.ignoreUnavailable()) {
                         onPhaseFailure(currentPhase, "Partial shards failure (" + discrepancy + " shards unavailable)", null);
                         return;
                     }
