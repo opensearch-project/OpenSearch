@@ -73,7 +73,6 @@ public class DummyCacheStatsHolder implements CacheStatsHolderInterface {
 
     @Override
     public ImmutableCacheStatsHolder getImmutableCacheStatsHolder() {
-        // TODO: can we pass all-zero without adding dependency on API PR (bc of test-only IRC.getSizeInBytes()) ?
         ImmutableCacheStatsHolder.Node dummyNode = new ImmutableCacheStatsHolder.Node("", null, new ImmutableCacheStats(0, 0, 0, 0, 0));
         return new ImmutableCacheStatsHolder(dummyNode, dimensionNames);
     }

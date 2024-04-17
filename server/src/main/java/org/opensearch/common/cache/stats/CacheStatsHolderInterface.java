@@ -11,7 +11,7 @@ package org.opensearch.common.cache.stats;
 import java.util.List;
 
 /**
- * An abstract class extended by CacheStatsHolder and DummyCacheStatsHolder.
+ * An interface extended by CacheStatsHolder and DummyCacheStatsHolder.
  * Can be removed once the pluggable caches feature is no longer experimental.
  */
 public interface CacheStatsHolderInterface {
