@@ -81,9 +81,6 @@ public class FileSnapshotTests extends OpenSearchTestCase {
         Files.writeString(file, "hello_world_with_checkpoint_file_data-4");
         Files.writeString(file, "213123123");
 
-        fileSnapshot = new FileSnapshot.TransferFileSnapshot(file, 12, null);
-
-        assertFileSnapshotProperties(file);
         String encodedString = FileSnapshot.TranslogFileSnapshot.buildCheckpointDataAsBase64String(file);
 
         // Assert
@@ -96,10 +93,6 @@ public class FileSnapshotTests extends OpenSearchTestCase {
         Path file = createTempFile(Translog.TRANSLOG_FILE_PREFIX + 10, Translog.CHECKPOINT_SUFFIX);
         Files.writeString(file, "hello_world_with_checkpoint_file_data");
 
-        fileSnapshot = new FileSnapshot.TransferFileSnapshot(file, 12, null);
-
-        assertFileSnapshotProperties(file);
-
         assertThrows(NullPointerException.class, () -> FileSnapshot.TranslogFileSnapshot.buildCheckpointDataAsBase64String(null));
     }
 
@@ -107,9 +100,6 @@ public class FileSnapshotTests extends OpenSearchTestCase {
         Path file = createTempFile(Translog.TRANSLOG_FILE_PREFIX + 10, Translog.CHECKPOINT_SUFFIX);
         Files.writeString(file, "test-hello_world_with_checkpoint_file_data");
 
-        fileSnapshot = new FileSnapshot.TransferFileSnapshot(file, 12, null);
-
-        assertFileSnapshotProperties(file);
         String encodedString = FileSnapshot.TranslogFileSnapshot.buildCheckpointDataAsBase64String(file);
 
         byte[] decodedBytes = FileSnapshot.TranslogFileSnapshot.convertBase64StringToCheckpointFileDataBytes(encodedString);
@@ -120,10 +110,6 @@ public class FileSnapshotTests extends OpenSearchTestCase {
     public void testBuildCheckpointDataAsBase64String_whenFileSizeGreaterThan2KB_shouldThrowAssertionError() throws IOException {
         Path file = createTempFile(Translog.TRANSLOG_FILE_PREFIX + 10, Translog.CHECKPOINT_SUFFIX);
         byte[] data = new byte[2048]; // 2KB
-
-        fileSnapshot = new FileSnapshot.TransferFileSnapshot(file, 12, null);
-
-        assertFileSnapshotProperties(file);
 
         ByteBuffer buffer = ByteBuffer.wrap(data);
         Files.write(file, buffer.array(), StandardOpenOption.WRITE);

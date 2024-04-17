@@ -77,6 +77,7 @@ public class FileTransferTracker implements FileTransferListener {
         }
 
         add(fileSnapshot.getName(), TransferState.SUCCESS);
+        add(fileSnapshot.getMetadataFileName(), TransferState.SUCCESS);
     }
 
     void add(String file, boolean success) {
@@ -130,7 +131,7 @@ public class FileTransferTracker implements FileTransferListener {
     /**
      * Represents the state of the upload operation
      */
-    private enum TransferState {
+    enum TransferState {
         SUCCESS,
         FAILED;
 

@@ -43,6 +43,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
@@ -359,6 +360,11 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             @Override
             public TranslogTransferMetadata getTranslogTransferMetadata() {
                 return new TranslogTransferMetadata(primaryTerm, generation, minTranslogGeneration, randomInt(5));
+            }
+
+            @Override
+            public Set<TransferFileSnapshot> getTranslogCheckpointFileSnapshots() {
+                return new HashSet<>();
             }
 
             @Override

@@ -21,6 +21,7 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Interface for the translog transfer service responsible for interacting with a remote store
@@ -146,6 +147,8 @@ public interface TransferService {
         int limit,
         ActionListener<List<BlobMetadata>> listener
     );
+
+    ConcurrentHashMap<String, FileTransferTracker.TransferState> getFileTransferTrackerCache();
 
     boolean isObjectMetadataUploadSupported();
 

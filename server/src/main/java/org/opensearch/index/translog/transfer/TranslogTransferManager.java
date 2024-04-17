@@ -43,6 +43,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -106,8 +107,8 @@ public class TranslogTransferManager {
 
     public boolean transferSnapshot(TransferSnapshot transferSnapshot, TranslogTransferListener translogTransferListener)
         throws IOException {
-        List<Exception> exceptionList = new ArrayList<>(transferSnapshot.getTranslogTransferMetadata().getCount());
-        Set<TransferFileSnapshot> toUpload = new HashSet<>(transferSnapshot.getTranslogTransferMetadata().getCount());
+        List<Exception> exceptionList = new ArrayList<>(transferSnapshot.getTranslogTransferMetadata().getCount() / 2);
+        Set<TransferFileSnapshot> toUploadCombined = new HashSet<>(transferSnapshot.getTranslogTransferMetadata().getCount() / 2);
         long metadataBytesToUpload;
         long metadataUploadStartTime;
         long uploadStartTime;
@@ -115,24 +116,28 @@ public class TranslogTransferManager {
         long prevUploadTimeInMillis = remoteTranslogTransferTracker.getTotalUploadTimeInMillis();
 
         try {
-            boolean isObjectMetadataUploadSupported = transferService.isObjectMetadataUploadSupported();
-            toUpload.addAll(fileTransferTracker.exclusionFilter(transferSnapshot.getTranslogFileSnapshots()));
 
-            // if the transferService support uploading object metadata, we don't need to transfer checkpoint file snapshots separately.
-            if (!isObjectMetadataUploadSupported) {
-                toUpload.addAll(fileTransferTracker.exclusionFilter((transferSnapshot.getCheckpointFileSnapshots())));
-            }
+            toUploadCombined.addAll(fileTransferTracker.exclusionFilter(transferSnapshot.getTranslogCheckpointFileSnapshots()));
 
-            if (toUpload.isEmpty()) {
+            if (toUploadCombined.isEmpty()) {
                 logger.trace("Nothing to upload for transfer");
                 return true;
             }
 
-            fileTransferTracker.recordBytesForFiles(toUpload);
+            fileTransferTracker.recordBytesForFiles(toUploadCombined);
+
             captureStatsBeforeUpload();
-            final CountDownLatch latch = new CountDownLatch(toUpload.size());
+
+            ConcurrentHashMap<String, FileTransferTracker.TransferState> transferServiceFileTrackerCache = transferService
+                .getFileTransferTrackerCache();
+
+            final CountDownLatch latch = new CountDownLatch(toUploadCombined.size());
             LatchedActionListener<TransferFileSnapshot> latchedActionListener = new LatchedActionListener<>(
-                ActionListener.wrap(fileTransferTracker::onSuccess, ex -> {
+                ActionListener.wrap(fileSnapshot -> {
+                    fileTransferTracker.onSuccess(fileSnapshot);
+                    transferServiceFileTrackerCache.remove(fileSnapshot.getName());
+                    transferServiceFileTrackerCache.remove(fileSnapshot.getMetadataFileName());
+                }, ex -> {
                     assert ex instanceof FileTransferException;
                     logger.error(
                         () -> new ParameterizedMessage(
@@ -149,7 +154,7 @@ public class TranslogTransferManager {
                 latch
             );
             Map<Long, BlobPath> blobPathMap = new HashMap<>();
-            toUpload.forEach(
+            toUploadCombined.forEach(
                 fileSnapshot -> blobPathMap.put(
                     fileSnapshot.getPrimaryTerm(),
                     remoteDataTransferPath.add(String.valueOf(fileSnapshot.getPrimaryTerm()))
@@ -160,7 +165,7 @@ public class TranslogTransferManager {
             // TODO: Ideally each file's upload start time should be when it is actually picked for upload
             // https://github.com/opensearch-project/OpenSearch/issues/9729
             fileTransferTracker.recordFileTransferStartTime(uploadStartTime);
-            transferService.uploadBlobs(toUpload, blobPathMap, latchedActionListener, WritePriority.HIGH);
+            transferService.uploadBlobs(toUploadCombined, blobPathMap, latchedActionListener, WritePriority.HIGH);
 
             try {
                 if (latch.await(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
