@@ -40,7 +40,6 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardSt
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.SnapshotsInProgress;
@@ -101,13 +100,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.version(), equalTo(Version.CURRENT));
 
-        final List<SnapshotStatus> snapshotStatus = clusterAdmin().snapshotsStatus(
-            new SnapshotsStatusRequest("test-repo", new String[] { "test-snap" })
-        ).actionGet().getSnapshots();
-        assertThat(snapshotStatus.size(), equalTo(1));
-        final SnapshotStatus snStatus = snapshotStatus.get(0);
-        assertEquals(snStatus.getStats().getStartTime(), snapshotInfo.startTime());
-        assertEquals(snStatus.getStats().getTime(), snapshotInfo.endTime() - snapshotInfo.startTime());
+        final SnapshotStatus snapshotStatus = getSnapshotStatus("test-repo", "test-snap");
+        assertEquals(snapshotStatus.getStats().getStartTime(), snapshotInfo.startTime());
+        assertEquals(snapshotStatus.getStats().getTime(), snapshotInfo.endTime() - snapshotInfo.startTime());
     }
 
     public void testStatusAPICallForShallowCopySnapshot() {
@@ -355,6 +350,22 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
         assertEquals(SnapshotsInProgress.State.FAILED, snapshotsStatusResponse.getSnapshots().get(0).getState());
+    }
+
+    public void testSnapshotStatusOnPartialSnapshot() throws Exception {
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
+        final String indexName = "test-idx";
+        createRepository(repoName, "fs");
+        // create an index with a single shard on the data node, that will be stopped
+        createIndex(indexName, singleShardOneNode(dataNode));
+        index(indexName, "_doc", "some_doc_id", "foo", "bar");
+        logger.info("--> stopping data node before creating snapshot");
+        stopNode(dataNode);
+        startFullSnapshot(repoName, snapshotName, true).get();
+        final SnapshotStatus snapshotStatus = getSnapshotStatus(repoName, snapshotName);
+        assertEquals(SnapshotsInProgress.State.PARTIAL, snapshotStatus.getState());
     }
 
     public void testStatusAPICallInProgressShallowSnapshot() throws Exception {
