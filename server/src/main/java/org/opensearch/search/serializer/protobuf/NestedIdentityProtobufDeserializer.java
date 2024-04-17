@@ -6,9 +6,10 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.serializer;
+package org.opensearch.search.serializer.protobuf;
 
 import org.opensearch.search.SearchHit.NestedIdentity;
+import org.opensearch.search.serializer.NestedIdentityDeserializer;
 import org.opensearch.server.proto.FetchSearchResultProto;
 
 import java.io.ByteArrayInputStream;
@@ -16,9 +17,9 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * Serializer for {@link NestedIdentity} to/from protobuf.
+ * Deserializer for {@link NestedIdentity} to/from protobuf.
  */
-public class NestedIdentityProtobufSerializer implements NestedIdentitySerializer<InputStream> {
+public class NestedIdentityProtobufDeserializer implements NestedIdentityDeserializer<InputStream> {
 
     @Override
     public NestedIdentity createNestedIdentity(InputStream inputStream) throws IOException {

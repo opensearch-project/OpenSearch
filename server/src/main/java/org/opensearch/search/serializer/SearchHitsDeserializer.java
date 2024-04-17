@@ -8,15 +8,15 @@
 
 package org.opensearch.search.serializer;
 
-import org.opensearch.search.SearchSortValues;
+import org.opensearch.search.SearchHits;
 
 import java.io.IOException;
 
 /**
- * Serializer for {@link SearchSortValues} which can be implemented for different types of serialization.
+ * Deserializer for {@link SearchHits} which can be implemented for different types of serde mechanisms.
  */
-public interface SearchSortValuesSerializer<T> {
+public interface SearchHitsDeserializer<T> {
 
-    SearchSortValues createSearchSortValues(T inputStream) throws IOException;
+    SearchHits createSearchHits(T inputStream) throws IOException;
 
 }

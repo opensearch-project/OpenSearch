@@ -6,11 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.document.serializer;
+package org.opensearch.common.document.serializer.protobuf;
 
 import com.google.protobuf.ByteString;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.document.DocumentField;
+import org.opensearch.common.document.serializer.DocumentFieldDeserializer;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.server.proto.FetchSearchResultProto;
 import org.opensearch.server.proto.FetchSearchResultProto.DocumentFieldValue;
@@ -29,9 +30,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Serializer for {@link DocumentField} to/from protobuf.
+ * Deserializer for {@link DocumentField} to/from protobuf.
  */
-public class DocumentFieldProtobufSerializer implements DocumentFieldSerializer<InputStream> {
+public class DocumentFieldProtobufDeserializer implements DocumentFieldDeserializer<InputStream> {
 
     private FetchSearchResultProto.SearchHit.DocumentField documentField;
 
@@ -135,7 +136,7 @@ public class DocumentFieldProtobufSerializer implements DocumentFieldSerializer<
         builder.setName(documentField.getName());
         for (Object value : documentField.getValues()) {
             FetchSearchResultProto.DocumentFieldValue.Builder valueBuilder = FetchSearchResultProto.DocumentFieldValue.newBuilder();
-            builder.addValues(DocumentFieldProtobufSerializer.convertDocumentFieldValueToProto(value, valueBuilder));
+            builder.addValues(convertDocumentFieldValueToProto(value, valueBuilder));
         }
         return builder.build();
     }

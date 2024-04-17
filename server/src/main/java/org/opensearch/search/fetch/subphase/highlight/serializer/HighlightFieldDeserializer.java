@@ -13,9 +13,9 @@ import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 import java.io.IOException;
 
 /**
- * Serializer for {@link HighlightField} which can be implemented for different types of serialization.
+ * Deserializer for {@link HighlightField} which can be implemented for different types of serde mechanisms.
  */
-public interface HighlightFieldSerializer<T> {
+public interface HighlightFieldDeserializer<T> {
 
     HighlightField createHighLightField(T inputStream) throws IOException;
 }

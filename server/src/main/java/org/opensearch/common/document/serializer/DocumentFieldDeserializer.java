@@ -13,9 +13,9 @@ import org.opensearch.common.document.DocumentField;
 import java.io.IOException;
 
 /**
- * Serializer for {@link DocumentField} which can be implemented for different types of serialization.
+ * Deserializer for {@link DocumentField} which can be implemented for different types of serde mechanisms.
  */
-public interface DocumentFieldSerializer<T> {
+public interface DocumentFieldDeserializer<T> {
 
     DocumentField createDocumentField(T inputStream) throws IOException;
 

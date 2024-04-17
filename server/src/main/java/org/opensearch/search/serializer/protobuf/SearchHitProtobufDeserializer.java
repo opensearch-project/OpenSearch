@@ -6,14 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.serializer;
+package org.opensearch.search.serializer.protobuf;
 
 import com.google.protobuf.ByteString;
 import org.apache.lucene.search.Explanation;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.document.DocumentField;
-import org.opensearch.common.document.serializer.DocumentFieldProtobufSerializer;
+import org.opensearch.common.document.serializer.protobuf.DocumentFieldProtobufDeserializer;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.SearchHit;
@@ -22,7 +22,8 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.SearchSortValues;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
-import org.opensearch.search.fetch.subphase.highlight.serializer.HighlightFieldProtobufSerializer;
+import org.opensearch.search.fetch.subphase.highlight.serializer.protobuf.HighlightFieldProtobufDeserializer;
+import org.opensearch.search.serializer.SearchHitDeserializer;
 import org.opensearch.server.proto.FetchSearchResultProto;
 
 import java.io.ByteArrayInputStream;
@@ -35,9 +36,9 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Serializer for {@link SearchHit} to/from protobuf.
+ * Deserializer for {@link SearchHit} to/from protobuf.
  */
-public class SearchHitProtobufSerializer implements SearchHitSerializer<InputStream> {
+public class SearchHitProtobufDeserializer implements SearchHitDeserializer<InputStream> {
 
     private FetchSearchResultProto.SearchHit searchHitProto;
 
@@ -49,7 +50,7 @@ public class SearchHitProtobufSerializer implements SearchHitSerializer<InputStr
         String id = this.searchHitProto.getId();
         NestedIdentity nestedIdentity;
         if (!this.searchHitProto.hasNestedIdentity() && this.searchHitProto.getNestedIdentity().toByteArray().length > 0) {
-            NestedIdentityProtobufSerializer protobufSerializer = new NestedIdentityProtobufSerializer();
+            NestedIdentityProtobufDeserializer protobufSerializer = new NestedIdentityProtobufDeserializer();
             nestedIdentity = protobufSerializer.createNestedIdentity(
                 new ByteArrayInputStream(this.searchHitProto.getNestedIdentity().toByteArray())
             );
@@ -64,7 +65,7 @@ public class SearchHitProtobufSerializer implements SearchHitSerializer<InputStr
             source = null;
         }
         Map<String, DocumentField> documentFields = new HashMap<>();
-        DocumentFieldProtobufSerializer protobufSerializer = new DocumentFieldProtobufSerializer();
+        DocumentFieldProtobufDeserializer protobufSerializer = new DocumentFieldProtobufDeserializer();
         this.searchHitProto.getDocumentFieldsMap().forEach((k, v) -> {
             try {
                 documentFields.put(k, protobufSerializer.createDocumentField(new ByteArrayInputStream(v.toByteArray())));
@@ -81,7 +82,7 @@ public class SearchHitProtobufSerializer implements SearchHitSerializer<InputStr
             }
         });
         Map<String, HighlightField> highlightFields = new HashMap<>();
-        HighlightFieldProtobufSerializer highlightFieldProtobufSerializer = new HighlightFieldProtobufSerializer();
+        HighlightFieldProtobufDeserializer highlightFieldProtobufSerializer = new HighlightFieldProtobufDeserializer();
         this.searchHitProto.getHighlightFieldsMap().forEach((k, v) -> {
             try {
                 highlightFields.put(k, highlightFieldProtobufSerializer.createHighLightField(new ByteArrayInputStream(v.toByteArray())));
@@ -89,7 +90,7 @@ public class SearchHitProtobufSerializer implements SearchHitSerializer<InputStr
                 throw new OpenSearchParseException("failed to parse highlight field", e);
             }
         });
-        SearchSortValuesProtobufSerializer sortValueProtobufSerializer = new SearchSortValuesProtobufSerializer();
+        SearchSortValuesProtobufDeserializer sortValueProtobufSerializer = new SearchSortValuesProtobufDeserializer();
         SearchSortValues sortValues = sortValueProtobufSerializer.createSearchSortValues(
             new ByteArrayInputStream(this.searchHitProto.getSortValues().toByteArray())
         );
@@ -129,7 +130,7 @@ public class SearchHitProtobufSerializer implements SearchHitSerializer<InputStr
             innerHits = new HashMap<>();
             this.searchHitProto.getInnerHitsMap().forEach((k, v) -> {
                 try {
-                    SearchHitsProtobufSerializer protobufHitsFactory = new SearchHitsProtobufSerializer();
+                    SearchHitsProtobufDeserializer protobufHitsFactory = new SearchHitsProtobufDeserializer();
                     innerHits.put(k, protobufHitsFactory.createSearchHits(new ByteArrayInputStream(v.toByteArray())));
                 } catch (IOException e) {
                     throw new OpenSearchParseException("failed to parse inner hits", e);
@@ -170,7 +171,7 @@ public class SearchHitProtobufSerializer implements SearchHitSerializer<InputStr
         for (Map.Entry<String, DocumentField> entry : hit.getFields().entrySet()) {
             searchHitBuilder.putDocumentFields(
                 entry.getKey(),
-                DocumentFieldProtobufSerializer.convertDocumentFieldToProto(entry.getValue())
+                DocumentFieldProtobufDeserializer.convertDocumentFieldToProto(entry.getValue())
             );
         }
         return searchHitBuilder.build();

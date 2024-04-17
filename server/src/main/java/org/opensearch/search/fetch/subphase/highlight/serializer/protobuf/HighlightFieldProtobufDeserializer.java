@@ -6,10 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.fetch.subphase.highlight.serializer;
+package org.opensearch.search.fetch.subphase.highlight.serializer.protobuf;
 
 import org.opensearch.core.common.text.Text;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
+import org.opensearch.search.fetch.subphase.highlight.serializer.HighlightFieldDeserializer;
 import org.opensearch.server.proto.FetchSearchResultProto;
 
 import java.io.IOException;
@@ -18,9 +19,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Serializer for {@link HighlightField} to/from protobuf.
+ * Deserializer for {@link HighlightField} to/from protobuf.
  */
-public class HighlightFieldProtobufSerializer implements HighlightFieldSerializer<InputStream> {
+public class HighlightFieldProtobufDeserializer implements HighlightFieldDeserializer<InputStream> {
 
     @Override
     public HighlightField createHighLightField(InputStream inputStream) throws IOException {

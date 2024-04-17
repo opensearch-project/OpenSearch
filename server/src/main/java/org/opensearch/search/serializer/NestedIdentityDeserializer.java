@@ -13,9 +13,9 @@ import org.opensearch.search.SearchHit.NestedIdentity;
 import java.io.IOException;
 
 /**
- * Serializer for {@link NestedIdentity} which can be implemented for different types of serialization.
+ * Deserializer for {@link NestedIdentity} which can be implemented for different types of serde mechanisms.
  */
-public interface NestedIdentitySerializer<T> {
+public interface NestedIdentityDeserializer<T> {
 
-    public NestedIdentity createNestedIdentity(T inputStream) throws IOException, Exception;
+    public NestedIdentity createNestedIdentity(T inputStream) throws IOException;
 }

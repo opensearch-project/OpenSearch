@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.serializer;
+package org.opensearch.search.serializer.protobuf;
 
 import com.google.protobuf.ByteString;
 import org.apache.lucene.search.SortField;
@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
+import org.opensearch.search.serializer.SearchHitsDeserializer;
 import org.opensearch.server.proto.FetchSearchResultProto;
 import org.opensearch.server.proto.QuerySearchResultProto;
 
@@ -27,9 +28,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Serializer for {@link SearchHits} to/from protobuf.
+ * Deserializer for {@link SearchHits} to/from protobuf.
  */
-public class SearchHitsProtobufSerializer implements SearchHitsSerializer<InputStream> {
+public class SearchHitsProtobufDeserializer implements SearchHitsDeserializer<InputStream> {
 
     private FetchSearchResultProto.SearchHits searchHitsProto;
 
@@ -37,7 +38,7 @@ public class SearchHitsProtobufSerializer implements SearchHitsSerializer<InputS
     public SearchHits createSearchHits(InputStream inputStream) throws IOException {
         this.searchHitsProto = FetchSearchResultProto.SearchHits.parseFrom(inputStream);
         SearchHit[] hits = new SearchHit[this.searchHitsProto.getHitsCount()];
-        SearchHitProtobufSerializer protobufSerializer = new SearchHitProtobufSerializer();
+        SearchHitProtobufDeserializer protobufSerializer = new SearchHitProtobufDeserializer();
         for (int i = 0; i < this.searchHitsProto.getHitsCount(); i++) {
             hits[i] = protobufSerializer.createSearchHit(new ByteArrayInputStream(this.searchHitsProto.getHits(i).toByteArray()));
         }
@@ -81,7 +82,7 @@ public class SearchHitsProtobufSerializer implements SearchHitsSerializer<InputS
     public static FetchSearchResultProto.SearchHits convertHitsToProto(SearchHits hits) {
         List<FetchSearchResultProto.SearchHit> searchHitList = new ArrayList<>();
         for (SearchHit hit : hits) {
-            searchHitList.add(SearchHitProtobufSerializer.convertHitToProto(hit));
+            searchHitList.add(SearchHitProtobufDeserializer.convertHitToProto(hit));
         }
         QuerySearchResultProto.TotalHits.Builder totalHitsBuilder = QuerySearchResultProto.TotalHits.newBuilder();
         if (hits.getTotalHits() != null) {
