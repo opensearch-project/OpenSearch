@@ -697,9 +697,9 @@ public class RestoreService implements ClusterStateApplier {
                         // We will use whatever replication strategy provided by user or from snapshot metadata unless
                         // cluster is remote store enabled or user have restricted a specific replication type in the
                         // cluster. If cluster is undergoing remote store migration, replication strategy is strictly SEGMENT type
-                        if (RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(clusterService.getSettings()) == true
-                            || clusterSettings.get(IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING) == true
-                            || RemoteStoreNodeService.isMigratingToRemoteStore(clusterSettings) == true) {
+                        if (RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(clusterService.getSettings())
+                            || clusterSettings.get(IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING)
+                            || RemoteStoreNodeService.isMigratingToRemoteStore(clusterSettings)) {
                             MetadataCreateIndexService.updateReplicationStrategy(
                                 settingsBuilder,
                                 request.indexSettings(),
