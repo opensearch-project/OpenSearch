@@ -118,4 +118,10 @@ public class PeerRecoveryStats implements Writeable, ToXContentFragment {
         this.totalRetriedRecoveries += stats.totalRetriedRecoveries;
         this.totalCancelledRecoveries += stats.totalCancelledRecoveries;
     }
+
+    @Override
+    public String toString() {
+        return "Total Started Recoveries: {} " + totalStartedRecoveries + "\n" + "Total Failed Recoveries: {} " + totalFailedRecoveries + "\n" + "Total Completed Recoveries: {} "
+            + totalCompletedRecoveries + "\n" + "Total Retried Recoveries: {} " + totalRetriedRecoveries + "\n" + "Total Cancelled Recoveries: {} " + totalCancelledRecoveries;
+    }
 }
