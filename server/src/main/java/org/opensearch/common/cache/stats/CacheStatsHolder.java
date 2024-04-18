@@ -12,7 +12,6 @@ import java.util.List;
 
 /**
  * An interface extended by DefaultCacheStatsHolder and NoopCacheStatsHolder.
- * Can be removed once the pluggable caches feature is no longer experimental.
  */
 public interface CacheStatsHolder {
     void incrementHits(List<String> dimensionValues);

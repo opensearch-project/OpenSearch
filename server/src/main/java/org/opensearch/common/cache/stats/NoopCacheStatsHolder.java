@@ -14,7 +14,6 @@ import java.util.List;
 
 /**
  * A dummy version of CacheStatsHolder, which cache implementations use when FeatureFlags.PLUGGABLE_CACHES is false.
- * Will be removed once pluggable caches is no longer an experimental feature.
  * Returns all-zero stats when calling getImmutableCacheStatsHolder(). Does keep track of entries for use in ICache.count().
  */
 public class NoopCacheStatsHolder implements CacheStatsHolder {
