@@ -195,7 +195,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                 translogTransferFailed.incrementAndGet();
             }
         }));
-        assertEquals(2, fileTransferSucceeded.get()); // updating it as we are counting single (tlog + ckp) file upload as one.
+        assertEquals(4, fileTransferSucceeded.get());
         assertEquals(0, fileTransferFailed.get());
         assertEquals(1, translogTransferSucceeded.get());
         assertEquals(0, translogTransferFailed.get());
@@ -359,34 +359,6 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             @Override
             public TranslogTransferMetadata getTranslogTransferMetadata() {
                 return new TranslogTransferMetadata(primaryTerm, generation, minTranslogGeneration, randomInt(5));
-            }
-
-            @Override
-            public Set<TransferFileSnapshot> getTranslogCheckpointFileSnapshots() {
-                try {
-                    return Set.of(
-                        new FileSnapshot.TranslogCheckpointFileSnapshot(
-                            createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.TRANSLOG_FILE_SUFFIX),
-                            primaryTerm,
-                            null,
-                            generation,
-                            minTranslogGeneration,
-                            createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.CHECKPOINT_SUFFIX),
-                            null
-                        ),
-                        new FileSnapshot.TranslogCheckpointFileSnapshot(
-                            createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.TRANSLOG_FILE_SUFFIX),
-                            primaryTerm,
-                            null,
-                            generation - 1,
-                            minTranslogGeneration,
-                            createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.CHECKPOINT_SUFFIX),
-                            null
-                        )
-                    );
-                } catch (IOException e) {
-                    throw new AssertionError("Failed to create temp file", e);
-                }
             }
 
             @Override

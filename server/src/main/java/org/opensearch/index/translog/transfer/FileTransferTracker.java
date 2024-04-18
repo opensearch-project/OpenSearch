@@ -77,9 +77,6 @@ public class FileTransferTracker implements FileTransferListener {
         }
 
         add(fileSnapshot.getName(), TransferState.SUCCESS);
-        if (fileSnapshot.getMetadataFileName() != null) {
-            add(fileSnapshot.getMetadataFileName(), TransferState.SUCCESS);
-        }
     }
 
     void add(String file, boolean success) {
@@ -102,9 +99,6 @@ public class FileTransferTracker implements FileTransferListener {
         remoteTranslogTransferTracker.addUploadTimeInMillis(durationInMillis);
         remoteTranslogTransferTracker.addUploadBytesFailed(bytesForTlogCkpFileToUpload.get(fileSnapshot.getName()));
         add(fileSnapshot.getName(), TransferState.FAILED);
-        if (fileSnapshot.getMetadataFileName() != null) {
-            add(fileSnapshot.getMetadataFileName(), TransferState.FAILED);
-        }
     }
 
     public void delete(List<String> names) {
@@ -136,7 +130,7 @@ public class FileTransferTracker implements FileTransferListener {
     /**
      * Represents the state of the upload operation
      */
-    enum TransferState {
+    private enum TransferState {
         SUCCESS,
         FAILED;
 

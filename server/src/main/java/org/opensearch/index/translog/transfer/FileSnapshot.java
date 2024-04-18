@@ -24,8 +24,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -112,33 +110,16 @@ public class FileSnapshot implements Closeable {
 
         private final long primaryTerm;
         private Long checksum;
-        @Nullable
-        private Path metadataFilePath;
-        @Nullable
-        private Long metadataFileChecksum;
-        @Nullable
-        private String metadataFileName;
-
-        public TransferFileSnapshot(Path path, long primaryTerm, Long checksum, Path metadataFilePath, Long metadataFileChecksum)
-            throws IOException {
-            super(path);
-            this.primaryTerm = primaryTerm;
-            this.checksum = checksum;
-            Objects.requireNonNull(metadataFilePath);
-            this.metadataFilePath = metadataFilePath;
-            this.metadataFileChecksum = metadataFileChecksum;
-            this.metadataFileName = metadataFilePath.getFileName().toString();
-        }
-
-        public TransferFileSnapshot(String name, byte[] content, long primaryTerm) throws IOException {
-            super(name, content);
-            this.primaryTerm = primaryTerm;
-        }
 
         public TransferFileSnapshot(Path path, long primaryTerm, Long checksum) throws IOException {
             super(path);
             this.primaryTerm = primaryTerm;
             this.checksum = checksum;
+        }
+
+        public TransferFileSnapshot(String name, byte[] content, long primaryTerm) throws IOException {
+            super(name, content);
+            this.primaryTerm = primaryTerm;
         }
 
         public Long getChecksum() {
@@ -147,56 +128,6 @@ public class FileSnapshot implements Closeable {
 
         public long getPrimaryTerm() {
             return primaryTerm;
-        }
-
-        public Path getMetadataFilePath() {
-            return metadataFilePath;
-        }
-
-        public Long getMetadataFileChecksum() {
-            return metadataFileChecksum;
-        }
-
-        public long getMinTranslogGeneration() {
-            return getMinTranslogGeneration();
-        }
-
-        public String getMetadataFileName() {
-            return metadataFileName;
-        }
-
-        public Map<String, String> prepareFileMetadata() throws IOException {
-            if (!(this instanceof TranslogCheckpointFileSnapshot)) {
-                return null;
-            }
-
-            String ckpAsString = provideCheckpointDataAsString();
-            Long checkpointChecksum = metadataFileChecksum;
-
-            assert checkpointChecksum != null : "checksum can not be null";
-
-            Map<String, String> metadata = new HashMap<>();
-            metadata.put(TranslogFileSnapshot.CHECKPOINT_FILE_DATA_KEY, ckpAsString);
-            metadata.put(TranslogFileSnapshot.CHECKPOINT_FILE_CHECKSUM_KEY, checkpointChecksum.toString());
-            return metadata;
-        }
-
-        public String provideCheckpointDataAsString() throws IOException {
-            return buildCheckpointDataAsBase64String(metadataFilePath);
-        }
-
-        static String buildCheckpointDataAsBase64String(Path checkpointFilePath) throws IOException {
-            long fileSize = Files.size(checkpointFilePath);
-            assert fileSize < 1500 : "checkpoint file size is more than 1.5KB size, can't be stored as metadata";
-            byte[] fileBytes = Files.readAllBytes(checkpointFilePath);
-            return Base64.getEncoder().encodeToString(fileBytes);
-        }
-
-        public static byte[] convertBase64StringToCheckpointFileDataBytes(String base64CheckpointString) {
-            if (base64CheckpointString == null) {
-                return null;
-            }
-            return Base64.getDecoder().decode(base64CheckpointString);
         }
 
         @Override
@@ -224,6 +155,8 @@ public class FileSnapshot implements Closeable {
     public static final class TranslogFileSnapshot extends TransferFileSnapshot {
 
         private final long generation;
+        private Path checkpointFilePath;
+        private Long checkpointChecksum;
         public final static String CHECKPOINT_FILE_DATA_KEY = "ckp-data";
         public final static String CHECKPOINT_FILE_CHECKSUM_KEY = "ckp-checksum";
 
@@ -232,8 +165,38 @@ public class FileSnapshot implements Closeable {
             this.generation = generation;
         }
 
+        public void setCheckpointFilePath(Path checkpointFilePath) {
+            this.checkpointFilePath = checkpointFilePath;
+        }
+
+        public void setCheckpointChecksum(Long checkpointChecksum) {
+            this.checkpointChecksum = checkpointChecksum;
+        }
+
+        public String provideCheckpointDataAsString() throws IOException {
+            return buildCheckpointDataAsBase64String(checkpointFilePath);
+        }
+
+        static String buildCheckpointDataAsBase64String(Path checkpointFilePath) throws IOException {
+            long fileSize = Files.size(checkpointFilePath);
+            assert fileSize < 1500 : "checkpoint file size is more than 1.5KB size, can't be stored as metadata";
+            byte[] fileBytes = Files.readAllBytes(checkpointFilePath);
+            return Base64.getEncoder().encodeToString(fileBytes);
+        }
+
+        public static byte[] convertBase64StringToCheckpointFileDataBytes(String base64CheckpointString) {
+            if (base64CheckpointString == null) {
+                return null;
+            }
+            return Base64.getDecoder().decode(base64CheckpointString);
+        }
+
         public long getGeneration() {
             return generation;
+        }
+
+        public Long getCheckpointChecksum() {
+            return checkpointChecksum;
         }
 
         @Override
@@ -295,35 +258,5 @@ public class FileSnapshot implements Closeable {
             }
             return false;
         }
-    }
-
-    /**
-     * Single snapshot of combined translog.tlog and translog.ckp files that gets transferred
-     *
-     * @opensearch.internal
-     */
-    public static final class TranslogCheckpointFileSnapshot extends TransferFileSnapshot {
-
-        private final long generation;
-        private final long minTranslogGeneration;
-
-        public TranslogCheckpointFileSnapshot(
-            Path tlogFilepath,
-            long primaryTerm,
-            Long tlogFilechecksum,
-            long generation,
-            long minTranslogGeneration,
-            Path ckpFilePath,
-            Long ckpFileChecksum
-        ) throws IOException {
-            super(tlogFilepath, primaryTerm, tlogFilechecksum, ckpFilePath, ckpFileChecksum);
-            this.minTranslogGeneration = minTranslogGeneration;
-            this.generation = generation;
-        }
-
-        public long getGeneration() {
-            return generation;
-        }
-
     }
 }

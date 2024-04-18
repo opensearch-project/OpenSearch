@@ -25,7 +25,6 @@ import java.util.stream.LongStream;
 
 import static org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
 import static org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
-import static org.opensearch.index.translog.transfer.FileSnapshot.TranslogCheckpointFileSnapshot;
 import static org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
 
 /**
@@ -36,7 +35,6 @@ import static org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSn
 public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Closeable {
 
     private final Set<Tuple<TranslogFileSnapshot, CheckpointFileSnapshot>> translogCheckpointFileInfoTupleSet;
-    private final Set<TranslogCheckpointFileSnapshot> translogCheckpointFileSnapshotSet;
     private final int size;
     private final long generation;
     private final long primaryTerm;
@@ -46,27 +44,19 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
 
     TranslogCheckpointTransferSnapshot(long primaryTerm, long generation, int size, String nodeId) {
         translogCheckpointFileInfoTupleSet = new HashSet<>(size);
-        translogCheckpointFileSnapshotSet = new HashSet<>(size);
         this.size = size;
         this.generation = generation;
         this.primaryTerm = primaryTerm;
         this.nodeId = nodeId;
     }
 
-    private void add(
-        Path tlogPath,
-        long primaryTerm,
-        Long tlogChecksum,
-        long generation,
-        long minTranslogGeneration,
-        Path ckpPath,
-        Long ckpChecksum,
-        long ckpGeneration
-    ) throws IOException {
-        translogCheckpointFileSnapshotSet.add(
-            new TranslogCheckpointFileSnapshot(tlogPath, primaryTerm, tlogChecksum, generation, minTranslogGeneration, ckpPath, ckpChecksum)
-        );
-        assert generation == ckpGeneration;
+    private void add(TranslogFileSnapshot translogFileSnapshot, CheckpointFileSnapshot checkPointFileSnapshot) {
+        // set checkpoint file path and checkpoint file checksum for a translog file
+        translogFileSnapshot.setCheckpointFilePath(checkPointFileSnapshot.getPath());
+        translogFileSnapshot.setCheckpointChecksum(checkPointFileSnapshot.getChecksum());
+
+        translogCheckpointFileInfoTupleSet.add(Tuple.tuple(translogFileSnapshot, checkPointFileSnapshot));
+        assert translogFileSnapshot.getGeneration() == checkPointFileSnapshot.getGeneration();
     }
 
     private void setMinTranslogGeneration(long minTranslogGeneration) {
@@ -79,17 +69,12 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
     }
 
     @Override
-    public Set<TransferFileSnapshot> getTranslogCheckpointFileSnapshots() {
-        return translogCheckpointFileSnapshotSet.stream().collect(Collectors.toSet());
-    }
-
-    @Override
     public TranslogTransferMetadata getTranslogTransferMetadata() {
         return new TranslogTransferMetadata(
             primaryTerm,
             generation,
             minTranslogGeneration,
-            translogCheckpointFileSnapshotSet.size(),
+            translogCheckpointFileInfoTupleSet.size() * 2,
             nodeId
         );
     }
@@ -177,14 +162,14 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
                 Path checkpointPath = location.resolve(checkpointGenFileNameMapper.apply(readerGeneration));
                 generations.add(readerGeneration);
                 translogTransferSnapshot.add(
-                    translogPath,
-                    readerPrimaryTerm,
-                    reader.getTranslogChecksum(),
-                    readerGeneration,
-                    minTranslogGeneration,
-                    checkpointPath,
-                    reader.getCheckpointChecksum(),
-                    checkpointGeneration
+                    new TranslogFileSnapshot(readerPrimaryTerm, readerGeneration, translogPath, reader.getTranslogChecksum()),
+                    new CheckpointFileSnapshot(
+                        readerPrimaryTerm,
+                        checkpointGeneration,
+                        minTranslogGeneration,
+                        checkpointPath,
+                        reader.getCheckpointChecksum()
+                    )
                 );
                 if (readerGeneration > highestGeneration) {
                     highestGeneration = readerGeneration;

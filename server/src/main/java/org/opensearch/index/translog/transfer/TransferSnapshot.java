@@ -10,7 +10,6 @@ package org.opensearch.index.translog.transfer;
 
 import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
-import org.opensearch.index.translog.transfer.FileSnapshot.TranslogCheckpointFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
 
 import java.util.Set;
@@ -40,10 +39,4 @@ public interface TransferSnapshot {
      * @return the translog transfer metadata
      */
     TranslogTransferMetadata getTranslogTransferMetadata();
-
-    /**
-     * The single snapshot of the translog and checkpoint generational files
-     * @return the set of {@link TranslogCheckpointFileSnapshot}
-     */
-    Set<TransferFileSnapshot> getTranslogCheckpointFileSnapshots();
 }

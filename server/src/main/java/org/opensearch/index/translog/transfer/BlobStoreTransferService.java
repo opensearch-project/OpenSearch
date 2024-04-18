@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionRunnable;
-import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -33,15 +32,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.common.blobstore.BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC;
 
@@ -54,35 +49,12 @@ public class BlobStoreTransferService implements TransferService {
 
     private final BlobStore blobStore;
     private final ThreadPool threadPool;
-    private ConcurrentHashMap<String, FileTransferTracker.TransferState> fileTransferTrackerCache;
 
     private static final Logger logger = LogManager.getLogger(BlobStoreTransferService.class);
 
     public BlobStoreTransferService(BlobStore blobStore, ThreadPool threadPool) {
         this.blobStore = blobStore;
         this.threadPool = threadPool;
-        fileTransferTrackerCache = new ConcurrentHashMap<>();
-    }
-
-    @Override
-    public ConcurrentHashMap<String, FileTransferTracker.TransferState> getFileTransferTrackerCache() {
-        return fileTransferTrackerCache;
-    }
-
-    void add(String file, boolean success) {
-        FileTransferTracker.TransferState targetState = success
-            ? FileTransferTracker.TransferState.SUCCESS
-            : FileTransferTracker.TransferState.FAILED;
-        add(file, targetState);
-    }
-
-    private void add(String file, FileTransferTracker.TransferState targetState) {
-        fileTransferTrackerCache.compute(file, (k, v) -> {
-            if (v == null || v.validateNextState(targetState)) {
-                return targetState;
-            }
-            throw new IllegalStateException("Unexpected transfer state " + v + "while setting target to" + targetState);
-        });
     }
 
     @Override
@@ -127,117 +99,33 @@ public class BlobStoreTransferService implements TransferService {
         ActionListener<TransferFileSnapshot> listener,
         WritePriority writePriority
     ) {
-        boolean isObjectMetadataUploadSupported = isObjectMetadataUploadSupported();
-
         fileSnapshots.forEach(fileSnapshot -> {
             BlobPath blobPath = blobPaths.get(fileSnapshot.getPrimaryTerm());
-
-            if (!isObjectMetadataUploadSupported) {
-
-                try {
-                    List<Exception> exceptionList = new ArrayList<>(2);
-                    Set<TransferFileSnapshot> filesToUpload = new HashSet<>(2);
-
-                    // translog.tlog file snapshot
-                    if (fileTransferTrackerCache.get(fileSnapshot.getName()) != null
-                        && !fileTransferTrackerCache.get(fileSnapshot.getName()).equals(FileTransferTracker.TransferState.SUCCESS)) {
-                        filesToUpload.add(fileSnapshot);
-                    }
-
-                    // translog.ckp file snapshot
-                    if (fileTransferTrackerCache.get(fileSnapshot.getMetadataFileName()) != null
-                        && !fileTransferTrackerCache.get(fileSnapshot.getMetadataFileName())
-                            .equals(FileTransferTracker.TransferState.FAILED)) {
-                        filesToUpload.add(
-                            new TransferFileSnapshot(
-                                fileSnapshot.getMetadataFilePath(),
-                                fileSnapshot.getPrimaryTerm(),
-                                fileSnapshot.getMetadataFileChecksum()
-                            )
-                        );
-                    }
-
-                    if (filesToUpload.isEmpty()) {
-                        listener.onResponse(fileSnapshot);
-                        return;
-                    }
-
-                    final CountDownLatch latch = new CountDownLatch(filesToUpload.size());
-                    LatchedActionListener<TransferFileSnapshot> latchedActionListener = new LatchedActionListener<>(
-                        ActionListener.wrap(fileSnapshotResp -> add(fileSnapshotResp.getName(), true), ex -> {
-                            assert ex instanceof FileTransferException;
-                            logger.error(
-                                () -> new ParameterizedMessage(
-                                    "Exception during transfer for file {}",
-                                    ((FileTransferException) ex).getFileSnapshot().getName()
-                                ),
-                                ex
-                            );
-                            FileTransferException e = (FileTransferException) ex;
-                            TransferFileSnapshot file = e.getFileSnapshot();
-                            add(file.getName(), false);
-                            exceptionList.add(ex);
-                        }),
-                        latch
-                    );
-
-                    filesToUpload.forEach(separateFileSnapshot -> {
-                        if (!(blobStore.blobContainer(blobPath) instanceof AsyncMultiStreamBlobContainer)) {
-                            uploadBlob(
-                                ThreadPool.Names.TRANSLOG_TRANSFER,
-                                separateFileSnapshot,
-                                blobPath,
-                                latchedActionListener,
-                                writePriority
-                            );
-                        } else {
-                            logger.info("uploading file = {}", fileSnapshot.getName());
-                            uploadBlob(separateFileSnapshot, latchedActionListener, blobPath, writePriority);
-                        }
-                    });
-
-                    try {
-                        if (latch.await(300, TimeUnit.MILLISECONDS) == false) {
-                            Exception ex = new TranslogUploadFailedException(
-                                "Timed out waiting for transfer of snapshot " + fileSnapshot + " to complete"
-                            );
-                            throw new FileTransferException(fileSnapshot, ex);
-                        }
-                    } catch (InterruptedException ex) {
-                        Exception exception = new TranslogUploadFailedException("Failed to upload " + fileSnapshot, ex);
-                        Thread.currentThread().interrupt();
-                        throw new FileTransferException(fileSnapshot, exception);
-                    }
-
-                    if (fileTransferTrackerCache.get(fileSnapshot.getName()).equals(FileTransferTracker.TransferState.SUCCESS)
-                        && fileTransferTrackerCache.get(fileSnapshot.getMetadataFileName())
-                            .equals(FileTransferTracker.TransferState.SUCCESS)) {
-                        listener.onResponse(fileSnapshot);
-                    } else {
-                        assert exceptionList.isEmpty() == false;
-                        listener.onFailure(exceptionList.get(0));
-                    }
-
-                } catch (Exception e) {
-                    throw new FileTransferException(fileSnapshot, e);
-                } finally {
-                    try {
-                        fileSnapshot.close();
-                    } catch (IOException e) {
-                        logger.warn("Error while closing TransferFileSnapshot", e);
-                    }
-                }
-
+            if (!(blobStore.blobContainer(blobPath) instanceof AsyncMultiStreamBlobContainer)) {
+                uploadBlob(ThreadPool.Names.TRANSLOG_TRANSFER, fileSnapshot, blobPath, listener, writePriority);
             } else {
-                if (!(blobStore.blobContainer(blobPath) instanceof AsyncMultiStreamBlobContainer)) {
-                    uploadBlob(ThreadPool.Names.TRANSLOG_TRANSFER, fileSnapshot, blobPath, listener, writePriority);
-                } else {
-                    logger.info("uploading file = {}", fileSnapshot.getName());
-                    uploadBlob(fileSnapshot, listener, blobPath, writePriority);
-                }
+                logger.info("uploading file = {}", fileSnapshot.getName());
+                uploadBlob(fileSnapshot, listener, blobPath, writePriority);
             }
         });
 
+    }
+
+    private Map<String, String> prepareFileMetadata(TransferFileSnapshot fileSnapshot) throws IOException {
+        if (!(fileSnapshot instanceof FileSnapshot.TranslogFileSnapshot)) {
+            return null;
+        }
+
+        FileSnapshot.TranslogFileSnapshot tlogFileSnapshot = (FileSnapshot.TranslogFileSnapshot) fileSnapshot;
+        String ckpAsString = tlogFileSnapshot.provideCheckpointDataAsString();
+        Long checkpointChecksum = tlogFileSnapshot.getCheckpointChecksum();
+
+        assert checkpointChecksum != null : "checksum can not be null";
+
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put(FileSnapshot.TranslogFileSnapshot.CHECKPOINT_FILE_DATA_KEY, ckpAsString);
+        metadata.put(FileSnapshot.TranslogFileSnapshot.CHECKPOINT_FILE_CHECKSUM_KEY, checkpointChecksum.toString());
+        return metadata;
     }
 
     private void uploadBlob(
@@ -250,7 +138,7 @@ public class BlobStoreTransferService implements TransferService {
         try {
             Map<String, String> metadata = null;
             if (isObjectMetadataUploadSupported()) {
-                metadata = fileSnapshot.prepareFileMetadata();
+                metadata = prepareFileMetadata(fileSnapshot);
             }
 
             ChannelFactory channelFactory = FileChannel::open;
