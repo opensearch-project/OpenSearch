@@ -863,7 +863,8 @@ public class Node implements Closeable {
                 xContentRegistry,
                 systemIndices,
                 forbidPrivateIndexSettings,
-                awarenessReplicaBalance
+                awarenessReplicaBalance,
+                remoteStoreSettings
             );
             pluginsService.filterPlugins(Plugin.class)
                 .forEach(

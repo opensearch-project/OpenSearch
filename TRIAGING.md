@@ -14,9 +14,9 @@ Each meeting we seek to address all new issues. However, should we run out of ti
 
 ### How do I join the Triage meeting?
 
-Meetings are hosted regularly at 10:00a - 10:55a Central Time every Wednesday and can be joined via [Chime](https://aws.amazon.com/chime/), with this [meeting link](https://chime.aws/1988437365).
+Meetings are hosted regularly at 10:00a - 10:55a Central Time every Wednesday and can be joined via [Zoom](https://zoom.us/download), with this [meeting link](https://us02web.zoom.us/j/86287450465) and passcode `805212`.
 
-After joining the Chime meeting, you can enable your video / voice to join the discussion.  If you do not have a webcam or microphone available, you can still join in via the text chat.
+After joining the Zoom meeting, you can enable your video / voice to join the discussion.  If you do not have a webcam or microphone available, you can still join in via the text chat.
 
 If you have an issue you'd like to bring forth please prepare a link to the issue so it can be presented and viewed by everyone in the meeting.
 
