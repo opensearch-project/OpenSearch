@@ -181,7 +181,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
                 Set<String> cacheMetrics = Strings.tokenizeByCommaToSet(request.param("index_metric", "_all"));
                 CommonStatsFlags cacheFlags = new CommonStatsFlags();
                 cacheFlags.clear();
-                if (cacheMetrics.size() == 1 && cacheMetrics.contains("_all")) {
+                if (cacheMetrics.contains("_all")) {
                     cacheFlags.includeAllCacheTypes();
                 } else {
                     for (String cacheName : cacheMetrics) {

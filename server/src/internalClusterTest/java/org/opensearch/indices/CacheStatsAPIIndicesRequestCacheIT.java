@@ -222,7 +222,6 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
             .get();
         assertSearchResponse(resp);
         OpenSearchAssertions.assertAllSuccessful(resp);
-        // assertEquals(1, resp.getHits().getTotalHits().value);
         return resp;
     }
 
@@ -234,7 +233,7 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
         NodesStatsResponse nodeStatsResponse = client.admin()
             .cluster()
             .prepareNodesStats("data:true")
-            .addMetric(NodesStatsRequest.Metric.CACHE_STATS.metricName())
+            .addMetric(NodesStatsRequest.Metric.SEARCH_CACHE_STATS.metricName())
             .setIndices(statsFlags)
             .get();
         // Can always get the first data node as there's only one in this test suite
