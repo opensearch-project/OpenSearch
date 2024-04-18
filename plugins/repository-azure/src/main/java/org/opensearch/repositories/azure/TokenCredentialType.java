@@ -10,6 +10,9 @@ package org.opensearch.repositories.azure;
 
 // Type of token credentials that the plugin supports
 public enum TokenCredentialType {
+    // This represents the support for ManagedIdentityCredential
     MANAGED_IDENTITY,
+    // This is the default when token credential is not configure.
+    // SAS token or Account Key will be used for authentication instead.
     NOT_APPLICABLE
 }

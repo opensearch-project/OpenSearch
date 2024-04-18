@@ -48,6 +48,7 @@ import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.blob.models.ParallelTransferOptions;
 import com.azure.storage.blob.specialized.BlockBlobAsyncClient;
+import com.azure.storage.common.implementation.Constants;
 import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
 import com.azure.storage.common.implementation.connectionstring.StorageEndpoint;
 import com.azure.storage.common.policy.RequestRetryOptions;
@@ -163,17 +164,13 @@ public class AzureStorageService implements AutoCloseable {
     }
 
     private StorageEndpoint getStorageBlobEndpoint(final AzureStorageSettings settings) {
-        try {
-            String endpointSuffix = settings.getEndpointSuffix();
-            if (!Strings.hasText(endpointSuffix)) {
-                endpointSuffix = "core.windows.net";
-            }
-            final URI primaryBlobEndpoint = new URI("https://" + settings.getAccount() + ".blob." + endpointSuffix);
-            final URI secondaryBlobEndpoint = new URI("https://" + settings.getAccount() + "-secondary.blob." + endpointSuffix);
-            return new StorageEndpoint(primaryBlobEndpoint, secondaryBlobEndpoint);
-        } catch (URISyntaxException var14) {
-            throw logger.logExceptionAsError(new RuntimeException(var14));
+        String endpointSuffix = settings.getEndpointSuffix();
+        if (!Strings.hasText(endpointSuffix)) {
+            endpointSuffix = Constants.ConnectionStringConstants.DEFAULT_DNS;
         }
+        final URI primaryBlobEndpoint = URI.create("https://" + settings.getAccount() + ".blob." + endpointSuffix);
+        final URI secondaryBlobEndpoint = URI.create("https://" + settings.getAccount() + "-secondary.blob." + endpointSuffix);
+        return new StorageEndpoint(primaryBlobEndpoint, secondaryBlobEndpoint);
     }
 
     private ClientState buildClient(AzureStorageSettings azureStorageSettings, BiConsumer<HttpRequest, HttpResponse> statsCollector)
