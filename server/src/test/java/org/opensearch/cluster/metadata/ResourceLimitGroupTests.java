@@ -14,13 +14,25 @@ import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ResourceLimitGroupTests extends AbstractSerializingTestCase<ResourceLimitGroup> {
+
+    private static final List<String> allowedModes = Stream.of(
+        ResourceLimitGroup.ResourceLimitGroupMode.SOFT,
+        ResourceLimitGroup.ResourceLimitGroupMode.ENFORCED,
+        ResourceLimitGroup.ResourceLimitGroupMode.MONITOR
+    ).map(ResourceLimitGroup.ResourceLimitGroupMode::getName).collect(Collectors.toList());
 
     static ResourceLimitGroup createRandomResourceLimitGroup() {
         String name = randomAlphaOfLength(10);
         ResourceLimitGroup.ResourceLimit resourceLimit = new ResourceLimitGroup.ResourceLimit("jvm", randomDoubleBetween(0.0, 0.80, false));
-        return new ResourceLimitGroup(name, List.of(resourceLimit));
+        return new ResourceLimitGroup(name, List.of(resourceLimit), randomMode());
+    }
+
+    private static String randomMode() {
+        return allowedModes.get((int) (Math.random() * allowedModes.size()));
     }
 
     /**
@@ -52,15 +64,22 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
     }
 
     public void testNullName() {
-        assertThrows(NullPointerException.class, () -> new ResourceLimitGroup(null, List.of()));
+        assertThrows(NullPointerException.class, () -> new ResourceLimitGroup(null, List.of(), randomMode()));
     }
 
     public void testNullResourceLimits() {
-        assertThrows(NullPointerException.class, () -> new ResourceLimitGroup("analytics", null));
+        assertThrows(NullPointerException.class, () -> new ResourceLimitGroup("analytics", null, randomMode()));
     }
 
     public void testEmptyResourceLimits() {
-        assertThrows(IllegalArgumentException.class, () -> new ResourceLimitGroup("analytics", List.of()));
+        assertThrows(IllegalArgumentException.class, () -> new ResourceLimitGroup("analytics", List.of(), randomMode()));
+    }
+
+    public void testIllegalResourceLimitGroupMode() {
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new ResourceLimitGroup("analytics", List.of(new ResourceLimitGroup.ResourceLimit("jvm", 0.4)), "buggy")
+        );
     }
 
     public void testInvalidResourceLimitWhenInvalidSystemResourceNameIsGiven() {
@@ -68,7 +87,8 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
             IllegalArgumentException.class,
             () -> new ResourceLimitGroup(
                 "analytics",
-                List.of(new ResourceLimitGroup.ResourceLimit("RequestRate", randomDoubleBetween(0.01, 0.8, false)))
+                List.of(new ResourceLimitGroup.ResourceLimit("RequestRate", randomDoubleBetween(0.01, 0.8, false))),
+                randomMode()
             )
         );
     }
@@ -78,7 +98,8 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
             IllegalArgumentException.class,
             () -> new ResourceLimitGroup(
                 "analytics",
-                List.of(new ResourceLimitGroup.ResourceLimit("RequestRate", randomDoubleBetween(1.1, 1.8, false)))
+                List.of(new ResourceLimitGroup.ResourceLimit("RequestRate", randomDoubleBetween(1.1, 1.8, false))),
+                randomMode()
             )
         );
     }
@@ -86,7 +107,8 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
     public void testValidResourceLimitGroup() {
         ResourceLimitGroup resourceLimitGroup = new ResourceLimitGroup(
             "analytics",
-            List.of(new ResourceLimitGroup.ResourceLimit("jvm", randomDoubleBetween(0.01, 0.8, false)))
+            List.of(new ResourceLimitGroup.ResourceLimit("jvm", randomDoubleBetween(0.01, 0.8, false))),
+            randomMode()
         );
 
         assertNotNull(resourceLimitGroup.getName());
@@ -94,5 +116,6 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
         assertNotNull(resourceLimitGroup.getResourceLimits());
         assertFalse(resourceLimitGroup.getResourceLimits().isEmpty());
         assertEquals(1, resourceLimitGroup.getResourceLimits().size());
+        assertTrue(allowedModes.contains(resourceLimitGroup.getMode().getName()));
     }
 }
