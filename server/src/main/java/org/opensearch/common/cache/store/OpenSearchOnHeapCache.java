@@ -54,6 +54,8 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
     private final List<String> dimensionNames;
     private final ToLongBiFunction<ICacheKey<K>, V> weigher;
 
+    private final Settings settings;
+
     public OpenSearchOnHeapCache(Builder<K, V> builder) {
         CacheBuilder<ICacheKey<K>, V> cacheBuilder = CacheBuilder.<ICacheKey<K>, V>builder()
             .setMaximumWeight(builder.getMaxWeightInBytes())
@@ -64,13 +66,14 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         }
         cache = cacheBuilder.build();
         this.dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
-        if (FeatureFlags.PLUGGABLE_CACHE_SETTING.get(builder.getSettings())) {
-            this.cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames);
-        } else {
+        if (useNoopStats(builder.getSettings())) {
             this.cacheStatsHolder = new NoopCacheStatsHolder();
+        } else {
+            this.cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames);
         }
         this.removalListener = builder.getRemovalListener();
         this.weigher = builder.getWeigher();
+        this.settings = builder.getSettings();
     }
 
     @Override
@@ -127,7 +130,11 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
 
     @Override
     public long count() {
-        return cacheStatsHolder.count();
+        if (useNoopStats(settings)) {
+            return cache.count();
+        } else {
+            return cacheStatsHolder.count();
+        }
     }
 
     @Override
@@ -156,6 +163,11 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
             || RemovalReason.CAPACITY.equals(notification.getRemovalReason())) {
             cacheStatsHolder.incrementEvictions(notification.getKey().dimensions);
         }
+    }
+
+    private boolean useNoopStats(Settings settings) {
+        // Use noop stats when pluggable caching is off
+        return !FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings);
     }
 
     /**

@@ -8,20 +8,15 @@
 
 package org.opensearch.common.cache.stats;
 
-import org.opensearch.common.metrics.CounterMetric;
-
 import java.util.List;
 
 /**
  * A dummy version of CacheStatsHolder, which cache implementations use when FeatureFlags.PLUGGABLE_CACHES is false.
- * Returns all-zero stats when calling getImmutableCacheStatsHolder(). Does keep track of entries for use in ICache.count().
+ * Returns all-zero stats when calling getImmutableCacheStatsHolder(). Always returns 0 for count().
  */
 public class NoopCacheStatsHolder implements CacheStatsHolder {
-    private CounterMetric entries;
 
-    public NoopCacheStatsHolder() {
-        this.entries = new CounterMetric();
-    }
+    public NoopCacheStatsHolder() {}
 
     @Override
     public void incrementHits(List<String> dimensionValues) {}
@@ -39,23 +34,17 @@ public class NoopCacheStatsHolder implements CacheStatsHolder {
     public void decrementSizeInBytes(List<String> dimensionValues, long amountBytes) {}
 
     @Override
-    public void incrementEntries(List<String> dimensionValues) {
-        entries.inc();
-    }
+    public void incrementEntries(List<String> dimensionValues) {}
 
     @Override
-    public void decrementEntries(List<String> dimensionValues) {
-        entries.dec();
-    }
+    public void decrementEntries(List<String> dimensionValues) {}
 
     @Override
-    public void reset() {
-        this.entries = new CounterMetric();
-    }
+    public void reset() {}
 
     @Override
     public long count() {
-        return entries.count();
+        return 0;
     }
 
     @Override
