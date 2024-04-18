@@ -30,6 +30,18 @@ import java.util.Objects;
 
 import static org.opensearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 
+/**
+ * This class holds the resourceLimitGroupMetadata
+ * sample schema
+ * {
+ *     "resourceLimitGroups": {
+ *         "name": {
+ *             {@link ResourceLimitGroup}
+ *         },
+ *        ...
+ *     }
+ * }
+ */
 @ExperimentalApi
 public class ResourceLimitGroupMetadata implements Metadata.Custom {
     public static final String TYPE = "resourceLimitGroup";
@@ -56,6 +68,10 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
 
     public ResourceLimitGroupMetadata(Map<String, ResourceLimitGroup> resourceLimitGroups) {
         this.resourceLimitGroups = resourceLimitGroups;
+    }
+
+    public ResourceLimitGroupMetadata(StreamInput in) throws IOException {
+        this.resourceLimitGroups = in.readMap(StreamInput::readString, ResourceLimitGroup::new);
     }
 
 

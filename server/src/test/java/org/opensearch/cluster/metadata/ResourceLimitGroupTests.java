@@ -18,7 +18,7 @@ import java.util.List;
 public class ResourceLimitGroupTests extends AbstractSerializingTestCase<ResourceLimitGroup> {
 
 
-    private ResourceLimitGroup createRandomResourceLimitGroup() {
+    static ResourceLimitGroup createRandomResourceLimitGroup() {
         String name = randomAlphaOfLength(10);
         ResourceLimitGroup.ResourceLimit resourceLimit =  new ResourceLimitGroup.ResourceLimit("jvm",
             randomDoubleBetween(0.0, 0.80, false));
