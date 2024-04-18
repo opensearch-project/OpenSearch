@@ -122,9 +122,6 @@ public abstract class BaseRestHandler implements RestHandler {
             throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
         }
 
-        // ignore whether content is consumed
-        // https://github.com/opensearch-project/OpenSearch/issues/13011
-
         usageCount.increment();
         // execute the action
         action.accept(channel);
