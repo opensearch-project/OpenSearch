@@ -8,7 +8,6 @@
 
 package org.opensearch.cluster.metadata;
 
-
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.test.AbstractNamedWriteableTestCase;
 
@@ -26,21 +25,23 @@ public class ResourceLimitGroupMetadataTests extends AbstractNamedWriteableTestC
         return new NamedWriteableRegistry(
             Collections.singletonList(
                 new NamedWriteableRegistry.Entry(
-                    ResourceLimitGroupMetadata.class, ResourceLimitGroupMetadata.TYPE, ResourceLimitGroupMetadata::new))
+                    ResourceLimitGroupMetadata.class,
+                    ResourceLimitGroupMetadata.TYPE,
+                    ResourceLimitGroupMetadata::new
+                )
+            )
         );
     }
-
 
     @Override
     protected Class<ResourceLimitGroupMetadata> categoryClass() {
         return ResourceLimitGroupMetadata.class;
     }
 
-
     @Override
     protected ResourceLimitGroupMetadata createTestInstance() {
-        Map<String, ResourceLimitGroup> resourceLimitGroupMap = getRandomResourceLimitGroups()
-            .stream().collect(Collectors.toMap(ResourceLimitGroup::getName, resourceLimitGroup -> resourceLimitGroup));
+        Map<String, ResourceLimitGroup> resourceLimitGroupMap = getRandomResourceLimitGroups().stream()
+            .collect(Collectors.toMap(ResourceLimitGroup::getName, resourceLimitGroup -> resourceLimitGroup));
         return new ResourceLimitGroupMetadata(resourceLimitGroupMap);
     }
 

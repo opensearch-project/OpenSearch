@@ -48,7 +48,6 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField RESOURCE_LIMITS_FIELD = new ParseField("resourceLimits");
 
-
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ResourceLimitGroup, Void> PARSER = new ConstructingObjectParser<>(
         "ResourceLimitGroupParser",
@@ -57,7 +56,11 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> ResourceLimit.fromXContent(p), RESOURCE_LIMITS_FIELD);
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> ResourceLimit.fromXContent(p),
+            RESOURCE_LIMITS_FIELD
+        );
     }
 
     public ResourceLimitGroup(final String name, final List<ResourceLimit> resourceLimits) {
@@ -112,8 +115,9 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
             }
 
             if (!ALLOWED_RESOURCES.contains(resourceName.toLowerCase())) {
-                throw new IllegalArgumentException("resource has to be valid, valid resources "
-                    + ALLOWED_RESOURCES.stream().reduce((x, e) -> x + ", " + e).get());
+                throw new IllegalArgumentException(
+                    "resource has to be valid, valid resources " + ALLOWED_RESOURCES.stream().reduce((x, e) -> x + ", " + e).get()
+                );
             }
             this.resourceName = resourceName;
             this.value = value;
@@ -167,7 +171,6 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         }
     }
 
-
     /**
      * Write this into the {@linkplain StreamOutput}.
      *
@@ -188,17 +191,15 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        builder.field(NAME_FIELD.getPreferredName(),name);
+        builder.field(NAME_FIELD.getPreferredName(), name);
         builder.field(RESOURCE_LIMITS_FIELD.getPreferredName(), resourceLimits);
         builder.endObject();
         return builder;
     }
 
-
     public static ResourceLimitGroup fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
-
 
     public static Diff<ResourceLimitGroup> readDiff(final StreamInput in) throws IOException {
         return readDiffFrom(ResourceLimitGroup::new, in);
