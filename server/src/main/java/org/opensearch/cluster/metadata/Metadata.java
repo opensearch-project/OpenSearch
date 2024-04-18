@@ -845,11 +845,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     }
 
     public Map<String, ResourceLimitGroup> resourceLimitGroups() {
-        return
-            Optional.ofNullable(
-                (ResourceLimitGroupMetadata) this.custom(ResourceLimitGroupMetadata.TYPE)).
-                map(ResourceLimitGroupMetadata::resourceLimitGroups)
-                .orElse(Collections.emptyMap());
+        return Optional.ofNullable((ResourceLimitGroupMetadata) this.custom(ResourceLimitGroupMetadata.TYPE))
+            .map(ResourceLimitGroupMetadata::resourceLimitGroups)
+            .orElse(Collections.emptyMap());
 
     }
 

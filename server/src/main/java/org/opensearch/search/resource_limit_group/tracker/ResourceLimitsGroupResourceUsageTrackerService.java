@@ -29,9 +29,9 @@ import java.util.stream.Collectors;
 public class ResourceLimitsGroupResourceUsageTrackerService
     implements
         TaskManager.TaskEventListeners,
-    ResourceLimitGroupResourceUsageTracker,
-    ResourceLimitGroupRequestCanceller,
-    ResourceLimitGroupPruner {
+        ResourceLimitGroupResourceUsageTracker,
+        ResourceLimitGroupRequestCanceller,
+        ResourceLimitGroupPruner {
 
     private static final String CPU = "CPU";
     private static final String JVM_ALLOCATIONS = "JVM_Allocations";
@@ -161,7 +161,6 @@ public class ResourceLimitsGroupResourceUsageTrackerService
 
         // get cancellations from soft type sandboxes if the node is in duress (hitting node level cancellation
         // threshold)
-
 
         return cancellableTasks;
     }
