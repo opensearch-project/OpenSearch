@@ -104,7 +104,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             + "\"test-repo-basepath\",\"file_names\":[\"file1\",\"file2\",\"file3\",\"file4\",\"file5\"],\"path_type\":0}";
         assert Objects.equals(actual, expectedXContent) : "xContent is " + actual;
 
-        // Case 3 - with just hashed prefix type and hash algorithm
+        // Case 3 - with just hashed prefix type and FNV_1A_BASE64 hash algorithm
         shardShallowCopySnapshot = new RemoteStoreShardShallowCopySnapshot(
             snapshot,
             indexVersion,
@@ -119,7 +119,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             repositoryBasePath,
             fileNames,
             PathType.HASHED_PREFIX,
-            PathHashAlgorithm.FNV_1A
+            PathHashAlgorithm.FNV_1A_BASE64
         );
         try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
             builder.startObject();
@@ -133,6 +133,99 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             + "\"test-rs-repository\",\"commit_generation\":5,\"primary_term\":3,\"remote_store_repository_base_path\":"
             + "\"test-repo-basepath\",\"file_names\":[\"file1\",\"file2\",\"file3\",\"file4\",\"file5\"],\"path_type\":1"
             + ",\"path_hash_algorithm\":0}";
+        assert Objects.equals(actual, expectedXContent) : "xContent is " + actual;
+
+        // Case 4 - with just hashed prefix type and FNV_1A_COMPOSITE hash algorithm
+        shardShallowCopySnapshot = new RemoteStoreShardShallowCopySnapshot(
+            snapshot,
+            indexVersion,
+            primaryTerm,
+            commitGeneration,
+            startTime,
+            time,
+            totalFileCount,
+            totalSize,
+            indexUUID,
+            remoteStoreRepository,
+            repositoryBasePath,
+            fileNames,
+            PathType.HASHED_PREFIX,
+            PathHashAlgorithm.FNV_1A_COMPOSITE_1
+        );
+        try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
+            builder.startObject();
+            shardShallowCopySnapshot.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            actual = builder.toString();
+        }
+
+        expectedXContent = "{\"version\":\"2\",\"name\":\"test-snapshot\",\"index_version\":1,\"start_time\":123,\"time\":123,"
+            + "\"number_of_files\":5,\"total_size\":5,\"index_uuid\":\"syzhajds-ashdlfj\",\"remote_store_repository\":"
+            + "\"test-rs-repository\",\"commit_generation\":5,\"primary_term\":3,\"remote_store_repository_base_path\":"
+            + "\"test-repo-basepath\",\"file_names\":[\"file1\",\"file2\",\"file3\",\"file4\",\"file5\"],\"path_type\":1"
+            + ",\"path_hash_algorithm\":1}";
+        assert Objects.equals(actual, expectedXContent) : "xContent is " + actual;
+
+        // Case 5 - with just hashed infix type and FNV_1A_BASE64 hash algorithm
+        shardShallowCopySnapshot = new RemoteStoreShardShallowCopySnapshot(
+            snapshot,
+            indexVersion,
+            primaryTerm,
+            commitGeneration,
+            startTime,
+            time,
+            totalFileCount,
+            totalSize,
+            indexUUID,
+            remoteStoreRepository,
+            repositoryBasePath,
+            fileNames,
+            PathType.HASHED_INFIX,
+            PathHashAlgorithm.FNV_1A_BASE64
+        );
+        try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
+            builder.startObject();
+            shardShallowCopySnapshot.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            actual = builder.toString();
+        }
+
+        expectedXContent = "{\"version\":\"2\",\"name\":\"test-snapshot\",\"index_version\":1,\"start_time\":123,\"time\":123,"
+            + "\"number_of_files\":5,\"total_size\":5,\"index_uuid\":\"syzhajds-ashdlfj\",\"remote_store_repository\":"
+            + "\"test-rs-repository\",\"commit_generation\":5,\"primary_term\":3,\"remote_store_repository_base_path\":"
+            + "\"test-repo-basepath\",\"file_names\":[\"file1\",\"file2\",\"file3\",\"file4\",\"file5\"],\"path_type\":2"
+            + ",\"path_hash_algorithm\":0}";
+        assert Objects.equals(actual, expectedXContent) : "xContent is " + actual;
+
+        // Case 6 - with just hashed infix type and FNV_1A_COMPOSITE hash algorithm
+        shardShallowCopySnapshot = new RemoteStoreShardShallowCopySnapshot(
+            snapshot,
+            indexVersion,
+            primaryTerm,
+            commitGeneration,
+            startTime,
+            time,
+            totalFileCount,
+            totalSize,
+            indexUUID,
+            remoteStoreRepository,
+            repositoryBasePath,
+            fileNames,
+            PathType.HASHED_INFIX,
+            PathHashAlgorithm.FNV_1A_COMPOSITE_1
+        );
+        try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
+            builder.startObject();
+            shardShallowCopySnapshot.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            actual = builder.toString();
+        }
+
+        expectedXContent = "{\"version\":\"2\",\"name\":\"test-snapshot\",\"index_version\":1,\"start_time\":123,\"time\":123,"
+            + "\"number_of_files\":5,\"total_size\":5,\"index_uuid\":\"syzhajds-ashdlfj\",\"remote_store_repository\":"
+            + "\"test-rs-repository\",\"commit_generation\":5,\"primary_term\":3,\"remote_store_repository_base_path\":"
+            + "\"test-repo-basepath\",\"file_names\":[\"file1\",\"file2\",\"file3\",\"file4\",\"file5\"],\"path_type\":2"
+            + ",\"path_hash_algorithm\":1}";
         assert Objects.equals(actual, expectedXContent) : "xContent is " + actual;
     }
 
@@ -223,7 +316,88 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
             repositoryBasePath,
             fileNames,
             PathType.HASHED_PREFIX,
-            PathHashAlgorithm.FNV_1A
+            PathHashAlgorithm.FNV_1A_BASE64
+        );
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
+            RemoteStoreShardShallowCopySnapshot actualShardShallowCopySnapshot = RemoteStoreShardShallowCopySnapshot.fromXContent(parser);
+            assert Objects.equals(expectedShardShallowCopySnapshot, actualShardShallowCopySnapshot);
+        }
+
+        // with pathType=PathType.HASHED_PREFIX and pathHashAlgorithm=PathHashAlgorithm.FNV_1A_COMPOSITE
+        xContent = "{\"version\":\"2\",\"name\":\"test-snapshot\",\"index_version\":1,\"start_time\":123,\"time\":123,"
+            + "\"number_of_files\":5,\"total_size\":5,\"index_uuid\":\"syzhajds-ashdlfj\",\"remote_store_repository\":"
+            + "\"test-rs-repository\",\"commit_generation\":5,\"primary_term\":3,\"remote_store_repository_base_path\":"
+            + "\"test-repo-basepath\",\"file_names\":[\"file1\",\"file2\",\"file3\",\"file4\",\"file5\"],\"path_type\":1,\"path_hash_algorithm\":1}";
+        expectedShardShallowCopySnapshot = new RemoteStoreShardShallowCopySnapshot(
+            "2",
+            snapshot,
+            indexVersion,
+            primaryTerm,
+            commitGeneration,
+            startTime,
+            time,
+            totalFileCount,
+            totalSize,
+            indexUUID,
+            remoteStoreRepository,
+            repositoryBasePath,
+            fileNames,
+            PathType.HASHED_PREFIX,
+            PathHashAlgorithm.FNV_1A_COMPOSITE_1
+        );
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
+            RemoteStoreShardShallowCopySnapshot actualShardShallowCopySnapshot = RemoteStoreShardShallowCopySnapshot.fromXContent(parser);
+            assert Objects.equals(expectedShardShallowCopySnapshot, actualShardShallowCopySnapshot);
+        }
+
+        // with pathType=PathType.HASHED_INFIX and pathHashAlgorithm=PathHashAlgorithm.FNV_1A
+        xContent = "{\"version\":\"2\",\"name\":\"test-snapshot\",\"index_version\":1,\"start_time\":123,\"time\":123,"
+            + "\"number_of_files\":5,\"total_size\":5,\"index_uuid\":\"syzhajds-ashdlfj\",\"remote_store_repository\":"
+            + "\"test-rs-repository\",\"commit_generation\":5,\"primary_term\":3,\"remote_store_repository_base_path\":"
+            + "\"test-repo-basepath\",\"file_names\":[\"file1\",\"file2\",\"file3\",\"file4\",\"file5\"],\"path_type\":2,\"path_hash_algorithm\":0}";
+        expectedShardShallowCopySnapshot = new RemoteStoreShardShallowCopySnapshot(
+            "2",
+            snapshot,
+            indexVersion,
+            primaryTerm,
+            commitGeneration,
+            startTime,
+            time,
+            totalFileCount,
+            totalSize,
+            indexUUID,
+            remoteStoreRepository,
+            repositoryBasePath,
+            fileNames,
+            PathType.HASHED_INFIX,
+            PathHashAlgorithm.FNV_1A_BASE64
+        );
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
+            RemoteStoreShardShallowCopySnapshot actualShardShallowCopySnapshot = RemoteStoreShardShallowCopySnapshot.fromXContent(parser);
+            assert Objects.equals(expectedShardShallowCopySnapshot, actualShardShallowCopySnapshot);
+        }
+
+        // with pathType=PathType.HASHED_INFIX and pathHashAlgorithm=PathHashAlgorithm.FNV_1A_COMPOSITE
+        xContent = "{\"version\":\"2\",\"name\":\"test-snapshot\",\"index_version\":1,\"start_time\":123,\"time\":123,"
+            + "\"number_of_files\":5,\"total_size\":5,\"index_uuid\":\"syzhajds-ashdlfj\",\"remote_store_repository\":"
+            + "\"test-rs-repository\",\"commit_generation\":5,\"primary_term\":3,\"remote_store_repository_base_path\":"
+            + "\"test-repo-basepath\",\"file_names\":[\"file1\",\"file2\",\"file3\",\"file4\",\"file5\"],\"path_type\":2,\"path_hash_algorithm\":1}";
+        expectedShardShallowCopySnapshot = new RemoteStoreShardShallowCopySnapshot(
+            "2",
+            snapshot,
+            indexVersion,
+            primaryTerm,
+            commitGeneration,
+            startTime,
+            time,
+            totalFileCount,
+            totalSize,
+            indexUUID,
+            remoteStoreRepository,
+            repositoryBasePath,
+            fileNames,
+            PathType.HASHED_INFIX,
+            PathHashAlgorithm.FNV_1A_COMPOSITE_1
         );
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
             RemoteStoreShardShallowCopySnapshot actualShardShallowCopySnapshot = RemoteStoreShardShallowCopySnapshot.fromXContent(parser);
@@ -232,7 +406,7 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
     }
 
     public void testFromXContentInvalid() throws IOException {
-        final int iters = 14;
+        final int iters = 18;
         for (int iter = 0; iter < iters; iter++) {
             String snapshot = "test-snapshot";
             long indexVersion = 1;
@@ -296,21 +470,47 @@ public class RemoteStoreShardShallowCopySnapshotTests extends OpenSearchTestCase
                     break;
                 case 10:
                     version = "1";
-                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A;
-                    failure = "Invalid combination of pathType=null pathHashAlgorithm=FNV_1A for version=1";
+                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_BASE64;
+                    failure = "Invalid combination of pathType=null pathHashAlgorithm=FNV_1A_BASE64 for version=1";
                     break;
                 case 11:
                     version = "2";
                     pathType = PathType.FIXED;
-                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A;
-                    failure = "Invalid combination of pathType=FIXED pathHashAlgorithm=FNV_1A for version=2";
+                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_BASE64;
+                    failure = "Invalid combination of pathType=FIXED pathHashAlgorithm=FNV_1A_BASE64 for version=2";
                     break;
                 case 12:
-                    version = "2";
-                    pathType = PathType.HASHED_PREFIX;
-                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A;
+                    version = "1";
+                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_COMPOSITE_1;
+                    failure = "Invalid combination of pathType=null pathHashAlgorithm=FNV_1A_COMPOSITE_1 for version=1";
                     break;
                 case 13:
+                    version = "2";
+                    pathType = PathType.FIXED;
+                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_COMPOSITE_1;
+                    failure = "Invalid combination of pathType=FIXED pathHashAlgorithm=FNV_1A_COMPOSITE_1 for version=2";
+                    break;
+                case 14:
+                    version = "2";
+                    pathType = PathType.HASHED_PREFIX;
+                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_BASE64;
+                    break;
+                case 15:
+                    version = "2";
+                    pathType = PathType.HASHED_PREFIX;
+                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_COMPOSITE_1;
+                    break;
+                case 16:
+                    version = "2";
+                    pathType = PathType.HASHED_INFIX;
+                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_BASE64;
+                    break;
+                case 17:
+                    version = "2";
+                    pathType = PathType.HASHED_INFIX;
+                    pathHashAlgorithm = PathHashAlgorithm.FNV_1A_COMPOSITE_1;
+                    break;
+                case 18:
                     break;
                 default:
                     fail("shouldn't be here");

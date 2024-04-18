@@ -1716,6 +1716,82 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         RemoteFsTranslog.download(mockTransfer, location, logger);
     }
 
+    // No translog data in local as well as remote, we skip creating empty translog
+    public void testDownloadWithNoTranslogInLocalAndRemote() throws IOException {
+        Path location = createTempDir();
+
+        TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker = mock(RemoteTranslogTransferTracker.class);
+        when(mockTransfer.readMetadata()).thenReturn(null);
+        when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
+
+        Path[] filesBeforeDownload = FileSystemUtils.files(location);
+        RemoteFsTranslog.download(mockTransfer, location, logger);
+        assertEquals(filesBeforeDownload, FileSystemUtils.files(location));
+    }
+
+    // No translog data in remote but non-empty translog is present in local. In this case, we delete all the files
+    // from local file system and create empty translog
+    public void testDownloadWithTranslogOnlyInLocal() throws IOException {
+        TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker = mock(RemoteTranslogTransferTracker.class);
+        when(mockTransfer.readMetadata()).thenReturn(null);
+        when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
+
+        Path location = createTempDir();
+        for (Path file : FileSystemUtils.files(translogDir)) {
+            Files.copy(file, location.resolve(file.getFileName()));
+        }
+
+        Checkpoint existingCheckpoint = Translog.readCheckpoint(location);
+
+        TranslogTransferManager finalMockTransfer = mockTransfer;
+        RemoteFsTranslog.download(finalMockTransfer, location, logger);
+
+        Path[] filesPostDownload = FileSystemUtils.files(location);
+        assertEquals(2, filesPostDownload.length);
+        assertTrue(
+            filesPostDownload[0].getFileName().toString().contains("translog.ckp")
+                || filesPostDownload[1].getFileName().toString().contains("translog.ckp")
+        );
+
+        Checkpoint newEmptyTranslogCheckpoint = Translog.readCheckpoint(location);
+        // Verify that the new checkpoint points to empty translog
+        assertTrue(
+            newEmptyTranslogCheckpoint.generation == newEmptyTranslogCheckpoint.minTranslogGeneration
+                && newEmptyTranslogCheckpoint.minSeqNo == SequenceNumbers.NO_OPS_PERFORMED
+                && newEmptyTranslogCheckpoint.maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED
+                && newEmptyTranslogCheckpoint.numOps == 0
+        );
+        assertTrue(newEmptyTranslogCheckpoint.generation > existingCheckpoint.generation);
+        assertEquals(newEmptyTranslogCheckpoint.globalCheckpoint, existingCheckpoint.globalCheckpoint);
+    }
+
+    // No translog data in remote and empty translog in local. We skip creating another empty translog
+    public void testDownloadWithEmptyTranslogOnlyInLocal() throws IOException {
+        TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker = mock(RemoteTranslogTransferTracker.class);
+        when(mockTransfer.readMetadata()).thenReturn(null);
+        when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
+
+        Path location = createTempDir();
+        for (Path file : FileSystemUtils.files(translogDir)) {
+            Files.copy(file, location.resolve(file.getFileName()));
+        }
+
+        TranslogTransferManager finalMockTransfer = mockTransfer;
+
+        // download first time will ensure creating empty translog
+        RemoteFsTranslog.download(finalMockTransfer, location, logger);
+        Path[] filesPostFirstDownload = FileSystemUtils.files(location);
+
+        // download on empty translog should be a no-op
+        RemoteFsTranslog.download(finalMockTransfer, location, logger);
+        Path[] filesPostSecondDownload = FileSystemUtils.files(location);
+
+        assertArrayEquals(filesPostFirstDownload, filesPostSecondDownload);
+    }
+
     public class ThrowingBlobRepository extends FsRepository {
 
         private final Environment environment;

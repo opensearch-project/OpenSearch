@@ -55,6 +55,7 @@ import java.util.Optional;
 
 import io.netty.handler.ssl.ClientAuth;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -87,7 +88,7 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
 
                     SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)
                         .clientAuth(ClientAuth.NONE)
-                        .trustManager(TrustAllManager.INSTANCE)
+                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
                         .build()
                         .newEngine(NettyAllocator.getAllocator());
                     return Optional.of(engine);
@@ -103,7 +104,7 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
                 return Optional.of(
                     SslContextBuilder.forClient()
                         .clientAuth(ClientAuth.NONE)
-                        .trustManager(TrustAllManager.INSTANCE)
+                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
                         .build()
                         .newEngine(NettyAllocator.getAllocator())
                 );

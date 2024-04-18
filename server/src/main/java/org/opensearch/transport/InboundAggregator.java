@@ -40,6 +40,7 @@ import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.bytes.CompositeBytesReference;
+import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -113,7 +114,7 @@ public class InboundAggregator implements Releasable {
         }
     }
 
-    public InboundMessage finishAggregation() throws IOException {
+    public NativeInboundMessage finishAggregation() throws IOException {
         ensureOpen();
         final ReleasableBytesReference releasableContent;
         if (isFirstContent()) {
@@ -127,7 +128,7 @@ public class InboundAggregator implements Releasable {
         }
 
         final BreakerControl breakerControl = new BreakerControl(circuitBreaker);
-        final InboundMessage aggregated = new InboundMessage(currentHeader, releasableContent, breakerControl);
+        final NativeInboundMessage aggregated = new NativeInboundMessage(currentHeader, releasableContent, breakerControl);
         boolean success = false;
         try {
             if (aggregated.getHeader().needsToReadVariableHeader()) {
@@ -142,7 +143,7 @@ public class InboundAggregator implements Releasable {
             if (isShortCircuited()) {
                 aggregated.close();
                 success = true;
-                return new InboundMessage(aggregated.getHeader(), aggregationException);
+                return new NativeInboundMessage(aggregated.getHeader(), aggregationException);
             } else {
                 success = true;
                 return aggregated;
