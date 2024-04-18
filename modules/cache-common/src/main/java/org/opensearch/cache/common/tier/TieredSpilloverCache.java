@@ -102,6 +102,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         this.onDiskRemovalListener = new DiskTierRemovalListener(this);
         this.weigher = Objects.requireNonNull(builder.cacheConfig.getWeigher(), "Weigher can't be null");
 
+        // TODO: Once the feature flag/NoopCacheStatsHolder PR has gone in, use NoopCacheStatsHolder for the tiers,
+        // to avoid storing redundant stats values.
         this.onHeapCache = builder.onHeapCacheFactory.create(
             new CacheConfig.Builder<K, V>().setRemovalListener(onHeapRemovalListener)
                 .setKeyType(builder.cacheConfig.getKeyType())
