@@ -32,7 +32,7 @@
 "Test primary_only parameter":
   - skip:
       version: " - 2.12.99"
-      reason: "primary_only was introduced in 2.13.0"
+      reason: "primary_only is available in 2.13.0+"
 
   - do:
       indices.create:
