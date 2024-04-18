@@ -121,7 +121,19 @@ public class PeerRecoveryStats implements Writeable, ToXContentFragment {
 
     @Override
     public String toString() {
-        return "Total Started Recoveries: {} " + totalStartedRecoveries + "\n" + "Total Failed Recoveries: {} " + totalFailedRecoveries + "\n" + "Total Completed Recoveries: {} "
-            + totalCompletedRecoveries + "\n" + "Total Retried Recoveries: {} " + totalRetriedRecoveries + "\n" + "Total Cancelled Recoveries: {} " + totalCancelledRecoveries;
+        return "Total Started Recoveries: {} "
+            + totalStartedRecoveries
+            + "\n"
+            + "Total Failed Recoveries: {} "
+            + totalFailedRecoveries
+            + "\n"
+            + "Total Completed Recoveries: {} "
+            + totalCompletedRecoveries
+            + "\n"
+            + "Total Retried Recoveries: {} "
+            + totalRetriedRecoveries
+            + "\n"
+            + "Total Cancelled Recoveries: {} "
+            + totalCancelledRecoveries;
     }
 }
