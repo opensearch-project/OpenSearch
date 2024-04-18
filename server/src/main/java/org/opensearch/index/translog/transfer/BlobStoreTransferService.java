@@ -133,17 +133,21 @@ public class BlobStoreTransferService implements TransferService {
             BlobPath blobPath = blobPaths.get(fileSnapshot.getPrimaryTerm());
 
             if (!isObjectMetadataUploadSupported) {
-                List<Exception> exceptionList = new ArrayList<>(2);
 
-                Set<TransferFileSnapshot> filesToUpload = new HashSet<>(2);
                 try {
-                    if (!fileTransferTrackerCache.get(fileSnapshot.getName()).equals(FileTransferTracker.TransferState.SUCCESS)) {
-                        filesToUpload.add(
-                            new TransferFileSnapshot(fileSnapshot.getPath(), fileSnapshot.getPrimaryTerm(), fileSnapshot.getChecksum())
-                        );
+                    List<Exception> exceptionList = new ArrayList<>(2);
+                    Set<TransferFileSnapshot> filesToUpload = new HashSet<>(2);
+
+                    // translog.tlog file snapshot
+                    if (fileTransferTrackerCache.get(fileSnapshot.getName()) != null
+                        && !fileTransferTrackerCache.get(fileSnapshot.getName()).equals(FileTransferTracker.TransferState.SUCCESS)) {
+                        filesToUpload.add(fileSnapshot);
                     }
-                    if (!fileTransferTrackerCache.get(fileSnapshot.getMetadataFileName())
-                        .equals(FileTransferTracker.TransferState.FAILED)) {
+
+                    // translog.ckp file snapshot
+                    if (fileTransferTrackerCache.get(fileSnapshot.getMetadataFileName()) != null
+                        && !fileTransferTrackerCache.get(fileSnapshot.getMetadataFileName())
+                            .equals(FileTransferTracker.TransferState.FAILED)) {
                         filesToUpload.add(
                             new TransferFileSnapshot(
                                 fileSnapshot.getMetadataFilePath(),
@@ -152,68 +156,76 @@ public class BlobStoreTransferService implements TransferService {
                             )
                         );
                     }
-                } catch (IOException e) {
-                    throw new FileTransferException(fileSnapshot, e);
-                }
 
-                if (filesToUpload.isEmpty()) {
-                    listener.onResponse(fileSnapshot);
-                    return;
-                }
+                    if (filesToUpload.isEmpty()) {
+                        listener.onResponse(fileSnapshot);
+                        return;
+                    }
 
-                final CountDownLatch latch = new CountDownLatch(filesToUpload.size());
-                LatchedActionListener<TransferFileSnapshot> latchedActionListener = new LatchedActionListener<>(
-                    ActionListener.wrap(fileSnapshot1 -> add(fileSnapshot1.getName(), true), ex -> {
-                        assert ex instanceof FileTransferException;
-                        logger.error(
-                            () -> new ParameterizedMessage(
-                                "Exception during transfer for file {}",
-                                ((FileTransferException) ex).getFileSnapshot().getName()
-                            ),
-                            ex
-                        );
-                        FileTransferException e = (FileTransferException) ex;
-                        TransferFileSnapshot file = e.getFileSnapshot();
-                        add(file.getName(), false);
-                        exceptionList.add(ex);
-                    }),
-                    latch
-                );
+                    final CountDownLatch latch = new CountDownLatch(filesToUpload.size());
+                    LatchedActionListener<TransferFileSnapshot> latchedActionListener = new LatchedActionListener<>(
+                        ActionListener.wrap(fileSnapshotResp -> add(fileSnapshotResp.getName(), true), ex -> {
+                            assert ex instanceof FileTransferException;
+                            logger.error(
+                                () -> new ParameterizedMessage(
+                                    "Exception during transfer for file {}",
+                                    ((FileTransferException) ex).getFileSnapshot().getName()
+                                ),
+                                ex
+                            );
+                            FileTransferException e = (FileTransferException) ex;
+                            TransferFileSnapshot file = e.getFileSnapshot();
+                            add(file.getName(), false);
+                            exceptionList.add(ex);
+                        }),
+                        latch
+                    );
 
-                filesToUpload.forEach(separateFileSnapshot -> {
-                    if (!(blobStore.blobContainer(blobPath) instanceof AsyncMultiStreamBlobContainer)) {
-                        uploadBlob(
-                            ThreadPool.Names.TRANSLOG_TRANSFER,
-                            separateFileSnapshot,
-                            blobPath,
-                            latchedActionListener,
-                            writePriority
-                        );
+                    filesToUpload.forEach(separateFileSnapshot -> {
+                        if (!(blobStore.blobContainer(blobPath) instanceof AsyncMultiStreamBlobContainer)) {
+                            uploadBlob(
+                                ThreadPool.Names.TRANSLOG_TRANSFER,
+                                separateFileSnapshot,
+                                blobPath,
+                                latchedActionListener,
+                                writePriority
+                            );
+                        } else {
+                            logger.info("uploading file = {}", fileSnapshot.getName());
+                            uploadBlob(separateFileSnapshot, latchedActionListener, blobPath, writePriority);
+                        }
+                    });
+
+                    try {
+                        if (latch.await(300, TimeUnit.MILLISECONDS) == false) {
+                            Exception ex = new TranslogUploadFailedException(
+                                "Timed out waiting for transfer of snapshot " + fileSnapshot + " to complete"
+                            );
+                            throw new FileTransferException(fileSnapshot, ex);
+                        }
+                    } catch (InterruptedException ex) {
+                        Exception exception = new TranslogUploadFailedException("Failed to upload " + fileSnapshot, ex);
+                        Thread.currentThread().interrupt();
+                        throw new FileTransferException(fileSnapshot, exception);
+                    }
+
+                    if (fileTransferTrackerCache.get(fileSnapshot.getName()).equals(FileTransferTracker.TransferState.SUCCESS)
+                        && fileTransferTrackerCache.get(fileSnapshot.getMetadataFileName())
+                            .equals(FileTransferTracker.TransferState.SUCCESS)) {
+                        listener.onResponse(fileSnapshot);
                     } else {
-                        logger.info("uploading file = {}", fileSnapshot.getName());
-                        uploadBlob(separateFileSnapshot, latchedActionListener, blobPath, writePriority);
+                        assert exceptionList.isEmpty() == false;
+                        listener.onFailure(exceptionList.get(0));
                     }
-                });
 
-                try {
-                    if (latch.await(300, TimeUnit.SECONDS) == false) {
-                        Exception ex = new TranslogUploadFailedException(
-                            "Timed out waiting for transfer of snapshot " + fileSnapshot + " to complete"
-                        );
-                        throw new FileTransferException(fileSnapshot, ex);
+                } catch (Exception e) {
+                    throw new FileTransferException(fileSnapshot, e);
+                } finally {
+                    try {
+                        fileSnapshot.close();
+                    } catch (IOException e) {
+                        logger.warn("Error while closing TransferFileSnapshot", e);
                     }
-                } catch (InterruptedException ex) {
-                    Exception exception = new TranslogUploadFailedException("Failed to upload " + fileSnapshot, ex);
-                    Thread.currentThread().interrupt();
-                    throw new FileTransferException(fileSnapshot, exception);
-                }
-
-                if (fileTransferTrackerCache.get(fileSnapshot.getName()).equals(FileTransferTracker.TransferState.SUCCESS)
-                    && fileTransferTrackerCache.get(fileSnapshot.getMetadataFileName()).equals(FileTransferTracker.TransferState.SUCCESS)) {
-                    listener.onResponse(fileSnapshot);
-                } else {
-                    assert exceptionList.isEmpty() == false;
-                    listener.onFailure(exceptionList.get(0));
                 }
 
             } else {

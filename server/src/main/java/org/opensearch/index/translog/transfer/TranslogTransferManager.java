@@ -107,8 +107,8 @@ public class TranslogTransferManager {
 
     public boolean transferSnapshot(TransferSnapshot transferSnapshot, TranslogTransferListener translogTransferListener)
         throws IOException {
-        List<Exception> exceptionList = new ArrayList<>(transferSnapshot.getTranslogTransferMetadata().getCount() / 2);
-        Set<TransferFileSnapshot> toUploadCombined = new HashSet<>(transferSnapshot.getTranslogTransferMetadata().getCount() / 2);
+        List<Exception> exceptionList = new ArrayList<>(transferSnapshot.getTranslogTransferMetadata().getCount());
+        Set<TransferFileSnapshot> toUploadCombined = new HashSet<>(transferSnapshot.getTranslogTransferMetadata().getCount());
         long metadataBytesToUpload;
         long metadataUploadStartTime;
         long uploadStartTime;
@@ -135,8 +135,12 @@ public class TranslogTransferManager {
             LatchedActionListener<TransferFileSnapshot> latchedActionListener = new LatchedActionListener<>(
                 ActionListener.wrap(fileSnapshot -> {
                     fileTransferTracker.onSuccess(fileSnapshot);
-                    transferServiceFileTrackerCache.remove(fileSnapshot.getName());
-                    transferServiceFileTrackerCache.remove(fileSnapshot.getMetadataFileName());
+                    if (transferServiceFileTrackerCache != null) {
+                        transferServiceFileTrackerCache.remove(fileSnapshot.getName());
+                        if (fileSnapshot.getMetadataFileName() != null) {
+                            transferServiceFileTrackerCache.remove(fileSnapshot.getMetadataFileName());
+                        }
+                    }
                 }, ex -> {
                     assert ex instanceof FileTransferException;
                     logger.error(

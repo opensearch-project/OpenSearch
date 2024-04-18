@@ -43,7 +43,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
@@ -196,7 +195,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                 translogTransferFailed.incrementAndGet();
             }
         }));
-        assertEquals(4, fileTransferSucceeded.get());
+        assertEquals(2, fileTransferSucceeded.get()); // updating it as we are counting single (tlog + ckp) file upload as one.
         assertEquals(0, fileTransferFailed.get());
         assertEquals(1, translogTransferSucceeded.get());
         assertEquals(0, translogTransferFailed.get());
@@ -364,7 +363,30 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
             @Override
             public Set<TransferFileSnapshot> getTranslogCheckpointFileSnapshots() {
-                return new HashSet<>();
+                try {
+                    return Set.of(
+                        new FileSnapshot.TranslogCheckpointFileSnapshot(
+                            createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.TRANSLOG_FILE_SUFFIX),
+                            primaryTerm,
+                            null,
+                            generation,
+                            minTranslogGeneration,
+                            createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.CHECKPOINT_SUFFIX),
+                            null
+                        ),
+                        new FileSnapshot.TranslogCheckpointFileSnapshot(
+                            createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.TRANSLOG_FILE_SUFFIX),
+                            primaryTerm,
+                            null,
+                            generation - 1,
+                            minTranslogGeneration,
+                            createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.CHECKPOINT_SUFFIX),
+                            null
+                        )
+                    );
+                } catch (IOException e) {
+                    throw new AssertionError("Failed to create temp file", e);
+                }
             }
 
             @Override
