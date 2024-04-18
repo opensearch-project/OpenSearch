@@ -19,9 +19,9 @@ import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.stats.CacheStatsHolder;
-import org.opensearch.common.cache.stats.CacheStatsHolderInterface;
-import org.opensearch.common.cache.stats.DummyCacheStatsHolder;
+import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
+import org.opensearch.common.cache.stats.NoopCacheStatsHolder;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
@@ -49,7 +49,7 @@ import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSe
 public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListener<ICacheKey<K>, V> {
 
     private final Cache<ICacheKey<K>, V> cache;
-    private final CacheStatsHolderInterface cacheStatsHolder;
+    private final CacheStatsHolder cacheStatsHolder;
     private final RemovalListener<ICacheKey<K>, V> removalListener;
     private final List<String> dimensionNames;
     private final ToLongBiFunction<ICacheKey<K>, V> weigher;
@@ -65,9 +65,9 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         cache = cacheBuilder.build();
         this.dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
         if (FeatureFlags.PLUGGABLE_CACHE_SETTING.get(builder.getSettings())) {
-            this.cacheStatsHolder = new CacheStatsHolder(dimensionNames);
+            this.cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames);
         } else {
-            this.cacheStatsHolder = new DummyCacheStatsHolder(dimensionNames);
+            this.cacheStatsHolder = new NoopCacheStatsHolder();
         }
         this.removalListener = builder.getRemovalListener();
         this.weigher = builder.getWeigher();

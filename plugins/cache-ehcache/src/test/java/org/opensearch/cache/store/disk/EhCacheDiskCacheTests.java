@@ -25,7 +25,6 @@ import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.bytes.CompositeBytesReference;
@@ -60,7 +59,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
     private final String dimensionName = "shardId";
 
     public void testBasicGetAndPut() throws IOException {
-        Settings settings = getSettings(true);
+        Settings settings = Settings.builder().build();
         MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
@@ -143,7 +142,6 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                                     .getKey(),
                                 true
                             )
-                            .put(FeatureFlags.PLUGGABLE_CACHE, true)
                             .build()
                     )
                     .build(),
@@ -175,7 +173,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testConcurrentPut() throws Exception {
-        Settings settings = getSettings(true);
+        Settings settings = Settings.builder().build();
         MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
@@ -225,7 +223,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testEhcacheParallelGets() throws Exception {
-        Settings settings = getSettings(true);
+        Settings settings = Settings.builder().build();
         MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
@@ -274,7 +272,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testEhcacheKeyIterator() throws Exception {
-        Settings settings = getSettings(true);
+        Settings settings = Settings.builder().build();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
                 .setThreadPoolAlias("ehcacheTest")
@@ -314,7 +312,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testEvictions() throws Exception {
-        Settings settings = getSettings(true);
+        Settings settings = Settings.builder().build();
         MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
@@ -350,7 +348,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testComputeIfAbsentConcurrently() throws Exception {
-        Settings settings = getSettings(true);
+        Settings settings = Settings.builder().build();
         MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
@@ -426,7 +424,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testComputeIfAbsentConcurrentlyAndThrowsException() throws Exception {
-        Settings settings = getSettings(true);
+        Settings settings = Settings.builder().build();
         MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
@@ -487,7 +485,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testComputeIfAbsentWithNullValueLoading() throws Exception {
-        Settings settings = getSettings(true);
+        Settings settings = Settings.builder().build();
         MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
@@ -554,7 +552,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
     public void testMemoryTracking() throws Exception {
         // Test all cases for EhCacheEventListener.onEvent and check stats memory usage is updated correctly
-        Settings settings = getSettings(true);
+        Settings settings = Settings.builder().build();
         ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
         int initialKeyLength = 40;
         int initialValueLength = 40;
@@ -628,7 +626,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testEhcacheKeyIteratorWithRemove() throws IOException {
-        Settings settings = getSettings(true);
+        Settings settings = Settings.builder().build();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
                 .setThreadPoolAlias("ehcacheTest")
@@ -675,7 +673,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testInvalidateAll() throws Exception {
-        Settings settings = getSettings(true);
+        Settings settings = Settings.builder().build();
         MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
@@ -712,7 +710,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testBasicGetAndPutBytesReference() throws Exception {
-        Settings settings = getSettings(true);
+        Settings settings = Settings.builder().build();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             ICache<String, BytesReference> ehCacheDiskCachingTier = new EhcacheDiskCache.Builder<String, BytesReference>()
                 .setThreadPoolAlias("ehcacheTest")
@@ -758,7 +756,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testInvalidate() throws Exception {
-        Settings settings = getSettings(true);
+        Settings settings = Settings.builder().build();
         MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
@@ -802,7 +800,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
     // Modified from OpenSearchOnHeapCacheTests.java
     public void testInvalidateWithDropDimensions() throws Exception {
-        Settings settings = getSettings(true);
+        Settings settings = Settings.builder().build();
         List<String> dimensionNames = List.of("dim1", "dim2");
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             ICache<String, String> ehCacheDiskCachingTier = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
@@ -851,37 +849,6 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
-    public void testStatsWithoutPluggableCaches() throws Exception {
-        Settings settings = getSettings(false);
-        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
-        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
-        try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
-                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
-                .setIsEventListenerModeSync(true)
-                .setKeyType(String.class)
-                .setValueType(String.class)
-                .setKeySerializer(new StringSerializer())
-                .setValueSerializer(new StringSerializer())
-                .setDimensionNames(List.of(dimensionName))
-                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
-                .setSettings(settings)
-                .setExpireAfterAccess(TimeValue.MAX_VALUE)
-                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
-                .setRemovalListener(removalListener)
-                .setWeigher(weigher)
-                .build();
-            int randomKeys = randomIntBetween(10, 100);
-            for (int i = 0; i < randomKeys; i++) {
-                ICacheKey<String> iCacheKey = getICacheKey(UUID.randomUUID().toString());
-                ehcacheTest.put(iCacheKey, UUID.randomUUID().toString());
-                assertEquals(i + 1, ehcacheTest.count());
-                assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), ehcacheTest.stats().getTotalStats());
-            }
-            ehcacheTest.close();
-        }
-    }
-
     private List<String> getRandomDimensions(List<String> dimensionNames) {
         Random rand = Randomness.get();
         int bound = 3;
@@ -924,10 +891,6 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             totalSize += value.length();
             return totalSize;
         };
-    }
-
-    private Settings getSettings(boolean pluggableCaches) {
-        return Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE, pluggableCaches).build();
     }
 
     static class MockRemovalListener<K, V> implements RemovalListener<ICacheKey<K>, V> {
