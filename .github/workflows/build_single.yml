@@ -20,17 +20,11 @@ on:
         default: false
       system:
         description: "Package OS"
-        type: choice
-        options:
-          - rpm
-          - deb
+        type: string
         default: deb
       architecture:
         description: "Package architecture"
-        type: choice
-        options:
-          - amd64
-          - x86_64
+        type: string
         default: amd64
   workflow_dispatch:
     inputs:
