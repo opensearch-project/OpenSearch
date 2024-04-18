@@ -78,6 +78,7 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.OrdinalIndexMap;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexModule;
@@ -511,6 +512,7 @@ public class MetadataCreateIndexService {
                     temporaryIndexMeta.getCustomData(),
                     currentState
                 );
+                OrdinalIndexMap.getInstance().updateOrdinalIndexMap(indexMetadata.getCompressedID(), request.index());
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
                 throw e;

@@ -566,6 +566,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         )
                     );
                 }
+                OrdinalIndexMap.getInstance().updateOrdinalIndexMap(indexMetadata.getCompressedID(), index.getName());
             } catch (Exception e) {
                 final String failShardReason;
                 if (indexService == null) {

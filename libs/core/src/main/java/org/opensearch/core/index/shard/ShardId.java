@@ -141,6 +141,9 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
      */
     public Index getIndex() {
         // TODO : for compressed index, create an index object
+        if (hasCompressedIndex) {
+            return new Index(OrdinalIndexMap.getInstance().getOrdinalIndex(compressedIndex.getOrdinal()),compressedIndex.getUUID() );
+        }
         return index;
     }
 
@@ -181,6 +184,10 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
     @Override
     public String toString() {
         //TODO : handle compressed index
+        if (hasCompressedIndex) {
+            OrdinalIndexMap  ordinalIndexMap = OrdinalIndexMap.getInstance();
+            return "[" + ordinalIndexMap.getOrdinalIndex(compressedIndex.getOrdinal()) + "][" + shardId + "]";
+        }
         return "[" + index.getName() + "][" + shardId + "]";
     }
 
@@ -210,7 +217,7 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ShardId shardId1 = (ShardId) o;
-        return shardId == shardId1.shardId && index.equals(shardId1.index);
+        return shardId == shardId1.shardId && getIndex().equals(shardId1.getIndex());
     }
 
     /** Returns the hash code of this shard id.

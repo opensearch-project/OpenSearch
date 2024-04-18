@@ -68,6 +68,7 @@ import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.metadata.AliasValidator;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateDataStreamService;
@@ -119,6 +120,7 @@ import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.OrdinalIndexMap;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -1553,6 +1555,15 @@ public class Node implements Closeable {
         logger.info("started");
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(plugin -> plugin.onNodeStarted(clusterService.localNode()));
+
+        if (clusterService.state().getMetadata().getIndices().size() > 0)
+        {
+            OrdinalIndexMap ordinalIndexMap = OrdinalIndexMap.getInstance();
+            for (IndexMetadata metadata: clusterService.state().getMetadata().getIndices().values()) {
+                ordinalIndexMap.updateOrdinalIndexMap(metadata.getCompressedID(), metadata.getIndex().getName());
+            }
+        }
+
 
         return this;
     }
