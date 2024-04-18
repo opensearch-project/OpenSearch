@@ -38,6 +38,7 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -60,6 +61,7 @@ import java.util.stream.Stream;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 import static org.opensearch.index.shard.IndexShardTestCase.getTranslog;
@@ -79,7 +81,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class, MockFsRepositoryPlugin.class);
     }
 
     @Override
@@ -790,6 +792,74 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             client(newNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(),
             docs + moreDocs + uncommittedOps
         );
+    }
+
+    // Test local only translog files which are not uploaded to remote store (no metadata present in remote)
+    // Without the cleanup change in RemoteFsTranslog.createEmptyTranslog, this test fails with NPE.
+    public void testLocalOnlyTranslogCleanupOnNodeRestart() throws Exception {
+        clusterSettingsSuppliedByTest = true;
+
+        // Overriding settings to use AsyncMultiStreamBlobContainer
+        Settings settings = Settings.builder()
+            .put(super.nodeSettings(1))
+            .put(
+                remoteStoreClusterSettings(
+                    REPOSITORY_NAME,
+                    segmentRepoPath,
+                    MockFsRepositoryPlugin.TYPE,
+                    REPOSITORY_2_NAME,
+                    translogRepoPath,
+                    MockFsRepositoryPlugin.TYPE
+                )
+            )
+            .build();
+
+        internalCluster().startClusterManagerOnlyNode(settings);
+        String dataNode = internalCluster().startDataOnlyNode(settings);
+
+        // 1. Create index with 0 replica
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0, 10000L, -1));
+        ensureGreen(INDEX_NAME);
+
+        // 2. Index docs
+        int searchableDocs = 0;
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            indexBulk(INDEX_NAME, 15);
+            refresh(INDEX_NAME);
+            searchableDocs += 15;
+        }
+        indexBulk(INDEX_NAME, 15);
+
+        assertHitCount(client(dataNode).prepareSearch(INDEX_NAME).setSize(0).get(), searchableDocs);
+
+        // 3. Delete metadata from remote translog
+        String indexUUID = client().admin()
+            .indices()
+            .prepareGetSettings(INDEX_NAME)
+            .get()
+            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
+
+        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", TRANSLOG, METADATA).buildAsString();
+        Path translogMetaDataPath = Path.of(translogRepoPath + "/" + shardPath);
+
+        try (Stream<Path> files = Files.list(translogMetaDataPath)) {
+            files.forEach(p -> {
+                try {
+                    Files.delete(p);
+                } catch (IOException e) {
+                    // Ignore
+                }
+            });
+        }
+
+        internalCluster().restartNode(dataNode);
+
+        ensureGreen(INDEX_NAME);
+
+        assertHitCount(client(dataNode).prepareSearch(INDEX_NAME).setSize(0).get(), searchableDocs);
+        indexBulk(INDEX_NAME, 15);
+        refresh(INDEX_NAME);
+        assertHitCount(client(dataNode).prepareSearch(INDEX_NAME).setSize(0).get(), searchableDocs + 15);
     }
 
     public void testFlushOnTooManyRemoteTranslogFiles() throws Exception {
