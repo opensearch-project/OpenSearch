@@ -891,8 +891,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         FeatureFlags.initializeFeatureFlags(nodeSettings);
 
         List<Version> versions = allOpenSearchVersions();
-        assert versions.size() >= 3 : "test requires at least three open search versions";
-        Version lowerVersion = versions.get(versions.size() - 3);
+        assert versions.size() >= 2 : "test requires at least two open search versions";
         Version baseVersion = versions.get(versions.size() - 2);
         Version higherVersion = versions.get(versions.size() - 1);
 
@@ -911,16 +910,14 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
         Metadata metadata = Metadata.builder().persistentSettings(mixedModeCompatibilitySettings).build();
 
-        boolean joiningNodeIsHigher = randomBoolean();
-
-        // joining node of a different version (higher or lower) than the current nodes
+        // joining node of a higher version than the current nodes
         DiscoveryNode joiningNode1 = new DiscoveryNode(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             buildNewFakeTransportAddress(),
             remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO),
             Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
-            joiningNodeIsHigher ? higherVersion : lowerVersion
+            higherVersion
         );
         final IllegalStateException exception = expectThrows(
             IllegalStateException.class,
@@ -928,11 +925,9 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         );
         String reason = String.format(
             Locale.ROOT,
-            "mixed mode: a %s version [%s] node [%s] is not allowed to join cluster with %s version [%s]",
-            joiningNodeIsHigher ? "higher" : "lower",
-            joiningNode1.getVersion(),
+            "remote migration : a node [%s] of higher version [%s] is not allowed to join a cluster with maximum version [%s]",
             joiningNode1,
-            joiningNodeIsHigher ? "maximum" : "minimum",
+            joiningNode1.getVersion(),
             currentNodes.getMaxNodeVersion()
         );
         assertEquals(reason, exception.getMessage());
