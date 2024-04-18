@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
@@ -46,6 +47,7 @@ import java.util.Optional;
  *
  * @opensearch.internal
  */
+@PublicApi(since = "1.0.0")
 public interface TransportChannel {
 
     Logger logger = LogManager.getLogger(TransportChannel.class);

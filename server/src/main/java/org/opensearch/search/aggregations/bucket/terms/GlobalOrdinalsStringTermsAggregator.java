@@ -35,17 +35,24 @@ package org.opensearch.search.aggregations.bucket.terms;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.common.util.LongHash;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.Aggregator;
@@ -73,6 +80,7 @@ import java.util.function.LongUnaryOperator;
 
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * An aggregator of string values that relies on global ordinals in order to build buckets.
@@ -85,8 +93,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     private final LongPredicate acceptedGlobalOrdinals;
     private final long valueCount;
-    private final GlobalOrdLookupFunction lookupGlobalOrd;
+    private final String fieldName;
+    private Weight weight;
     protected final CollectionStrategy collectionStrategy;
+    private final SetOnce<SortedSetDocValues> dvs = new SetOnce<>();
     protected int segmentsWithSingleValuedOrds = 0;
     protected int segmentsWithMultiValuedOrds = 0;
 
@@ -120,11 +130,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.valuesSource = valuesSource;
         final IndexReader reader = context.searcher().getIndexReader();
-        final SortedSetDocValues values = reader.leaves().size() > 0
+        final SortedSetDocValues values = !reader.leaves().isEmpty()
             ? valuesSource.globalOrdinalsValues(context.searcher().getIndexReader().leaves().get(0))
             : DocValues.emptySortedSet();
         this.valueCount = values.getValueCount();
-        this.lookupGlobalOrd = values::lookupOrd;
         this.acceptedGlobalOrdinals = includeExclude == null ? ALWAYS_TRUE : includeExclude.acceptedGlobalOrdinals(values)::get;
         if (remapGlobalOrds) {
             this.collectionStrategy = new RemapGlobalOrds(cardinality);
@@ -136,16 +145,105 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 return new DenseGlobalOrds();
             });
         }
+        this.fieldName = (valuesSource instanceof ValuesSource.Bytes.WithOrdinals.FieldData)
+            ? ((ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource).getIndexFieldName()
+            : null;
     }
 
     String descriptCollectionStrategy() {
         return collectionStrategy.describe();
     }
 
+    public void setWeight(Weight weight) {
+        this.weight = weight;
+    }
+
+    /**
+     Read doc frequencies directly from indexed terms in the segment to skip iterating through individual documents
+     @param ctx The LeafReaderContext to collect terms from
+     @param globalOrds The SortedSetDocValues for the field's ordinals
+     @param ordCountConsumer A consumer to accept collected term frequencies
+     @return A LeafBucketCollector implementation with collection termination, since collection is complete
+     @throws IOException If an I/O error occurs during reading
+     */
+    LeafBucketCollector termDocFreqCollector(
+        LeafReaderContext ctx,
+        SortedSetDocValues globalOrds,
+        BiConsumer<Long, Integer> ordCountConsumer
+    ) throws IOException {
+        if (weight == null) {
+            // Weight not assigned - cannot use this optimization
+            return null;
+        } else {
+            if (weight.count(ctx) == 0) {
+                // No documents matches top level query on this segment, we can skip the segment entirely
+                return LeafBucketCollector.NO_OP_COLLECTOR;
+            } else if (weight.count(ctx) != ctx.reader().maxDoc()) {
+                // weight.count(ctx) == ctx.reader().maxDoc() implies there are no deleted documents and
+                // top-level query matches all docs in the segment
+                return null;
+            }
+        }
+
+        Terms segmentTerms = ctx.reader().terms(this.fieldName);
+        if (segmentTerms == null) {
+            // Field is not indexed.
+            return null;
+        }
+
+        NumericDocValues docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
+        if (docCountValues.nextDoc() != NO_MORE_DOCS) {
+            // This segment has at least one document with the _doc_count field.
+            return null;
+        }
+
+        TermsEnum indexTermsEnum = segmentTerms.iterator();
+        BytesRef indexTerm = indexTermsEnum.next();
+        TermsEnum globalOrdinalTermsEnum = globalOrds.termsEnum();
+        BytesRef ordinalTerm = globalOrdinalTermsEnum.next();
+
+        // Iterate over the terms in the segment, look for matches in the global ordinal terms,
+        // and increment bucket count when segment terms match global ordinal terms.
+        while (indexTerm != null && ordinalTerm != null) {
+            int compare = indexTerm.compareTo(ordinalTerm);
+            if (compare == 0) {
+                if (acceptedGlobalOrdinals.test(globalOrdinalTermsEnum.ord())) {
+                    ordCountConsumer.accept(globalOrdinalTermsEnum.ord(), indexTermsEnum.docFreq());
+                }
+                indexTerm = indexTermsEnum.next();
+                ordinalTerm = globalOrdinalTermsEnum.next();
+            } else if (compare < 0) {
+                indexTerm = indexTermsEnum.next();
+            } else {
+                ordinalTerm = globalOrdinalTermsEnum.next();
+            }
+        }
+        return new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                throw new CollectionTerminatedException();
+            }
+        };
+    }
+
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
         collectionStrategy.globalOrdsReady(globalOrds);
+
+        if (collectionStrategy instanceof DenseGlobalOrds
+            && this.resultStrategy instanceof StandardTermsResults
+            && sub == LeafBucketCollector.NO_OP_COLLECTOR) {
+            LeafBucketCollector termDocFreqCollector = termDocFreqCollector(
+                ctx,
+                globalOrds,
+                (ord, docCount) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, ord), docCount)
+            );
+            if (termDocFreqCollector != null) {
+                return termDocFreqCollector;
+            }
+        }
+
         SortedDocValues singleValues = DocValues.unwrapSingleton(globalOrds);
         if (singleValues != null) {
             segmentsWithSingleValuedOrds++;
@@ -343,9 +441,20 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             final SortedSetDocValues segmentOrds = valuesSource.ordinalsValues(ctx);
             segmentDocCounts = context.bigArrays().grow(segmentDocCounts, 1 + segmentOrds.getValueCount());
             assert sub == LeafBucketCollector.NO_OP_COLLECTOR;
-            final SortedDocValues singleValues = DocValues.unwrapSingleton(segmentOrds);
             mapping = valuesSource.globalOrdinalsMapping(ctx);
-            // Dense mode doesn't support include/exclude so we don't have to check it here.
+
+            if (this.resultStrategy instanceof StandardTermsResults) {
+                LeafBucketCollector termDocFreqCollector = this.termDocFreqCollector(
+                    ctx,
+                    segmentOrds,
+                    (ord, docCount) -> incrementBucketDocCount(mapping.applyAsLong(ord), docCount)
+                );
+                if (termDocFreqCollector != null) {
+                    return termDocFreqCollector;
+                }
+            }
+
+            final SortedDocValues singleValues = DocValues.unwrapSingleton(segmentOrds);
             if (singleValues != null) {
                 segmentsWithSingleValuedOrds++;
                 return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, segmentOrds) {
@@ -776,7 +885,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         StringTerms.Bucket convertTempBucketToRealBucket(OrdBucket temp) throws IOException {
-            BytesRef term = BytesRef.deepCopyOf(lookupGlobalOrd.apply(temp.globalOrd));
+            // Recreate DocValues as needed for concurrent segment search
+            SortedSetDocValues values = getDocValues();
+            BytesRef term = BytesRef.deepCopyOf(values.lookupOrd(temp.globalOrd));
+
             StringTerms.Bucket result = new StringTerms.Bucket(term, temp.docCount, null, showTermDocCountError, 0, format);
             result.bucketOrd = temp.bucketOrd;
             result.docCountError = 0;
@@ -892,7 +1004,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             long subsetSize = subsetSize(owningBucketOrd);
             return (spare, globalOrd, bucketOrd, docCount) -> {
                 spare.bucketOrd = bucketOrd;
-                oversizedCopy(lookupGlobalOrd.apply(globalOrd), spare.termBytes);
+                // Recreate DocValues as needed for concurrent segment search
+                SortedSetDocValues values = getDocValues();
+                oversizedCopy(values.lookupOrd(globalOrd), spare.termBytes);
                 spare.subsetDf = docCount;
                 spare.subsetSize = subsetSize;
                 spare.supersetDf = backgroundFrequencies.freq(spare.termBytes);
@@ -977,4 +1091,18 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      * Predicate used for {@link #acceptedGlobalOrdinals} if there is no filter.
      */
     private static final LongPredicate ALWAYS_TRUE = l -> true;
+
+    /**
+     * If DocValues have not been initialized yet for reduce phase, create and set them.
+     */
+    private SortedSetDocValues getDocValues() throws IOException {
+        if (dvs.get() == null) {
+            dvs.set(
+                !context.searcher().getIndexReader().leaves().isEmpty()
+                    ? valuesSource.globalOrdinalsValues(context.searcher().getIndexReader().leaves().get(0))
+                    : DocValues.emptySortedSet()
+            );
+        }
+        return dvs.get();
+    }
 }

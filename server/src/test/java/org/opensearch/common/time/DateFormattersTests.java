@@ -211,6 +211,10 @@ public class DateFormattersTests extends OpenSearchTestCase {
             assertThat(formatter.format(instant), is("-0.12345"));
             assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
         }
+        {
+            Instant instant = Instant.ofEpochMilli(Long.MIN_VALUE);
+            assertThat(formatter.format(instant), is("-" + Long.MAX_VALUE)); // We actually truncate to Long.MAX_VALUE to avoid overflow
+        }
     }
 
     public void testInvalidEpochMilliParser() {

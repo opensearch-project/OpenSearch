@@ -622,6 +622,9 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testClusterRemoteTranslogBufferIntervalDefault() {
         IndicesService indicesService = getIndicesService();
-        assertEquals(IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL, indicesService.getClusterRemoteTranslogBufferInterval());
+        assertEquals(
+            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
+            indicesService.getRemoteStoreSettings().getClusterRemoteTranslogBufferInterval()
+        );
     }
 }

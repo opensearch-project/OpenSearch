@@ -122,6 +122,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.search.query.TopDocsCollectorContext.hasInfMaxScore;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -437,10 +438,16 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
 
+            // Do not expect an exact match when terminate_after is used in conjunction to size = 0 as an optimization introduced by
+            // https://issues.apache.org/jira/browse/LUCENE-10620 can produce a total hit count >= terminated_after, because
+            // TotalHitCountCollector is used in this case as part of Weight#count() optimization
             context.setSize(0);
             QueryPhase.executeInternal(context.withCleanQueryResult(), queryPhaseSearcher);
             assertTrue(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
+            assertThat(
+                context.queryResult().topDocs().topDocs.totalHits.value,
+                allOf(greaterThanOrEqualTo(1L), lessThanOrEqualTo((long) numDocs))
+            );
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
         }
 
@@ -466,7 +473,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.parsedQuery(new ParsedQuery(bq));
             QueryPhase.executeInternal(context.withCleanQueryResult(), queryPhaseSearcher);
             assertTrue(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
+            assertThat(
+                context.queryResult().topDocs().topDocs.totalHits.value,
+                allOf(greaterThanOrEqualTo(1L), lessThanOrEqualTo((long) numDocs))
+            );
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
         }
         {
@@ -486,9 +496,12 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.queryCollectorManagers().put(TotalHitCountCollector.class, manager);
             QueryPhase.executeInternal(context.withCleanQueryResult(), queryPhaseSearcher);
             assertTrue(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
+            assertThat(
+                context.queryResult().topDocs().topDocs.totalHits.value,
+                allOf(greaterThanOrEqualTo(1L), lessThanOrEqualTo((long) numDocs))
+            );
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
-            assertThat(manager.getTotalHits(), equalTo(1));
+            assertThat(manager.getTotalHits(), allOf(greaterThanOrEqualTo(1), lessThanOrEqualTo(numDocs)));
         }
 
         // tests with trackTotalHits and terminateAfter
@@ -503,7 +516,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
             if (trackTotalHits == -1) {
                 assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(0L));
             } else {
-                assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) Math.min(trackTotalHits, 10)));
+                assertThat(
+                    context.queryResult().topDocs().topDocs.totalHits.value,
+                    allOf(greaterThanOrEqualTo(Math.min(trackTotalHits, 10L)), lessThanOrEqualTo((long) numDocs))
+                );
             }
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
             // The concurrent search terminates the collection when the number of hits is reached by each
@@ -511,7 +527,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             // slices (as the unit of concurrency). To address that, we have to use the shared global state,
             // much as HitsThresholdChecker does.
             if (executor == null) {
-                assertThat(manager.getTotalHits(), equalTo(10));
+                assertThat(manager.getTotalHits(), allOf(greaterThanOrEqualTo(Math.min(trackTotalHits, 10)), lessThanOrEqualTo(numDocs)));
             }
         }
 
