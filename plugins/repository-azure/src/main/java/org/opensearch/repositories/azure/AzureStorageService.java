@@ -166,6 +166,7 @@ public class AzureStorageService implements AutoCloseable {
     private StorageEndpoint getStorageBlobEndpoint(final AzureStorageSettings settings) {
         String endpointSuffix = settings.getEndpointSuffix();
         if (!Strings.hasText(endpointSuffix)) {
+            // endpointSuffix is default to "core.windows.net".
             endpointSuffix = Constants.ConnectionStringConstants.DEFAULT_DNS;
         }
         final URI primaryBlobEndpoint = URI.create("https://" + settings.getAccount() + ".blob." + endpointSuffix);
