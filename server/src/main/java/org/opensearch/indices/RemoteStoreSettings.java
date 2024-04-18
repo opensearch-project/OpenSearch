@@ -66,7 +66,7 @@ public class RemoteStoreSettings {
     );
 
     /**
-     * Controls the maximum referenced remote translog files. If breached the shard will be Refreshed.
+     * Controls the maximum referenced remote translog files. If breached the shard will be flushed.
      */
     public static final Setting<Integer> CLUSTER_REMOTE_MAX_TRANSLOG_READERS = Setting.intSetting(
         "cluster.remote_store.translog.max_readers",

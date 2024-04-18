@@ -142,6 +142,4 @@ public interface TranslogManager {
     Releasable drainSync();
 
     Translog.TranslogGeneration getTranslogGeneration();
-
-    int getNumberofTranslogReaders();
 }

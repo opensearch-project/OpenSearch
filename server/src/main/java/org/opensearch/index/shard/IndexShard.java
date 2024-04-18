@@ -4484,23 +4484,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // we can not protect with a lock since we "release" on a different thread
     private final AtomicBoolean flushOrRollRunning = new AtomicBoolean();
 
-    // For testing purpose
-    public int getNumberofTranslogReaders() {
-        final Engine engine = getEngineOrNull();
-        if (engine != null) {
-            try {
-                return engine.translogManager().getNumberofTranslogReaders();
-            } catch (final AlreadyClosedException e) {
-                // we are already closed
-            }
-        }
-        return -1;
-    }
-
     /**
      * Schedules a flush or translog generation roll if needed but will not schedule more than one concurrently. The operation will be
      * executed asynchronously on the flush thread pool.
-     * Also schedules a refresh if required, decided by translog manager
+     * Can also schedule a flush if decided by translog manager
      */
     public void afterWriteOperation() {
         if (shouldPeriodicallyFlush() || shouldRollTranslogGeneration()) {

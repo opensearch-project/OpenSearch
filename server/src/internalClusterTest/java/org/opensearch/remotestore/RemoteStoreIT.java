@@ -30,6 +30,7 @@ import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.Translog.Durability;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -61,6 +62,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SH
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
+import static org.opensearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
 import static org.opensearch.test.OpenSearchTestCase.getShardLevelBlobPath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -803,21 +805,31 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         IndexShard indexShard = getIndexShard(datanode, INDEX_NAME);
-
+        Path translogLocation = getTranslog(indexShard).location();
         assertFalse(indexShard.shouldPeriodicallyFlush());
-        assertEquals(0, indexShard.getNumberofTranslogReaders());
+
+        try (Stream<Path> files = Files.list(translogLocation)) {
+            long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
+            assertEquals(totalFiles, 1L);
+        }
 
         // indexing 100 documents (100 bulk requests), no flush will be triggered yet
         for (int i = 0; i < 100; i++) {
             indexBulk(INDEX_NAME, 1);
         }
 
-        assertEquals(100, indexShard.getNumberofTranslogReaders());
-
+        try (Stream<Path> files = Files.list(translogLocation)) {
+            long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
+            assertEquals(totalFiles, 101L);
+        }
         // Will flush and trim the translog readers
         indexBulk(INDEX_NAME, 1);
 
-        assertBusy(() -> assertEquals(0, indexShard.getNumberofTranslogReaders()), 30, TimeUnit.SECONDS);
-        assertFalse(indexShard.shouldPeriodicallyFlush());
+        assertBusy(() -> {
+            try (Stream<Path> files = Files.list(translogLocation)) {
+                long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
+                assertEquals(totalFiles, 1L);
+            }
+        }, 30, TimeUnit.SECONDS);
     }
 }

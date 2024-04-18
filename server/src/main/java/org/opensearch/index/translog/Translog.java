@@ -2056,13 +2056,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     /**
      * Checks whether or not the shard should be flushed based on translog files.
      * each translog type can have it's own decider
-     * @return {@code true} if the shard should be refreshed
+     * @return {@code true} if the shard should be flushed
      */
-    public boolean shouldFlushOnMaxTranslogFiles() {
+    public boolean shouldFlush() {
         return false;
-    }
-
-    public int getNumberofTranslogReaders() {
-        return readers.size();
     }
 }

@@ -134,9 +134,4 @@ public class NoOpTranslogManager implements TranslogManager {
     public Translog.TranslogGeneration getTranslogGeneration() {
         return null;
     }
-
-    @Override
-    public int getNumberofTranslogReaders() {
-        return 0;
-    }
 }
