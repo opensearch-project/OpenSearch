@@ -48,7 +48,7 @@ public abstract class NetworkMessage {
     protected final long requestId;
     protected final byte status;
 
-    NetworkMessage(ThreadContext threadContext, Version version, byte status, long requestId) {
+    public NetworkMessage(ThreadContext threadContext, Version version, byte status, long requestId) {
         this.threadContext = threadContext.captureAsWriteable();
         this.version = version;
         this.requestId = requestId;

@@ -80,7 +80,7 @@ public final class TransportStatus {
         return (value & STATUS_HANDSHAKE) != 0;
     }
 
-    static byte setHandshake(byte value) { // pkg private since it's only used internally
+    public static byte setHandshake(byte value) { // pkg private since it's only used internally
         value |= STATUS_HANDSHAKE;
         return value;
     }

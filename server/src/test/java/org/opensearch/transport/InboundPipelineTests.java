@@ -50,6 +50,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
+import org.opensearch.transport.nativeprotocol.NativeOutboundMessage;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -128,11 +129,11 @@ public class InboundPipelineTests extends OpenSearchTestCase {
                     final MessageData messageData;
                     Exception expectedExceptionClass = null;
 
-                    OutboundMessage message;
+                    NativeOutboundMessage message;
                     if (isRequest) {
                         if (rarely()) {
                             messageData = new MessageData(version, requestId, true, isCompressed, breakThisAction, null);
-                            message = new OutboundMessage.Request(
+                            message = new NativeOutboundMessage.Request(
                                 threadContext,
                                 new String[0],
                                 new TestRequest(value),
@@ -145,7 +146,7 @@ public class InboundPipelineTests extends OpenSearchTestCase {
                             expectedExceptionClass = new CircuitBreakingException("", CircuitBreaker.Durability.PERMANENT);
                         } else {
                             messageData = new MessageData(version, requestId, true, isCompressed, actionName, value);
-                            message = new OutboundMessage.Request(
+                            message = new NativeOutboundMessage.Request(
                                 threadContext,
                                 new String[0],
                                 new TestRequest(value),
@@ -158,7 +159,7 @@ public class InboundPipelineTests extends OpenSearchTestCase {
                         }
                     } else {
                         messageData = new MessageData(version, requestId, false, isCompressed, null, value);
-                        message = new OutboundMessage.Response(
+                        message = new NativeOutboundMessage.Response(
                             threadContext,
                             Collections.emptySet(),
                             new TestResponse(value),
@@ -231,9 +232,9 @@ public class InboundPipelineTests extends OpenSearchTestCase {
             final boolean isRequest = randomBoolean();
             final long requestId = randomNonNegativeLong();
 
-            OutboundMessage message;
+            NativeOutboundMessage message;
             if (isRequest) {
-                message = new OutboundMessage.Request(
+                message = new NativeOutboundMessage.Request(
                     threadContext,
                     new String[0],
                     new TestRequest(value),
@@ -244,7 +245,7 @@ public class InboundPipelineTests extends OpenSearchTestCase {
                     false
                 );
             } else {
-                message = new OutboundMessage.Response(
+                message = new NativeOutboundMessage.Response(
                     threadContext,
                     Collections.emptySet(),
                     new TestResponse(value),
@@ -285,9 +286,9 @@ public class InboundPipelineTests extends OpenSearchTestCase {
             final boolean isRequest = randomBoolean();
             final long requestId = randomNonNegativeLong();
 
-            OutboundMessage message;
+            NativeOutboundMessage message;
             if (isRequest) {
-                message = new OutboundMessage.Request(
+                message = new NativeOutboundMessage.Request(
                     threadContext,
                     new String[0],
                     new TestRequest(value),
@@ -298,7 +299,7 @@ public class InboundPipelineTests extends OpenSearchTestCase {
                     false
                 );
             } else {
-                message = new OutboundMessage.Response(
+                message = new NativeOutboundMessage.Response(
                     threadContext,
                     Collections.emptySet(),
                     new TestResponse(value),

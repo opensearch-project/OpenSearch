@@ -57,6 +57,7 @@ import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
+import org.opensearch.transport.nativeprotocol.NativeOutboundMessage;
 import org.junit.After;
 import org.junit.Before;
 
@@ -195,7 +196,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(
+        NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
             threadPool.getThreadContext(),
             new String[0],
             new TestRequest(requestValue),
@@ -393,7 +394,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
 
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(
+        NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
             threadPool.getThreadContext(),
             new String[0],
             new TestRequest(requestValue),
@@ -469,7 +470,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
 
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(
+        NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
             threadPool.getThreadContext(),
             new String[0],
             new TestRequest(requestValue),
@@ -547,7 +548,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(
+        NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
             threadPool.getThreadContext(),
             new String[0],
             new TestRequest(requestValue),
@@ -643,7 +644,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(
+        NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
             threadPool.getThreadContext(),
             new String[0],
             new TestRequest(requestValue),

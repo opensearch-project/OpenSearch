@@ -47,7 +47,7 @@ import java.io.IOException;
  */
 public class BytesTransportRequest extends TransportRequest {
 
-    BytesReference bytes;
+    public BytesReference bytes;
     Version version;
 
     public BytesTransportRequest(StreamInput in) throws IOException {

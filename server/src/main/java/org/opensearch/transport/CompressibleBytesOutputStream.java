@@ -58,13 +58,13 @@ import java.util.zip.DeflaterOutputStream;
  *
  * @opensearch.internal
  */
-final class CompressibleBytesOutputStream extends StreamOutput {
+public final class CompressibleBytesOutputStream extends StreamOutput {
 
     private final OutputStream stream;
     private final BytesStream bytesStreamOutput;
     private final boolean shouldCompress;
 
-    CompressibleBytesOutputStream(BytesStream bytesStreamOutput, boolean shouldCompress) throws IOException {
+    public CompressibleBytesOutputStream(BytesStream bytesStreamOutput, boolean shouldCompress) throws IOException {
         this.bytesStreamOutput = bytesStreamOutput;
         this.shouldCompress = shouldCompress;
         if (shouldCompress) {
@@ -80,7 +80,7 @@ final class CompressibleBytesOutputStream extends StreamOutput {
      * @return bytes underlying the stream
      * @throws IOException if an exception occurs when writing or flushing
      */
-    BytesReference materializeBytes() throws IOException {
+    public BytesReference materializeBytes() throws IOException {
         // If we are using compression the stream needs to be closed to ensure that EOS marker bytes are written.
         // The actual ReleasableBytesStreamOutput will not be closed yet as it is wrapped in flushOnCloseStream when
         // passed to the deflater stream.

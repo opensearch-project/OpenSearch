@@ -42,6 +42,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.transport.TransportMessage;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.transport.nativeprotocol.NativeOutboundMessage;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,9 +71,9 @@ public class InboundDecoderTests extends OpenSearchTestCase {
         } else {
             threadContext.addResponseHeader(headerKey, headerValue);
         }
-        OutboundMessage message;
+        NativeOutboundMessage message;
         if (isRequest) {
-            message = new OutboundMessage.Request(
+            message = new NativeOutboundMessage.Request(
                 threadContext,
                 new String[0],
                 new TestRequest(randomAlphaOfLength(100)),
@@ -83,7 +84,7 @@ public class InboundDecoderTests extends OpenSearchTestCase {
                 false
             );
         } else {
-            message = new OutboundMessage.Response(
+            message = new NativeOutboundMessage.Response(
                 threadContext,
                 Collections.emptySet(),
                 new TestResponse(randomAlphaOfLength(100)),
@@ -142,7 +143,7 @@ public class InboundDecoderTests extends OpenSearchTestCase {
         final String headerValue = randomAlphaOfLength(20);
         threadContext.putHeader(headerKey, headerValue);
         Version handshakeCompatVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
-        OutboundMessage message = new OutboundMessage.Request(
+        NativeOutboundMessage message = new NativeOutboundMessage.Request(
             threadContext,
             new String[0],
             new TestRequest(randomAlphaOfLength(100)),
@@ -183,11 +184,11 @@ public class InboundDecoderTests extends OpenSearchTestCase {
         } else {
             threadContext.addResponseHeader(headerKey, headerValue);
         }
-        OutboundMessage message;
+        NativeOutboundMessage message;
         TransportMessage transportMessage;
         if (isRequest) {
             transportMessage = new TestRequest(randomAlphaOfLength(100));
-            message = new OutboundMessage.Request(
+            message = new NativeOutboundMessage.Request(
                 threadContext,
                 new String[0],
                 transportMessage,
@@ -199,7 +200,7 @@ public class InboundDecoderTests extends OpenSearchTestCase {
             );
         } else {
             transportMessage = new TestResponse(randomAlphaOfLength(100));
-            message = new OutboundMessage.Response(
+            message = new NativeOutboundMessage.Response(
                 threadContext,
                 Collections.emptySet(),
                 transportMessage,
@@ -260,7 +261,7 @@ public class InboundDecoderTests extends OpenSearchTestCase {
         final String headerValue = randomAlphaOfLength(20);
         threadContext.putHeader(headerKey, headerValue);
         Version handshakeCompatVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
-        OutboundMessage message = new OutboundMessage.Request(
+        NativeOutboundMessage message = new NativeOutboundMessage.Request(
             threadContext,
             new String[0],
             new TestRequest(randomAlphaOfLength(100)),
@@ -294,7 +295,7 @@ public class InboundDecoderTests extends OpenSearchTestCase {
         String action = "test-request";
         long requestId = randomNonNegativeLong();
         Version incompatibleVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
-        OutboundMessage message = new OutboundMessage.Request(
+        NativeOutboundMessage message = new NativeOutboundMessage.Request(
             threadContext,
             new String[0],
             new TestRequest(randomAlphaOfLength(100)),

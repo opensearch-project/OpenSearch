@@ -29,7 +29,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.transport;
+package org.opensearch.transport.nativeprotocol;
 
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -39,6 +39,13 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.bytes.CompositeBytesReference;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.transport.BytesTransportRequest;
+import org.opensearch.transport.CompressibleBytesOutputStream;
+import org.opensearch.transport.NetworkMessage;
+import org.opensearch.transport.ProtocolOutboundMessage;
+import org.opensearch.transport.RemoteTransportException;
+import org.opensearch.transport.TcpHeader;
+import org.opensearch.transport.TransportStatus;
 
 import java.io.IOException;
 import java.util.Set;
@@ -48,16 +55,17 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-abstract class OutboundMessage extends NetworkMessage {
+public abstract class NativeOutboundMessage extends NetworkMessage implements ProtocolOutboundMessage {
 
     private final Writeable message;
 
-    OutboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Writeable message) {
+    NativeOutboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Writeable message) {
         super(threadContext, version, status, requestId);
         this.message = message;
     }
 
-    BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
+    @Override
+    public BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
         bytesStream.setVersion(version);
         bytesStream.skip(TcpHeader.headerSize(version));
 
@@ -119,12 +127,12 @@ abstract class OutboundMessage extends NetworkMessage {
      *
      * @opensearch.internal
      */
-    static class Request extends OutboundMessage {
+    public static class Request extends NativeOutboundMessage {
 
         private final String[] features;
         private final String action;
 
-        Request(
+        public Request(
             ThreadContext threadContext,
             String[] features,
             Writeable message,
@@ -149,7 +157,7 @@ abstract class OutboundMessage extends NetworkMessage {
         private static byte setStatus(boolean compress, boolean isHandshake, Writeable message) {
             byte status = 0;
             status = TransportStatus.setRequest(status);
-            if (compress && OutboundMessage.canCompress(message)) {
+            if (compress && NativeOutboundMessage.canCompress(message)) {
                 status = TransportStatus.setCompress(status);
             }
             if (isHandshake) {
@@ -165,11 +173,11 @@ abstract class OutboundMessage extends NetworkMessage {
      *
      * @opensearch.internal
      */
-    static class Response extends OutboundMessage {
+    public static class Response extends NativeOutboundMessage {
 
         private final Set<String> features;
 
-        Response(
+        public Response(
             ThreadContext threadContext,
             Set<String> features,
             Writeable message,
