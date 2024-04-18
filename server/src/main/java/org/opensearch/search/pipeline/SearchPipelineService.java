@@ -41,6 +41,7 @@ import org.opensearch.core.service.ReportingService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.gateway.GatewayService;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.ingest.ConfigurationUtils;
@@ -64,6 +65,8 @@ import java.util.stream.Collectors;
 /**
  * The main entry point for search pipelines. Handles CRUD operations and exposes the API to execute search pipelines
  * against requests and responses.
+ *
+ * @opensearch.internal
  */
 public class SearchPipelineService implements ClusterStateApplier, ReportingService<SearchPipelineInfo> {
 
@@ -393,22 +396,26 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                 // Named pipeline specified for the request
                 pipelineId = searchRequest.pipeline();
             } else if (state != null && searchRequest.indices() != null && searchRequest.indices().length != 0) {
-                // Check for index default pipeline
-                Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, searchRequest);
-                for (Index index : concreteIndices) {
-                    IndexMetadata indexMetadata = state.metadata().index(index);
-                    if (indexMetadata != null) {
-                        Settings indexSettings = indexMetadata.getSettings();
-                        if (IndexSettings.DEFAULT_SEARCH_PIPELINE.exists(indexSettings)) {
-                            String currentPipelineId = IndexSettings.DEFAULT_SEARCH_PIPELINE.get(indexSettings);
-                            if (NOOP_PIPELINE_ID.equals(pipelineId)) {
-                                pipelineId = currentPipelineId;
-                            } else if (pipelineId.equals(currentPipelineId) == false) {
-                                pipelineId = NOOP_PIPELINE_ID;
-                                break;
+                try {
+                    // Check for index default pipeline
+                    Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, searchRequest);
+                    for (Index index : concreteIndices) {
+                        IndexMetadata indexMetadata = state.metadata().index(index);
+                        if (indexMetadata != null) {
+                            Settings indexSettings = indexMetadata.getSettings();
+                            if (IndexSettings.DEFAULT_SEARCH_PIPELINE.exists(indexSettings)) {
+                                String currentPipelineId = IndexSettings.DEFAULT_SEARCH_PIPELINE.get(indexSettings);
+                                if (NOOP_PIPELINE_ID.equals(pipelineId)) {
+                                    pipelineId = currentPipelineId;
+                                } else if (!pipelineId.equals(currentPipelineId)) {
+                                    pipelineId = NOOP_PIPELINE_ID;
+                                    break;
+                                }
                             }
                         }
                     }
+                } catch (IndexNotFoundException e) {
+                    logger.debug("Default pipeline not applied for {}", (Object) searchRequest.indices());
                 }
             }
             if (NOOP_PIPELINE_ID.equals(pipelineId) == false) {

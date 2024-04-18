@@ -1664,4 +1664,39 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         assertEquals(5, pipelinedRequest.source().size());
     }
 
+    public void testInvalidIndexResolveIndexDefaultPipeline() throws Exception {
+        SearchPipelineService service = createWithProcessors();
+
+        SearchPipelineMetadata metadata = new SearchPipelineMetadata(
+            Map.of(
+                "p1",
+                new PipelineConfiguration(
+                    "p1",
+                    new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : 2 } } ] }"),
+                    MediaTypeRegistry.JSON
+                )
+            )
+        );
+        Settings defaultPipelineSetting = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            .put(IndexSettings.DEFAULT_SEARCH_PIPELINE.getKey(), "p1")
+            .build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("my_index").settings(defaultPipelineSetting).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousState = clusterState;
+        clusterState = ClusterState.builder(clusterState)
+            .metadata(Metadata.builder().put(indexMetadata, false).putCustom(SearchPipelineMetadata.TYPE, metadata))
+            .build();
+
+        ClusterChangedEvent cce = new ClusterChangedEvent("", clusterState, previousState);
+        service.applyClusterState(cce);
+
+        SearchRequest searchRequest = new SearchRequest("xyz").source(SearchSourceBuilder.searchSource().size(5));
+        PipelinedRequest pipelinedRequest = syncTransformRequest(service.resolvePipeline(searchRequest, indexNameExpressionResolver));
+        assertEquals("_none", pipelinedRequest.getPipeline().getId());
+        assertEquals(5, pipelinedRequest.source().size());
+    }
+
 }
