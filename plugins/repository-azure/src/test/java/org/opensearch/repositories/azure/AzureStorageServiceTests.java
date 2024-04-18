@@ -521,14 +521,8 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             .put("azure.client.azure.token_credential_type", unsupported_token_credential_type)
             .build();
 
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> storageServiceWithSettingsValidation(settings)
-        );
-        assertEquals(
-            "No enum constant org.opensearch.repositories.azure.TokenCredentialType." + unsupported_token_credential_type,
-            e.getMessage()
-        );
+        final SettingsException e = expectThrows(SettingsException.class, () -> storageServiceWithSettingsValidation(settings));
+        assertEquals("'" + unsupported_token_credential_type + "' is currently not supported.", e.getMessage());
     }
 
     public void testBuildConnectStringWhenATokenCredentialIsEnabled() {
