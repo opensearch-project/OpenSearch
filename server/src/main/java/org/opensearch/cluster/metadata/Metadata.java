@@ -841,7 +841,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 (ResourceLimitGroupMetadata) this.custom(ResourceLimitGroupMetadata.TYPE)).
                 map(ResourceLimitGroupMetadata::resourceLimitGroups)
                 .orElse(Collections.emptyMap());
-
     }
 
     public DecommissionAttributeMetadata decommissionAttributeMetadata() {

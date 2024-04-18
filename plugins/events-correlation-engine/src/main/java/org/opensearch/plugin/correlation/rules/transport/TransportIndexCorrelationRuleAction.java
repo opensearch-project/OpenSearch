@@ -70,7 +70,7 @@ public class TransportIndexCorrelationRuleAction extends HandledTransportAction<
         ClusterService clusterService,
         CorrelationRuleIndices correlationRuleIndices
     ) {
-        super(IndexCorrelationRuleAction.NAME, transportService, IndexCorrelationRuleRequest::new);
+        super(IndexCorrelationRuleAction.NAME, transportService, actionFilters, IndexCorrelationRuleRequest::new);
         this.client = client;
         this.clusterService = clusterService;
         this.correlationRuleIndices = correlationRuleIndices;

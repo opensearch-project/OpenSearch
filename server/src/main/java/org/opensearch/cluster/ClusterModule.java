@@ -49,6 +49,7 @@ import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.metadata.MetadataMappingService;
 import org.opensearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.metadata.ResourceLimitGroupMetadata;
 import org.opensearch.cluster.metadata.ViewMetadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.routing.DelayedAllocationService;
@@ -205,6 +206,12 @@ public class ClusterModule extends AbstractModule {
             DecommissionAttributeMetadata.TYPE,
             DecommissionAttributeMetadata::new,
             DecommissionAttributeMetadata::readDiffFrom
+        );
+        registerMetadataCustom(
+        entries,
+            ResourceLimitGroupMetadata.TYPE,
+            ResourceLimitGroupMetadata::new,
+            ResourceLimitGroupMetadata::readDiffFrom
         );
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));

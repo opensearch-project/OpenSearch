@@ -7,6 +7,6 @@
  */
 
 /**
- * Package for the rest classes for resource limit group CRUD operations
+ * Base Package of CRUD API of resource limit group
  */
-package org.opensearch.plugin.resource_limit_group.rest;
+package org.opensearch.plugin.resource_limit_group;

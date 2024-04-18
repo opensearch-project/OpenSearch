@@ -15,6 +15,7 @@ import org.opensearch.cluster.NamedDiff;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
@@ -30,6 +31,11 @@ import java.util.Objects;
 
 import static org.opensearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 
+/**
+ * {@link ResourceLimitGroupMetadata} is a custom {@link Metadata} implementation for Resource Limit Group
+ *
+ * @opensearch.internal
+ */
 @ExperimentalApi
 public class ResourceLimitGroupMetadata implements Metadata.Custom {
     public static final String TYPE = "resourceLimitGroup";
@@ -56,6 +62,10 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
 
     public ResourceLimitGroupMetadata(Map<String, ResourceLimitGroup> resourceLimitGroups) {
         this.resourceLimitGroups = resourceLimitGroups;
+    }
+
+    public ResourceLimitGroupMetadata(StreamInput in) throws IOException {
+        this.resourceLimitGroups = in.readMap(StreamInput::readString, ResourceLimitGroup::new);
     }
 
 
@@ -117,6 +127,10 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
     @Override
     public Diff<Metadata.Custom> diff(final Metadata.Custom previousState) {
         return new ResourceLimitGroupMetadataDiff((ResourceLimitGroupMetadata) previousState, this);
+    }
+
+    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+        return new ResourceLimitGroupMetadataDiff(in);
     }
 
     /**

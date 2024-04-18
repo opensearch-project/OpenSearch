@@ -8,7 +8,9 @@
 
 package org.opensearch.search.resource_limit_group.module;
 
+import org.opensearch.cluster.metadata.ResourceLimitGroup;
 import org.opensearch.common.inject.AbstractModule;
+import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.search.resource_limit_group.ResourceLimitGroupPruner;
 import org.opensearch.search.resource_limit_group.tracker.ResourceLimitGroupResourceUsageTracker;
 import org.opensearch.search.resource_limit_group.cancellation.ResourceLimitGroupRequestCanceller;

@@ -9,4 +9,8 @@
 /**
  * Package for the rest classes for resource limit group CRUD operations
  */
-package org.opensearch.plugin.resource_limit_group.rest;
+
+/**
+ * Package for the service classes for resource limit group CRUD operations
+ */
+package org.opensearch.plugin.resource_limit_group.service;

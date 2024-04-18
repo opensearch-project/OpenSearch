@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  */
 public class ResourceLimitsGroupResourceUsageTrackerService
     implements
-        TaskManager.TaskEventListeners,
+    TaskManager.TaskEventListeners,
     ResourceLimitGroupResourceUsageTracker,
     ResourceLimitGroupRequestCanceller,
     ResourceLimitGroupPruner {
@@ -48,7 +48,7 @@ public class ResourceLimitsGroupResourceUsageTrackerService
     private final TaskResourceTrackingService taskResourceTrackingService;
 
     /**
-     * SandboxResourceTrackerService constructor
+     * ResourceLimitsGroupResourceUsageTrackerService constructor
      * @param taskManager
      * @param taskResourceTrackingService
      */
@@ -67,11 +67,6 @@ public class ResourceLimitsGroupResourceUsageTrackerService
     public void updateResourceLimitGroupsResourceUsage() {
 
     }
-
-    // @Override
-    // public SandboxStatsHolder getStats() {
-    // return null;
-    // }
 
     private AbsoluteResourceUsage calculateAbsoluteResourceUsageFor(Task task) {
         TaskResourceUsage taskResourceUsage = task.getTotalResourceStats();
@@ -113,7 +108,7 @@ public class ResourceLimitsGroupResourceUsageTrackerService
     }
 
     /**
-     * filter out the deleted sandboxes which still has unfi
+     * filter out the deleted Resource Limit Groups which still has unfinished tasks
      */
     public void pruneResourceLimitGroup() {
         toDeleteResourceLimitGroups = toDeleteResourceLimitGroups.stream().filter(this::hasUnfinishedTasks).collect(Collectors.toList());
@@ -131,12 +126,12 @@ public class ResourceLimitsGroupResourceUsageTrackerService
     public void onTaskCompleted(Task task) {}
 
     /**
-     * This method will select the sandboxes violating the enforced constraints
-     * and cancel the tasks from the violating sandboxes
+     * This method will select the Resource Limit Groups violating the enforced constraints
+     * and cancel the tasks from the violating Resource Limit Groups
      * Cancellation happens in two scenarios
      * <ol>
-     *     <li> If the sandbox is of enforced type and it is breaching its cancellation limit for the threshold </li>
-     *     <li> Node is in duress and sandboxes which are breaching the cancellation thresholds will have cancellations </li>
+     *     <li> If the Resource Limit Group is of enforced type and it is breaching its cancellation limit for the threshold </li>
+     *     <li> Node is in duress and Resource Limit Groups which are breaching the cancellation thresholds will have cancellations </li>
      * </ol>
      */
     @Override
@@ -152,17 +147,12 @@ public class ResourceLimitsGroupResourceUsageTrackerService
      * @return list of cancellable tasks
      */
     private List<TaskCancellation> getCancellableTasks() {
-        // get cancellations from enforced type sandboxes
+        // get cancellations from enforced type Resource Limit Groups
         List<String> inViolationSandboxes = getBreachingSandboxIds();
         List<TaskCancellation> cancellableTasks = new ArrayList<>();
         for (String sandboxId : inViolationSandboxes) {
             cancellableTasks.addAll(getCancellableTasksFrom(sandboxId));
         }
-
-        // get cancellations from soft type sandboxes if the node is in duress (hitting node level cancellation
-        // threshold)
-
-
         return cancellableTasks;
     }
 

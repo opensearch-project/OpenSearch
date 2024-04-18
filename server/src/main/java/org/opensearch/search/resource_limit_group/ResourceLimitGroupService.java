@@ -29,7 +29,7 @@ public class ResourceLimitGroupService extends AbstractLifecycleComponent {
     private final ResourceLimitGroupRequestCanceller requestCanceller;
     private final ResourceLimitGroupPruner resourceLimitGroupPruner;
     private volatile Scheduler.Cancellable scheduledFuture;
-    private final ResourceLimitGroupServiceSettings sandboxServiceSettings;
+    private final ResourceLimitGroupServiceSettings resourceLimitGroupServiceSettings;
     private final ThreadPool threadPool;
 
     /**
@@ -37,7 +37,7 @@ public class ResourceLimitGroupService extends AbstractLifecycleComponent {
      * @param requestTrackerService
      * @param requestCanceller
      * @param resourceLimitGroupPruner
-     * @param sandboxServiceSettings
+     * @param resourceLimitGroupServiceSettings
      * @param threadPool
      */
     @Inject
@@ -45,13 +45,13 @@ public class ResourceLimitGroupService extends AbstractLifecycleComponent {
         ResourceLimitGroupResourceUsageTracker requestTrackerService,
         ResourceLimitGroupRequestCanceller requestCanceller,
         ResourceLimitGroupPruner resourceLimitGroupPruner,
-        ResourceLimitGroupServiceSettings sandboxServiceSettings,
+        ResourceLimitGroupServiceSettings resourceLimitGroupServiceSettings,
         ThreadPool threadPool
     ) {
         this.requestTracker = requestTrackerService;
         this.requestCanceller = requestCanceller;
         this.resourceLimitGroupPruner = resourceLimitGroupPruner;
-        this.sandboxServiceSettings = sandboxServiceSettings;
+        this.resourceLimitGroupServiceSettings = resourceLimitGroupServiceSettings;
         this.threadPool = threadPool;
     }
 
@@ -73,9 +73,9 @@ public class ResourceLimitGroupService extends AbstractLifecycleComponent {
             try {
                 doRun();
             } catch (Exception e) {
-                logger.debug("Exception occurred in Query Sandbox service", e);
+                logger.debug("Exception occurred in Resource Limit Group service", e);
             }
-        }, sandboxServiceSettings.getRunIntervalMillis(), ThreadPool.Names.GENERIC);
+        }, resourceLimitGroupServiceSettings.getRunIntervalMillis(), ThreadPool.Names.GENERIC);
     }
 
     @Override
@@ -87,8 +87,4 @@ public class ResourceLimitGroupService extends AbstractLifecycleComponent {
 
     @Override
     protected void doClose() throws IOException {}
-
-    // public SandboxStatsHolder stats() {
-    // return requestTrackerService.getSandboxLevelStats();
-    // }
 }
