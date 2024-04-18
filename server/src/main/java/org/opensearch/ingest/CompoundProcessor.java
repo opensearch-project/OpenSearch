@@ -177,6 +177,7 @@ public class CompoundProcessor implements Processor {
         Map<Integer, IngestDocumentWrapper> slotToWrapperMap =
             createSlotIngestDocumentWrapperMap(ingestDocumentWrappers);
         processor.batchExecute(ingestDocumentWrappers, results -> {
+            if (results.isEmpty()) return;
             allResults.addAll(results);
             if (counter.addAndGet(-results.size()) == 0) {
                 long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);

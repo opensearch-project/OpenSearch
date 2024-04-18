@@ -636,7 +636,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             i++;
         }
 
-        BatchIngestionOption batchOption = originalBulkRequest.batchIngestionOption();
         int batchSize = originalBulkRequest.maximumBatchSize();
         List<List<IndexRequestWrapper>> batches = prepareBatches(batchSize, indexRequestWrappers);
         logger.debug("batchSize: {}, batches: {}", batchSize, batches.size());
@@ -673,7 +672,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * 2. a request parameter of _bulk API
      * 3. a parameter of an IndexRequest.
      */
-    private List<List<IndexRequestWrapper>> prepareBatches(int batchSize, List<IndexRequestWrapper> indexRequestWrappers) {
+    static List<List<IndexRequestWrapper>> prepareBatches(int batchSize, List<IndexRequestWrapper> indexRequestWrappers) {
         final Map<Integer, List<IndexRequestWrapper>> indexRequestsPerIndexAndPipelines = new HashMap<>();
         for (IndexRequestWrapper indexRequestWrapper : indexRequestWrappers) {
             // IndexRequests are grouped by their index + pipeline ids
@@ -697,13 +696,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return batchedIndexRequests;
     }
 
-    private static final class IndexRequestWrapper {
+    /* visible for testing */
+    static final class IndexRequestWrapper {
         private final int slot;
         private final IndexRequest indexRequest;
         private final List<String> pipelines;
         private final boolean hasFinalPipeline;
 
-        private IndexRequestWrapper(int slot, IndexRequest indexRequest, List<String> pipelines, boolean hasFinalPipeline) {
+        IndexRequestWrapper(int slot, IndexRequest indexRequest, List<String> pipelines, boolean hasFinalPipeline) {
             this.slot = slot;
             this.indexRequest = indexRequest;
             this.pipelines = pipelines;
