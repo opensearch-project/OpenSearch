@@ -161,7 +161,7 @@ public class RemoteClusterStateService implements Closeable {
     private final Settings settings;
     private final LongSupplier relativeTimeNanosSupplier;
     private final ThreadPool threadpool;
-    private final List<IndexMetadataUploadInterceptor> indexMetadataUploadInterceptors;
+    private final List<IndexMetadataUploadListener> indexMetadataUploadListeners;
     private BlobStoreRepository blobStoreRepository;
     private BlobStoreTransferService blobStoreTransferService;
     private volatile TimeValue slowWriteLoggingThreshold;
@@ -192,7 +192,7 @@ public class RemoteClusterStateService implements Closeable {
         ClusterSettings clusterSettings,
         LongSupplier relativeTimeNanosSupplier,
         ThreadPool threadPool,
-        List<IndexMetadataUploadInterceptor> indexMetadataUploadInterceptors
+        List<IndexMetadataUploadListener> indexMetadataUploadListeners
     ) {
         assert isRemoteStoreClusterStateEnabled(settings) : "Remote cluster state is not enabled";
         this.nodeId = nodeId;
@@ -209,7 +209,7 @@ public class RemoteClusterStateService implements Closeable {
         clusterSettings.addSettingsUpdateConsumer(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING, this::setGlobalMetadataUploadTimeout);
         clusterSettings.addSettingsUpdateConsumer(METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING, this::setMetadataManifestUploadTimeout);
         this.remoteStateStats = new RemotePersistenceStats();
-        this.indexMetadataUploadInterceptors = indexMetadataUploadInterceptors;
+        this.indexMetadataUploadListeners = indexMetadataUploadListeners;
     }
 
     private BlobStoreTransferService getBlobStoreTransferService() {
@@ -319,7 +319,7 @@ public class RemoteClusterStateService implements Closeable {
             .collect(Collectors.toMap(UploadedIndexMetadata::getIndexName, Function.identity()));
 
         List<IndexMetadata> toUpload = new ArrayList<>();
-        final Map<String, Long> indexNamePreviousVersionMap = new HashMap<>(previousStateIndexMetadataVersionByName);
+        List<IndexMetadata> newIndexMetadataList = new ArrayList<>();
         for (final IndexMetadata indexMetadata : clusterState.metadata().indices().values()) {
             final Long previousVersion = previousStateIndexMetadataVersionByName.get(indexMetadata.getIndex().getName());
             if (previousVersion == null || indexMetadata.getVersion() != previousVersion) {
@@ -335,12 +335,12 @@ public class RemoteClusterStateService implements Closeable {
                 numIndicesUnchanged++;
             }
             previousStateIndexMetadataVersionByName.remove(indexMetadata.getIndex().getName());
+            // Adding the indexMetadata to newIndexMetadataList if there is no previous version present for the index.
+            if (previousVersion == null) {
+                newIndexMetadataList.add(indexMetadata);
+            }
         }
 
-        List<IndexMetadata> newIndexMetadataList = toUpload.stream()
-            /* If the previous state's index metadata version is null, then this is index creation */
-            .filter(indexMetadata -> Objects.isNull(indexNamePreviousVersionMap.get(indexMetadata.getIndex().getName())))
-            .collect(Collectors.toList());
         List<UploadedIndexMetadata> uploadedIndexMetadataList = writeIndexMetadataParallel(clusterState, toUpload, newIndexMetadataList);
         uploadedIndexMetadataList.forEach(
             uploadedIndexMetadata -> allUploadedIndexMetadata.put(uploadedIndexMetadata.getIndexName(), uploadedIndexMetadata)
@@ -454,8 +454,8 @@ public class RemoteClusterStateService implements Closeable {
         List<IndexMetadata> toUpload,
         List<IndexMetadata> newIndexMetadataList
     ) throws IOException {
-        assert CollectionUtils.isEmpty(indexMetadataUploadInterceptors) == false : "indexMetadataUploadInterceptors can not be empty";
-        int latchCount = toUpload.size() + indexMetadataUploadInterceptors.size();
+        assert CollectionUtils.isEmpty(indexMetadataUploadListeners) == false : "indexMetadataUploadInterceptors can not be empty";
+        int latchCount = toUpload.size() + indexMetadataUploadListeners.size();
         List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(latchCount));
         final CountDownLatch latch = new CountDownLatch(latchCount);
         List<UploadedIndexMetadata> result = new ArrayList<>(toUpload.size());
@@ -482,14 +482,16 @@ public class RemoteClusterStateService implements Closeable {
             writeIndexMetadataAsync(clusterState, indexMetadata, latchedActionListener);
         }
 
-        for (IndexMetadataUploadInterceptor interceptor : indexMetadataUploadInterceptors) {
+        for (IndexMetadataUploadListener listener : indexMetadataUploadListeners) {
             // We are submitting the task for async execution to ensure that we are not blocking the cluster state upload
-            String interceptorName = interceptor.getClass().getSimpleName();
-            threadpool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+            String interceptorName = listener.getClass().getSimpleName();
+            String threadPoolName = listener.getThreadpoolName();
+            assert ThreadPool.THREAD_POOL_TYPES.containsKey(threadPoolName) && ThreadPool.Names.SAME.equals(threadPoolName) == false;
+            threadpool.executor(threadPoolName).execute(() -> {
                 try {
-                    interceptor.interceptIndexCreation(
+                    listener.beforeNewIndexUpload(
                         newIndexMetadataList,
-                        getIndexMetadataUploadInterceptorListener(newIndexMetadataList, latch, exceptionList, interceptorName)
+                        getIndexMetadataUploadActionListener(newIndexMetadataList, latch, exceptionList, interceptorName)
                     );
                 } catch (IOException e) {
                     exceptionList.add(
@@ -538,20 +540,31 @@ public class RemoteClusterStateService implements Closeable {
         return result;
     }
 
-    private ActionListener<Void> getIndexMetadataUploadInterceptorListener(
+    private ActionListener<Void> getIndexMetadataUploadActionListener(
         List<IndexMetadata> newIndexMetadataList,
         CountDownLatch latch,
         List<Exception> exceptionList,
         String interceptorName
     ) {
+        long startTime = System.nanoTime();
         return new LatchedActionListener<>(
             ActionListener.wrap(
                 ignored -> logger.trace(
-                    new ParameterizedMessage("{} : Intercepted {} successfully", interceptorName, newIndexMetadataList)
+                    new ParameterizedMessage(
+                        "{} : Intercepted {} successfully tookTimeNs={}",
+                        interceptorName,
+                        newIndexMetadataList,
+                        (System.nanoTime() - startTime)
+                    )
                 ),
                 ex -> {
                     logger.error(
-                        new ParameterizedMessage("{} : Exception during interception of {}", interceptorName, newIndexMetadataList),
+                        new ParameterizedMessage(
+                            "{} : Exception during interception of {} tookTimeNs={}",
+                            interceptorName,
+                            newIndexMetadataList,
+                            (System.nanoTime() - startTime)
+                        ),
                         ex
                     );
                     exceptionList.add(ex);

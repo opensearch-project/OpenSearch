@@ -121,7 +121,7 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
             res -> successCount.incrementAndGet(),
             ex -> failureCount.incrementAndGet()
         );
-        remoteIndexPathUploader.interceptIndexCreation(indexMetadataList, actionListener);
+        remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
         assertEquals(1, successCount.get());
         assertEquals(0, failureCount.get());
         verify(indexMetadataList, times(0)).stream();
@@ -134,7 +134,7 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
             res -> successCount.incrementAndGet(),
             ex -> failureCount.incrementAndGet()
         );
-        remoteIndexPathUploader.interceptIndexCreation(Collections.emptyList(), actionListener);
+        remoteIndexPathUploader.beforeNewIndexUpload(Collections.emptyList(), actionListener);
         assertEquals(1, successCount.get());
         assertEquals(0, failureCount.get());
     }
@@ -151,27 +151,27 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
         List<IndexMetadata> indexMetadataList = new ArrayList<>();
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
         indexMetadataList.add(indexMetadata);
-        remoteIndexPathUploader.interceptIndexCreation(indexMetadataList, actionListener);
+        remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
         assertEquals(1, successCount.get());
         assertEquals(0, failureCount.get());
 
         // Case 2 - Empty remoteCustomData
         when(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY)).thenReturn(new HashMap<>());
-        remoteIndexPathUploader.interceptIndexCreation(indexMetadataList, actionListener);
+        remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
         assertEquals(2, successCount.get());
         assertEquals(0, failureCount.get());
 
         // Case 3 - RemoteStoreEnums.PathType.NAME not in remoteCustomData map
         Map<String, String> remoteCustomData = Map.of("test", "test");
         when(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY)).thenReturn(remoteCustomData);
-        remoteIndexPathUploader.interceptIndexCreation(indexMetadataList, actionListener);
+        remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
         assertEquals(3, successCount.get());
         assertEquals(0, failureCount.get());
 
         // Case 4 - RemoteStoreEnums.PathType.NAME is not HASHED_PREFIX
         remoteCustomData = Map.of(PathType.NAME, randomFrom(FIXED, HASHED_INFIX).name());
         when(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY)).thenReturn(remoteCustomData);
-        remoteIndexPathUploader.interceptIndexCreation(indexMetadataList, actionListener);
+        remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
         assertEquals(4, successCount.get());
         assertEquals(0, failureCount.get());
     }
@@ -183,7 +183,7 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
             res -> successCount.incrementAndGet(),
             ex -> failureCount.incrementAndGet()
         );
-        remoteIndexPathUploader.interceptIndexCreation(indexMetadataList, actionListener);
+        remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
         assertEquals(1, successCount.get());
         assertEquals(0, failureCount.get());
         verify(blobContainer, times(1)).writeBlob(anyString(), any(InputStream.class), anyLong(), anyBoolean());
@@ -201,7 +201,7 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
             res -> successCount.incrementAndGet(),
             ex -> failureCount.incrementAndGet()
         );
-        remoteIndexPathUploader.interceptIndexCreation(indexMetadataList, actionListener);
+        remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
         assertEquals(1, successCount.get());
         assertEquals(0, failureCount.get());
         verify(blobContainer, times(2)).writeBlob(anyString(), any(InputStream.class), anyLong(), anyBoolean());
@@ -223,7 +223,7 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
             failureCount.incrementAndGet();
             exceptionSetOnce.set(ex);
         });
-        remoteIndexPathUploader.interceptIndexCreation(indexMetadataList, actionListener);
+        remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
         assertEquals(0, successCount.get());
         assertEquals(1, failureCount.get());
         assertTrue(exceptionSetOnce.get() instanceof RemoteStateTransferException);
@@ -250,7 +250,7 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
         });
         Thread thread = new Thread(() -> {
             try {
-                remoteIndexPathUploader.interceptIndexCreation(indexMetadataList, actionListener);
+                remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
             } catch (IOException e) {
                 throw new AssertionError(e);
             } catch (Exception e) {

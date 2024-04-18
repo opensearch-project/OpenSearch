@@ -9,6 +9,7 @@
 package org.opensearch.index.remote;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -37,6 +38,7 @@ import static org.opensearch.index.remote.RemoteStorePathStrategy.isCompatible;
  *
  * @opensearch.internal
  */
+@ExperimentalApi
 public class RemoteIndexPath implements ToXContentFragment {
 
     public static final Map<DataCategory, List<DataType>> TRANSLOG_PATH = Map.of(TRANSLOG, List.of(DATA, METADATA));

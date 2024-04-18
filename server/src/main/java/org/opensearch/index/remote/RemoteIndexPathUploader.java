@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.ClusterSettings;
@@ -20,7 +21,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
-import org.opensearch.gateway.remote.IndexMetadataUploadInterceptor;
+import org.opensearch.gateway.remote.IndexMetadataUploadListener;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.gateway.remote.RemoteClusterStateService.RemoteStateTransferException;
 import org.opensearch.node.Node;
@@ -29,6 +30,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,7 +55,8 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteS
  * Uploads the remote store path for all possible combinations of {@link org.opensearch.index.remote.RemoteStoreEnums.DataCategory}
  * and {@link org.opensearch.index.remote.RemoteStoreEnums.DataType} for each shard of an index.
  */
-public class RemoteIndexPathUploader implements IndexMetadataUploadInterceptor {
+@ExperimentalApi
+public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
 
     public static final ChecksumBlobStoreFormat<RemoteIndexPath> REMOTE_INDEX_PATH_FORMAT = new ChecksumBlobStoreFormat<>(
         "remote-index-path",
@@ -91,48 +94,64 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadInterceptor {
     }
 
     @Override
-    public void interceptIndexCreation(List<IndexMetadata> indexMetadataList, ActionListener<Void> actionListener) throws IOException {
+    public String getThreadpoolName() {
+        return ThreadPool.Names.GENERIC;
+    }
+
+    @Override
+    public void beforeNewIndexUpload(List<IndexMetadata> indexMetadataList, ActionListener<Void> actionListener) throws IOException {
         if (isRemoteDataAttributePresent == false) {
+            logger.trace("Skipping beforeNewIndexUpload as isRemoteDataAttributePresent=false");
             actionListener.onResponse(null);
             return;
         }
 
-        List<IndexMetadata> eligibleList = indexMetadataList.stream().filter(this::requiresPathUpload).collect(Collectors.toList());
-        int latchCount = eligibleList.size() * (isTranslogSegmentRepoSame ? 1 : 2);
-        CountDownLatch latch = new CountDownLatch(latchCount);
-        List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(latchCount));
-        for (IndexMetadata indexMetadata : eligibleList) {
-            writeIndexPathAsync(indexMetadata, latch, exceptionList);
-        }
-        String indexNames = eligibleList.stream().map(IndexMetadata::getIndex).map(Index::toString).collect(Collectors.joining(","));
-
+        long startTime = System.nanoTime();
+        boolean success = false;
         try {
-            if (latch.await(indexMetadataUploadTimeout.millis(), TimeUnit.MILLISECONDS) == false) {
+            List<IndexMetadata> eligibleList = indexMetadataList.stream().filter(this::requiresPathUpload).collect(Collectors.toList());
+            int latchCount = eligibleList.size() * (isTranslogSegmentRepoSame ? 1 : 2);
+            CountDownLatch latch = new CountDownLatch(latchCount);
+            List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(latchCount));
+            for (IndexMetadata indexMetadata : eligibleList) {
+                writeIndexPathAsync(indexMetadata, latch, exceptionList);
+            }
+            String indexNames = eligibleList.stream().map(IndexMetadata::getIndex).map(Index::toString).collect(Collectors.joining(","));
+            logger.trace(new ParameterizedMessage("Remote index path upload started for {}", indexNames));
+
+            try {
+                if (latch.await(indexMetadataUploadTimeout.millis(), TimeUnit.MILLISECONDS) == false) {
+                    RemoteStateTransferException ex = new RemoteStateTransferException(
+                        String.format(Locale.ROOT, TIMEOUT_EXCEPTION_MSG, indexNames)
+                    );
+                    exceptionList.forEach(ex::addSuppressed);
+                    actionListener.onFailure(ex);
+                    return;
+                }
+            } catch (InterruptedException exception) {
+                exceptionList.forEach(exception::addSuppressed);
                 RemoteStateTransferException ex = new RemoteStateTransferException(
-                    String.format(Locale.ROOT, TIMEOUT_EXCEPTION_MSG, indexNames)
+                    String.format(Locale.ROOT, TIMEOUT_EXCEPTION_MSG, indexNames),
+                    exception
+                );
+                actionListener.onFailure(ex);
+                return;
+            }
+            if (exceptionList.size() > 0) {
+                RemoteStateTransferException ex = new RemoteStateTransferException(
+                    String.format(Locale.ROOT, UPLOAD_EXCEPTION_MSG, indexNames)
                 );
                 exceptionList.forEach(ex::addSuppressed);
                 actionListener.onFailure(ex);
                 return;
             }
-        } catch (InterruptedException exception) {
-            exceptionList.forEach(exception::addSuppressed);
-            RemoteStateTransferException ex = new RemoteStateTransferException(
-                String.format(Locale.ROOT, TIMEOUT_EXCEPTION_MSG, indexNames),
-                exception
-            );
-            actionListener.onFailure(ex);
-            return;
+            success = true;
+            actionListener.onResponse(null);
+        } finally {
+            long tookTimeNs = System.nanoTime() - startTime;
+            logger.trace(new ParameterizedMessage("executed beforeNewIndexUpload status={} tookTimeNs={}", success, tookTimeNs));
         }
-        if (exceptionList.size() > 0) {
-            RemoteStateTransferException ex = new RemoteStateTransferException(
-                String.format(Locale.ROOT, UPLOAD_EXCEPTION_MSG, indexNames)
-            );
-            exceptionList.forEach(ex::addSuppressed);
-            actionListener.onFailure(ex);
-            return;
-        }
-        actionListener.onResponse(null);
+
     }
 
     private void writeIndexPathAsync(IndexMetadata idxMD, CountDownLatch latch, List<Exception> exceptionList) throws IOException {
