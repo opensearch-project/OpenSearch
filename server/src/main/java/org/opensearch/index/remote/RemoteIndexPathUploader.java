@@ -22,14 +22,13 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.IndexMetadataUploadListener;
-import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.gateway.remote.RemoteClusterStateService.RemoteStateTransferException;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.blobstore.BlobStoreFormat;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
-import org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -58,11 +57,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteS
 @ExperimentalApi
 public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
 
-    public static final ChecksumBlobStoreFormat<RemoteIndexPath> REMOTE_INDEX_PATH_FORMAT = new ChecksumBlobStoreFormat<>(
-        "remote-index-path",
-        RemoteIndexPath.FILE_NAME_FORMAT,
-        RemoteIndexPath::fromXContent
-    );
+    public static final BlobStoreFormat<RemoteIndexPath> REMOTE_INDEX_PATH_FORMAT = new BlobStoreFormat<>(RemoteIndexPath.FILE_NAME_FORMAT);
 
     private static final String TIMEOUT_EXCEPTION_MSG = "Timed out waiting while uploading remote index path file for indexes=%s";
     private static final String UPLOAD_EXCEPTION_MSG = "Exception occurred while uploading remote index paths for indexes=%s";
@@ -174,9 +169,7 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
                 new RemoteIndexPath(indexUUID, shardCount, translogBasePath, pathType, hashAlgorithm, pathCreationMap),
                 translogBlobContainer,
                 indexUUID,
-                translogRepository.getCompressor(),
-                getUploadPathLatchedActionListener(idxMD, latch, exceptionList, pathCreationMap),
-                RemoteClusterStateService.FORMAT_PARAMS
+                getUploadPathLatchedActionListener(idxMD, latch, exceptionList, pathCreationMap)
             );
         } else {
             // If the repositories are different, then we need to upload one file per segment and translog containing their individual
@@ -185,9 +178,7 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
                 new RemoteIndexPath(indexUUID, shardCount, translogBasePath, pathType, hashAlgorithm, TRANSLOG_PATH),
                 translogBlobContainer,
                 indexUUID,
-                translogRepository.getCompressor(),
-                getUploadPathLatchedActionListener(idxMD, latch, exceptionList, TRANSLOG_PATH),
-                RemoteClusterStateService.FORMAT_PARAMS
+                getUploadPathLatchedActionListener(idxMD, latch, exceptionList, TRANSLOG_PATH)
             );
 
             BlobPath segmentBasePath = segmentRepository.basePath();
@@ -196,9 +187,7 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
                 new RemoteIndexPath(indexUUID, shardCount, segmentBasePath, pathType, hashAlgorithm, SEGMENT_PATH),
                 segmentBlobContainer,
                 indexUUID,
-                segmentRepository.getCompressor(),
-                getUploadPathLatchedActionListener(idxMD, latch, exceptionList, SEGMENT_PATH),
-                RemoteClusterStateService.FORMAT_PARAMS
+                getUploadPathLatchedActionListener(idxMD, latch, exceptionList, SEGMENT_PATH)
             );
         }
     }
