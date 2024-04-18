@@ -41,8 +41,9 @@ public class ResourceLimitGroupServiceSettings {
         DEFAULT_MAX_RESOURCE_LIMIT_GROUP_COUNT_VALUE,
         0,
         (newVal) -> {
-            if (newVal > 100 || newVal < 1)
-                throw new IllegalArgumentException(RESOURCE_LIMIT_GROUP_COUNT_SETTING_NAME + " should be in range [1-100]");
+            if (newVal > 100 || newVal < 1) throw new IllegalArgumentException(
+                RESOURCE_LIMIT_GROUP_COUNT_SETTING_NAME + " should be in range [1-100]"
+            );
         },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -142,8 +143,7 @@ public class ResourceLimitGroupServiceSettings {
     public void setNodeLevelJvmCancellationThreshold(Double nodeLevelJvmCancellationThreshold) {
         if (Double.compare(nodeLevelJvmCancellationThreshold, NODE_LEVEL_CANCELLATION_THRESHOLD_MAX_VALUE) > 0) {
             throw new IllegalArgumentException(
-                NODE_CANCELLATION_THRESHOLD_SETTING_NAME
-                    + " value should not be greater than 0.95 as it pose a threat of node drop"
+                NODE_CANCELLATION_THRESHOLD_SETTING_NAME + " value should not be greater than 0.95 as it pose a threat of node drop"
             );
         }
 
@@ -181,11 +181,9 @@ public class ResourceLimitGroupServiceSettings {
         Double nodeLevelJvmRejectionThreshold,
         Double nodeLevelJvmCancellationThreshold
     ) {
-        if (Double.compare(nodeLevelJvmCancellationThreshold , nodeLevelJvmRejectionThreshold) < 0) {
+        if (Double.compare(nodeLevelJvmCancellationThreshold, nodeLevelJvmRejectionThreshold) < 0) {
             throw new IllegalArgumentException(
-                NODE_CANCELLATION_THRESHOLD_SETTING_NAME
-                    + " value should not be less than "
-                    + NODE_REJECTION_THRESHOLD_SETTING_NAME
+                NODE_CANCELLATION_THRESHOLD_SETTING_NAME + " value should not be less than " + NODE_REJECTION_THRESHOLD_SETTING_NAME
             );
         }
     }

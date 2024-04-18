@@ -17,11 +17,9 @@ import java.util.List;
 
 public class ResourceLimitGroupTests extends AbstractSerializingTestCase<ResourceLimitGroup> {
 
-
     static ResourceLimitGroup createRandomResourceLimitGroup() {
         String name = randomAlphaOfLength(10);
-        ResourceLimitGroup.ResourceLimit resourceLimit =  new ResourceLimitGroup.ResourceLimit("jvm",
-            randomDoubleBetween(0.0, 0.80, false));
+        ResourceLimitGroup.ResourceLimit resourceLimit = new ResourceLimitGroup.ResourceLimit("jvm", randomDoubleBetween(0.0, 0.80, false));
         return new ResourceLimitGroup(name, List.of(resourceLimit));
     }
 
@@ -54,44 +52,41 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
     }
 
     public void testNullName() {
-        assertThrows(NullPointerException.class,
-            () -> new ResourceLimitGroup(null, List.of()));
+        assertThrows(NullPointerException.class, () -> new ResourceLimitGroup(null, List.of()));
     }
 
     public void testNullResourceLimits() {
-        assertThrows(NullPointerException.class,
-            () -> new ResourceLimitGroup("analytics", null));
+        assertThrows(NullPointerException.class, () -> new ResourceLimitGroup("analytics", null));
     }
 
     public void testEmptyResourceLimits() {
-        assertThrows(IllegalArgumentException.class,
-            () -> new ResourceLimitGroup("analytics", List.of()));
+        assertThrows(IllegalArgumentException.class, () -> new ResourceLimitGroup("analytics", List.of()));
     }
 
     public void testInvalidResourceLimitWhenInvalidSystemResourceNameIsGiven() {
-        assertThrows(IllegalArgumentException.class, () -> new ResourceLimitGroup(
-            "analytics",
-            List.of(
-                new ResourceLimitGroup.ResourceLimit("RequestRate", randomDoubleBetween(0.01, 0.8, false))
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new ResourceLimitGroup(
+                "analytics",
+                List.of(new ResourceLimitGroup.ResourceLimit("RequestRate", randomDoubleBetween(0.01, 0.8, false)))
             )
-        ));
+        );
     }
 
     public void testInvalidResourceLimitWhenInvalidSystemResourceValueIsGiven() {
-        assertThrows(IllegalArgumentException.class, () -> new ResourceLimitGroup(
-            "analytics",
-            List.of(
-                new ResourceLimitGroup.ResourceLimit("RequestRate", randomDoubleBetween(1.1, 1.8, false))
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new ResourceLimitGroup(
+                "analytics",
+                List.of(new ResourceLimitGroup.ResourceLimit("RequestRate", randomDoubleBetween(1.1, 1.8, false)))
             )
-        ));
+        );
     }
 
     public void testValidResourceLimitGroup() {
         ResourceLimitGroup resourceLimitGroup = new ResourceLimitGroup(
             "analytics",
-            List.of(
-                new ResourceLimitGroup.ResourceLimit("jvm", randomDoubleBetween(0.01, 0.8, false))
-            )
+            List.of(new ResourceLimitGroup.ResourceLimit("jvm", randomDoubleBetween(0.01, 0.8, false)))
         );
 
         assertNotNull(resourceLimitGroup.getName());
