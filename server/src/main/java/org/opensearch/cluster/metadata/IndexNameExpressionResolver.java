@@ -380,7 +380,7 @@ public class IndexNameExpressionResolver {
     private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, IndexMetadata index) {
         if (index.getState() == IndexMetadata.State.CLOSE) {
             if (options.forbidClosedIndices() && options.ignoreUnavailable() == false) {
-                if (options.expandWildcardsClosed() == true) {
+                if (options.expandWildcardsClosed() == true && options.getExpandWildcards().size() == 1) {
                     throw new IllegalArgumentException(
                         "To expand [" + index.getState() + "] wildcard, please set forbid_closed_indices to `false`"
                     );
