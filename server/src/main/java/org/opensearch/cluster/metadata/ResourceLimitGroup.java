@@ -42,16 +42,18 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
     public static final int MAX_CHARS_ALLOWED_IN_NAME = 50;
     private final String name;
     private final List<ResourceLimit> resourceLimits;
+    private final ResourceLimitGroupMode mode;
 
     private static final List<String> ALLOWED_RESOURCES = List.of("jvm");
 
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField RESOURCE_LIMITS_FIELD = new ParseField("resourceLimits");
+    public static final ParseField MODE_FIELD = new ParseField("mode");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ResourceLimitGroup, Void> PARSER = new ConstructingObjectParser<>(
         "ResourceLimitGroupParser",
-        args -> new ResourceLimitGroup((String) args[0], (List<ResourceLimit>) args[1])
+        args -> new ResourceLimitGroup((String) args[0], (List<ResourceLimit>) args[1], (String) args[2])
     );
 
     static {
@@ -61,9 +63,10 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
             (p, c) -> ResourceLimit.fromXContent(p),
             RESOURCE_LIMITS_FIELD
         );
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), MODE_FIELD);
     }
 
-    public ResourceLimitGroup(final String name, final List<ResourceLimit> resourceLimits) {
+    public ResourceLimitGroup(final String name, final List<ResourceLimit> resourceLimits, final String modeName) {
         Objects.requireNonNull(name, "ResourceLimitGroup.name can't be null");
         Objects.requireNonNull(resourceLimits, "ResourceLimitGroup.resourceLimits can't be null");
 
@@ -77,10 +80,11 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
 
         this.name = name;
         this.resourceLimits = resourceLimits;
+        this.mode = ResourceLimitGroupMode.fromName(modeName);
     }
 
     public ResourceLimitGroup(StreamInput in) throws IOException {
-        this(in.readString(), in.readList(ResourceLimit::new));
+        this(in.readString(), in.readList(ResourceLimit::new), in.readString());
     }
 
     /**
@@ -171,6 +175,37 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         }
     }
 
+    @ExperimentalApi
+    public static enum ResourceLimitGroupMode {
+        SOFT("soft"),
+        ENFORCED("enforced"),
+        MONITOR("monitor");
+
+        private final String name;
+
+        ResourceLimitGroupMode(String mode) {
+            this.name = mode;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public static ResourceLimitGroupMode fromName(String s) {
+            switch (s) {
+                case "soft":
+                    return SOFT;
+                case "enforced":
+                    return ENFORCED;
+                case "monitor":
+                    return MONITOR;
+                default:
+                    throw new IllegalArgumentException("Invalid value for ResourceLimitGroupMode: " + s);
+            }
+        }
+
+    }
+
     /**
      * Write this into the {@linkplain StreamOutput}.
      *
@@ -180,6 +215,7 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeList(resourceLimits);
+        out.writeString(mode.getName());
     }
 
     /**
@@ -193,6 +229,7 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         builder.startObject();
         builder.field(NAME_FIELD.getPreferredName(), name);
         builder.field(RESOURCE_LIMITS_FIELD.getPreferredName(), resourceLimits);
+        builder.field(MODE_FIELD.getPreferredName(), mode.getName());
         builder.endObject();
         return builder;
     }
@@ -220,6 +257,10 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
 
     public String getName() {
         return name;
+    }
+
+    public ResourceLimitGroupMode getMode() {
+        return mode;
     }
 
     public List<ResourceLimit> getResourceLimits() {
