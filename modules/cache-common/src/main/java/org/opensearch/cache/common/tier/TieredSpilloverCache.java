@@ -60,10 +60,11 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     private final ICache<K, V> diskCache;
     private final ICache<K, V> onHeapCache;
 
+    // Removal listeners for the individual tiers
     private final RemovalListener<ICacheKey<K>, V> onDiskRemovalListener;
     private final RemovalListener<ICacheKey<K>, V> onHeapRemovalListener;
 
-    // The listener for removals from the spillover cache as a whole
+    // Removal listener from the spillover cache as a whole
     private final RemovalListener<ICacheKey<K>, V> removalListener;
 
     // In future we want to just read the stats from the individual tiers' statsHolder objects, but this isn't
@@ -134,7 +135,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             new Tuple<>(diskCache, TIER_DIMENSION_VALUE_DISK)
         );
         // Pass "tier" as the innermost dimension name, in addition to whatever dimensions are specified for the cache as a whole
-        this.statsHolder = new CacheStatsHolder(addTierValueToDimensionValues(dimensionNames, TIER_DIMENSION_NAME));
+        this.statsHolder = new CacheStatsHolder(getDimensionsWithTierValue(dimensionNames, TIER_DIMENSION_NAME));
         this.policies = builder.policies; // Will never be null; builder initializes it to an empty list
     }
 
@@ -191,7 +192,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         try (ReleasableLock ignore = writeLock.acquire()) {
             for (Tuple<ICache<K, V>, String> pair : cacheAndTierValueList) {
                 if (key.getDropStatsForDimensions()) {
-                    List<String> dimensionValues = addTierValueToDimensionValues(key.dimensions, pair.v2());
+                    List<String> dimensionValues = getDimensionsWithTierValue(key.dimensions, pair.v2());
                     statsHolder.removeDimensions(dimensionValues);
                 }
                 if (key.key != null) {
@@ -254,7 +255,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 for (Tuple<ICache<K, V>, String> pair : cacheAndTierValueList) {
                     V value = pair.v1().get(key);
                     // Get the tier value corresponding to this cache
-                    List<String> dimensionValues = addTierValueToDimensionValues(key.dimensions, pair.v2());
+                    List<String> dimensionValues = getDimensionsWithTierValue(key.dimensions, pair.v2());
                     if (value != null) {
                         statsHolder.incrementHits(dimensionValues);
                         return value;
@@ -269,22 +270,14 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
     void handleRemovalFromHeapTier(RemovalNotification<ICacheKey<K>, V> notification) {
         ICacheKey<K> key = notification.getKey();
-
         boolean wasEvicted = false;
-        if (RemovalReason.EVICTED.equals(notification.getRemovalReason())
-            || RemovalReason.CAPACITY.equals(notification.getRemovalReason())) {
+        if (SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason()) && evaluatePolicies(notification.getValue())) {
             try (ReleasableLock ignore = writeLock.acquire()) {
-                if (evaluatePolicies(notification.getValue())) {
-                    diskCache.put(key, notification.getValue()); // spill over to the disk tier and increment its stats
-                    updateStatsOnPut(TIER_DIMENSION_VALUE_DISK, key, notification.getValue());
-                } else {
-                    removalListener.onRemoval(notification); // The value is leaving the TSC entirely if it doesn't enter disk cache
-                }
+                diskCache.put(key, notification.getValue()); // spill over to the disk tier and increment its stats
+                updateStatsOnPut(TIER_DIMENSION_VALUE_DISK, key, notification.getValue());
             }
             wasEvicted = true;
-        }
-
-        else {
+        } else {
             // If the removal was for another reason, send this notification to the TSC's removal listener, as the value is leaving the TSC
             // entirely
             removalListener.onRemoval(notification);
@@ -295,17 +288,12 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     void handleRemovalFromDiskTier(RemovalNotification<ICacheKey<K>, V> notification) {
         // Values removed from the disk tier leave the TSC entirely
         removalListener.onRemoval(notification);
-
-        boolean wasEvicted = false;
-        if (RemovalReason.EVICTED.equals(notification.getRemovalReason())
-            || RemovalReason.CAPACITY.equals(notification.getRemovalReason())) {
-            wasEvicted = true;
-        }
+        boolean wasEvicted = SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason());
         updateStatsOnRemoval(TIER_DIMENSION_VALUE_DISK, wasEvicted, notification.getKey(), notification.getValue());
     }
 
     void updateStatsOnRemoval(String removedFromTierValue, boolean wasEvicted, ICacheKey<K> key, V value) {
-        List<String> dimensionValues = addTierValueToDimensionValues(key.dimensions, removedFromTierValue);
+        List<String> dimensionValues = getDimensionsWithTierValue(key.dimensions, removedFromTierValue);
         if (wasEvicted) {
             statsHolder.incrementEvictions(dimensionValues);
         }
@@ -314,7 +302,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     }
 
     void updateStatsOnPut(String destinationTierValue, ICacheKey<K> key, V value) {
-        List<String> dimensionValues = addTierValueToDimensionValues(key.dimensions, destinationTierValue);
+        List<String> dimensionValues = getDimensionsWithTierValue(key.dimensions, destinationTierValue);
         statsHolder.incrementEntries(dimensionValues);
         statsHolder.incrementSizeInBytes(dimensionValues, weigher.applyAsLong(key, value));
     }
@@ -322,7 +310,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     /**
      * Add tierValue to the end of a copy of the initial dimension values.
      */
-    private List<String> addTierValueToDimensionValues(List<String> initialDimensions, String tierValue) {
+    private List<String> getDimensionsWithTierValue(List<String> initialDimensions, String tierValue) {
         List<String> result = new ArrayList<>(initialDimensions);
         result.add(tierValue);
         return result;
