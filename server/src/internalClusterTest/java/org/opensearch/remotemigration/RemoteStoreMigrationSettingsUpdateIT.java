@@ -16,6 +16,7 @@ import org.opensearch.common.settings.SettingsException;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.InternalTestCluster;
@@ -92,13 +93,7 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationSh
         assertNodeInCluster(remoteNodeName);
 
         logger.info("Create a non remote-backed index");
-        client.admin()
-            .indices()
-            .prepareCreate(TEST_INDEX)
-            .setSettings(
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-            )
-            .get();
+        createIndex(TEST_INDEX, 0);
 
         logger.info("Verify that non remote stored backed index is created");
         assertNonRemoteStoreBackedIndex(TEST_INDEX);
@@ -115,17 +110,7 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationSh
 
         logger.info("Create snapshot of non remote stored backed index");
 
-        SnapshotInfo snapshotInfo = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(snapshotRepoName, snapshotName)
-            .setIndices(TEST_INDEX)
-            .setWaitForCompletion(true)
-            .get()
-            .getSnapshotInfo();
-
-        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-        assertTrue(snapshotInfo.successfulShards() > 0);
-        assertEquals(0, snapshotInfo.failedShards());
+        createSnapshot(snapshotRepoName, snapshotName);
 
         logger.info("Restore index from snapshot under NONE direction");
         String restoredIndexName1 = TEST_INDEX + "-restored1";
@@ -146,10 +131,10 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationSh
     // compatibility mode setting test
 
     public void testSwitchToStrictMode() throws Exception {
-        logger.info(" --> initialize cluster");
+        logger.info("Initialize cluster");
         initializeCluster(false);
 
-        logger.info(" --> create a mixed mode cluster");
+        logger.info("Create a mixed mode cluster");
         setClusterMode(MIXED.mode);
         addRemote = true;
         String remoteNodeName = internalCluster().startNode();
@@ -159,19 +144,92 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationSh
         assertNodeInCluster(remoteNodeName);
         assertNodeInCluster(nonRemoteNodeName);
 
-        logger.info(" --> attempt switching to strict mode");
+        logger.info("Attempt switching to strict mode");
         SettingsException exception = assertThrows(SettingsException.class, () -> setClusterMode(STRICT.mode));
         assertEquals(
             "can not switch to STRICT compatibility mode when the cluster contains both remote and non-remote nodes",
             exception.getMessage()
         );
 
-        logger.info(" --> stop remote node so that cluster had only non-remote nodes");
+        logger.info("Stop remote node so that cluster had only non-remote nodes");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(remoteNodeName));
         ensureStableCluster(2);
 
-        logger.info(" --> attempt switching to strict mode");
+        logger.info("Attempt switching to strict mode");
         setClusterMode(STRICT.mode);
+    }
+
+    public void testNoShallowSnapshotInMixedMode() throws Exception {
+        logger.info("Initialize remote cluster");
+        initializeCluster(true);
+
+        logger.info("Add remote node");
+        String nodeName = internalCluster().startNode();
+        internalCluster().validateClusterFormed();
+        assertNodeInCluster(nodeName);
+
+        logger.info("Create remote backed index");
+        createIndex(TEST_INDEX, 0);
+        assertRemoteStoreBackedIndex(TEST_INDEX);
+
+        logger.info("Create shallow snapshot setting enabled repo");
+        String shallowSnapshotRepoName = "shallow-snapshot-repo-name";
+        Path shallowSnapshotRepoPath = randomRepoPath();
+        assertAcked(
+            clusterAdmin().preparePutRepository(shallowSnapshotRepoName)
+                .setType("fs")
+                .setSettings(
+                    Settings.builder()
+                        .put("location", shallowSnapshotRepoPath)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), Boolean.TRUE)
+                )
+        );
+
+        logger.info("Verify shallow snapshot creation");
+        final String snapshot1 = "snapshot1";
+        SnapshotInfo snapshotInfo1 = createSnapshot(shallowSnapshotRepoName, snapshot1);
+        assertEquals(snapshotInfo1.isRemoteStoreIndexShallowCopyEnabled(), true);
+
+        logger.info("Set MIXED compatibility mode");
+        setClusterMode(MIXED.mode);
+
+        logger.info("Verify that new snapshot is not shallow");
+        final String snapshot2 = "snapshot2";
+        SnapshotInfo snapshotInfo2 = createSnapshot(shallowSnapshotRepoName, snapshot2);
+        assertEquals(snapshotInfo2.isRemoteStoreIndexShallowCopyEnabled(), false);
+    }
+
+    // create a snapshot
+    private SnapshotInfo createSnapshot(String snapshotRepoName, String snapshotName) {
+        SnapshotInfo snapshotInfo = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName)
+            .setIndices(TEST_INDEX)
+            .setWaitForCompletion(true)
+            .get()
+            .getSnapshotInfo();
+
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertTrue(snapshotInfo.successfulShards() > 0);
+        assertEquals(0, snapshotInfo.failedShards());
+        return snapshotInfo;
+    }
+
+    // create new index
+    private void createIndex(String indexName, int replicaCount) {
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicaCount)
+                        .build()
+                )
+                .get()
+        );
     }
 
     // restore indices from a snapshot
