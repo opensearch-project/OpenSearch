@@ -68,7 +68,7 @@ public class RestForceMergeActionTests extends RestActionTestCase {
             IllegalArgumentException.class,
             () -> handler.handleRequest(request, new FakeRestChannel(request, randomBoolean(), 1), mock(NodeClient.class))
         );
-        assertThat(e.getMessage(), equalTo("request [GET /_forcemerge] does not support having a body"));
+        assertThat(e.getMessage(), equalTo("forcemerge takes arguments in query parameters, not in the request body"));
     }
 
     public void testDeprecationMessage() {
