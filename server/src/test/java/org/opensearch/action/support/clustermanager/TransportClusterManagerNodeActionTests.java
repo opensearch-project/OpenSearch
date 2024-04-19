@@ -91,8 +91,6 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.opensearch.test.ClusterServiceUtils.setState;
-import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
-import static org.opensearch.test.VersionUtils.randomOpenSearchVersion;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -826,10 +824,9 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         request.persistentSettings(intendedCompatibilityModeSettings);
 
         // two different but compatible open search versions for the discovery nodes
-        final Version version1 = randomOpenSearchVersion(random());
-        final Version version2 = randomCompatibleVersion(random(), version1);
+        final Version version1 = Version.V_2_13_0;
+        final Version version2 = Version.V_2_13_1;
 
-        assert version1.equals(version2) == false : "current nodes in the cluster must be of different versions";
         DiscoveryNode discoveryNode1 = new DiscoveryNode(
             UUIDs.base64UUID(),
             buildNewFakeTransportAddress(),
