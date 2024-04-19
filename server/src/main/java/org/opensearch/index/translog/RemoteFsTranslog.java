@@ -683,7 +683,7 @@ public class RemoteFsTranslog extends Translog {
      * @return {@code true} if the shard should be flushed
      */
     @Override
-    public boolean shouldFlush() {
+    protected boolean shouldFlush() {
         return readers.size() >= translogTransferManager.getMaxRemoteTranslogReadersSettings();
     }
 }

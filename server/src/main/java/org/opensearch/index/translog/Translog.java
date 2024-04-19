@@ -2088,7 +2088,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
      * each translog type can have it's own decider
      * @return {@code true} if the shard should be flushed
      */
-    public boolean shouldFlush() {
+    protected boolean shouldFlush() {
         return false;
     }
 }
