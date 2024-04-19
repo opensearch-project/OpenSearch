@@ -25,7 +25,13 @@ import java.io.IOException;
 import java.util.Locale;
 
 /**
- * Standard format that has only content for writes. Read interface does not exist as it not yet required.
+ * Standard format that has only content for writes. Read interface does not exist as it not yet required. This format
+ * should be used for writing data from in-memory to remote store where there is no need for checksum and the client
+ * library for the remote store has inbuilt checksum capabilities while upload and download both. This format would
+ * serialise the data in Json format and store it on remote store as is. This does not support compression yet (this
+ * can be changed as required). In comparison to {@link ChecksumBlobStoreFormat}, this format does not add any additional
+ * metadata (like header and footer) to the content. Hence, this format does not depend on {@code CodecUtil} from
+ * Lucene library.
  *
  * @opensearch.internal
  */
