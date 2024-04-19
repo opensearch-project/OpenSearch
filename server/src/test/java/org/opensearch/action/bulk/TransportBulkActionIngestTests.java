@@ -342,7 +342,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
             completionHandler.capture(),
             any(),
             eq(Names.WRITE),
-            bulkRequest
+            eq(bulkRequest)
         );
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());

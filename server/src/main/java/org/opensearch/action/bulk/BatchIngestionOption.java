@@ -9,12 +9,17 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+
+import java.io.IOException;
 
 /**
  * An enum for batch ingestion option.
  */
-@PublicApi(since = "2.15.0")
-public enum BatchIngestionOption {
+@PublicApi(since = "2.14.0")
+public enum BatchIngestionOption implements Writeable {
     NONE("disabled"),
     ENABLED("enabled");
 
@@ -34,9 +39,18 @@ public enum BatchIngestionOption {
                 return option;
             }
         }
-        if ("".equals(value)) {
+        if (value == null || value.isEmpty()) {
             return NONE;
         }
         throw new IllegalArgumentException("Unknown value for batch ingestion option: [" + value + "].");
+    }
+
+    public static BatchIngestionOption readFrom(StreamInput in) throws IOException {
+        return BatchIngestionOption.values()[in.readByte()];
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeByte((byte) ordinal());
     }
 }

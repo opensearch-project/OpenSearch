@@ -53,6 +53,7 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 import static java.util.Collections.singletonList;
+import static org.opensearch.ingest.IngestDocumentPreparer.SHOULD_FAIL_KEY;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -63,7 +64,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.opensearch.ingest.IngestDocumentPreparer.SHOULD_FAIL_KEY;
 
 public class CompoundProcessorTests extends OpenSearchTestCase {
     private IngestDocument ingestDocument;
@@ -440,7 +440,8 @@ public class CompoundProcessorTests extends OpenSearchTestCase {
         List<IngestDocumentWrapper> wrapperList = Arrays.asList(
             IngestDocumentPreparer.createIngestDocumentWrapper(1),
             IngestDocumentPreparer.createIngestDocumentWrapper(2),
-            IngestDocumentPreparer.createIngestDocumentWrapper(3));
+            IngestDocumentPreparer.createIngestDocumentWrapper(3)
+        );
         TestProcessor firstProcessor = new TestProcessor(doc -> {});
         TestProcessor secondProcessor = new TestProcessor(doc -> {});
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
@@ -470,7 +471,8 @@ public class CompoundProcessorTests extends OpenSearchTestCase {
         List<IngestDocumentWrapper> wrapperList = Arrays.asList(
             IngestDocumentPreparer.createIngestDocumentWrapper(1),
             IngestDocumentPreparer.createIngestDocumentWrapper(2, true),
-            IngestDocumentPreparer.createIngestDocumentWrapper(3, true));
+            IngestDocumentPreparer.createIngestDocumentWrapper(3, true)
+        );
         TestProcessor firstProcessor = new TestProcessor(doc -> {
             if (doc.hasField(SHOULD_FAIL_KEY) && doc.getFieldValue(SHOULD_FAIL_KEY, Boolean.class)) {
                 throw new RuntimeException("fail");
@@ -507,7 +509,8 @@ public class CompoundProcessorTests extends OpenSearchTestCase {
         List<IngestDocumentWrapper> wrapperList = Arrays.asList(
             IngestDocumentPreparer.createIngestDocumentWrapper(1),
             IngestDocumentPreparer.createIngestDocumentWrapper(2, true),
-            IngestDocumentPreparer.createIngestDocumentWrapper(3, true));
+            IngestDocumentPreparer.createIngestDocumentWrapper(3, true)
+        );
         TestProcessor firstProcessor = new TestProcessor(doc -> {
             if (doc.hasField(SHOULD_FAIL_KEY) && doc.getFieldValue(SHOULD_FAIL_KEY, Boolean.class)) {
                 throw new RuntimeException("fail");
@@ -552,7 +555,8 @@ public class CompoundProcessorTests extends OpenSearchTestCase {
         List<IngestDocumentWrapper> wrapperList = Arrays.asList(
             IngestDocumentPreparer.createIngestDocumentWrapper(1),
             IngestDocumentPreparer.createIngestDocumentWrapper(2, true),
-            IngestDocumentPreparer.createIngestDocumentWrapper(3, true));
+            IngestDocumentPreparer.createIngestDocumentWrapper(3, true)
+        );
         TestProcessor firstProcessor = new TestProcessor(doc -> {
             if (doc.hasField(SHOULD_FAIL_KEY) && doc.getFieldValue(SHOULD_FAIL_KEY, Boolean.class)) {
                 throw new RuntimeException("fail");

@@ -34,6 +34,7 @@ package org.opensearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.CompositeIndicesRequest;
@@ -80,7 +81,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
 
     private static final int REQUEST_OVERHEAD = 50;
-
+    private static final Version MINIMAL_VERSION_SUPPORT_BATCH = Version.V_2_14_0;
     /**
      * Requests that are part of this request. It is only possible to add things that are both {@link ActionRequest}s and
      * {@link WriteRequest}s to this but java doesn't support syntax to declare that everything in the array has both types so we declare
@@ -96,8 +97,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private String globalRouting;
     private String globalIndex;
     private Boolean globalRequireAlias;
-    private BatchIngestionOption batchIngestionOption;
-    private Integer maximumBatchSize;
+    private BatchIngestionOption batchIngestionOption = BatchIngestionOption.NONE;
+    private Integer maximumBatchSize = 1;
 
     private long sizeInBytes = 0;
 
@@ -109,6 +110,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         requests.addAll(in.readList(i -> DocWriteRequest.readDocumentRequest(null, i)));
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
+        if (in.getVersion().onOrAfter(MINIMAL_VERSION_SUPPORT_BATCH)) {
+            batchIngestionOption = BatchIngestionOption.readFrom(in);
+            maximumBatchSize = in.readInt();
+        }
     }
 
     public BulkRequest(@Nullable String globalIndex) {
@@ -353,7 +358,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      * @param batchOption a string input from request
      * @return {@link BulkRequest}
      */
-    public final BulkRequest batchIngestionOption(String batchOption) {
+    public BulkRequest batchIngestionOption(String batchOption) {
         this.batchIngestionOption = BatchIngestionOption.from(batchOption);
         return this;
     }
@@ -362,7 +367,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      * Get batch ingestion option
      * @return {@link BatchIngestionOption}
      */
-    public final BatchIngestionOption batchIngestionOption() {
+    public BatchIngestionOption batchIngestionOption() {
         return this.batchIngestionOption;
     }
 
@@ -371,7 +376,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      * @param size maximum batch size from input
      * @return {@link BulkRequest}
      */
-    public final BulkRequest maximumBatchSize(int size) {
+    public BulkRequest maximumBatchSize(int size) {
         if (size > 1) {
             this.maximumBatchSize = size;
         } else {
@@ -384,7 +389,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      * Get maximum batch size
      * @return maximum batch size
      */
-    public final int maximumBatchSize() {
+    public int maximumBatchSize() {
         return this.maximumBatchSize;
     }
 
@@ -495,6 +500,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
+        if (out.getVersion().onOrAfter(MINIMAL_VERSION_SUPPORT_BATCH)) {
+            batchIngestionOption.writeTo(out);
+            out.writeInt(maximumBatchSize);
+        }
     }
 
     @Override

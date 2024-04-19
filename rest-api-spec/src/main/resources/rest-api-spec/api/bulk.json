@@ -74,6 +74,14 @@
       "require_alias": {
         "type": "boolean",
         "description": "Sets require_alias for all incoming documents. Defaults to unset (false)"
+      },
+      "maximum_batch_size": {
+        "type": "int",
+        "description": "set the batch size"
+      },
+      "batch_ingestion_option": {
+        "type": "string",
+        "description": "A signal to enable batch ingestion"
       }
     },
     "body":{

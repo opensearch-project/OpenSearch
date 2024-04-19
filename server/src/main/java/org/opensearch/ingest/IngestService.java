@@ -529,8 +529,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 BatchIngestionOption batchOption = originalBulkRequest.batchIngestionOption();
                 int batchSize = originalBulkRequest.maximumBatchSize();
                 if (shouldExecuteBulkRequestInBatch(batchOption, originalBulkRequest.requests().size(), batchSize)) {
-                    runBulkRequestInBatch(numberOfActionRequests, actionRequests, onFailure, onCompletion, onDropped,
-                        originalBulkRequest);
+                    runBulkRequestInBatch(numberOfActionRequests, actionRequests, onFailure, onCompletion, onDropped, originalBulkRequest);
                     return;
                 }
 
@@ -587,12 +586,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         });
     }
 
-    private void runBulkRequestInBatch(int numberOfActionRequests,
+    private void runBulkRequestInBatch(
+        int numberOfActionRequests,
         Iterable<DocWriteRequest<?>> actionRequests,
         BiConsumer<Integer, Exception> onFailure,
         BiConsumer<Thread, Exception> onCompletion,
         IntConsumer onDropped,
-        BulkRequest originalBulkRequest) {
+        BulkRequest originalBulkRequest
+    ) {
 
         final Thread originalThread = Thread.currentThread();
         final AtomicInteger counter = new AtomicInteger(numberOfActionRequests);
@@ -641,9 +642,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         logger.debug("batchSize: {}, batches: {}", batchSize, batches.size());
 
         for (List<IndexRequestWrapper> batch : batches) {
-            executePipelinesInBatchRequests(batch.stream()
-                    .map(IndexRequestWrapper::getSlot)
-                    .collect(Collectors.toList()),
+            executePipelinesInBatchRequests(
+                batch.stream().map(IndexRequestWrapper::getSlot).collect(Collectors.toList()),
                 batch.get(0).getPipelines().iterator(),
                 batch.get(0).isHasFinalPipeline(),
                 batch.stream().map(IndexRequestWrapper::getIndexRequest).collect(Collectors.toList()),
@@ -688,9 +688,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<List<IndexRequestWrapper>> batchedIndexRequests = new ArrayList<>();
         for (Map.Entry<Integer, List<IndexRequestWrapper>> indexRequestsPerKey : indexRequestsPerIndexAndPipelines.entrySet()) {
             for (int i = 0; i < indexRequestsPerKey.getValue().size(); i += batchSize) {
-                batchedIndexRequests.add(new ArrayList<>(
-                    indexRequestsPerKey.getValue().subList(i,
-                    i + Math.min(batchSize, indexRequestsPerKey.getValue().size() - i))));
+                batchedIndexRequests.add(
+                    new ArrayList<>(
+                        indexRequestsPerKey.getValue().subList(i, i + Math.min(batchSize, indexRequestsPerKey.getValue().size() - i))
+                    )
+                );
             }
         }
         return batchedIndexRequests;
@@ -739,7 +741,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final Thread originalThread
     ) {
         if (indexRequests.size() == 1) {
-            executePipelines(slots.get(0), it, hasFinalPipeline, indexRequests.get(0), onDropped, onFailure, counter, onCompletion, originalThread);
+            executePipelines(
+                slots.get(0),
+                it,
+                hasFinalPipeline,
+                indexRequests.get(0),
+                onDropped,
+                onFailure,
+                counter,
+                onCompletion,
+                originalThread
+            );
             return;
         }
         while (it.hasNext()) {
@@ -1088,7 +1100,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     for (IngestDocumentWrapper ingestDocumentWrapper : succeeded) {
                         updateIndexRequestWithIngestDocument(
                             slotToindexRequestMap.get(ingestDocumentWrapper.getSlot()),
-                            ingestDocumentWrapper.getIngestDocument());
+                            ingestDocumentWrapper.getIngestDocument()
+                        );
                     }
                 }
                 handler.accept(results);
@@ -1303,16 +1316,21 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private static IngestDocument toIngestDocument(IndexRequest indexRequest) {
-        return new IngestDocument(indexRequest.index(), indexRequest.id(), indexRequest.routing(),
-            indexRequest.version(), indexRequest.versionType(), indexRequest.sourceAsMap());
+        return new IngestDocument(
+            indexRequest.index(),
+            indexRequest.id(),
+            indexRequest.routing(),
+            indexRequest.version(),
+            indexRequest.versionType(),
+            indexRequest.sourceAsMap()
+        );
     }
 
     private static IngestDocumentWrapper toIngestDocumentWrapper(int slot, IndexRequest indexRequest) {
         return new IngestDocumentWrapper(slot, toIngestDocument(indexRequest), null);
     }
 
-    private static Map<Integer, IndexRequest> createSlotIndexRequestMap(List<Integer> slots,
-        List<IndexRequest> indexRequests) {
+    private static Map<Integer, IndexRequest> createSlotIndexRequestMap(List<Integer> slots, List<IndexRequest> indexRequests) {
         Map<Integer, IndexRequest> slotIndexRequestMap = new HashMap<>();
         for (int i = 0; i < slots.size(); ++i) {
             slotIndexRequestMap.put(slots.get(i), indexRequests.get(i));

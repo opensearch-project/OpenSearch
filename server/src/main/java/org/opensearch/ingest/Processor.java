@@ -85,8 +85,7 @@ public interface Processor {
      */
     IngestDocument execute(IngestDocument ingestDocument) throws Exception;
 
-    default void batchExecute(List<IngestDocumentWrapper> ingestDocumentWrappers,
-        Consumer<List<IngestDocumentWrapper>> handler) {
+    default void batchExecute(List<IngestDocumentWrapper> ingestDocumentWrappers, Consumer<List<IngestDocumentWrapper>> handler) {
         if (ingestDocumentWrappers.isEmpty()) {
             handler.accept(Collections.emptyList());
             return;
@@ -99,9 +98,13 @@ public interface Processor {
         }
     }
 
-    private void innerExecute(int slot, IngestDocumentWrapper ingestDocumentWrapper,
-        AtomicArray<IngestDocumentWrapper> results, AtomicInteger counter,
-        Consumer<List<IngestDocumentWrapper>> handler) {
+    private void innerExecute(
+        int slot,
+        IngestDocumentWrapper ingestDocumentWrapper,
+        AtomicArray<IngestDocumentWrapper> results,
+        AtomicInteger counter,
+        Consumer<List<IngestDocumentWrapper>> handler
+    ) {
         execute(ingestDocumentWrapper.getIngestDocument(), (doc, ex) -> {
             results.set(slot, new IngestDocumentWrapper(ingestDocumentWrapper.getSlot(), doc, ex));
             if (counter.decrementAndGet() == 0) {

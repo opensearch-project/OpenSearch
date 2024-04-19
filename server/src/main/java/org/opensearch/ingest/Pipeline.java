@@ -34,7 +34,6 @@ package org.opensearch.ingest;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.metrics.OperationMetrics;
 import org.opensearch.script.ScriptService;
 

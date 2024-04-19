@@ -8,14 +8,14 @@
 
 package org.opensearch.ingest;
 
-import org.junit.Before;
 import org.opensearch.index.VersionType;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class IngestDocumentWrapperTest extends OpenSearchTestCase {
+public class IngestDocumentWrapperTests extends OpenSearchTestCase {
 
     private IngestDocument ingestDocument;
 

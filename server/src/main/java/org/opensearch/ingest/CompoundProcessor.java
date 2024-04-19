@@ -154,13 +154,15 @@ public class CompoundProcessor implements Processor {
     }
 
     @Override
-    public void batchExecute(List<IngestDocumentWrapper> ingestDocumentWrappers,
-        Consumer<List<IngestDocumentWrapper>> handler) {
+    public void batchExecute(List<IngestDocumentWrapper> ingestDocumentWrappers, Consumer<List<IngestDocumentWrapper>> handler) {
         innerBatchExecute(0, ingestDocumentWrappers, handler);
     }
 
-    public void innerBatchExecute(int currentProcessor, List<IngestDocumentWrapper> ingestDocumentWrappers,
-        Consumer<List<IngestDocumentWrapper>> handler) {
+    public void innerBatchExecute(
+        int currentProcessor,
+        List<IngestDocumentWrapper> ingestDocumentWrappers,
+        Consumer<List<IngestDocumentWrapper>> handler
+    ) {
         if (currentProcessor == processorsWithMetrics.size()) {
             handler.accept(ingestDocumentWrappers);
             return;
@@ -174,8 +176,7 @@ public class CompoundProcessor implements Processor {
         // Use synchronization to ensure batches are processed by processors in sequential order
         AtomicInteger counter = new AtomicInteger(size);
         List<IngestDocumentWrapper> allResults = Collections.synchronizedList(new ArrayList<>());
-        Map<Integer, IngestDocumentWrapper> slotToWrapperMap =
-            createSlotIngestDocumentWrapperMap(ingestDocumentWrappers);
+        Map<Integer, IngestDocumentWrapper> slotToWrapperMap = createSlotIngestDocumentWrapperMap(ingestDocumentWrappers);
         processor.batchExecute(ingestDocumentWrappers, results -> {
             if (results.isEmpty()) return;
             allResults.addAll(results);
@@ -194,15 +195,18 @@ public class CompoundProcessor implements Processor {
                         if (ignoreFailure) {
                             documentsToContinue.add(originalDocumentWrapper);
                         } else {
-                            IngestProcessorException compoundProcessorException =
-                                newCompoundProcessorException(resultDocumentWrapper.getException(),
-                                    processor,
-                                    originalDocumentWrapper.getIngestDocument()
-                                );
-                            documentsWithException.add(new IngestDocumentWrapper(resultDocumentWrapper.getSlot(),
-                                originalDocumentWrapper.getIngestDocument(),
-                                compoundProcessorException
-                            ));
+                            IngestProcessorException compoundProcessorException = newCompoundProcessorException(
+                                resultDocumentWrapper.getException(),
+                                processor,
+                                originalDocumentWrapper.getIngestDocument()
+                            );
+                            documentsWithException.add(
+                                new IngestDocumentWrapper(
+                                    resultDocumentWrapper.getSlot(),
+                                    originalDocumentWrapper.getIngestDocument(),
+                                    compoundProcessorException
+                                )
+                            );
                         }
                     } else {
                         if (resultDocumentWrapper.getIngestDocument() == null) {
@@ -227,18 +231,23 @@ public class CompoundProcessor implements Processor {
                     if (onFailureProcessors.isEmpty()) {
                         handler.accept(documentsWithException);
                     } else {
-                        documentsWithException.forEach(doc -> executeOnFailureAsync(0, doc.getIngestDocument(),
-                            (IngestProcessorException) doc.getException(), (result, ex) -> {
-                                handler.accept(Collections.singletonList(new IngestDocumentWrapper(doc.getSlot(), result, ex)));
-                            }));
+                        documentsWithException.forEach(
+                            doc -> executeOnFailureAsync(
+                                0,
+                                doc.getIngestDocument(),
+                                (IngestProcessorException) doc.getException(),
+                                (result, ex) -> {
+                                    handler.accept(Collections.singletonList(new IngestDocumentWrapper(doc.getSlot(), result, ex)));
+                                }
+                            )
+                        );
                     }
                 }
             }
         });
     }
 
-    void innerExecute(int currentProcessor, IngestDocument ingestDocument,
-        BiConsumer<IngestDocument, Exception> handler) {
+    void innerExecute(int currentProcessor, IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         if (currentProcessor == processorsWithMetrics.size()) {
             handler.accept(ingestDocument, null);
             return;
@@ -354,8 +363,7 @@ public class CompoundProcessor implements Processor {
         return exception;
     }
 
-    private Map<Integer, IngestDocumentWrapper> createSlotIngestDocumentWrapperMap(
-            List<IngestDocumentWrapper> ingestDocumentWrappers) {
+    private Map<Integer, IngestDocumentWrapper> createSlotIngestDocumentWrapperMap(List<IngestDocumentWrapper> ingestDocumentWrappers) {
         Map<Integer, IngestDocumentWrapper> slotIngestDocumentWrapperMap = new HashMap<>();
         for (IngestDocumentWrapper ingestDocumentWrapper : ingestDocumentWrappers) {
             slotIngestDocumentWrapperMap.put(ingestDocumentWrapper.getSlot(), ingestDocumentWrapper);

@@ -8,8 +8,8 @@
 
 package org.opensearch.ingest;
 
-import org.junit.Before;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.List;
@@ -22,17 +22,15 @@ public class ProcessorTests extends OpenSearchTestCase {
     private static final String FIELD_VALUE_PROCESSED = "processed";
 
     @Before
-    public void setup() {
-    }
+    public void setup() {}
 
     public void test_batchExecute_success() {
-        processor = new FakeProcessor("type", "tag", "description", doc -> {
-            doc.setFieldValue(FIELD_KEY, FIELD_VALUE_PROCESSED);
-        });
+        processor = new FakeProcessor("type", "tag", "description", doc -> { doc.setFieldValue(FIELD_KEY, FIELD_VALUE_PROCESSED); });
         List<IngestDocumentWrapper> wrapperList = Arrays.asList(
             IngestDocumentPreparer.createIngestDocumentWrapper(1),
             IngestDocumentPreparer.createIngestDocumentWrapper(2),
-            IngestDocumentPreparer.createIngestDocumentWrapper(3));
+            IngestDocumentPreparer.createIngestDocumentWrapper(3)
+        );
         processor.batchExecute(wrapperList, results -> {
             assertEquals(3, results.size());
             for (IngestDocumentWrapper wrapper : results) {
@@ -41,7 +39,6 @@ public class ProcessorTests extends OpenSearchTestCase {
             }
         });
     }
-
 
     public void test_batchExecute_exception() {
         processor = new FakeProcessor("type", "tag", "description", doc -> {
@@ -53,7 +50,8 @@ public class ProcessorTests extends OpenSearchTestCase {
         List<IngestDocumentWrapper> wrapperList = Arrays.asList(
             IngestDocumentPreparer.createIngestDocumentWrapper(1),
             IngestDocumentPreparer.createIngestDocumentWrapper(2, true),
-            IngestDocumentPreparer.createIngestDocumentWrapper(3));
+            IngestDocumentPreparer.createIngestDocumentWrapper(3)
+        );
         processor.batchExecute(wrapperList, results -> {
             assertEquals(3, results.size());
             for (IngestDocumentWrapper wrapper : results) {

@@ -38,6 +38,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.bulk.BatchIngestionOption;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.TransportBulkAction;
 import org.opensearch.action.delete.DeleteRequest;
@@ -109,7 +110,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyString;
@@ -117,6 +117,7 @@ import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -142,6 +143,8 @@ public class IngestServiceTests extends OpenSearchTestCase {
         when(threadPool.generic()).thenReturn(executorService);
         when(threadPool.executor(anyString())).thenReturn(executorService);
         mockBulkRequest = mock(BulkRequest.class);
+        lenient().when(mockBulkRequest.batchIngestionOption()).thenReturn(BatchIngestionOption.NONE);
+        lenient().when(mockBulkRequest.maximumBatchSize()).thenReturn(1);
     }
 
     public void testIngestPlugin() {
@@ -1707,25 +1710,13 @@ public class IngestServiceTests extends OpenSearchTestCase {
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         BulkRequest bulkRequest = new BulkRequest();
-        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
-            .source(emptyMap())
-            .setPipeline("_id")
-            .setFinalPipeline("_none");
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest1);
-        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2")
-            .source(emptyMap())
-            .setPipeline("_id")
-            .setFinalPipeline("_none");
+        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest2);
-        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3")
-            .source(emptyMap())
-            .setPipeline("_id")
-            .setFinalPipeline("_none");
+        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest3);
-        IndexRequest indexRequest4 = new IndexRequest("_index").id("_id4")
-            .source(emptyMap())
-            .setPipeline("_id")
-            .setFinalPipeline("_none");
+        IndexRequest indexRequest4 = new IndexRequest("_index").id("_id4").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest4);
         bulkRequest.batchIngestionOption("enabled");
         bulkRequest.maximumBatchSize(2);
@@ -1748,34 +1739,30 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     public void testPrepareBatches_same_index_pipeline() {
-        IngestService.IndexRequestWrapper wrapper1 = createIndexRequestWrapper("index1",
-            Collections.singletonList("p1"));
-        IngestService.IndexRequestWrapper wrapper2 = createIndexRequestWrapper("index1",
-            Collections.singletonList("p1"));
-        IngestService.IndexRequestWrapper wrapper3 = createIndexRequestWrapper("index1",
-            Collections.singletonList("p1"));
-        IngestService.IndexRequestWrapper wrapper4 = createIndexRequestWrapper("index1",
-            Collections.singletonList("p1"));
-        List<List<IngestService.IndexRequestWrapper>> batches = IngestService.prepareBatches(2,
-            Arrays.asList(wrapper1, wrapper2, wrapper3, wrapper4));
-        assertEquals(2,  batches.size());
+        IngestService.IndexRequestWrapper wrapper1 = createIndexRequestWrapper("index1", Collections.singletonList("p1"));
+        IngestService.IndexRequestWrapper wrapper2 = createIndexRequestWrapper("index1", Collections.singletonList("p1"));
+        IngestService.IndexRequestWrapper wrapper3 = createIndexRequestWrapper("index1", Collections.singletonList("p1"));
+        IngestService.IndexRequestWrapper wrapper4 = createIndexRequestWrapper("index1", Collections.singletonList("p1"));
+        List<List<IngestService.IndexRequestWrapper>> batches = IngestService.prepareBatches(
+            2,
+            Arrays.asList(wrapper1, wrapper2, wrapper3, wrapper4)
+        );
+        assertEquals(2, batches.size());
         for (int i = 0; i < 2; ++i) {
-            assertEquals(2,  batches.get(i).size());
+            assertEquals(2, batches.get(i).size());
         }
     }
 
     public void testPrepareBatches_different_index_pipeline() {
-        IngestService.IndexRequestWrapper wrapper1 = createIndexRequestWrapper("index1",
-            Collections.singletonList("p1"));
-        IngestService.IndexRequestWrapper wrapper2 = createIndexRequestWrapper("index2",
-            Collections.singletonList("p1"));
-        IngestService.IndexRequestWrapper wrapper3 = createIndexRequestWrapper("index1",
-            Arrays.asList("p1", "p2"));
-        IngestService.IndexRequestWrapper wrapper4 = createIndexRequestWrapper("index1",
-            Collections.singletonList("p2"));
-        List<List<IngestService.IndexRequestWrapper>> batches = IngestService.prepareBatches(2,
-            Arrays.asList(wrapper1, wrapper2, wrapper3, wrapper4));
-        assertEquals(4,  batches.size());
+        IngestService.IndexRequestWrapper wrapper1 = createIndexRequestWrapper("index1", Collections.singletonList("p1"));
+        IngestService.IndexRequestWrapper wrapper2 = createIndexRequestWrapper("index2", Collections.singletonList("p1"));
+        IngestService.IndexRequestWrapper wrapper3 = createIndexRequestWrapper("index1", Arrays.asList("p1", "p2"));
+        IngestService.IndexRequestWrapper wrapper4 = createIndexRequestWrapper("index1", Collections.singletonList("p2"));
+        List<List<IngestService.IndexRequestWrapper>> batches = IngestService.prepareBatches(
+            2,
+            Arrays.asList(wrapper1, wrapper2, wrapper3, wrapper4)
+        );
+        assertEquals(4, batches.size());
     }
 
     private IngestService.IndexRequestWrapper createIndexRequestWrapper(String index, List<String> pipelines) {
