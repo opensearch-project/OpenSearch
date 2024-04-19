@@ -37,6 +37,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.fetch.ShardFetchSearchRequest;
 import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.resource_limit_group.ResourceLimitGroupTask;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.SearchBackpressureTask;
 
@@ -50,7 +51,7 @@ import java.util.function.Supplier;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class SearchShardTask extends CancellableTask implements SearchBackpressureTask {
+public class SearchShardTask extends CancellableTask implements SearchBackpressureTask, ResourceLimitGroupTask {
     // generating metadata in a lazy way since source can be quite big
     private final MemoizedSupplier<String> metadataSupplier;
     private String resourceLimitGroupId;
