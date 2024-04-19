@@ -21,6 +21,7 @@ import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,14 @@ public class RemoteIndexPath implements ToXContentFragment {
 
     public static final Map<DataCategory, List<DataType>> TRANSLOG_PATH = Map.of(TRANSLOG, List.of(DATA, METADATA));
     public static final Map<DataCategory, List<DataType>> SEGMENT_PATH = Map.of(SEGMENTS, List.of(DataType.values()));
+    public static final Map<DataCategory, List<DataType>> COMBINED_PATH;
+
+    static {
+        Map<DataCategory, List<DataType>> combinedPath = new HashMap<>();
+        combinedPath.putAll(TRANSLOG_PATH);
+        combinedPath.putAll(SEGMENT_PATH);
+        COMBINED_PATH = Collections.unmodifiableMap(combinedPath);
+    }
     private static final String DEFAULT_VERSION = "1";
     public static final String DIR = "remote-index-path";
     public static final String FILE_NAME_FORMAT = "remote_path_%s";

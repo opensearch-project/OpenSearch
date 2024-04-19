@@ -34,7 +34,6 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -45,6 +44,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateService.INDEX_METADATA_UPLOAD_TIMEOUT_SETTING;
+import static org.opensearch.index.remote.RemoteIndexPath.COMBINED_PATH;
 import static org.opensearch.index.remote.RemoteIndexPath.SEGMENT_PATH;
 import static org.opensearch.index.remote.RemoteIndexPath.TRANSLOG_PATH;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
@@ -96,7 +96,7 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
     @Override
     public void beforeNewIndexUpload(List<IndexMetadata> indexMetadataList, ActionListener<Void> actionListener) throws IOException {
         if (isRemoteDataAttributePresent == false) {
-            logger.trace("Skipping beforeNewIndexUpload as isRemoteDataAttributePresent=false");
+            logger.trace("Skipping beforeNewIndexUpload as there are no remote indexes");
             actionListener.onResponse(null);
             return;
         }
@@ -150,6 +150,24 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
     }
 
     private void writeIndexPathAsync(IndexMetadata idxMD, CountDownLatch latch, List<Exception> exceptionList) throws IOException {
+        if (isTranslogSegmentRepoSame) {
+            // If the repositories are same, then we need to upload a single file containing paths for both translog and segments.
+            writePathToRemoteStore(idxMD, translogRepository, latch, exceptionList, COMBINED_PATH);
+        } else {
+            // If the repositories are different, then we need to upload one file per segment and translog containing their individual
+            // paths.
+            writePathToRemoteStore(idxMD, translogRepository, latch, exceptionList, TRANSLOG_PATH);
+            writePathToRemoteStore(idxMD, segmentRepository, latch, exceptionList, SEGMENT_PATH);
+        }
+    }
+
+    private void writePathToRemoteStore(
+        IndexMetadata idxMD,
+        BlobStoreRepository repository,
+        CountDownLatch latch,
+        List<Exception> exceptionList,
+        Map<RemoteStoreEnums.DataCategory, List<RemoteStoreEnums.DataType>> pathCreationMap
+    ) throws IOException {
         Map<String, String> remoteCustomData = idxMD.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
         RemoteStoreEnums.PathType pathType = RemoteStoreEnums.PathType.valueOf(remoteCustomData.get(RemoteStoreEnums.PathType.NAME));
         RemoteStoreEnums.PathHashAlgorithm hashAlgorithm = RemoteStoreEnums.PathHashAlgorithm.valueOf(
@@ -157,39 +175,15 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
         );
         String indexUUID = idxMD.getIndexUUID();
         int shardCount = idxMD.getNumberOfShards();
-        BlobPath translogBasePath = translogRepository.basePath();
-        BlobContainer translogBlobContainer = translogRepository.blobStore().blobContainer(translogBasePath.add(RemoteIndexPath.DIR));
+        BlobPath basePath = repository.basePath();
+        BlobContainer blobContainer = repository.blobStore().blobContainer(basePath.add(RemoteIndexPath.DIR));
+        REMOTE_INDEX_PATH_FORMAT.writeAsyncWithUrgentPriority(
+            new RemoteIndexPath(indexUUID, shardCount, basePath, pathType, hashAlgorithm, pathCreationMap),
+            blobContainer,
+            indexUUID,
+            getUploadPathLatchedActionListener(idxMD, latch, exceptionList, pathCreationMap)
+        );
 
-        if (isTranslogSegmentRepoSame) {
-            // If the repositories are same, then we need to upload a single file containing paths for both translog and segments.
-            Map<RemoteStoreEnums.DataCategory, List<RemoteStoreEnums.DataType>> pathCreationMap = new HashMap<>();
-            pathCreationMap.putAll(TRANSLOG_PATH);
-            pathCreationMap.putAll(SEGMENT_PATH);
-            REMOTE_INDEX_PATH_FORMAT.writeAsyncWithUrgentPriority(
-                new RemoteIndexPath(indexUUID, shardCount, translogBasePath, pathType, hashAlgorithm, pathCreationMap),
-                translogBlobContainer,
-                indexUUID,
-                getUploadPathLatchedActionListener(idxMD, latch, exceptionList, pathCreationMap)
-            );
-        } else {
-            // If the repositories are different, then we need to upload one file per segment and translog containing their individual
-            // paths.
-            REMOTE_INDEX_PATH_FORMAT.writeAsyncWithUrgentPriority(
-                new RemoteIndexPath(indexUUID, shardCount, translogBasePath, pathType, hashAlgorithm, TRANSLOG_PATH),
-                translogBlobContainer,
-                indexUUID,
-                getUploadPathLatchedActionListener(idxMD, latch, exceptionList, TRANSLOG_PATH)
-            );
-
-            BlobPath segmentBasePath = segmentRepository.basePath();
-            BlobContainer segmentBlobContainer = segmentRepository.blobStore().blobContainer(segmentBasePath.add(RemoteIndexPath.DIR));
-            REMOTE_INDEX_PATH_FORMAT.writeAsyncWithUrgentPriority(
-                new RemoteIndexPath(indexUUID, shardCount, segmentBasePath, pathType, hashAlgorithm, SEGMENT_PATH),
-                segmentBlobContainer,
-                indexUUID,
-                getUploadPathLatchedActionListener(idxMD, latch, exceptionList, SEGMENT_PATH)
-            );
-        }
     }
 
     private Repository validateAndGetRepository(String repoSetting) {
