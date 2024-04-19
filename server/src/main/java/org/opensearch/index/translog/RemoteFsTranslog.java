@@ -91,6 +91,7 @@ public class RemoteFsTranslog extends Translog {
     private static final int SYNC_PERMIT = 1;
     private final Semaphore syncPermit = new Semaphore(SYNC_PERMIT);
     private final AtomicBoolean pauseSync = new AtomicBoolean(false);
+    private final boolean seedRemote;
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -103,10 +104,12 @@ public class RemoteFsTranslog extends Translog {
         ThreadPool threadPool,
         BooleanSupplier startedPrimarySupplier,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        boolean seedRemote
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         logger = Loggers.getLogger(getClass(), shardId);
+        this.seedRemote = seedRemote;
         this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
@@ -120,7 +123,7 @@ public class RemoteFsTranslog extends Translog {
             remoteStoreSettings
         );
         try {
-            download(translogTransferManager, location, logger);
+            download(translogTransferManager, location, logger, seedRemote);
             Checkpoint checkpoint = readCheckpoint(location);
             logger.info("Downloaded data from remote translog till maxSeqNo = {}", checkpoint.maxSeqNo);
             this.readers.addAll(recoverFromFiles(checkpoint));
@@ -168,7 +171,8 @@ public class RemoteFsTranslog extends Translog {
         Path location,
         RemoteStorePathStrategy pathStrategy,
         RemoteStoreSettings remoteStoreSettings,
-        Logger logger
+        Logger logger,
+        boolean seedRemote
     ) throws IOException {
         assert repository instanceof BlobStoreRepository : String.format(
             Locale.ROOT,
@@ -189,11 +193,12 @@ public class RemoteFsTranslog extends Translog {
             pathStrategy,
             remoteStoreSettings
         );
-        RemoteFsTranslog.download(translogTransferManager, location, logger);
+        RemoteFsTranslog.download(translogTransferManager, location, logger, seedRemote);
         logger.trace(remoteTranslogTransferTracker.toString());
     }
 
-    static void download(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
+    static void download(TranslogTransferManager translogTransferManager, Path location, Logger logger, boolean seedRemote)
+        throws IOException {
         /*
         In Primary to Primary relocation , there can be concurrent upload and download of translog.
         While translog files are getting downloaded by new primary, it might hence be deleted by the primary
@@ -206,7 +211,7 @@ public class RemoteFsTranslog extends Translog {
             boolean success = false;
             long startTimeMs = System.currentTimeMillis();
             try {
-                downloadOnce(translogTransferManager, location, logger);
+                downloadOnce(translogTransferManager, location, logger, seedRemote);
                 success = true;
                 return;
             } catch (FileNotFoundException | NoSuchFileException e) {
@@ -220,7 +225,8 @@ public class RemoteFsTranslog extends Translog {
         throw ex;
     }
 
-    private static void downloadOnce(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
+    private static void downloadOnce(TranslogTransferManager translogTransferManager, Path location, Logger logger, boolean seedRemote)
+        throws IOException {
         logger.debug("Downloading translog files from remote");
         RemoteTranslogTransferTracker statsTracker = translogTransferManager.getRemoteTranslogTransferTracker();
         long prevDownloadBytesSucceeded = statsTracker.getDownloadBytesSucceeded();
@@ -262,10 +268,12 @@ public class RemoteFsTranslog extends Translog {
             logger.debug("No translog files found on remote, checking local filesystem for cleanup");
             if (FileSystemUtils.exists(location.resolve(CHECKPOINT_FILE_NAME))) {
                 final Checkpoint checkpoint = readCheckpoint(location);
-                if (isEmptyTranslog(checkpoint) == false) {
+                if (isEmptyTranslog(checkpoint) == false && seedRemote == false) {
                     logger.debug("Translog files exist on local without any metadata in remote, cleaning up these files");
                     // Creating empty translog will cleanup the older un-referenced tranlog files, we don't have to explicitly delete
                     Translog.createEmptyTranslog(location, translogTransferManager.getShardId(), checkpoint);
+                } else if (isEmptyTranslog(checkpoint) == false && seedRemote) {
+                    logger.debug("Remote migration ongoing. Retaining the translog on local, skipping clean-up");
                 } else {
                     logger.debug("Empty translog on local, skipping clean-up");
                 }

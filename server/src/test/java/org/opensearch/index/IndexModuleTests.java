@@ -238,7 +238,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
                     threadPool,
                     indexSettings.getRemoteStoreTranslogRepository(),
                     new RemoteTranslogTransferTracker(shardRouting.shardId(), 10),
-                    DefaultRemoteStoreSettings.INSTANCE
+                    DefaultRemoteStoreSettings.INSTANCE,
+                    false
                 );
             }
             return new InternalTranslogFactory();

@@ -106,11 +106,11 @@ public class RemotePrimaryLocalRecoveryIT extends MigrationBaseTestCase {
         internalCluster().startClusterManagerOnlyNode();
 
         // create index
-        Settings zeroReplicaIndexSettings = Settings.builder()
+        Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicaCount)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
             .build();
-        createIndex(indexName, zeroReplicaIndexSettings);
+        createIndex(indexName, indexSettings);
         ensureGreen(indexName);
         indexBulk(indexName, randomIntBetween(100, 10000));
         refresh(indexName);

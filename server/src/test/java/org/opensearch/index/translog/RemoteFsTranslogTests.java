@@ -190,7 +190,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             threadPool,
             primaryMode::get,
             new RemoteTranslogTransferTracker(shardId, 10),
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            false
         );
     }
 
@@ -462,7 +463,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 threadPool,
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
-                DefaultRemoteStoreSettings.INSTANCE
+                DefaultRemoteStoreSettings.INSTANCE,
+                false
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1512,7 +1514,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 threadPool,
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
-                DefaultRemoteStoreSettings.INSTANCE
+                DefaultRemoteStoreSettings.INSTANCE,
+                false
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1621,7 +1624,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 threadPool,
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
-                DefaultRemoteStoreSettings.INSTANCE
+                DefaultRemoteStoreSettings.INSTANCE,
+                false
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1692,7 +1696,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         // Always File not found
         when(mockTransfer.downloadTranslog(any(), any(), any())).thenThrow(new NoSuchFileException("File not found"));
         TranslogTransferManager finalMockTransfer = mockTransfer;
-        assertThrows(NoSuchFileException.class, () -> RemoteFsTranslog.download(finalMockTransfer, location, logger));
+        assertThrows(NoSuchFileException.class, () -> RemoteFsTranslog.download(finalMockTransfer, location, logger, false));
 
         // File not found in first attempt . File found in second attempt.
         mockTransfer = mock(TranslogTransferManager.class);
@@ -1713,7 +1717,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         }).when(mockTransfer).downloadTranslog(any(), any(), any());
 
         // no exception thrown
-        RemoteFsTranslog.download(mockTransfer, location, logger);
+        RemoteFsTranslog.download(mockTransfer, location, logger, false);
     }
 
     // No translog data in local as well as remote, we skip creating empty translog
@@ -1726,7 +1730,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
 
         Path[] filesBeforeDownload = FileSystemUtils.files(location);
-        RemoteFsTranslog.download(mockTransfer, location, logger);
+        RemoteFsTranslog.download(mockTransfer, location, logger, false);
         assertEquals(filesBeforeDownload, FileSystemUtils.files(location));
     }
 
@@ -1746,7 +1750,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         Checkpoint existingCheckpoint = Translog.readCheckpoint(location);
 
         TranslogTransferManager finalMockTransfer = mockTransfer;
-        RemoteFsTranslog.download(finalMockTransfer, location, logger);
+        RemoteFsTranslog.download(finalMockTransfer, location, logger, false);
 
         Path[] filesPostDownload = FileSystemUtils.files(location);
         assertEquals(2, filesPostDownload.length);
@@ -1782,11 +1786,11 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         TranslogTransferManager finalMockTransfer = mockTransfer;
 
         // download first time will ensure creating empty translog
-        RemoteFsTranslog.download(finalMockTransfer, location, logger);
+        RemoteFsTranslog.download(finalMockTransfer, location, logger, false);
         Path[] filesPostFirstDownload = FileSystemUtils.files(location);
 
         // download on empty translog should be a no-op
-        RemoteFsTranslog.download(finalMockTransfer, location, logger);
+        RemoteFsTranslog.download(finalMockTransfer, location, logger, false);
         Path[] filesPostSecondDownload = FileSystemUtils.files(location);
 
         assertArrayEquals(filesPostFirstDownload, filesPostSecondDownload);

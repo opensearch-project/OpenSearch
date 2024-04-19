@@ -5000,7 +5000,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             shardPath().resolveTranslog(),
             indexSettings.getRemoteStorePathStrategy(),
             remoteStoreSettings,
-            logger
+            logger,
+            shouldSeedRemoteStore()
         );
     }
 
