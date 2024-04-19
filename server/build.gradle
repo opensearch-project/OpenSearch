@@ -173,15 +173,20 @@ tasks.named("testingConventions").configure {
     }
 }
 
-// Read the list from maven central.
-// Fetch the metadata and parse the xml into Version instances, pick the latest one
-def latestRelease = new URL('https://repo1.maven.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
-    new XmlParser().parse(s)
-       .versioning.versions.version
-       .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
-       .collect { org.opensearch.gradle.Version.fromString(it) }
-       .toSorted()
-       .last()
+// Set to current version by default
+def japicmpCompareTarget = System.getProperty("japicmp.compare.version")
+if (japicmpCompareTarget == null) { /* use latest released version */
+    // Read the list from maven central.
+    // Fetch the metadata and parse the xml into Version instances, pick the latest one
+    japicmpCompareTarget = new URL('https://repo1.maven.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
+        new XmlParser().parse(s)
+           .versioning.versions.version
+           .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
+           .collect { org.opensearch.gradle.Version.fromString(it) }
+           .toSorted()
+           .last()
+           .toString()
+        }
 }
 
 def generateModulesList = tasks.register("generateModulesList") {
@@ -391,10 +396,10 @@ tasks.named("sourcesJar").configure {
   }
 }
 
-/** Compares the current build against a snapshot build */
+/** Compares the current build against a laltest released version or the version supplied through 'japicmp.compare.version' system property */
 tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
-    logger.info("Comparing public APIs from ${version} to ${latestRelease}")
-    oldClasspath.from(files("${buildDir}/latestRelease/opensearch-${latestRelease}.jar"))
+    logger.info("Comparing public APIs from ${version} to ${japicmpCompareTarget}")
+    oldClasspath.from(files("${buildDir}/japicmp-target/opensearch-${japicmpCompareTarget}.jar"))
     newClasspath.from(tasks.named('jar'))
     onlyModified = true
     failOnModification = true
@@ -402,33 +407,48 @@ tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     annotationIncludes = ['@org.opensearch.common.annotation.PublicApi', '@org.opensearch.common.annotation.DeprecatedApi']
     txtOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.txt")
     htmlOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.html")
-    dependsOn downloadLatestRelease
+    dependsOn downloadJapicmpCompareTarget
 }
 
 /** If the Java API Comparison task failed, print a hint if the change should be merged from its target branch */
 gradle.taskGraph.afterTask { Task task, TaskState state ->
     if (task.name == 'japicmp' && state.failure != null) {
-        logger.info("Public APIs changes incompatiable with ${latestRelease} release have been detected")
+        logger.info("Public APIs changes incompatiable with ${japicmpCompareTarget} target have been detected")
     }
 }
 
 /** Downloads latest released version from maven repository */
-tasks.register("downloadLatestRelease", Copy) {
+tasks.register("downloadJapicmpCompareTarget", Copy) {
+    def mavenSnapshotRepoUrl = "https://aws.oss.sonatype.org/content/repositories/snapshots/"
     def groupId = "org.opensearch"
     def artifactId = "opensearch"
 
+    // Add repository for snapshot artifacts if japicmp compare target version is snapshot
+    if (japicmpCompareTarget.endsWith("-SNAPSHOT")) {
+        def repos = project.getRepositories();
+        MavenArtifactRepository opensearchRepo = repos.maven(repo -> {
+            repo.setName("opensearch-snapshots");
+            repo.setUrl(mavenSnapshotRepoUrl);
+        });
+
+        repos.exclusiveContent(exclusiveRepo -> {
+            exclusiveRepo.filter(descriptor -> descriptor.includeGroup(groupId));
+            exclusiveRepo.forRepositories(opensearchRepo);
+        });
+    }
+
     configurations {
-        latestReleaseArtifact {
+        japicmpCompareTargetArtifact {
             exclude group: 'org.apache.lucene'
         }
     }
 
     dependencies {
-        latestReleaseArtifact("${groupId}:${artifactId}:${latestRelease}:")
+        japicmpCompareTargetArtifact("${groupId}:${artifactId}:${japicmpCompareTarget}:")
     }
 
-    from configurations.latestReleaseArtifact
-    into "$buildDir/latestRelease"
+    from configurations.japicmpCompareTargetArtifact
+    into "$buildDir/japicmp-target"
 }
 
 /** Check if the sha is in the current history */
