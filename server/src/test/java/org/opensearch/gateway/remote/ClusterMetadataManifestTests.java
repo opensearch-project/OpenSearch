@@ -40,7 +40,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             null,
             Collections.singletonList(uploadedIndexMetadata),
             "prev-cluster-uuid",
-            true,
+            true
         );
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -67,7 +67,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             "test-global-metadata-file",
             Collections.singletonList(uploadedIndexMetadata),
             "prev-cluster-uuid",
-            true,
+            true
         );
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -93,7 +93,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             "test-global-metadata-file",
             randomUploadedIndexMetadataList(),
             "yfObdx8KSMKKrXf8UyHhM",
-            true,
+            true
         );
         {  // Mutate Cluster Term
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(
