@@ -49,7 +49,7 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import java.util.Arrays;
 
 /**
- * Utility class to work with arrays.Ø
+ * Utility class to work with arrays.
  *
  * @opensearch.api
  * */
