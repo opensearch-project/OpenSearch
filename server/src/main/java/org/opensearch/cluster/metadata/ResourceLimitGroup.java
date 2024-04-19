@@ -22,6 +22,7 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -118,7 +119,7 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
                 throw new IllegalArgumentException("resource value should be less than 1.0");
             }
 
-            if (!ALLOWED_RESOURCES.contains(resourceName.toLowerCase())) {
+            if (!ALLOWED_RESOURCES.contains(resourceName.toLowerCase(Locale.ROOT))) {
                 throw new IllegalArgumentException(
                     "resource has to be valid, valid resources " + ALLOWED_RESOURCES.stream().reduce((x, e) -> x + ", " + e).get()
                 );
@@ -175,6 +176,9 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         }
     }
 
+    /**
+     * This enum models the different sandbox modes
+     */
     @ExperimentalApi
     public static enum ResourceLimitGroupMode {
         SOFT("soft"),
