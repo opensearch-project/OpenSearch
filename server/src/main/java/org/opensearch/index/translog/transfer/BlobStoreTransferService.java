@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -111,23 +110,6 @@ public class BlobStoreTransferService implements TransferService {
 
     }
 
-    private Map<String, String> prepareFileMetadata(TransferFileSnapshot fileSnapshot) throws IOException {
-        if (!(fileSnapshot instanceof FileSnapshot.TranslogFileSnapshot)) {
-            return null;
-        }
-
-        FileSnapshot.TranslogFileSnapshot tlogFileSnapshot = (FileSnapshot.TranslogFileSnapshot) fileSnapshot;
-        String ckpAsString = tlogFileSnapshot.provideCheckpointDataAsString();
-        Long checkpointChecksum = tlogFileSnapshot.getCheckpointChecksum();
-
-        assert checkpointChecksum != null : "checksum can not be null";
-
-        Map<String, String> metadata = new HashMap<>();
-        metadata.put(FileSnapshot.TranslogFileSnapshot.CHECKPOINT_FILE_DATA_KEY, ckpAsString);
-        metadata.put(FileSnapshot.TranslogFileSnapshot.CHECKPOINT_FILE_CHECKSUM_KEY, checkpointChecksum.toString());
-        return metadata;
-    }
-
     private void uploadBlob(
         TransferFileSnapshot fileSnapshot,
         ActionListener<TransferFileSnapshot> listener,
@@ -138,7 +120,7 @@ public class BlobStoreTransferService implements TransferService {
         try {
             Map<String, String> metadata = null;
             if (isObjectMetadataUploadSupported()) {
-                metadata = prepareFileMetadata(fileSnapshot);
+                metadata = fileSnapshot.getTransferFileSnapshotMetadata();
             }
 
             ChannelFactory channelFactory = FileChannel::open;

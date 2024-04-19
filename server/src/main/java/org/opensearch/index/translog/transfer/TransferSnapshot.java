@@ -8,6 +8,7 @@
 
 package org.opensearch.index.translog.transfer;
 
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
@@ -39,4 +40,11 @@ public interface TransferSnapshot {
      * @return the translog transfer metadata
      */
     TranslogTransferMetadata getTranslogTransferMetadata();
+
+    /**
+     *
+     * The Set of tuple containing the TranslogFileSnapshot and CheckpointFileSnapshot
+     * @return the set of tuples {@link TranslogFileSnapshot} and {@link CheckpointFileSnapshot}
+     */
+    Set<Tuple<TransferFileSnapshot, TransferFileSnapshot>> getTranslogAndCheckpointFileSnapshotTupleSet();
 }

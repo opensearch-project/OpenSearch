@@ -362,6 +362,46 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             }
 
             @Override
+            public Set<Tuple<TransferFileSnapshot, TransferFileSnapshot>> getTranslogAndCheckpointFileSnapshotTupleSet() {
+                try {
+                    return Set.of(
+                        new Tuple<>(
+                            new TranslogFileSnapshot(
+                                primaryTerm,
+                                generation,
+                                createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.TRANSLOG_FILE_SUFFIX),
+                                null
+                            ),
+                            new CheckpointFileSnapshot(
+                                primaryTerm,
+                                generation,
+                                minTranslogGeneration,
+                                createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.CHECKPOINT_SUFFIX),
+                                null
+                            )
+                        ),
+                        new Tuple<>(
+                            new TranslogFileSnapshot(
+                                primaryTerm,
+                                generation - 1,
+                                createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.TRANSLOG_FILE_SUFFIX),
+                                null
+                            ),
+                            new CheckpointFileSnapshot(
+                                primaryTerm,
+                                generation - 1,
+                                minTranslogGeneration,
+                                createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.CHECKPOINT_SUFFIX),
+                                null
+                            )
+                        )
+                    );
+                } catch (IOException e) {
+                    throw new AssertionError("Failed to create temp file", e);
+                }
+            }
+
+            @Override
             public String toString() {
                 return "test-to-string";
             }

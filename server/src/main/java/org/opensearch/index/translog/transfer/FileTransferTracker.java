@@ -117,6 +117,10 @@ public class FileTransferTracker implements FileTransferListener {
             .collect(Collectors.toSet());
     }
 
+    public boolean isAlreadyUploaded(TransferFileSnapshot transferFileSnapshot) {
+        return fileTransferTracker.get(transferFileSnapshot.getName()) == TransferState.SUCCESS;
+    }
+
     public Set<String> allUploaded() {
         Set<String> successFileTransferTracker = new HashSet<>();
         fileTransferTracker.forEach((k, v) -> {

@@ -8,17 +8,12 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.opensearch.index.translog.Translog;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.util.Base64;
 
 public class FileSnapshotTests extends OpenSearchTestCase {
 
@@ -72,63 +67,6 @@ public class FileSnapshotTests extends OpenSearchTestCase {
         ) {
             assertNotEquals(anotherFileSnapshot, fileSnapshot);
         }
-    }
-
-    public void testBuildCheckpointDataAsBase64String() throws IOException {
-        Path file = createTempFile(Translog.TRANSLOG_FILE_PREFIX + 10, Translog.CHECKPOINT_SUFFIX);
-        Files.writeString(file, "hello_world_with_checkpoint_file_data");
-        Files.writeString(file, "hello_world_with_checkpoint_file_data-2");
-        Files.writeString(file, "hello_world_with_checkpoint_file_data-4");
-        Files.writeString(file, "213123123");
-
-        fileSnapshot = new FileSnapshot.TransferFileSnapshot(file, 12, null);
-
-        assertFileSnapshotProperties(file);
-        String encodedString = FileSnapshot.TranslogFileSnapshot.buildCheckpointDataAsBase64String(file);
-
-        // Assert
-        assertNotNull(encodedString);
-        byte[] decoded = Base64.getDecoder().decode(encodedString);
-        assertArrayEquals(Files.readAllBytes(file), decoded);
-    }
-
-    public void testBuildCheckpointDataAsBase64StringWhenPathIsNull() throws IOException {
-        Path file = createTempFile(Translog.TRANSLOG_FILE_PREFIX + 10, Translog.CHECKPOINT_SUFFIX);
-        Files.writeString(file, "hello_world_with_checkpoint_file_data");
-
-        fileSnapshot = new FileSnapshot.TransferFileSnapshot(file, 12, null);
-
-        assertFileSnapshotProperties(file);
-
-        assertThrows(NullPointerException.class, () -> FileSnapshot.TranslogFileSnapshot.buildCheckpointDataAsBase64String(null));
-    }
-
-    public void testConvertCheckpointBase64StringToBytes() throws IOException {
-        Path file = createTempFile(Translog.TRANSLOG_FILE_PREFIX + 10, Translog.CHECKPOINT_SUFFIX);
-        Files.writeString(file, "test-hello_world_with_checkpoint_file_data");
-
-        fileSnapshot = new FileSnapshot.TransferFileSnapshot(file, 12, null);
-
-        assertFileSnapshotProperties(file);
-        String encodedString = FileSnapshot.TranslogFileSnapshot.buildCheckpointDataAsBase64String(file);
-
-        byte[] decodedBytes = FileSnapshot.TranslogFileSnapshot.convertBase64StringToCheckpointFileDataBytes(encodedString);
-        assertNotNull(encodedString);
-        assertArrayEquals("test-hello_world_with_checkpoint_file_data".getBytes(StandardCharsets.UTF_8), decodedBytes);
-    }
-
-    public void testBuildCheckpointDataAsBase64String_whenFileSizeGreaterThan2KB_shouldThrowAssertionError() throws IOException {
-        Path file = createTempFile(Translog.TRANSLOG_FILE_PREFIX + 10, Translog.CHECKPOINT_SUFFIX);
-        byte[] data = new byte[2048]; // 2KB
-
-        fileSnapshot = new FileSnapshot.TransferFileSnapshot(file, 12, null);
-
-        assertFileSnapshotProperties(file);
-
-        ByteBuffer buffer = ByteBuffer.wrap(data);
-        Files.write(file, buffer.array(), StandardOpenOption.WRITE);
-
-        assertThrows(AssertionError.class, () -> FileSnapshot.TranslogFileSnapshot.buildCheckpointDataAsBase64String(file));
     }
 
     private void assertFileSnapshotProperties(Path file) throws IOException {

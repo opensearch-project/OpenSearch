@@ -19,11 +19,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
-import java.util.Base64;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -65,6 +64,10 @@ public class FileSnapshot implements Closeable {
 
     public long getContentLength() throws IOException {
         return fileChannel == null ? content.length : fileChannel.size();
+    }
+
+    public FileChannel getFileChannel() {
+        return fileChannel;
     }
 
     public InputStream inputStream() throws IOException {
@@ -110,6 +113,10 @@ public class FileSnapshot implements Closeable {
 
         private final long primaryTerm;
         private Long checksum;
+        @Nullable
+        private Map<String, String> metadata;
+        @Nullable
+        private String metadataFileName;
 
         public TransferFileSnapshot(Path path, long primaryTerm, Long checksum) throws IOException {
             super(path);
@@ -128,6 +135,22 @@ public class FileSnapshot implements Closeable {
 
         public long getPrimaryTerm() {
             return primaryTerm;
+        }
+
+        public void setTransferFileSnapshotMetadata(Map<String, String> metadata) {
+            this.metadata = metadata;
+        }
+
+        public void setTransferFileSnapshotMetadataFileName(String fileName) {
+            this.metadataFileName = fileName;
+        }
+
+        public Map<String, String> getTransferFileSnapshotMetadata() {
+            return metadata;
+        }
+
+        public String getTransferFileSnapshotMetadataFileName() {
+            return metadataFileName;
         }
 
         @Override
@@ -155,48 +178,14 @@ public class FileSnapshot implements Closeable {
     public static final class TranslogFileSnapshot extends TransferFileSnapshot {
 
         private final long generation;
-        private Path checkpointFilePath;
-        private Long checkpointChecksum;
-        public final static String CHECKPOINT_FILE_DATA_KEY = "ckp-data";
-        public final static String CHECKPOINT_FILE_CHECKSUM_KEY = "ckp-checksum";
 
         public TranslogFileSnapshot(long primaryTerm, long generation, Path path, Long checksum) throws IOException {
             super(path, primaryTerm, checksum);
             this.generation = generation;
         }
 
-        public void setCheckpointFilePath(Path checkpointFilePath) {
-            this.checkpointFilePath = checkpointFilePath;
-        }
-
-        public void setCheckpointChecksum(Long checkpointChecksum) {
-            this.checkpointChecksum = checkpointChecksum;
-        }
-
-        public String provideCheckpointDataAsString() throws IOException {
-            return buildCheckpointDataAsBase64String(checkpointFilePath);
-        }
-
-        static String buildCheckpointDataAsBase64String(Path checkpointFilePath) throws IOException {
-            long fileSize = Files.size(checkpointFilePath);
-            assert fileSize < 1500 : "checkpoint file size is more than 1.5KB size, can't be stored as metadata";
-            byte[] fileBytes = Files.readAllBytes(checkpointFilePath);
-            return Base64.getEncoder().encodeToString(fileBytes);
-        }
-
-        public static byte[] convertBase64StringToCheckpointFileDataBytes(String base64CheckpointString) {
-            if (base64CheckpointString == null) {
-                return null;
-            }
-            return Base64.getDecoder().decode(base64CheckpointString);
-        }
-
         public long getGeneration() {
             return generation;
-        }
-
-        public Long getCheckpointChecksum() {
-            return checkpointChecksum;
         }
 
         @Override
