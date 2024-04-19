@@ -12,8 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.search.resource_limit_group.tracker.ResourceLimitGroupResourceUsageTracker;
 import org.opensearch.search.resource_limit_group.cancellation.ResourceLimitGroupRequestCanceller;
+import org.opensearch.search.resource_limit_group.tracker.ResourceLimitGroupResourceUsageTracker;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -59,9 +59,9 @@ public class ResourceLimitGroupService extends AbstractLifecycleComponent {
      * run at regular interval
      */
     private void doRun() {
-         requestTracker.updateResourceLimitGroupsResourceUsage();
-         requestCanceller.cancelViolatingTasks();
-         resourceLimitGroupPruner.pruneResourceLimitGroup();
+        requestTracker.updateResourceLimitGroupsResourceUsage();
+        requestCanceller.cancelViolatingTasks();
+        resourceLimitGroupPruner.pruneResourceLimitGroup();
     }
 
     /**

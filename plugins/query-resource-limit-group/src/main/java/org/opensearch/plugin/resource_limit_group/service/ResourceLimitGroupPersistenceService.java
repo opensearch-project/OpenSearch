@@ -23,7 +23,10 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
-import org.opensearch.plugin.resource_limit_group.*;
+import org.opensearch.plugin.resource_limit_group.CreateResourceLimitGroupResponse;
+import org.opensearch.plugin.resource_limit_group.DeleteResourceLimitGroupResponse;
+import org.opensearch.plugin.resource_limit_group.GetResourceLimitGroupResponse;
+import org.opensearch.plugin.resource_limit_group.UpdateResourceLimitGroupResponse;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -103,7 +106,6 @@ public class ResourceLimitGroupPersistenceService implements Persistable<Resourc
             return;
         }
 
-
         if (resourceLimitGroup.getName() != null && currentGroupsMap.containsKey(resourceLimitGroup.getName())) {
             logger.warn("Resource Limit Group already exists with the updated name: {}", resourceLimitGroup.getName());
             Exception e = new RuntimeException("Resource Limit Group already exists with the provided name: " + resourceLimitGroup.getName());
@@ -171,13 +173,8 @@ public class ResourceLimitGroupPersistenceService implements Persistable<Resourc
     @Override
     public void get(String name, ActionListener<GetResourceLimitGroupResponse> listener) {
         ClusterState currentState = clusterService.state();
-        List<ResourceLimitGroup> resourceLimitGroups;
-        Map<String, ResourceLimitGroup> currentGroupsMap = currentState.metadata().resourceLimitGroups();
-        if (name == null || name.equals("")) {
-            resourceLimitGroups = new ArrayList<>(currentGroupsMap.values());
-        } else if (currentGroupsMap.containsKey(name)) {
-            resourceLimitGroups = List.of(currentGroupsMap.get(name));
-        } else {
+        List<ResourceLimitGroup> resultGroups = getFromClusterStateMetadata(name, currentState);
+        if (resultGroups.isEmpty() && name != null && !name.isEmpty()) {
             logger.warn("No Resource Limit Group exists with the provided name: {}", name);
             Exception e = new RuntimeException("No Resource Limit Group exists with the provided name: " + name);
             GetResourceLimitGroupResponse response = new GetResourceLimitGroupResponse();
@@ -185,7 +182,7 @@ public class ResourceLimitGroupPersistenceService implements Persistable<Resourc
             listener.onFailure(e);
             return;
         }
-        GetResourceLimitGroupResponse response = new GetResourceLimitGroupResponse(resourceLimitGroups);
+        GetResourceLimitGroupResponse response = new GetResourceLimitGroupResponse(resultGroups);
         response.setRestStatus(RestStatus.OK);
         listener.onResponse(response);
     }
@@ -213,11 +210,6 @@ public class ResourceLimitGroupPersistenceService implements Persistable<Resourc
 
             @Override
             public void onFailure(String source, Exception e) {
-                inflightCreateResourceLimitGroupRequestCount.decrementAndGet();
-                for (ResourceLimit rl: resourceLimitGroup.getResourceLimits()) {
-                    String currResourceName = rl.getResourceName();
-                    inflightResourceLimitValues.get(currResourceName).add(-getResourceLimitValue(currResourceName, resourceLimitGroup));
-                }
                 logger.warn("failed to save Resource Limit Group object due to error: {}, for source: {}", e.getMessage(), source);
                 CreateResourceLimitGroupResponse response = new CreateResourceLimitGroupResponse();
                 response.setRestStatus(RestStatus.FAILED_DEPENDENCY);
@@ -226,11 +218,6 @@ public class ResourceLimitGroupPersistenceService implements Persistable<Resourc
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                inflightCreateResourceLimitGroupRequestCount.decrementAndGet();
-                for (ResourceLimit rl: resourceLimitGroup.getResourceLimits()) {
-                    String currResourceName = rl.getResourceName();
-                    inflightResourceLimitValues.get(currResourceName).add(-getResourceLimitValue(currResourceName, resourceLimitGroup));
-                }
                 CreateResourceLimitGroupResponse response = new CreateResourceLimitGroupResponse(resourceLimitGroup);
                 response.setRestStatus(RestStatus.OK);
                 listener.onResponse(response);
@@ -286,15 +273,30 @@ public class ResourceLimitGroupPersistenceService implements Persistable<Resourc
             }
         }
         if (inflightCreateResourceLimitGroupRequestCount.incrementAndGet() + previousGroups.size() > maxResourceLimitGroupCount) {
+            restoreInflightValues(resourceLimitGroup);
             logger.error("{} value exceeded its assigned limit of {}", RESOURCE_LIMIT_GROUP_COUNT_SETTING_NAME, maxResourceLimitGroupCount);
             throw new RuntimeException("Can't create more than " + maxResourceLimitGroupCount + " Resource Limit Groups in the system");
         }
         if (!resourceNameWithThresholdExceeded.isEmpty()) {
+            restoreInflightValues(resourceLimitGroup);
             logger.error("Total resource allocation for {} will go above the max limit of 1.0", resourceNameWithThresholdExceeded);
             throw new RuntimeException("Total resource allocation for " + resourceNameWithThresholdExceeded+ " will go above the max limit of 1.0");
         }
 
+        restoreInflightValues(resourceLimitGroup);
         return ClusterState.builder(currentClusterState).metadata(Metadata.builder(metadata).put(resourceLimitGroup).build()).build();
+    }
+
+    /**
+     * This method restores the inflight values to be before the resource limit group is processed
+     * @param resourceLimitGroup - the resource limit group we're currently creating
+     */
+    void restoreInflightValues(ResourceLimitGroup resourceLimitGroup) {
+        inflightCreateResourceLimitGroupRequestCount.decrementAndGet();
+        for (ResourceLimit rl: resourceLimitGroup.getResourceLimits()) {
+            String currResourceName = rl.getResourceName();
+            inflightResourceLimitValues.get(currResourceName).add(-getResourceLimitValue(currResourceName, resourceLimitGroup));
+        }
     }
 
     /**
@@ -416,5 +418,17 @@ public class ResourceLimitGroupPersistenceService implements Persistable<Resourc
             resultGroups.remove(name);
             }
         return ClusterState.builder(currentClusterState).metadata(Metadata.builder(metadata).resourceLimitGroups(resultGroups).build()).build();
+    }
+
+    List<ResourceLimitGroup> getFromClusterStateMetadata(String name, ClusterState currentState) {
+        Map<String, ResourceLimitGroup> currentGroupsMap = currentState.getMetadata().resourceLimitGroups();
+        List<ResourceLimitGroup> currentGroups = new ArrayList<>(currentGroupsMap.values());
+        List<ResourceLimitGroup> resultGroups = new ArrayList<>();
+        if (name == null || name.equals("")) {
+            resultGroups = currentGroups;
+        } else if (currentGroupsMap.containsKey(name)) {
+            resultGroups = List.of(currentGroupsMap.get(name));
+        }
+        return resultGroups;
     }
 }

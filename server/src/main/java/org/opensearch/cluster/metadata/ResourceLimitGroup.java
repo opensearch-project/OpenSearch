@@ -52,7 +52,6 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
     public static final ParseField RESOURCE_LIMITS_FIELD = new ParseField("resourceLimits");
     public static final ParseField ENFORCEMENT_FIELD = new ParseField("enforcement");
 
-
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ResourceLimitGroup, Void> PARSER = new ConstructingObjectParser<>(
         "ResourceLimitGroupParser",
@@ -61,7 +60,11 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> ResourceLimit.fromXContent(p), RESOURCE_LIMITS_FIELD);
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> ResourceLimit.fromXContent(p),
+            RESOURCE_LIMITS_FIELD
+        );
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ENFORCEMENT_FIELD);
     }
 
@@ -72,7 +75,11 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
 
     static {
         PARSER_OPTIONAL_FIELDS.declareString(ConstructingObjectParser.optionalConstructorArg(), NAME_FIELD);
-        PARSER_OPTIONAL_FIELDS.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> ResourceLimit.fromXContent(p), RESOURCE_LIMITS_FIELD);
+        PARSER_OPTIONAL_FIELDS.declareObjectArray(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> ResourceLimit.fromXContent(p),
+            RESOURCE_LIMITS_FIELD
+        );
         PARSER_OPTIONAL_FIELDS.declareString(ConstructingObjectParser.optionalConstructorArg(), ENFORCEMENT_FIELD);
     }
 
@@ -106,8 +113,10 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         }
         if (enforcement != null) {
             if (!ALLOWED_ENFORCEMENTS.contains(enforcement)) {
-                throw new IllegalArgumentException("enforcement has to be valid, valid enforcements "
-                    + ALLOWED_ENFORCEMENTS.stream().reduce((x, e) -> x + ", " + e).get());
+                throw new IllegalArgumentException(
+                    "enforcement has to be valid, valid enforcements are: "
+                        + ALLOWED_ENFORCEMENTS.stream().reduce((x, e) -> x + ", " + e).get()
+                );
             }
         }
     }
@@ -155,9 +164,10 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
             if (str.contains(".") && str.split("\\.")[1].length() > 2) {
                 throw new IllegalArgumentException("Resource limit value should have at most two digits after the decimal point");
             }
-            if (!ALLOWED_RESOURCES.contains(resourceName.toLowerCase())) {
-                throw new IllegalArgumentException("resource has to be valid, valid resources "
-                    + ALLOWED_RESOURCES.stream().reduce((x, e) -> x + ", " + e).get());
+            if (!ALLOWED_RESOURCES.contains(resourceName.toLowerCase(Locale.ROOT))) {
+                throw new IllegalArgumentException(
+                    "resource has to be valid, valid resources are: " + ALLOWED_RESOURCES.stream().reduce((x, e) -> x + ", " + e).get()
+                );
             }
         }
 
@@ -227,7 +237,8 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         writeToOutputStream(out, name, resourceLimits, enforcement);
     }
 
-    public static void writeToOutputStream(StreamOutput out, String name, List<ResourceLimit> resourceLimits, String enforcement) throws IOException {
+    public static void writeToOutputStream(StreamOutput out, String name, List<ResourceLimit> resourceLimits, String enforcement)
+        throws IOException {
         out.writeString(name);
         out.writeList(resourceLimits);
         out.writeString(enforcement);
@@ -266,7 +277,9 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ResourceLimitGroup that = (ResourceLimitGroup) o;
-        return Objects.equals(name, that.name) && Objects.equals(resourceLimits, that.resourceLimits) && Objects.equals(enforcement, that.enforcement);
+        return Objects.equals(name, that.name)
+            && Objects.equals(resourceLimits, that.resourceLimits)
+            && Objects.equals(enforcement, that.enforcement);
     }
 
     @Override

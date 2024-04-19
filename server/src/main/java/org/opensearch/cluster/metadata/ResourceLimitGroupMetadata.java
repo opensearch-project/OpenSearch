@@ -15,7 +15,6 @@ import org.opensearch.cluster.NamedDiff;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
@@ -44,7 +43,7 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<ResourceLimitGroupMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "resourceLimitGroupParser",
-        args -> new ResourceLimitGroupMetadata((Map<String, ResourceLimitGroup>) args [0])
+        args -> new ResourceLimitGroupMetadata((Map<String, ResourceLimitGroup>) args[0])
     );
 
     static {
@@ -57,7 +56,6 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
         }, RESOURCE_LIMIT_GROUP_FIELD);
     }
 
-
     private final Map<String, ResourceLimitGroup> resourceLimitGroups;
 
     public ResourceLimitGroupMetadata(Map<String, ResourceLimitGroup> resourceLimitGroups) {
@@ -67,7 +65,6 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
     public ResourceLimitGroupMetadata(StreamInput in) throws IOException {
         this.resourceLimitGroups = in.readMap(StreamInput::readString, ResourceLimitGroup::new);
     }
-
 
     public Map<String, ResourceLimitGroup> resourceLimitGroups() {
         return this.resourceLimitGroups;
@@ -108,7 +105,7 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(RESOURCE_LIMIT_GROUP_FIELD.getPreferredName());
-        for (Map.Entry<String, ResourceLimitGroup> entry: resourceLimitGroups.entrySet()) {
+        for (Map.Entry<String, ResourceLimitGroup> entry : resourceLimitGroups.entrySet()) {
             builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();
@@ -147,19 +144,21 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
     static class ResourceLimitGroupMetadataDiff implements NamedDiff<Metadata.Custom> {
         final Diff<Map<String, ResourceLimitGroup>> dataStreanDiff;
 
-
-        ResourceLimitGroupMetadataDiff(final ResourceLimitGroupMetadata before,
-                                       final ResourceLimitGroupMetadata after) {
-            dataStreanDiff = DiffableUtils.diff(before.resourceLimitGroups,
-                    after.resourceLimitGroups,
-                    DiffableUtils.getStringKeySerializer());
+        ResourceLimitGroupMetadataDiff(final ResourceLimitGroupMetadata before, final ResourceLimitGroupMetadata after) {
+            dataStreanDiff = DiffableUtils.diff(
+                before.resourceLimitGroups,
+                after.resourceLimitGroups,
+                DiffableUtils.getStringKeySerializer()
+            );
         }
 
         ResourceLimitGroupMetadataDiff(final StreamInput in) throws IOException {
-            this.dataStreanDiff = DiffableUtils.readJdkMapDiff(in,
+            this.dataStreanDiff = DiffableUtils.readJdkMapDiff(
+                in,
                 DiffableUtils.getStringKeySerializer(),
                 ResourceLimitGroup::new,
-                ResourceLimitGroup::readDiff);
+                ResourceLimitGroup::readDiff
+            );
         }
 
         /**
@@ -187,12 +186,9 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
          */
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
-            return new ResourceLimitGroupMetadata(dataStreanDiff.apply(
-                ((ResourceLimitGroupMetadata) part).resourceLimitGroups)
-            );
+            return new ResourceLimitGroupMetadata(dataStreanDiff.apply(((ResourceLimitGroupMetadata) part).resourceLimitGroups));
         }
     }
-
 
     @Override
     public boolean equals(Object o) {

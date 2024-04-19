@@ -208,7 +208,7 @@ public class ClusterModule extends AbstractModule {
             DecommissionAttributeMetadata::readDiffFrom
         );
         registerMetadataCustom(
-        entries,
+            entries,
             ResourceLimitGroupMetadata.TYPE,
             ResourceLimitGroupMetadata::new,
             ResourceLimitGroupMetadata::readDiffFrom

@@ -840,6 +840,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + ", phaseTook="
             + phaseTook
             + ", resourceLimitGroupId="
-            + resourceLimitGroupId + "}";
+            + resourceLimitGroupId
+            + "}";
     }
 }

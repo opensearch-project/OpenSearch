@@ -28,10 +28,10 @@ import java.util.stream.Collectors;
  */
 public class ResourceLimitsGroupResourceUsageTrackerService
     implements
-    TaskManager.TaskEventListeners,
-    ResourceLimitGroupResourceUsageTracker,
-    ResourceLimitGroupRequestCanceller,
-    ResourceLimitGroupPruner {
+        TaskManager.TaskEventListeners,
+        ResourceLimitGroupResourceUsageTracker,
+        ResourceLimitGroupRequestCanceller,
+        ResourceLimitGroupPruner {
 
     private static final String CPU = "CPU";
     private static final String JVM_ALLOCATIONS = "JVM_Allocations";
