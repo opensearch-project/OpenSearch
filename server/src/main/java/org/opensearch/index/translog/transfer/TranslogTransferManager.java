@@ -36,10 +36,6 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.channels.Channels;
-import java.nio.channels.FileChannel;
-import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -252,23 +248,11 @@ public class TranslogTransferManager {
         metadata.put(CHECKPOINT_FILE_CHECKSUM_KEY, checksumBase64);
 
         // Set the file data value
-        FileChannel fileChannel = checkpointFileSnapshot.getFileChannel();
-        long fileSize = fileChannel.size();
-        ByteBuffer buffer = ByteBuffer.allocate((int) fileSize);
-        try {
-            int bytesRead = 0;
-            while (buffer.hasRemaining()) {
-                bytesRead = fileChannel.read(buffer);
-                if (bytesRead == -1) {
-                    break; // End of stream
-                }
-            }
-        } catch (IOException e) {
-            logger.error("Error reading translog.ckp file");
-            throw e;
-        }
-        buffer.flip();
-        String fileDataBase64 = Base64.getEncoder().encodeToString(buffer.array());
+        Path checkpointFilePath = checkpointFileSnapshot.getPath();
+        long fileSize = Files.size(checkpointFilePath);
+        assert fileSize < 1500 : "checkpoint file size is more than 1.5KB size, can't be stored as metadata";
+        byte[] fileBytes = Files.readAllBytes(checkpointFilePath);
+        String fileDataBase64 = Base64.getEncoder().encodeToString(fileBytes);
         metadata.put(CHECKPOINT_FILE_DATA_KEY, fileDataBase64);
 
         return metadata;

@@ -66,10 +66,6 @@ public class FileSnapshot implements Closeable {
         return fileChannel == null ? content.length : fileChannel.size();
     }
 
-    public FileChannel getFileChannel() {
-        return fileChannel;
-    }
-
     public InputStream inputStream() throws IOException {
         return fileChannel != null
             ? new BufferedInputStream(Channels.newInputStream(fileChannel))
