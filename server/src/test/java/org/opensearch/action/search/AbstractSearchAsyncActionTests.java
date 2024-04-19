@@ -180,7 +180,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             new GroupShardsIterator<>(Arrays.asList(shards)),
             timeProvider,
             ClusterState.EMPTY_STATE,
-            null,
+            new SearchTask(123, null, null, null, null, null),
             results,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,

@@ -160,7 +160,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             shardsIter,
             timeProvider,
             ClusterState.EMPTY_STATE,
-            null,
+            new SearchTask(1, null, null, null, null, null),
             (iter) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
@@ -258,7 +258,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             shardsIter,
             timeProvider,
             ClusterState.EMPTY_STATE,
-            null,
+            new SearchTask(1, null, null, null, null, null),
             (iter) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
@@ -346,7 +346,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             shardsIter,
             timeProvider,
             ClusterState.EMPTY_STATE,
-            null,
+            new SearchTask(1, null, null, null, null, null),
             (iter) -> {
                 return new WrappingSearchAsyncActionPhase(
                     new AbstractSearchAsyncAction<SearchPhaseResult>("test", logger, transportService, (cluster, node) -> {
@@ -478,7 +478,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 shardsIter,
                 timeProvider,
                 ClusterState.EMPTY_STATE,
-                null,
+                new SearchTask(1, null, null, null, null, null),
                 (iter) -> new SearchPhase("test") {
                     @Override
                     public void run() {
@@ -585,7 +585,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 shardsIter,
                 timeProvider,
                 ClusterState.EMPTY_STATE,
-                null,
+                new SearchTask(1, null, null, null, null, null),
                 (iter) -> new SearchPhase("test") {
                     @Override
                     public void run() {
@@ -690,7 +690,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             shardsIter,
             timeProvider,
             ClusterState.EMPTY_STATE,
-            null,
+            new SearchTask(1, null, null, null, null, null),
             (iter) -> {
                 AbstractSearchAsyncAction<? extends SearchPhaseResult> action = new SearchDfsQueryAsyncAction(
                     logger,

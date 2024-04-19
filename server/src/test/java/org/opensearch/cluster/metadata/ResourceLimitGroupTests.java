@@ -32,7 +32,7 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
     }
 
     private static String randomMode() {
-        return allowedModes.get((int) (Math.random() * allowedModes.size()));
+        return allowedModes.get(randomIntBetween(0, allowedModes.size() - 1));
     }
 
     /**
