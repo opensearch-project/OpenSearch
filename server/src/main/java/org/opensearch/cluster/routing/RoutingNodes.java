@@ -44,7 +44,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -62,7 +61,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.Random;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -430,19 +428,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * are preferred for primary promotion
      */
     public ShardRouting activeReplicaOnRemoteNode(ShardId shardId) {
-        List<ShardRouting> replicaShardsOnRemote = assignedShards(shardId).stream()
-            .filter(shr -> !shr.primary() && shr.active())
-            .filter((shr) -> {
-                RoutingNode nd = node(shr.currentNodeId());
-                return (nd != null && nd.node().isRemoteStoreNode());
-            })
-            .collect(Collectors.toList());
-        ShardRouting replicaShard = null;
-        if (replicaShardsOnRemote.isEmpty() == false) {
-            Random rand = Randomness.get();
-            replicaShard = replicaShardsOnRemote.get(rand.nextInt(replicaShardsOnRemote.size()));
-        }
-        return replicaShard;
+        return assignedShards(shardId).stream().filter(shr -> !shr.primary() && shr.active()).filter((shr) -> {
+            RoutingNode nd = node(shr.currentNodeId());
+            return (nd != null && nd.node().isRemoteStoreNode());
+        }).findFirst().orElse(null);
     }
 
     /**
@@ -763,7 +752,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     ) {
         assert failedShard.primary();
         ShardRouting activeReplica = null;
-        if (isMigratingToRemoteStore(new ClusterSettings(metadata.settings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
+        if (isMigratingToRemoteStore(metadata.settings())) {
             // we might not find any replica on remote node
             activeReplica = activeReplicaOnRemoteNode(failedShard.shardId());
         }
