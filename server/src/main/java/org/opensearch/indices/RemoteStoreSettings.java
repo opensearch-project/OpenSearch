@@ -8,6 +8,7 @@
 
 package org.opensearch.indices;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -15,6 +16,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.remote.RemoteStoreEnums;
 
 /**
  * Settings for remote store
@@ -65,12 +67,41 @@ public class RemoteStoreSettings {
         Property.Dynamic
     );
 
+    /**
+     * This setting is used to set the remote store blob store path type strategy. This setting is effective only for
+     * remote store enabled cluster.
+     */
+    @ExperimentalApi
+    public static final Setting<RemoteStoreEnums.PathType> CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING = new Setting<>(
+        "cluster.remote_store.index.path.type",
+        RemoteStoreEnums.PathType.FIXED.toString(),
+        RemoteStoreEnums.PathType::parseString,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
+     * This setting is used to set the remote store blob store path hash algorithm strategy. This setting is effective only for
+     * remote store enabled cluster. This setting will come to effect if the {@link #CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING}
+     * is either {@code HASHED_PREFIX} or {@code HASHED_INFIX}.
+     */
+    @ExperimentalApi
+    public static final Setting<RemoteStoreEnums.PathHashAlgorithm> CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING = new Setting<>(
+        "cluster.remote_store.index.path.hash_algorithm",
+        RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1.toString(),
+        RemoteStoreEnums.PathHashAlgorithm::parseString,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     private volatile TimeValue clusterRemoteTranslogBufferInterval;
     private volatile int minRemoteSegmentMetadataFiles;
     private volatile TimeValue clusterRemoteTranslogTransferTimeout;
+    private volatile RemoteStoreEnums.PathType pathType;
+    private volatile RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm;
 
     public RemoteStoreSettings(Settings settings, ClusterSettings clusterSettings) {
-        this.clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
+        clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
             this::setClusterRemoteTranslogBufferInterval
@@ -82,11 +113,17 @@ public class RemoteStoreSettings {
             this::setMinRemoteSegmentMetadataFiles
         );
 
-        this.clusterRemoteTranslogTransferTimeout = CLUSTER_REMOTE_TRANSLOG_TRANSFER_TIMEOUT_SETTING.get(settings);
+        clusterRemoteTranslogTransferTimeout = CLUSTER_REMOTE_TRANSLOG_TRANSFER_TIMEOUT_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_REMOTE_TRANSLOG_TRANSFER_TIMEOUT_SETTING,
             this::setClusterRemoteTranslogTransferTimeout
         );
+
+        pathType = clusterSettings.get(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING, this::setPathType);
+
+        pathHashAlgorithm = clusterSettings.get(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING, this::setPathHashAlgorithm);
     }
 
     public TimeValue getClusterRemoteTranslogBufferInterval() {
@@ -111,5 +148,23 @@ public class RemoteStoreSettings {
 
     private void setClusterRemoteTranslogTransferTimeout(TimeValue clusterRemoteTranslogTransferTimeout) {
         this.clusterRemoteTranslogTransferTimeout = clusterRemoteTranslogTransferTimeout;
+    }
+
+    @ExperimentalApi
+    public RemoteStoreEnums.PathType getPathType() {
+        return pathType;
+    }
+
+    @ExperimentalApi
+    public RemoteStoreEnums.PathHashAlgorithm getPathHashAlgorithm() {
+        return pathHashAlgorithm;
+    }
+
+    private void setPathType(RemoteStoreEnums.PathType pathType) {
+        this.pathType = pathType;
+    }
+
+    private void setPathHashAlgorithm(RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm) {
+        this.pathHashAlgorithm = pathHashAlgorithm;
     }
 }
