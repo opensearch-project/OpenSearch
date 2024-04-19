@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.index.translog;
+package org.opensearch.common.io.stream;
 
 import org.apache.lucene.store.BufferedChecksum;
 import org.opensearch.common.annotation.PublicApi;
