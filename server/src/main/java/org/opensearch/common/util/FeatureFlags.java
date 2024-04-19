@@ -67,6 +67,11 @@ public class FeatureFlags {
      */
     public static final String PLUGGABLE_CACHE = "opensearch.experimental.feature.pluggable.caching.enabled";
 
+    /**
+     * Gates the functionality of remote routing table.
+     */
+    public static final String REMOTE_ROUTING_TABLE_EXPERIMENTAL = "opensearch.experimental.feature.remote_store.routing.enabled";
+
     public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL,
         false,
@@ -93,6 +98,13 @@ public class FeatureFlags {
 
     public static final Setting<Boolean> PLUGGABLE_CACHE_SETTING = Setting.boolSetting(PLUGGABLE_CACHE, false, Property.NodeScope);
 
+    public static final Setting<Boolean> REMOTE_ROUTING_TABLE_EXPERIMENTAL_SETTING = Setting.boolSetting(
+        REMOTE_ROUTING_TABLE_EXPERIMENTAL,
+        false,
+        Property.NodeScope
+    );
+
+
     private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
         EXTENSIONS_SETTING,
@@ -100,7 +112,8 @@ public class FeatureFlags {
         TELEMETRY_SETTING,
         DATETIME_FORMATTER_CACHING_SETTING,
         WRITEABLE_REMOTE_INDEX_SETTING,
-        PLUGGABLE_CACHE_SETTING
+        PLUGGABLE_CACHE_SETTING,
+        REMOTE_ROUTING_TABLE_EXPERIMENTAL_SETTING
     );
     /**
      * Should store the settings from opensearch.yml.
