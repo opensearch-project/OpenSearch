@@ -38,6 +38,8 @@ import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.io.stream.BufferedChecksumStreamInput;
+import org.opensearch.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;

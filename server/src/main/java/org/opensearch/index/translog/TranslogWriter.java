@@ -42,6 +42,7 @@ import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.Channels;
 import org.opensearch.common.io.DiskIoBufferPool;
+import org.opensearch.common.io.stream.BufferedChecksumStreamInput;
 import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
