@@ -330,6 +330,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // This header is intended for internal use only.
                 client.threadPool().getThreadContext().putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
             }
+            if (request.header(OPENSEARCH_PRODUCT_ORIGIN_HTTP_HEADER) != null) {
+                client.threadPool().getThreadContext().putHeader(
+                    OPENSEARCH_PRODUCT_ORIGIN_HTTP_HEADER,
+                    request.header(OPENSEARCH_PRODUCT_ORIGIN_HTTP_HEADER)
+                );
+            }
 
             handler.handleRequest(request, responseChannel, client);
         } catch (Exception e) {
