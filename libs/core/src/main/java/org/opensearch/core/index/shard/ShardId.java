@@ -108,7 +108,6 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
         index.writeTo(out);
         out.writeVInt(shardId);
     }

@@ -29,7 +29,7 @@ public class OrdinalIndexMap {
         if (index != 0 && !lookupMap.containsKey(index)) {
             lookupMap.putIfAbsent(index, ordinalIndex);
         } else {
-            System.out.println("Exists in Ordinal Index Map: " + index + " " + ordinalIndex);
+            // System.out.println("Exists in Ordinal Index Map: " + index + " " + ordinalIndex);
         }
     }
 

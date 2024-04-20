@@ -757,7 +757,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return index;
     }
 
-      public String getIndexUUID() {
+    public String getIndexUUID() {
         return index.getUUID();
     }
 
