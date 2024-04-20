@@ -198,8 +198,6 @@ public class RemoteStoreUtils {
          * once all shards of an index have moved over to remote store enabled nodes
          * <br>
          * Also appends the requisite Remote Store Path based custom metadata to the existing index metadata
-         *
-         * @return Mutated {@link ClusterState} with the remote store based settings applied
          */
         public static void maybeAddRemoteIndexSettings(
             IndexMetadata indexMetadata,
@@ -227,15 +225,9 @@ public class RemoteStoreUtils {
 
         /**
          * Returns <code>true</code> iff all the below conditions are true:
-         * <li>
-         *     All primary shards are in {@link ShardRoutingState#STARTED} state and are in remote store enabled nodes
-         * </li>
-         * <li>
-         *     No replica shard in {@link ShardRoutingState#INITIALIZING} or {@link ShardRoutingState#RELOCATING} state
-         * </li>
-         * <li>
-         *     All {@link ShardRoutingState#STARTED} replica shards are in remote store enabled nodes
-         * </li>
+         * - All primary shards are in {@link ShardRoutingState#STARTED} state and are in remote store enabled nodes
+         * - No replica shard in {@link ShardRoutingState#INITIALIZING} or {@link ShardRoutingState#RELOCATING} state
+         * - All {@link ShardRoutingState#STARTED} replica shards are in remote store enabled nodes
          *
          *
          * @param indexRoutingTable current {@link IndexRoutingTable} from cluster state
@@ -322,18 +314,10 @@ public class RemoteStoreUtils {
 
         /**
          * Assert current index settings have:
-         * <li>
-         *     <code>index.remote_store.enabled</code> is <code>true</code>
-         * </li>
-         * <li>
-         *     <code>index.remote_store.segment.repository</code> is not <code>null</code>
-         * </li>
-         * <li>
-         *    <code>index.remote_store.translog.repository</code> is not <code>null</code>
-         * </li>
-         * <li>
-         *     <code>index.replication.type</code> is <code>SEGMENT</code>
-         * </li>
+         * - index.remote_store.enabled == true
+         * - index.remote_store.segment.repository != null
+         * - index.remote_store.translog.repository != null
+         * - index.replication.type == SEGMENT
          *
          * @param indexSettings Current index settings
          * @return <code>true</code> if all above conditions match. <code>false</code> otherwise
@@ -348,12 +332,8 @@ public class RemoteStoreUtils {
         /**
          * Asserts current index metadata customs has the {@link IndexMetadata#REMOTE_STORE_CUSTOM_KEY} key.
          * If it does, checks if the following sub-keys are present
-         * <li>
-         *     {@link RemoteStoreEnums.PathType#NAME)}
-         * </li>
-         * <li>
-         *     {@link RemoteStoreEnums.PathHashAlgorithm#NAME)}
-         * </li>
+         * - path_type
+         * - path_hash_algorithm
          *
          * @param indexMetadata Current index metadata
          * @return <code>true</code> if all above conditions match. <code>false</code> otherwise
@@ -364,7 +344,6 @@ public class RemoteStoreUtils {
                 return Objects.nonNull(customMetadata.get(RemoteStoreEnums.PathType.NAME))
                     && Objects.nonNull(customMetadata.get(RemoteStoreEnums.PathHashAlgorithm.NAME));
             }
-            ;
             return false;
         }
     }

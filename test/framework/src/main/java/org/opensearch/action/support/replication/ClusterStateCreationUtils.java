@@ -51,8 +51,6 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.shard.IndexShardTestUtils;
-import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -244,7 +242,7 @@ public class ClusterStateCreationUtils {
         discoBuilder.localNodeId(newNode(0).getId());
         discoBuilder.clusterManagerNodeId(newNode(0).getId());
         Metadata.Builder metadata = Metadata.builder();
-        Builder routingTable = RoutingTable.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
         List<String> nodesList = new ArrayList<>(nodes);
         int currentNodeToAssign = 0;
         for (String index : indices) {
@@ -326,57 +324,20 @@ public class ClusterStateCreationUtils {
      * Creates cluster state with several indexes, shards and replicas and all shards STARTED.
      */
     public static ClusterState stateWithAssignedPrimariesAndReplicas(String[] indices, int numberOfShards, int numberOfReplicas) {
-        return stateWithDiscoveryNodesAndAssignedPrimariesAndReplicas(null, indices, numberOfShards, numberOfReplicas);
-    }
 
-    /**
-     * Creates cluster state with provided {@link DiscoveryNodes}, several indexes, shards and replicas and all shards STARTED.
-     * Generates {@link DiscoveryNodes} if none are provided
-     */
-    public static ClusterState stateWithDiscoveryNodesAndAssignedPrimariesAndReplicas(
-        DiscoveryNodes discoveryNodes,
-        String[] indices,
-        int numberOfShards,
-        int numberOfReplicas
-    ) {
-        return stateWithDiscoveryNodesAndPrimariesAndReplicas(
-            discoveryNodes,
-            indices,
-            numberOfShards,
-            numberOfReplicas,
-            ShardRoutingState.STARTED
-        );
-    }
-
-    /**
-     * Creates cluster state with provided {@link DiscoveryNodes}, several indexes, shards and replicas with specified {@link ShardRoutingState}.
-     * Generates {@link DiscoveryNodes} if none are provided
-     */
-    public static ClusterState stateWithDiscoveryNodesAndPrimariesAndReplicas(
-        DiscoveryNodes discoveryNodes,
-        String[] indices,
-        int numberOfShards,
-        int numberOfReplicas,
-        ShardRoutingState shardRoutingState
-    ) {
-        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
-        // Generate fake nodes if none are provided
-        if (discoveryNodes == null) {
-            int numberOfDataNodes = numberOfReplicas + 1;
-            DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
-            for (int i = 0; i < numberOfDataNodes + 1; i++) {
-                final DiscoveryNode node = newNode(i);
-                discoBuilder = discoBuilder.add(node);
-            }
-            discoBuilder.localNodeId(newNode(0).getId());
-            discoBuilder.clusterManagerNodeId(newNode(numberOfDataNodes + 1).getId());
-            state.nodes(discoBuilder);
-        } else {
-            state.nodes(discoveryNodes);
+        int numberOfDataNodes = numberOfReplicas + 1;
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        for (int i = 0; i < numberOfDataNodes + 1; i++) {
+            final DiscoveryNode node = newNode(i);
+            discoBuilder = discoBuilder.add(node);
         }
+        discoBuilder.localNodeId(newNode(0).getId());
+        discoBuilder.clusterManagerNodeId(newNode(numberOfDataNodes + 1).getId());
+        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
+        state.nodes(discoBuilder);
         Builder routingTableBuilder = RoutingTable.builder();
 
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        org.opensearch.cluster.metadata.Metadata.Builder metadataBuilder = Metadata.builder();
 
         for (String index : indices) {
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
@@ -394,11 +355,11 @@ public class ClusterStateCreationUtils {
                 final ShardId shardId = new ShardId(index, "_na_", i);
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
                 indexShardRoutingBuilder.addShard(
-                    TestShardRouting.newShardRouting(index, i, newNode(0).getId(), null, true, shardRoutingState)
+                    TestShardRouting.newShardRouting(index, i, newNode(0).getId(), null, true, ShardRoutingState.STARTED)
                 );
                 for (int replica = 0; replica < numberOfReplicas; replica++) {
                     indexShardRoutingBuilder.addShard(
-                        TestShardRouting.newShardRouting(index, i, newNode(replica + 1).getId(), null, false, shardRoutingState)
+                        TestShardRouting.newShardRouting(index, i, newNode(replica + 1).getId(), null, false, ShardRoutingState.STARTED)
                     );
                 }
                 indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
@@ -488,52 +449,6 @@ public class ClusterStateCreationUtils {
         return state.build();
     }
 
-    public static ClusterState stateWithMixedNodes(
-        int numberOfRemoteDataNodes,
-        int numberOfDocrepDataNodes,
-        boolean applyMixedModeSetting,
-        String[] indices,
-        int numberOfShards,
-        int numberOfReplicas,
-        ShardRoutingState shardRoutingState
-    ) {
-        assert numberOfRemoteDataNodes > 1 && numberOfDocrepDataNodes > 1 : "Need at-least 2 nodes to create state for remote nodes";
-        DiscoveryNodes.Builder mixedNodes = new DiscoveryNodes.Builder();
-        for (int i = 0; i < numberOfRemoteDataNodes; i++) {
-            mixedNodes.add(newRemoteNodeWithName("remote_" + i));
-        }
-        for (int i = 0; i < numberOfDocrepDataNodes; i++) {
-            mixedNodes.add(newNode(i));
-        }
-        mixedNodes.localNodeId(newRemoteNode(numberOfRemoteDataNodes + numberOfDocrepDataNodes).getId());
-        mixedNodes.clusterManagerNodeId(newRemoteNode(numberOfRemoteDataNodes + numberOfDocrepDataNodes + 1).getId());
-        ClusterState initialState = stateWithDiscoveryNodesAndPrimariesAndReplicas(
-            mixedNodes.build(),
-            indices,
-            numberOfShards,
-            numberOfReplicas,
-            shardRoutingState
-        );
-        if (applyMixedModeSetting) {
-            ClusterState.Builder finalState = ClusterState.builder(initialState);
-            Metadata.Builder finalMetadata = Metadata.builder(initialState.metadata());
-            finalMetadata.persistentSettings(
-                Settings.builder()
-                    .put(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed")
-                    .put(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING.getKey(), "remote_store")
-                    .build()
-            );
-            finalMetadata.transientSettings(
-                Settings.builder()
-                    .put(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed")
-                    .put(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING.getKey(), "remote_store")
-                    .build()
-            );
-            return finalState.metadata(finalMetadata).build();
-        }
-        return initialState;
-    }
-
     private static DiscoveryNode newNode(int nodeId) {
         return new DiscoveryNode(
             "node_" + nodeId,
@@ -542,14 +457,6 @@ public class ClusterStateCreationUtils {
             new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES),
             Version.CURRENT
         );
-    }
-
-    private static DiscoveryNode newRemoteNode(int nodeId) {
-        return newRemoteNodeWithName(String.valueOf(nodeId));
-    }
-
-    private static DiscoveryNode newRemoteNodeWithName(String nodeId) {
-        return IndexShardTestUtils.getFakeRemoteEnabledNode("node_" + nodeId);
     }
 
     private static String selectAndRemove(Set<String> strings) {

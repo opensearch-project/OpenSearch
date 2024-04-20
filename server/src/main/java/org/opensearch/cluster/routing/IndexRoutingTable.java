@@ -316,18 +316,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         return shards;
     }
 
-    /**
-     * Returns <code>true</code> iff all shards for the index are started otherwise <code>false</code>
-     */
-    public boolean allShardsStarted() {
-        for (IndexShardRoutingTable shardRoutingTable : this) {
-            if (shardRoutingTable.allShardsStarted() == false) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     public int shardsMatchingPredicateCount(Predicate<ShardRouting> predicate) {
         int count = 0;
         for (IndexShardRoutingTable shardRoutingTable : this) {
