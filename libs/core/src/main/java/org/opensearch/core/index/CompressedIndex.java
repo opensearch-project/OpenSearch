@@ -22,7 +22,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-public class CompressedIndex implements Writeable, ToXContentObject {
+public class CompressedIndex extends Index implements Writeable, ToXContentObject {
 
     public static final CompressedIndex[] EMPTY_ARRAY = new CompressedIndex[0];
     private static final String INDEX_UUID_KEY = "index_uuid";
@@ -49,6 +49,7 @@ public class CompressedIndex implements Writeable, ToXContentObject {
      * @throws NullPointerException if either name or uuid are null
      */
     public CompressedIndex(int ordinal, String uuid) {
+        super();
         this.ordinal = Objects.requireNonNull(ordinal);
         this.uuid = Objects.requireNonNull(uuid);
     }
@@ -62,6 +63,7 @@ public class CompressedIndex implements Writeable, ToXContentObject {
      * @see #writeTo(StreamOutput)
      */
     public CompressedIndex(StreamInput in) throws IOException {
+        super();
         this.ordinal = in.readVInt();
         this.uuid = in.readString();
     }
@@ -82,6 +84,15 @@ public class CompressedIndex implements Writeable, ToXContentObject {
      */
     public String getUUID() {
         return uuid;
+    }
+
+    public String getName() {
+        OrdinalIndexMap ordinalIndexMap = OrdinalIndexMap.getInstance();
+        return ordinalIndexMap.getOrdinalIndex(getOrdinal());
+    }
+
+    public Index getBaseObject() {
+        return new Index(OrdinalIndexMap.getInstance().getOrdinalIndex(getOrdinal()), getUUID());
     }
 
     /**

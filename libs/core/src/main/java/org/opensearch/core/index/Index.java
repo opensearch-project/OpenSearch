@@ -82,6 +82,11 @@ public class Index implements Writeable, ToXContentObject {
         this.uuid = Objects.requireNonNull(uuid);
     }
 
+    Index() {
+        name = null;
+        uuid = null;
+    }
+
     /**
      * Creates a new Index instance from a {@link StreamInput}.
      * Reads the name and unique identifier from the stream.
@@ -111,6 +116,10 @@ public class Index implements Writeable, ToXContentObject {
      */
     public String getUUID() {
         return uuid;
+    }
+
+    public Index getBaseObject() {
+        return this;
     }
 
     /**
