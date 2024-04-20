@@ -17,6 +17,7 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -227,7 +228,14 @@ public class RemoteStoreNodeService {
     }
 
     /**
-     * To check if the cluster is undergoing remote store migration
+     * Returns <code>true</code> iff current cluster settings have:
+     * <br>
+     * - <code>remote_store.compatibility_mode</code> set to <code>mixed</code>
+     * <br>
+     * - <code>migration.direction</code> set to <code>remote_store</code>
+     * <br>
+     * <code>false</code> otherwise
+     *
      * @param clusterSettings cluster level settings
      * @return
      * <code>true</code> For <code>REMOTE_STORE</code> migration direction and <code>MIXED</code> compatibility mode,

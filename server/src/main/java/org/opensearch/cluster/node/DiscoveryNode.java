@@ -44,6 +44,7 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -410,6 +411,21 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      */
     public Map<String, String> getAttributes() {
         return this.attributes;
+    }
+
+    /**
+     * Remote Store segment and translog repository names
+     *
+     * @return {@link Map} of the segment and translog repository with their names
+     */
+    public Map<String, String> getRemoteStoreRepoNames() {
+        assert isRemoteStoreNode();
+        return Map.of(
+            RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            attributes.get(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY),
+            RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            attributes.get(RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY)
+        );
     }
 
     /**
