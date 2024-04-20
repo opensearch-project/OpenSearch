@@ -158,7 +158,6 @@ public class ShardRouting implements Writeable, ToXContentObject {
     }
 
     public Index index() {
-
         return shardId.getIndex();
     }
 

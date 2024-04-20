@@ -470,7 +470,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             }
             for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
                 ShardId shardId = new ShardId(index, shardNumber);
-
                 if (indexShardRoutingTableMap.containsKey(shardId) == false) {
                     throw new IllegalStateException("IndexShardRoutingTable is not present for shardId: " + shardId);
                 }
@@ -595,7 +594,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
         public Builder addReplica() {
             for (final int shardNumber : shards.keySet()) {
-
                 ShardId shardId = new ShardId(index, shardNumber);
                 // version 0, will get updated when reroute will happen
                 ShardRouting shard = ShardRouting.newUnassigned(
