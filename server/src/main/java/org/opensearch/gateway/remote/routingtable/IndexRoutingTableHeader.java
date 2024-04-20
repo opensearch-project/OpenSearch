@@ -15,12 +15,12 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.opensearch.Version;
+import org.opensearch.common.io.stream.BufferedChecksumStreamInput;
+import org.opensearch.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.BufferedChecksumStreamInput;
-import org.opensearch.common.io.stream.BufferedChecksumStreamOutput;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -30,11 +30,11 @@ import java.io.IOException;
  */
 public class IndexRoutingTableHeader {
 
-    private int routingTableVersion;
+    private final long routingTableVersion;
 
-    private String indexName;
+    private final String indexName;
 
-    private Version nodeVersion;
+    private final Version nodeVersion;
 
     public static final String INDEX_ROUTING_HEADER_CODEC = "index_routing_header_codec";
 
@@ -42,8 +42,7 @@ public class IndexRoutingTableHeader {
 
     public static final int CURRENT_VERSION = INITIAL_VERSION;
 
-
-    public IndexRoutingTableHeader(int routingTableVersion, String indexName, Version nodeVersion) {
+    public IndexRoutingTableHeader(long routingTableVersion, String indexName, Version nodeVersion) {
         this.routingTableVersion = routingTableVersion;
         this.indexName = indexName;
         this.nodeVersion = nodeVersion;
@@ -56,11 +55,13 @@ public class IndexRoutingTableHeader {
      */
     public BytesReference write() throws IOException {
         BytesReference bytesReference;
-        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-             BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(bytesStreamOutput)) {
+        try (
+            BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
+            BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(bytesStreamOutput)
+        ) {
             CodecUtil.writeHeader(new OutputStreamDataOutput(out), INDEX_ROUTING_HEADER_CODEC, CURRENT_VERSION);
             // Write version
-            out.writeInt(routingTableVersion);
+            out.writeLong(routingTableVersion);
             out.writeInt(nodeVersion.id);
             out.writeString(indexName);
             // Checksum header
@@ -71,7 +72,6 @@ public class IndexRoutingTableHeader {
         return bytesReference;
     }
 
-
     /**
      * Reads the contents on the byte array into the corresponding {@link IndexRoutingTableHeader}
      * @param inBytes
@@ -81,7 +81,7 @@ public class IndexRoutingTableHeader {
      */
     public IndexRoutingTableHeader read(byte[] inBytes, String source) throws IOException {
         try {
-            try(BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(new BytesStreamInput(inBytes), source)) {
+            try (BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(new BytesStreamInput(inBytes), source)) {
                 readHeaderVersion(in);
                 final int version = in.readInt();
                 final int nodeVersion = in.readInt();
@@ -95,7 +95,6 @@ public class IndexRoutingTableHeader {
             throw new IOException("index routing header truncated", e);
         }
     }
-
 
     static void verifyChecksum(BufferedChecksumStreamInput in) throws IOException {
         // This absolutely must come first, or else reading the checksum becomes part of the checksum
@@ -121,7 +120,7 @@ public class IndexRoutingTableHeader {
         return version;
     }
 
-    public int getRoutingTableVersion() {
+    public long getRoutingTableVersion() {
         return routingTableVersion;
     }
 
