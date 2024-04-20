@@ -325,7 +325,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
     /**
      * Verifies that while trying to switch to STRICT compatibility mode,
      * all indices in the cluster have {@link RemoteStoreUtils.RemoteMigrationClusterStateUtils#indexHasAllRemoteStoreRelatedMetadata(IndexMetadata)} as <code>true</code>.
-     * If not, throws {@link RemoteIndexSettingsNotUpdatedException} error
+     * If not, throws {@link SettingsException}
      * @param clusterState current cluster state
      */
     private void validateIndexSettings(ClusterState clusterState) {
@@ -334,21 +334,9 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
             .values()
             .stream()
             .allMatch(indexMetadata -> indexHasAllRemoteStoreRelatedMetadata(indexMetadata) == false)) {
-            throw new RemoteIndexSettingsNotUpdatedException(
+            throw new SettingsException(
                 "can not switch to STRICT compatibility mode since all indices in the cluster does not have remote store based index settings"
             );
-        }
-    }
-
-    /**
-     * Exception raised when all shards in remote store enabled nodes
-     * does not have remote store based index settings
-     *
-     * @opensearch.internal
-     */
-    static class RemoteIndexSettingsNotUpdatedException extends SettingsException {
-        public RemoteIndexSettingsNotUpdatedException(String message) {
-            super(message);
         }
     }
 }
