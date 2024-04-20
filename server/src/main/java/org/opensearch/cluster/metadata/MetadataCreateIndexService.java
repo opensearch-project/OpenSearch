@@ -85,6 +85,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.OrdinalGenerator;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
@@ -174,6 +175,15 @@ public class MetadataCreateIndexService {
     @Nullable
     private final RemoteStorePathTypeResolver remoteStorePathTypeResolver;
 
+    private volatile boolean indicesOrdinalEnabled;
+
+    public static final Setting<Boolean> INDEX_ORDINAL_ENABLED = Setting.boolSetting(
+        "indices.ordinal.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public MetadataCreateIndexService(
         final Settings settings,
         final ClusterService clusterService,
@@ -208,6 +218,17 @@ public class MetadataCreateIndexService {
         remoteStorePathTypeResolver = isRemoteDataAttributePresent(settings)
             ? new RemoteStorePathTypeResolver(clusterService.getClusterSettings())
             : null;
+
+        this.indicesOrdinalEnabled = INDEX_ORDINAL_ENABLED.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDEX_ORDINAL_ENABLED, this::indicesOrdinalEnabled);
+    }
+
+    public boolean isIndicesOrdinalEnabled() {
+        return indicesOrdinalEnabled;
+    }
+
+    private void indicesOrdinalEnabled(boolean value) {
+        this.indicesOrdinalEnabled = value;
     }
 
     /**
@@ -510,8 +531,10 @@ public class MetadataCreateIndexService {
                     sourceMetadata,
                     temporaryIndexMeta.isSystem(),
                     temporaryIndexMeta.getCustomData(),
-                    currentState
+                    currentState,
+                    indicesOrdinalEnabled
                 );
+
                 OrdinalIndexMap.getInstance().updateOrdinalIndexMap(indexMetadata.getCompressedID(), request.index());
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
@@ -1187,7 +1210,8 @@ public class MetadataCreateIndexService {
         @Nullable IndexMetadata sourceMetadata,
         boolean isSystem,
         Map<String, DiffableStringMap> customData,
-        ClusterState clusterState
+        ClusterState clusterState,
+        boolean indicesOrdinalEnabled
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
@@ -1211,8 +1235,11 @@ public class MetadataCreateIndexService {
         for (Map.Entry<String, DiffableStringMap> entry : customData.entrySet()) {
             indexMetadataBuilder.putCustom(entry.getKey(), entry.getValue());
         }
-        indexMetadataBuilder.compressedID(clusterState.getMetadata().getIndices().size() + 1);
-        indexMetadataBuilder.hasOrdinal(true);
+        if (indicesOrdinalEnabled) {
+            indexMetadataBuilder.compressedID(OrdinalGenerator.getInstance().nextOrdinal());
+            indexMetadataBuilder.hasOrdinal(true);
+        }
+
         indexMetadataBuilder.state(IndexMetadata.State.OPEN);
         return indexMetadataBuilder.build();
     }

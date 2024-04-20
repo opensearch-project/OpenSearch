@@ -141,9 +141,11 @@ import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.identity.IdentityService;
+import org.opensearch.index.AssignOrdinalsClusterStateTaskExecutor;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.OrdinalGenerator;
 import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.engine.EngineFactory;
@@ -1556,15 +1558,33 @@ public class Node implements Closeable {
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(plugin -> plugin.onNodeStarted(clusterService.localNode()));
 
-        if (clusterService.state().getMetadata().getIndices().size() > 0)
-        {
-            OrdinalIndexMap ordinalIndexMap = OrdinalIndexMap.getInstance();
-            for (IndexMetadata metadata: clusterService.state().getMetadata().getIndices().values()) {
-                ordinalIndexMap.updateOrdinalIndexMap(metadata.getCompressedID(), metadata.getIndex().getName());
+        boolean indexOrdinalEnabled = clusterService.getClusterSettings().get(MetadataCreateIndexService.INDEX_ORDINAL_ENABLED);
+
+        // one time activity on the node
+        if (indexOrdinalEnabled) {
+            int maxOrdinalValue = 0;
+            if (clusterService.state().getMetadata().getIndices().size() > 0) {
+                OrdinalIndexMap ordinalIndexMap = OrdinalIndexMap.getInstance();
+                for (IndexMetadata metadata : clusterService.state().getMetadata().getIndices().values()) {
+                    ordinalIndexMap.updateOrdinalIndexMap(metadata.getCompressedID(), metadata.getIndex().getName());
+                    if (metadata.getCompressedID() > maxOrdinalValue) {
+                        maxOrdinalValue = metadata.getCompressedID();
+                    }
+                }
             }
+
+            // this has to be executed only once
+            AssignOrdinalsClusterStateTaskExecutor assignOrdinalsClusterStateTaskExecutor = new AssignOrdinalsClusterStateTaskExecutor();
+            if (clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
+                OrdinalGenerator.getInstance().initialize(maxOrdinalValue);
+                try {
+                    assignOrdinalsClusterStateTaskExecutor.execute(clusterService.state(), Collections.emptyList());
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
         }
-
-
         return this;
     }
 

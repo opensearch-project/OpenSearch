@@ -15,7 +15,7 @@ public class OrdinalIndexMap {
 
     public static final OrdinalIndexMap INSTANCE = new OrdinalIndexMap();
 
-    private Map<Integer,String> lookupMap = new HashMap<>();
+    private Map<Integer, String> lookupMap = new HashMap<>();
 
     public static OrdinalIndexMap getInstance() {
         return INSTANCE;
@@ -26,7 +26,11 @@ public class OrdinalIndexMap {
     }
 
     public void updateOrdinalIndexMap(int index, String ordinalIndex) {
-        lookupMap.put(index, ordinalIndex);
+        if (index != 0 && !lookupMap.containsKey(index)) {
+            lookupMap.putIfAbsent(index, ordinalIndex);
+        } else {
+            System.out.println("Exists in Ordinal Index Map: " + index + " " + ordinalIndex);
+        }
     }
 
     public String getOrdinalIndex(int index) {

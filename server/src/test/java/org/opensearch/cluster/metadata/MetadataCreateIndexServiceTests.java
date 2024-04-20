@@ -130,7 +130,6 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANS
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.aggregateIndexSettings;
-import static org.opensearch.cluster.metadata.MetadataCreateIndexService.buildIndexMetadata;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.clusterStateCreateIndex;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.getIndexNumberOfRoutingShards;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.parseV1Mappings;
@@ -1550,35 +1549,35 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         }));
     }
 
-//    public void testBuildIndexMetadata() {
-//        IndexMetadata sourceIndexMetadata = IndexMetadata.builder("parent")
-//            .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
-//            .numberOfShards(1)
-//            .numberOfReplicas(0)
-//            .primaryTerm(0, 3L)
-//            .build();
-//
-//        Settings indexSettings = Settings.builder()
-//            .put("index.version.created", Version.CURRENT)
-//            .put(SETTING_NUMBER_OF_REPLICAS, 0)
-//            .put(SETTING_NUMBER_OF_SHARDS, 1)
-//            .build();
-//        List<AliasMetadata> aliases = singletonList(AliasMetadata.builder("alias1").build());
-//        IndexMetadata indexMetadata = buildIndexMetadata(
-//            "test",
-//            aliases,
-//            () -> null,
-//            indexSettings,
-//            4,
-//            sourceIndexMetadata,
-//            false,
-//            new HashMap<>()
-//        );
-//
-//        assertThat(indexMetadata.getAliases().size(), is(1));
-//        assertThat(indexMetadata.getAliases().keySet().iterator().next(), is("alias1"));
-//        assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
-//    }
+    // public void testBuildIndexMetadata() {
+    // IndexMetadata sourceIndexMetadata = IndexMetadata.builder("parent")
+    // .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+    // .numberOfShards(1)
+    // .numberOfReplicas(0)
+    // .primaryTerm(0, 3L)
+    // .build();
+    //
+    // Settings indexSettings = Settings.builder()
+    // .put("index.version.created", Version.CURRENT)
+    // .put(SETTING_NUMBER_OF_REPLICAS, 0)
+    // .put(SETTING_NUMBER_OF_SHARDS, 1)
+    // .build();
+    // List<AliasMetadata> aliases = singletonList(AliasMetadata.builder("alias1").build());
+    // IndexMetadata indexMetadata = buildIndexMetadata(
+    // "test",
+    // aliases,
+    // () -> null,
+    // indexSettings,
+    // 4,
+    // sourceIndexMetadata,
+    // false,
+    // new HashMap<>()
+    // );
+    //
+    // assertThat(indexMetadata.getAliases().size(), is(1));
+    // assertThat(indexMetadata.getAliases().keySet().iterator().next(), is("alias1"));
+    // assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
+    // }
 
     /**
      * This test checks if the cluster is a remote store cluster then we populate custom data for remote settings in

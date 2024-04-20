@@ -77,7 +77,7 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
         this.hasCompressedIndex = false;
     }
 
-    public ShardId(CompressedIndex compressedIndex,  int shardId) {
+    public ShardId(CompressedIndex compressedIndex, int shardId) {
         this.index = null;
         this.shardId = shardId;
         this.hashCode = computeHashCode();
@@ -103,7 +103,7 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
      */
     public ShardId(StreamInput in) throws IOException {
         hasCompressedIndex = in.readBoolean();
-        if (hasCompressedIndex==true) {
+        if (hasCompressedIndex == true) {
             compressedIndex = new CompressedIndex(in);
             index = null;
         } else {
@@ -126,10 +126,9 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(hasCompressedIndex);
-        if(hasCompressedIndex) {
+        if (hasCompressedIndex) {
             compressedIndex.writeTo(out);
-        }
-        else {
+        } else {
             index.writeTo(out);
         }
         out.writeVInt(shardId);
@@ -142,7 +141,7 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
     public Index getIndex() {
         // TODO : for compressed index, create an index object
         if (hasCompressedIndex) {
-            return new Index(OrdinalIndexMap.getInstance().getOrdinalIndex(compressedIndex.getOrdinal()),compressedIndex.getUUID() );
+            return new Index(OrdinalIndexMap.getInstance().getOrdinalIndex(compressedIndex.getOrdinal()), compressedIndex.getUUID());
         }
         return index;
     }
@@ -154,7 +153,7 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
     public String getIndexName() {
         // TODO : for compressed index, use index lookup table to get name
         if (hasCompressedIndex) {
-            OrdinalIndexMap  ordinalIndexMap = OrdinalIndexMap.getInstance();
+            OrdinalIndexMap ordinalIndexMap = OrdinalIndexMap.getInstance();
             return ordinalIndexMap.getOrdinalIndex(compressedIndex.getOrdinal());
         }
         return index.getName();
@@ -183,9 +182,9 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
      */
     @Override
     public String toString() {
-        //TODO : handle compressed index
+        // TODO : handle compressed index
         if (hasCompressedIndex) {
-            OrdinalIndexMap  ordinalIndexMap = OrdinalIndexMap.getInstance();
+            OrdinalIndexMap ordinalIndexMap = OrdinalIndexMap.getInstance();
             return "[" + ordinalIndexMap.getOrdinalIndex(compressedIndex.getOrdinal()) + "][" + shardId + "]";
         }
         return "[" + index.getName() + "][" + shardId + "]";
@@ -202,7 +201,7 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
      *                      (Expect a string of format "[indexName][shardId]" (square brackets included))
      */
     public static ShardId fromString(String shardIdString) {
-        //TODO : handle compressed index
+        // TODO : handle compressed index
         int splitPosition = shardIdString.indexOf("][");
         if (splitPosition <= 0 || shardIdString.charAt(0) != '[' || shardIdString.charAt(shardIdString.length() - 1) != ']') {
             throw new IllegalArgumentException("Unexpected shardId string format, expected [indexName][shardId] but got " + shardIdString);

@@ -50,7 +50,6 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.CompressedIndex;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.indices.cluster.IndicesClusterStateService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -561,9 +560,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
                 ShardId shardId;
                 if (indexMetadata.isHasOrdinal()) {
-                    shardId = new ShardId(new CompressedIndex(indexMetadata.getCompressedID(), indexMetadata.getIndexUUID()),shardNumber);
-                }
-                else {
+                    shardId = new ShardId(new CompressedIndex(indexMetadata.getCompressedID(), indexMetadata.getIndexUUID()), shardNumber);
+                } else {
                     shardId = new ShardId(index, shardNumber);
 
                 }
