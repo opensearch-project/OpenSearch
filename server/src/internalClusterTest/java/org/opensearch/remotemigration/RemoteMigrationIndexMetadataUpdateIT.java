@@ -470,19 +470,11 @@ public class RemoteMigrationIndexMetadataUpdateIT extends MigrationBaseTestCase 
     }
 
     /**
-     * Assert index settings have:
-     * <li>
-     *     <code>index.remote_store.enabled</code> is <code>false</code>
-     * </li>
-     * <li>
-     *     <code>index.remote_store.segment.repository</code> is <code>null</code>
-     * </li>
-     * <li>
-     *    <code>index.remote_store.translog.repository</code> is <code>null</code>
-     * </li>
-     * <li>
-     *     <code>index.replication.type</code> is <code>DOCUMENT</code>
-     * </li>
+     * Assert current index settings have:
+     * - index.remote_store.enabled == false
+     * - index.remote_store.segment.repository == null
+     * - index.remote_store.translog.repository == null
+     * - index.replication.type == DOCUMENT
      */
     private void assertDocrepProperties(String index) {
         logger.info("---> Asserting docrep index settings");
@@ -495,21 +487,12 @@ public class RemoteMigrationIndexMetadataUpdateIT extends MigrationBaseTestCase 
     }
 
     /**
-     * Assert index settings have:
-     * <li>
-     *     <code>index.remote_store.enabled</code> is <code>true</code>
-     * </li>
-     * <li>
-     *     <code>index.remote_store.segment.repository</code> is not <code>null</code>
-     * </li>
-     * <li>
-     *    <code>index.remote_store.translog.repository</code> is not <code>null</code>
-     * </li>
-     * <li>
-     *     <code>index.replication.type</code> is <code>SEGMENT</code>
-     * </li>
-     * <br>
-     * Also asserts index metadata customs has the <code>remote_store</code> key
+     * Assert current index settings have:
+     * - index.remote_store.enabled == true
+     * - index.remote_store.segment.repository != null
+     * - index.remote_store.translog.repository != null
+     * - index.replication.type == SEGMENT
+     * Asserts index metadata customs has the <code>remote_store</code> key
      */
     private void assertRemoteProperties(String index) {
         logger.info("---> Asserting remote index settings");
