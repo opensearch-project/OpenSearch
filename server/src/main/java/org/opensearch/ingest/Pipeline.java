@@ -203,6 +203,16 @@ public final class Pipeline {
         return metrics;
     }
 
+    /**
+     * Modifies the data of batched multiple documents to be indexed based on the processor this pipeline holds
+     * <p>
+     * If {@code null} is returned then this document will be dropped and not indexed, otherwise
+     * this document will be kept and indexed. Document and the exception happened during processing are kept in
+     * IngestDocumentWrapper and callback to upper level.
+     *
+     * @param ingestDocumentWrappers {@link List<IngestDocumentWrapper>} a list of wrapped IngestDocument to ingest.
+     * @param handler callback with IngestDocument result and exception wrapped in IngestDocumentWrapper.
+     */
     public void batchExecute(List<IngestDocumentWrapper> ingestDocumentWrappers, Consumer<List<IngestDocumentWrapper>> handler) {
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
         int size = ingestDocumentWrappers.size();

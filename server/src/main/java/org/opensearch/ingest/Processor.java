@@ -85,6 +85,14 @@ public interface Processor {
      */
     IngestDocument execute(IngestDocument ingestDocument) throws Exception;
 
+    /**
+     * Process batched documents and they could be potentially modified by processors.
+     * Only override this method if the processor can benefit from processing documents in batches, otherwise, please
+     * use default implementation.
+     *
+     * @param ingestDocumentWrappers {@link List<IngestDocumentWrapper>} a list of wrapped IngestDocument
+     * @param handler callback with IngestDocument result and exception wrapped in IngestDocumentWrapper.
+     */
     default void batchExecute(List<IngestDocumentWrapper> ingestDocumentWrappers, Consumer<List<IngestDocumentWrapper>> handler) {
         if (ingestDocumentWrappers.isEmpty()) {
             handler.accept(Collections.emptyList());

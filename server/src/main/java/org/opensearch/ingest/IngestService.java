@@ -731,7 +731,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     private void executePipelinesInBatchRequests(
         final List<Integer> slots,
-        final Iterator<String> it,
+        final Iterator<String> pipelineIterator,
         final boolean hasFinalPipeline,
         final List<IndexRequest> indexRequests,
         final IntConsumer onDropped,
@@ -743,7 +743,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         if (indexRequests.size() == 1) {
             executePipelines(
                 slots.get(0),
-                it,
+                pipelineIterator,
                 hasFinalPipeline,
                 indexRequests.get(0),
                 onDropped,
@@ -754,8 +754,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             );
             return;
         }
-        while (it.hasNext()) {
-            final String pipelineId = it.next();
+        while (pipelineIterator.hasNext()) {
+            final String pipelineId = pipelineIterator.next();
             try {
                 PipelineHolder holder = pipelines.get(pipelineId);
                 if (holder == null) {
@@ -781,14 +781,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         }
                     }
 
-                    Iterator<String> newIt = it;
+                    Iterator<String> newPipelineIterator = pipelineIterator;
                     boolean newHasFinalPipeline = hasFinalPipeline;
                     // indexRequests are grouped for the same index and same pipelines
                     String newIndex = indexRequests.get(0).indices()[0];
 
                     // handle index change case
                     if (Objects.equals(originalIndex, newIndex) == false) {
-                        if (hasFinalPipeline && it.hasNext() == false) {
+                        if (hasFinalPipeline && pipelineIterator.hasNext() == false) {
                             totalMetrics.failed();
                             for (int slot : slots) {
                                 onFailure.accept(
@@ -798,24 +798,24 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             }
                         } else {
                             // Drain old it so it's not looped over
-                            it.forEachRemaining($ -> {});
+                            pipelineIterator.forEachRemaining($ -> {});
                             for (IndexRequest indexRequest : indexRequests) {
                                 indexRequest.isPipelineResolved(false);
                                 resolvePipelines(null, indexRequest, state.metadata());
                                 if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
-                                    newIt = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
+                                    newPipelineIterator = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
                                     newHasFinalPipeline = true;
                                 } else {
-                                    newIt = Collections.emptyIterator();
+                                    newPipelineIterator = Collections.emptyIterator();
                                 }
                             }
                         }
                     }
 
-                    if (newIt.hasNext()) {
+                    if (newPipelineIterator.hasNext()) {
                         executePipelinesInBatchRequests(
                             slots,
-                            newIt,
+                            newPipelineIterator,
                             newHasFinalPipeline,
                             indexRequests,
                             onDropped,

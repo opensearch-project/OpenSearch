@@ -98,7 +98,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private String globalIndex;
     private Boolean globalRequireAlias;
     private BatchIngestionOption batchIngestionOption = BatchIngestionOption.NONE;
-    private Integer maximumBatchSize = 1;
+    private int maximumBatchSize = 1;
 
     private long sizeInBytes = 0;
 

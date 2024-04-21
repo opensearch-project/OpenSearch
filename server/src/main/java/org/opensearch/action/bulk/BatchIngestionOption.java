@@ -34,13 +34,13 @@ public enum BatchIngestionOption implements Writeable {
     }
 
     static BatchIngestionOption from(String value) {
+        if (value == null || value.isBlank()) {
+            return NONE;
+        }
         for (BatchIngestionOption option : values()) {
             if (option.getValue().equals(value)) {
                 return option;
             }
-        }
-        if (value == null || value.isEmpty()) {
-            return NONE;
         }
         throw new IllegalArgumentException("Unknown value for batch ingestion option: [" + value + "].");
     }

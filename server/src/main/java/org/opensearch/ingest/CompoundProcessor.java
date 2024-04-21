@@ -158,7 +158,14 @@ public class CompoundProcessor implements Processor {
         innerBatchExecute(0, ingestDocumentWrappers, handler);
     }
 
-    public void innerBatchExecute(
+    /**
+     * Internal logic to process documents with current processor.
+     *
+     * @param currentProcessor index of processor to process batched documents
+     * @param ingestDocumentWrappers {@link List<IngestDocumentWrapper> } batched documents to be processed
+     * @param handler callback function
+     */
+    void innerBatchExecute(
         int currentProcessor,
         List<IngestDocumentWrapper> ingestDocumentWrappers,
         Consumer<List<IngestDocumentWrapper>> handler
@@ -180,6 +187,7 @@ public class CompoundProcessor implements Processor {
         processor.batchExecute(ingestDocumentWrappers, results -> {
             if (results.isEmpty()) return;
             allResults.addAll(results);
+            // counter equals to 0 means all documents are processed and called back.
             if (counter.addAndGet(-results.size()) == 0) {
                 long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
                 metric.afterN(allResults.size(), ingestTimeInMillis);
@@ -188,6 +196,7 @@ public class CompoundProcessor implements Processor {
                 List<IngestDocumentWrapper> documentsWithException = new ArrayList<>();
                 List<IngestDocumentWrapper> documentsToContinue = new ArrayList<>();
                 int totalFailed = 0;
+                // iterate all results to categorize them to: to continue, to drop, with exception
                 for (IngestDocumentWrapper resultDocumentWrapper : allResults) {
                     IngestDocumentWrapper originalDocumentWrapper = slotToWrapperMap.get(resultDocumentWrapper.getSlot());
                     if (resultDocumentWrapper.getException() != null) {
@@ -222,11 +231,9 @@ public class CompoundProcessor implements Processor {
                 if (!documentsDropped.isEmpty()) {
                     handler.accept(documentsDropped);
                 }
-
                 if (!documentsToContinue.isEmpty()) {
                     innerBatchExecute(currentProcessor + 1, documentsToContinue, handler);
                 }
-
                 if (!documentsWithException.isEmpty()) {
                     if (onFailureProcessors.isEmpty()) {
                         handler.accept(documentsWithException);
