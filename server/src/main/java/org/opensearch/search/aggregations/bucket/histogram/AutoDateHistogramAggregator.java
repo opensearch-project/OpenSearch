@@ -166,6 +166,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             )
         );
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
+            fastFilterContext.setFieldName(valuesSourceConfig.fieldType().name());
             fastFilterContext.buildRanges();
         }
     }

@@ -822,7 +822,6 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             aggregation -> aggregation.calendarInterval(DateHistogramInterval.SECOND).field(AGGREGABLE_DATE).minDocCount(1L),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                System.out.println(buckets);
                 assertEquals(3, buckets.size());
 
                 Histogram.Bucket bucket = buckets.get(0);

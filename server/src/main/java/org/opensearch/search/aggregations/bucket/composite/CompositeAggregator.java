@@ -171,6 +171,7 @@ final class CompositeAggregator extends BucketsAggregator {
             // bucketOrds is used for saving date histogram results
             bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
             preparedRounding = ((CompositeAggregationType) fastFilterContext.getAggregationType()).getRoundingPrepared();
+            fastFilterContext.setFieldName(sourceConfigs[0].name());
             fastFilterContext.buildRanges();
         }
     }

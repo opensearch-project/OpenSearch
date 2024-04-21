@@ -38,7 +38,6 @@ import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -272,7 +271,7 @@ public final class FastFilterRewriteHelper {
         }
 
         public boolean isRewriteable(final Object parent, final int subAggLength) {
-            if (context.maxAggRewriteFilters() == 0) return false;
+            // if (context.maxAggRewriteFilters() == 0) return false;
 
             boolean rewriteable = aggregationType.isRewriteable(parent, subAggLength);
             logger.debug("Fast filter rewriteable: {} for shard {}", rewriteable, context.indexShard().shardId());
@@ -331,9 +330,11 @@ public final class FastFilterRewriteHelper {
         boolean isRewriteable(Object parent, int subAggLength);
 
         Weight[] buildFastFilter(SearchContext ctx) throws IOException;
+
         Weight[] buildFastFilter(LeafReaderContext leaf, SearchContext ctx) throws IOException;
 
         long[][] buildRanges(SearchContext ctx) throws IOException;
+
         long[][] buildRanges(LeafReaderContext leaf, SearchContext ctx) throws IOException;
 
         default int getSize() {
@@ -515,6 +516,7 @@ public final class FastFilterRewriteHelper {
         if (ctx.reader().hasDeletions()) return false;
 
         PointValues values = ctx.reader().getPointValues(fastFilterContext.fieldName);
+        if (values == null) return false;
         // date field is 1 dimensional
         // only proceed if every document has exactly one point for this field
         if (values.getDocCount() != values.size()) return false;
@@ -551,13 +553,7 @@ public final class FastFilterRewriteHelper {
         final DateFieldMapper.DateFieldType fieldType = ((AbstractDateHistogramAggregationType) fastFilterContext.aggregationType)
             .getFieldType();
         int size = fastFilterContext.aggregationType.getSize();
-        DebugInfoCollector debugInfo = multiRangesTraverse(
-            values.getPointTree(),
-            ranges,
-            incrementDocCount,
-            fieldType,
-            size
-        );
+        DebugInfoCollector debugInfo = multiRangesTraverse(values.getPointTree(), ranges, incrementDocCount, fieldType, size);
         fastFilterContext.consumeDebugInfo(debugInfo);
 
         logger.debug("Fast filter optimization applied to shard {} segment {}", fastFilterContext.context.indexShard().shardId(), ctx.ord);
