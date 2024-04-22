@@ -741,6 +741,11 @@ public class RemoteClusterStateService implements Closeable {
         return this.metadataManifestUploadTimeout;
     }
 
+    //Package private for unit test
+    RemoteRoutingTableService getRemoteRoutingTableService() {
+        return this.remoteRoutingTableService;
+    }
+
     static String getManifestFileName(long term, long version, boolean committed) {
         // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest/manifest__<inverted_term>__<inverted_version>__C/P__<inverted__timestamp>__<codec_version>
         return String.join(
