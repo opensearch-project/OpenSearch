@@ -752,7 +752,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     ) {
         assert failedShard.primary();
         ShardRouting activeReplica = null;
-        if (isMigratingToRemoteStore(metadata.settings())) {
+        if (isMigratingToRemoteStore(metadata)) {
             // we might not find any replica on remote node
             activeReplica = activeReplicaOnRemoteNode(failedShard.shardId());
         }
