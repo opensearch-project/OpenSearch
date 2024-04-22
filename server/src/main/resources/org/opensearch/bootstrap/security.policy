@@ -79,6 +79,10 @@ grant codeBase "${codebase.jna}" {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
+grant codeBase "${codebase.reactor-core}" {
+  // azure-identity need this permission to perform authentication for managed identity
+  permission java.net.SocketPermission "*", "connect,resolve";
+};
 
 // ZSTD compression
 grant codeBase "${codebase.zstd-jni}" {
