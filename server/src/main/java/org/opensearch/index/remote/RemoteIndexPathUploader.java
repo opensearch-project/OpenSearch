@@ -53,6 +53,8 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteS
 /**
  * Uploads the remote store path for all possible combinations of {@link org.opensearch.index.remote.RemoteStoreEnums.DataCategory}
  * and {@link org.opensearch.index.remote.RemoteStoreEnums.DataType} for each shard of an index.
+ *
+ * @opensearch.internal
  */
 @ExperimentalApi
 public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
@@ -94,7 +96,7 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
     }
 
     @Override
-    public void beforeNewIndexUpload(List<IndexMetadata> indexMetadataList, ActionListener<Void> actionListener) throws IOException {
+    public void beforeNewIndexUpload(List<IndexMetadata> indexMetadataList, ActionListener<Void> actionListener) {
         if (isRemoteDataAttributePresent == false) {
             logger.trace("Skipping beforeNewIndexUpload as there are no remote indexes");
             actionListener.onResponse(null);
@@ -109,7 +111,16 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
             CountDownLatch latch = new CountDownLatch(latchCount);
             List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(latchCount));
             for (IndexMetadata indexMetadata : eligibleList) {
-                writeIndexPathAsync(indexMetadata, latch, exceptionList);
+                try {
+                    writeIndexPathAsync(indexMetadata, latch, exceptionList);
+                } catch (IOException exception) {
+                    RemoteStateTransferException ex = new RemoteStateTransferException(
+                        String.format(Locale.ROOT, UPLOAD_EXCEPTION_MSG, List.of(indexMetadata.getIndex().getName()))
+                    );
+                    exceptionList.forEach(ex::addSuppressed);
+                    actionListener.onFailure(ex);
+                    return;
+                }
             }
             String indexNames = eligibleList.stream().map(IndexMetadata::getIndex).map(Index::toString).collect(Collectors.joining(","));
             logger.trace(new ParameterizedMessage("Remote index path upload started for {}", indexNames));
@@ -142,6 +153,9 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
             }
             success = true;
             actionListener.onResponse(null);
+        } catch (Exception ex) {
+            actionListener.onFailure(ex);
+            throw ex;
         } finally {
             long tookTimeNs = System.nanoTime() - startTime;
             logger.trace(new ParameterizedMessage("executed beforeNewIndexUpload status={} tookTimeNs={}", success, tookTimeNs));

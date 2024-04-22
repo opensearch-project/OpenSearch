@@ -524,7 +524,7 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     /**
-     * Invokes the index metadata upload listener.
+     * Invokes the index metadata upload listener but does not wait for the execution to complete.
      */
     private void invokeIndexMetadataUploadListeners(
         List<IndexMetadata> newIndexMetadataList,
@@ -537,19 +537,10 @@ public class RemoteClusterStateService implements Closeable {
             String threadPoolName = listener.getThreadpoolName();
             assert ThreadPool.THREAD_POOL_TYPES.containsKey(threadPoolName) && ThreadPool.Names.SAME.equals(threadPoolName) == false;
             threadpool.executor(threadPoolName).execute(() -> {
-                try {
-                    listener.beforeNewIndexUpload(
-                        newIndexMetadataList,
-                        getIndexMetadataUploadActionListener(newIndexMetadataList, latch, exceptionList, listenerName)
-                    );
-                } catch (IOException e) {
-                    exceptionList.add(
-                        new RemoteStateTransferException(
-                            "Exception occurred while running invokeIndexMetadataUploadListeners in " + listenerName,
-                            e
-                        )
-                    );
-                }
+                listener.beforeNewIndexUpload(
+                    newIndexMetadataList,
+                    getIndexMetadataUploadActionListener(newIndexMetadataList, latch, exceptionList, listenerName)
+                );
             });
         }
     }

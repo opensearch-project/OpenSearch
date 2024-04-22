@@ -1472,9 +1472,9 @@ public class Node implements Closeable {
         if (remoteClusterStateService != null) {
             remoteClusterStateService.start();
         }
-        final RemoteIndexPathUploader indexCreationListener = injector.getInstance(RemoteIndexPathUploader.class);
-        if (indexCreationListener != null) {
-            indexCreationListener.start();
+        final RemoteIndexPathUploader remoteIndexPathUploader = injector.getInstance(RemoteIndexPathUploader.class);
+        if (remoteIndexPathUploader != null) {
+            remoteIndexPathUploader.start();
         }
         // Load (and maybe upgrade) the metadata stored on disk
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);

@@ -11,7 +11,6 @@ package org.opensearch.gateway.remote;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.core.action.ActionListener;
 
-import java.io.IOException;
 import java.util.List;
 
 /**
@@ -30,7 +29,7 @@ public interface IndexMetadataUploadListener {
      * @param indexMetadataList list of index metadata of new indexes (or first time index metadata upload).
      * @param actionListener    listener to be invoked on success or failure.
      */
-    void beforeNewIndexUpload(List<IndexMetadata> indexMetadataList, ActionListener<Void> actionListener) throws IOException;
+    void beforeNewIndexUpload(List<IndexMetadata> indexMetadataList, ActionListener<Void> actionListener);
 
     String getThreadpoolName();
 }

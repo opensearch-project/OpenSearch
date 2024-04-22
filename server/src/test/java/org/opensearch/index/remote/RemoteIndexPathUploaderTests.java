@@ -251,8 +251,6 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
         Thread thread = new Thread(() -> {
             try {
                 remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
-            } catch (IOException e) {
-                throw new AssertionError(e);
             } catch (Exception e) {
                 assertTrue(e instanceof InterruptedException);
                 assertEquals("sleep interrupted", e.getMessage());
