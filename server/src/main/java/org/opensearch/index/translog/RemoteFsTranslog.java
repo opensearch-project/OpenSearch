@@ -91,7 +91,6 @@ public class RemoteFsTranslog extends Translog {
     private static final int SYNC_PERMIT = 1;
     private final Semaphore syncPermit = new Semaphore(SYNC_PERMIT);
     private final AtomicBoolean pauseSync = new AtomicBoolean(false);
-    private final boolean seedRemote;
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -104,12 +103,10 @@ public class RemoteFsTranslog extends Translog {
         ThreadPool threadPool,
         BooleanSupplier startedPrimarySupplier,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
-        RemoteStoreSettings remoteStoreSettings,
-        boolean seedRemote
+        RemoteStoreSettings remoteStoreSettings
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         logger = Loggers.getLogger(getClass(), shardId);
-        this.seedRemote = seedRemote;
         this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
@@ -123,7 +120,7 @@ public class RemoteFsTranslog extends Translog {
             remoteStoreSettings
         );
         try {
-            download(translogTransferManager, location, logger, seedRemote);
+            download(translogTransferManager, location, logger, config.shouldSeedRemote());
             Checkpoint checkpoint = readCheckpoint(location);
             logger.info("Downloaded data from remote translog till maxSeqNo = {}", checkpoint.maxSeqNo);
             this.readers.addAll(recoverFromFiles(checkpoint));

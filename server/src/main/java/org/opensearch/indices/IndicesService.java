@@ -526,8 +526,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     threadPool,
                     indexSettings.getRemoteStoreTranslogRepository(),
                     remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId()),
-                    remoteStoreSettings,
-                    false
+                    remoteStoreSettings
                 );
             } else if (isRemoteDataAttributePresent(settings) && shardRouting.primary()) {
                 return new RemoteBlobStoreInternalTranslogFactory(
@@ -535,8 +534,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     threadPool,
                     RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(indexSettings.getNodeSettings()),
                     remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId()),
-                    remoteStoreSettings,
-                    true
+                    remoteStoreSettings
                 );
             }
             return new InternalTranslogFactory();

@@ -683,8 +683,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                         threadPool,
                         settings.getRemoteStoreTranslogRepository(),
                         new RemoteTranslogTransferTracker(shardRouting.shardId(), 20),
-                        DefaultRemoteStoreSettings.INSTANCE,
-                        false
+                        DefaultRemoteStoreSettings.INSTANCE
                     );
                 }
                 return new InternalTranslogFactory();

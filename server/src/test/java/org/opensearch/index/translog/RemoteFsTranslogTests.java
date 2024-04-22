@@ -190,8 +190,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             threadPool,
             primaryMode::get,
             new RemoteTranslogTransferTracker(shardId, 10),
-            DefaultRemoteStoreSettings.INSTANCE,
-            false
+            DefaultRemoteStoreSettings.INSTANCE
         );
     }
 
@@ -225,7 +224,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         // To simulate that the node is remote backed
         Settings nodeSettings = Settings.builder().put("node.attr.remote_store.translog.repository", "my-repo-1").build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings, nodeSettings);
-        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize, "");
+        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize, "", false);
     }
 
     private BlobStoreRepository createRepository() {
@@ -400,7 +399,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             temp.getIndexSettings(),
             temp.getBigArrays(),
             new ByteSizeValue(1, ByteSizeUnit.KB),
-            ""
+            "",
+            false
         );
         return config;
     }
@@ -463,8 +463,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 threadPool,
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
-                DefaultRemoteStoreSettings.INSTANCE,
-                false
+                DefaultRemoteStoreSettings.INSTANCE
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1514,8 +1513,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 threadPool,
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
-                DefaultRemoteStoreSettings.INSTANCE,
-                false
+                DefaultRemoteStoreSettings.INSTANCE
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1564,7 +1562,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             temp.getIndexSettings(),
             temp.getBigArrays(),
             new ByteSizeValue(1, ByteSizeUnit.KB),
-            ""
+            "",
+            false
         );
 
         final Set<Long> persistedSeqNos = new HashSet<>();
@@ -1624,8 +1623,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 threadPool,
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
-                DefaultRemoteStoreSettings.INSTANCE,
-                false
+                DefaultRemoteStoreSettings.INSTANCE
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
