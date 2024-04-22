@@ -131,7 +131,6 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             .build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService;
-            System.out.println(azureStorageService.storageSettings.get("azure1").getStorageEndpoint().getPrimaryUri());
             // Expect azure client 1 to use the custom endpoint suffix
             final BlobServiceClient client1 = azureStorageService.client("azure1").v1();
             assertThat(client1.getAccountUrl(), equalTo("https://myaccount1.blob.my_endpoint_suffix"));
