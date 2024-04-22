@@ -611,7 +611,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
-        task.setResourceLimitGroupId(request.resourceLimitGroupId());
+        task.setResourceLimitGroupName(request.resourceLimitGroupId());
         rewriteAndFetchShardRequest(shard, request, new ActionListener<ShardSearchRequest>() {
             @Override
             public void onResponse(ShardSearchRequest orig) {
@@ -722,7 +722,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
-            task.setResourceLimitGroupId(shardSearchRequest.resourceLimitGroupId());
+            task.setResourceLimitGroupName(shardSearchRequest.resourceLimitGroupId());
             try (
                 SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
                 SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
@@ -831,7 +831,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void executeFetchPhase(ShardFetchRequest request, SearchShardTask task, ActionListener<FetchSearchResult> listener) {
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
-        task.setResourceLimitGroupId(shardSearchRequest.resourceLimitGroupId());
+        task.setResourceLimitGroupName(shardSearchRequest.resourceLimitGroupId());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false)) {

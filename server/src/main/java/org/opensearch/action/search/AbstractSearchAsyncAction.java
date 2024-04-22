@@ -857,7 +857,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get() && shardRequest.scroll() == null);
 
         // Propagate the resource limit group from co-ordinator to data nodes
-        shardRequest.setResourceLimitGroupId(getTask().getResourceLimitGroupId());
+        shardRequest.setResourceLimitGroupId(getTask().getResourceLimitGroupName());
         return shardRequest;
     }
 

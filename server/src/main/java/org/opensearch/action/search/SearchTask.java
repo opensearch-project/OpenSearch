@@ -109,11 +109,11 @@ public class SearchTask extends CancellableTask implements SearchBackpressureTas
         return true;
     }
 
-    public String getResourceLimitGroupId() {
+    public String getResourceLimitGroupName() {
         return resourceLimitGroupId;
     }
 
-    public void setResourceLimitGroupId(String resourceLimitGroupId) {
+    public void setResourceLimitGroupName(String resourceLimitGroupId) {
         this.resourceLimitGroupId = resourceLimitGroupId;
     }
 }
