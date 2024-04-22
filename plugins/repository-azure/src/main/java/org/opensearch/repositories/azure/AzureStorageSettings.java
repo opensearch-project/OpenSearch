@@ -32,6 +32,12 @@
 
 package org.opensearch.repositories.azure;
 
+import com.azure.core.util.logging.ClientLogger;
+import com.azure.identity.ManagedIdentityCredentialBuilder;
+import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.azure.storage.common.implementation.Constants;
+import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
+import com.azure.storage.common.implementation.connectionstring.StorageEndpoint;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.settings.SecureSetting;
@@ -45,14 +51,16 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.settings.SecureString;
 
 import java.net.InetAddress;
+import java.net.URI;
 import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
+import java.util.function.Function;
 
 final class AzureStorageSettings {
+    private final ClientLogger logger = new ClientLogger(AzureStorageSettings.class);
 
     // prefix for azure client settings
     private static final String AZURE_CLIENT_PREFIX_KEY = "azure.client.";
@@ -82,7 +90,11 @@ final class AzureStorageSettings {
     public static final AffixSetting<String> TOKEN_CREDENTIAL_TYPE_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
         "token_credential_type",
-        key -> Setting.simpleString(key, Property.NodeScope),
+        key -> Setting.simpleString(key, value -> {
+            if (value != null && value != "") {
+                TokenCredentialType.valueOfType(value);
+            }
+        }, Property.NodeScope),
         () -> ACCOUNT_SETTING
     );
 
@@ -203,9 +215,10 @@ final class AzureStorageSettings {
     );
 
     private final String account;
-    private final String connectString;
-    private final String endpointSuffix;
     private final String tokenCredentialType;
+    private final Function<BlobServiceClientBuilder, BlobServiceClientBuilder> clientBuilder;
+    private final StorageEndpoint storageEndpoint;
+    private final String endpointSuffix;
     private final TimeValue timeout;
     private final int maxRetries;
     private final LocationMode locationMode;
@@ -218,8 +231,9 @@ final class AzureStorageSettings {
     // copy-constructor
     private AzureStorageSettings(
         String account,
-        String connectString,
         String tokenCredentialType,
+        Function<BlobServiceClientBuilder, BlobServiceClientBuilder> clientBuilder,
+        StorageEndpoint storageEndpoint,
         String endpointSuffix,
         TimeValue timeout,
         int maxRetries,
@@ -231,8 +245,9 @@ final class AzureStorageSettings {
         ProxySettings proxySettings
     ) {
         this.account = account;
-        this.connectString = connectString;
         this.tokenCredentialType = tokenCredentialType;
+        this.clientBuilder = clientBuilder;
+        this.storageEndpoint = storageEndpoint;
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.maxRetries = maxRetries;
@@ -259,8 +274,17 @@ final class AzureStorageSettings {
         ProxySettings proxySettings
     ) {
         this.account = account;
-        this.connectString = buildConnectString(account, key, sasToken, endpointSuffix, tokenCredentialType);
-        this.tokenCredentialType = validateTokenCredentialType(tokenCredentialType);
+        this.tokenCredentialType = tokenCredentialType;
+        if (this.tokenCredentialType == null || this.tokenCredentialType.isEmpty()) {
+            String connectString = buildConnectString(account, key, sasToken, endpointSuffix);
+            this.clientBuilder = (builder) -> builder.connectionString(connectString);
+            this.storageEndpoint = getStorageEndpointFromConnectString(connectString);
+        } else {
+            StorageEndpoint storageEndpoint = buildStorageEndpoint(account, endpointSuffix);
+            this.clientBuilder = (builder) -> builder.credential(new ManagedIdentityCredentialBuilder().build())
+                .endpoint(storageEndpoint.getPrimaryUri());
+            this.storageEndpoint = storageEndpoint;
+        }
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.maxRetries = maxRetries;
@@ -272,8 +296,12 @@ final class AzureStorageSettings {
         this.proxySettings = proxySettings;
     }
 
-    public boolean usesManagedIdentityCredential() {
-        return tokenCredentialType.equals(TokenCredentialType.MANAGED_IDENTITY.name());
+    public String getTokenCredentialType() {
+        return tokenCredentialType;
+    }
+
+    public StorageEndpoint getStorageEndpoint() {
+        return storageEndpoint;
     }
 
     public String getEndpointSuffix() {
@@ -292,43 +320,13 @@ final class AzureStorageSettings {
         return proxySettings;
     }
 
-    public String getConnectString() {
-        return connectString;
-    }
-
     public String getAccount() {
         return account;
     }
 
-    private static String validateTokenCredentialType(String tokenCredentialType) {
-        tokenCredentialType = tokenCredentialType.toUpperCase(Locale.ROOT);
-        final boolean hasTokenCredentialType = Strings.hasText(tokenCredentialType);
-        boolean isValidTokenCredentialType = false;
-        for (TokenCredentialType type : TokenCredentialType.values()) {
-            if (Objects.equals(type.toString(), tokenCredentialType)) {
-                isValidTokenCredentialType = true;
-            }
-        }
-        if (hasTokenCredentialType && !isValidTokenCredentialType) {
-            throw new SettingsException(String.format("'%s' is currently not supported.", tokenCredentialType));
-        }
-        return tokenCredentialType;
-    }
-
-    private static String buildConnectString(
-        String account,
-        @Nullable String key,
-        @Nullable String sasToken,
-        String endpointSuffix,
-        String tokenCredentialType
-    ) {
+    private static String buildConnectString(String account, @Nullable String key, @Nullable String sasToken, String endpointSuffix) {
         final boolean hasSasToken = Strings.hasText(sasToken);
         final boolean hasKey = Strings.hasText(key);
-        final boolean hasTokenCredentialType = Strings.hasText(tokenCredentialType);
-        // When a valid token credential type is declared, we are no longer using connection string
-        if (hasTokenCredentialType) {
-            return "";
-        }
         if (hasSasToken == false && hasKey == false) {
             throw new SettingsException("Neither a secret key nor a shared access token was set.");
         }
@@ -480,8 +478,9 @@ final class AzureStorageSettings {
                 entry.getKey(),
                 new AzureStorageSettings(
                     entry.getValue().account,
-                    entry.getValue().connectString,
                     entry.getValue().tokenCredentialType,
+                    entry.getValue().clientBuilder,
+                    entry.getValue().storageEndpoint,
                     entry.getValue().endpointSuffix,
                     entry.getValue().timeout,
                     entry.getValue().maxRetries,
@@ -495,5 +494,25 @@ final class AzureStorageSettings {
             );
         }
         return mapBuilder.immutableMap();
+    }
+
+    public BlobServiceClientBuilder configure(BlobServiceClientBuilder builder) {
+        return clientBuilder.apply(builder);
+    }
+
+    private StorageEndpoint buildStorageEndpoint(String account, String endpointSuffix) {
+        String tokenCredentialEndpointSuffix = endpointSuffix;
+        if (!Strings.hasText(tokenCredentialEndpointSuffix)) {
+            // Default to "core.windows.net".
+            tokenCredentialEndpointSuffix = Constants.ConnectionStringConstants.DEFAULT_DNS;
+        }
+        final URI primaryBlobEndpoint = URI.create("https://" + account + ".blob." + tokenCredentialEndpointSuffix);
+        final URI secondaryBlobEndpoint = URI.create("https://" + account + "-secondary.blob." + tokenCredentialEndpointSuffix);
+        return new StorageEndpoint(primaryBlobEndpoint, secondaryBlobEndpoint);
+    }
+
+    private StorageEndpoint getStorageEndpointFromConnectString(String connectionString) {
+        final StorageConnectionString storageConnectionString = StorageConnectionString.create(connectionString, logger);
+        return storageConnectionString.getBlobEndpoint();
     }
 }

@@ -120,33 +120,68 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         // Azure clients without account key and sas token.
         secureSettings.setString("azure.client.azure1.account", "myaccount1");
         secureSettings.setString("azure.client.azure2.account", "myaccount2");
-        secureSettings.setString("azure.client.azure3.account", "myaccount3");
 
         final Settings settings = Settings.builder()
             .setSecureSettings(secureSettings)
             // Enabled managed identity for all clients
             .put("azure.client.azure1.token_credential_type", TokenCredentialType.MANAGED_IDENTITY.name())
             .put("azure.client.azure2.token_credential_type", TokenCredentialType.MANAGED_IDENTITY.name())
-            .put("azure.client.azure3.token_credential_type", TokenCredentialType.MANAGED_IDENTITY.name())
-            // Defined an endpoint suffic for azure client 1 only.
+            // Defined an endpoint suffix for azure client 1 only.
             .put("azure.client.azure1.endpoint_suffix", "my_endpoint_suffix")
-            // Defined an invalid endpoint suffix for azure client 3 only.
-            .put("azure.client.azure3.endpoint_suffix", "invalid endpoint suffix")
             .build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
             final AzureStorageService azureStorageService = plugin.azureStoreService;
-
+            System.out.println(azureStorageService.storageSettings.get("azure1").getStorageEndpoint().getPrimaryUri());
             // Expect azure client 1 to use the custom endpoint suffix
             final BlobServiceClient client1 = azureStorageService.client("azure1").v1();
             assertThat(client1.getAccountUrl(), equalTo("https://myaccount1.blob.my_endpoint_suffix"));
-
             // Expect azure client 2 to use the default endpoint suffix
             final BlobServiceClient client2 = azureStorageService.client("azure2").v1();
             assertThat(client2.getAccountUrl(), equalTo("https://myaccount2.blob.core.windows.net"));
-
-            // Expect azure client 3 to fail due to invalid endpoint suffix
-            final RuntimeException e = expectThrows(RuntimeException.class, () -> azureStorageService.client("azure3").v1());
         }
+    }
+
+    public void testCreateClientWithInvalidEndpointSuffix() {
+        final MockSecureSettings secureSettings1 = new MockSecureSettings();
+        secureSettings1.setString("azure.client.azure1.account", "myaccount1");
+
+        final MockSecureSettings secureSettings2 = new MockSecureSettings();
+        secureSettings2.setString("azure.client.azure2.account", "myaccount2");
+        secureSettings2.setString("azure.client.azure2.key", encodeKey("mykey12"));
+
+        final MockSecureSettings secureSettings3 = new MockSecureSettings();
+        secureSettings3.setString("azure.client.azure3.account", "myaccount1");
+        secureSettings3.setString("azure.client.azure3.sas_token", encodeKey("mysastoken"));
+
+        // Test invalid endpointsuffix when token credential is used
+        final Settings settings = Settings.builder()
+            .setSecureSettings(secureSettings1)
+            .put("azure.client.azure1.token_credential_type", TokenCredentialType.MANAGED_IDENTITY.name())
+            .put("azure.client.azure1.endpoint_suffix", "invalid endpoint suffix")
+            .build();
+
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> storageServiceWithSettingsValidation(settings)
+        );
+
+        // Test invalid endpointsuffix when account key is used
+        final Settings settings2 = Settings.builder()
+            .setSecureSettings(secureSettings2)
+            // Defined an invalid endpoint suffix
+            .put("azure.client.azure2.endpoint_suffix", "invalid endpoint suffix")
+            .build();
+
+        final RuntimeException e2 = expectThrows(RuntimeException.class, () -> storageServiceWithSettingsValidation(settings2));
+
+        // Test invalid endpointsuffix when sas token key is used
+        final Settings settings3 = Settings.builder()
+            .setSecureSettings(secureSettings3)
+            // Defined an invalid endpoint suffix
+            .put("azure.client.azure3.endpoint_suffix", "invalid endpoint suffix")
+            .build();
+
+        final RuntimeException e3 = expectThrows(RuntimeException.class, () -> storageServiceWithSettingsValidation(settings3));
     }
 
     public void testGettingSecondaryStorageBlobEndpoint() throws IOException {
@@ -497,19 +532,37 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         // Azure client without account key or sas token.
         secureSettings.setString("azure.client.azure.account", "myaccount");
+        secureSettings.setString("azure.client.azure2.account", "myaccount");
+
+        // Enabled Managed Identity in the settings using lower case and mixed case
+        final Settings settings = Settings.builder()
+            .setSecureSettings(secureSettings)
+            .put("azure.client.azure.token_credential_type", "managed_identity")
+            .put("azure.client.azure2.token_credential_type", "managed_IDENTITY")
+            .build();
+
+        final AzureStorageService mock = storageServiceWithSettingsValidation(settings);
+        assertEquals(mock.storageSettings.get("azure").getTokenCredentialType(), "managed_identity");
+        assertEquals(mock.storageSettings.get("azure2").getTokenCredentialType(), "managed_IDENTITY");
+    }
+
+    public void testSettingTokenCredentialForAuthenticationWithAlternativeEnumValue() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        // Azure client without account key or sas token.
+        secureSettings.setString("azure.client.azure.account", "myaccount");
 
         // Enabled Managed Identity in the settings using lower case
         final Settings settings = Settings.builder()
             .setSecureSettings(secureSettings)
-            .put("azure.client.azure.token_credential_type", "managed_identity")
+            .put("azure.client.azure.token_credential_type", "managed")
             .build();
 
         final AzureStorageService mock = storageServiceWithSettingsValidation(settings);
-        assertEquals(true, mock.storageSettings.get("azure").usesManagedIdentityCredential());
+        assertEquals(mock.storageSettings.get("azure").getTokenCredentialType(), "managed");
     }
 
     public void testSettingUnsupportedTokenCredentialForAuthentication() {
-        final String unsupported_token_credential_type = "TOKEN_CREDENTIAL_THAT_DOES_NOT_EXIST";
+        final String unsupported_token_credential_type = "TOKEN_CREDENTIAL_TYPE_THAT_DOES_NOT_EXIST";
         final MockSecureSettings secureSettings = new MockSecureSettings();
 
         // Azure client without account key or sas token.
@@ -521,11 +574,20 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             .put("azure.client.azure.token_credential_type", unsupported_token_credential_type)
             .build();
 
-        final SettingsException e = expectThrows(SettingsException.class, () -> storageServiceWithSettingsValidation(settings));
-        assertEquals("'" + unsupported_token_credential_type + "' is currently not supported.", e.getMessage());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> storageServiceWithSettingsValidation(settings)
+        );
+        assertEquals(
+            "The token credential type '"
+                + unsupported_token_credential_type
+                + "' is unsupported, please use one of the following values: "
+                + String.join(", ", TokenCredentialType.getTokenCredentialTypes()),
+            e.getMessage()
+        );
     }
 
-    public void testBuildConnectStringWhenATokenCredentialIsEnabled() {
+    public void testTokenCredentialAuthenticationOverridesOtherFormOfAuthentications() {
         final String token_credential_type = TokenCredentialType.MANAGED_IDENTITY.name();
         final MockSecureSettings secureSettings = new MockSecureSettings();
         // Azure1 with account key
@@ -554,11 +616,11 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             .build();
         final AzureStorageService mock = storageServiceWithSettingsValidation(settings);
 
-        // Expect connection string to be empty when managed identity is selected for authentication
-        assertEquals("", mock.storageSettings.get("azure1").getConnectString());
-        assertEquals("", mock.storageSettings.get("azure2").getConnectString());
-        assertEquals("", mock.storageSettings.get("azure3").getConnectString());
-        assertEquals("", mock.storageSettings.get("azure4").getConnectString());
+        // Expect token credential authentication is selected over account key or sas token.
+        assertEquals(token_credential_type, mock.storageSettings.get("azure1").getTokenCredentialType());
+        assertEquals(token_credential_type, mock.storageSettings.get("azure2").getTokenCredentialType());
+        assertEquals(token_credential_type, mock.storageSettings.get("azure3").getTokenCredentialType());
+        assertEquals(token_credential_type, mock.storageSettings.get("azure4").getTokenCredentialType());
     }
 
     public void testTokenCredentialWhenAccountIsNotProvided() {
@@ -592,6 +654,24 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         assertEquals("Neither a secret key nor a shared access token was set.", e.getMessage());
     }
 
+    public void testSettingTokenCredentialTypeToBeEmpty() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        // Azure clients without account key and sas token.
+        secureSettings.setString("azure.client.azure1.account", "myaccount");
+        secureSettings.setString("azure.client.azure2.account", "myaccount");
+
+        // Disabled Managed Identity in the settings by default
+        final Settings settings = Settings.builder()
+            .setSecureSettings(secureSettings)
+            .put("azure.client.azure1.token_credential_type", "")
+            .put("azure.client.azure2.token_credential_type", " ")
+            .build();
+        final SettingsException e = expectThrows(SettingsException.class, () -> storageServiceWithSettingsValidation(settings));
+
+        // Expect fall back to authentication via sas token or account key when token credential is not specified.
+        assertEquals("Neither a secret key nor a shared access token was set.", e.getMessage());
+    }
+
     public void testManagedIdentityIsEnabled() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         // Azure client without account key or sas token.
@@ -604,7 +684,25 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             .build();
 
         final AzureStorageService mock = storageServiceWithSettingsValidation(settings);
-        assertEquals(true, mock.storageSettings.get("azure").usesManagedIdentityCredential());
+        assertEquals(mock.storageSettings.get("azure").getTokenCredentialType(), TokenCredentialType.MANAGED_IDENTITY.name());
+    }
+
+    public void testNonTokenCredentialAuthenticationEnabled() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        // Azure client account key.
+        secureSettings.setString("azure.client.azure1.account", "myaccount1");
+        secureSettings.setString("azure.client.azure1.sas_token", encodeKey("mysastoken"));
+
+        // Azure client with sas token
+        secureSettings.setString("azure.client.azure2.account", "myaccount2");
+        secureSettings.setString("azure.client.azure2.key", encodeKey("mykey"));
+
+        final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        final AzureStorageService mock = storageServiceWithSettingsValidation(settings);
+
+        // Expect token credential is not enabled
+        assertEquals(mock.storageSettings.get("azure1").getTokenCredentialType(), "");
+        assertEquals(mock.storageSettings.get("azure2").getTokenCredentialType(), "");
     }
 
     private static MockSecureSettings buildSecureSettings() {
