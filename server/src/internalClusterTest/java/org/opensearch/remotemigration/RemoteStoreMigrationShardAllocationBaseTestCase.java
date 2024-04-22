@@ -8,6 +8,7 @@
 
 package org.opensearch.remotemigration;
 
+import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -15,6 +16,12 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.opensearch.cluster.routing.allocation.MoveDecision;
+import org.opensearch.cluster.routing.allocation.NodeAllocationResult;
+import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexSettings;
@@ -22,6 +29,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotState;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -47,7 +55,7 @@ public class RemoteStoreMigrationShardAllocationBaseTestCase extends MigrationBa
     }
 
     // set the migration direction for cluster [remote_store, docrep, none]
-    public void setDirection(String direction) {
+    protected void setDirection(String direction) {
         updateSettingsRequest.persistentSettings(Settings.builder().put(MIGRATION_DIRECTION_SETTING.getKey(), direction));
         assertAcked(internalCluster().client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
     }
@@ -79,7 +87,7 @@ public class RemoteStoreMigrationShardAllocationBaseTestCase extends MigrationBa
         return exclude.toString();
     }
 
-    // create a new test index
+    // create a new test index with un-allocated primary and no replicas
     protected void prepareIndexWithoutReplica(Optional<String> name) {
         String indexName = name.orElse(TEST_INDEX);
         internalCluster().client()
@@ -94,6 +102,33 @@ public class RemoteStoreMigrationShardAllocationBaseTestCase extends MigrationBa
             )
             .execute()
             .actionGet();
+    }
+
+    // create a new test index with allocated primary and 1 unallocated replica
+    public void prepareIndexWithAllocatedPrimary(DiscoveryNode primaryShardNode, Optional<String> name) {
+        String indexName = name.orElse(TEST_INDEX);
+        internalCluster().client()
+            .admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 1)
+                    .put("index.routing.allocation.include._name", primaryShardNode.getName())
+                    .put("index.routing.allocation.exclude._name", allNodesExcept(primaryShardNode.getName()))
+            )
+            .setWaitForActiveShards(ActiveShardCount.ONE)
+            .execute()
+            .actionGet();
+
+        ensureYellowAndNoInitializingShards(TEST_INDEX);
+
+        logger.info(" --> verify allocation of primary shard");
+        assertAllocation(true, primaryShardNode);
+
+        logger.info(" --> verify non-allocation of replica shard");
+        assertNonAllocation(false);
     }
 
     protected ShardRouting getShardRouting(boolean isPrimary) {
