@@ -251,6 +251,16 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
             }
         });
 
+        allocation.routingNodes().forEach(
+            routingNode ->
+            routingNode.getInitializingShards().forEach(
+                shardRouting -> {
+                    if (currentBatchedShards.containsKey(shardRouting.shardId()) && shardRouting.primary() == primary) {
+                        batchedShardsToAssign.add(shardRouting.shardId());
+                    }
+                })
+        );
+
         refreshShardBatches(currentBatches, batchedShardsToAssign, primary);
 
         Iterator<ShardRouting> iterator = newShardsToBatch.iterator();
