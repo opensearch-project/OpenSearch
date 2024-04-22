@@ -814,63 +814,73 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
         Settings currentCompatibilityModeSettings = Settings.builder()
-                .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.MIXED)
-                .build();
+            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.MIXED)
+            .build();
         Settings intendedCompatibilityModeSettings = Settings.builder()
-                .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
-                .build();
+            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
+            .build();
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         request.persistentSettings(intendedCompatibilityModeSettings);
         DiscoveryNode remoteNode1 = new DiscoveryNode(
-                UUIDs.base64UUID(),
-                buildNewFakeTransportAddress(),
-                getRemoteStoreNodeAttributes(),
-                DiscoveryNodeRole.BUILT_IN_ROLES,
-                Version.CURRENT
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            getRemoteStoreNodeAttributes(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
         );
         DiscoveryNode remoteNode2 = new DiscoveryNode(
-                UUIDs.base64UUID(),
-                buildNewFakeTransportAddress(),
-                getRemoteStoreNodeAttributes(),
-                DiscoveryNodeRole.BUILT_IN_ROLES,
-                Version.CURRENT
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            getRemoteStoreNodeAttributes(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
         );
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-                .add(remoteNode1)
-                .localNodeId(remoteNode1.getId())
-                .add(remoteNode2)
-                .localNodeId(remoteNode2.getId())
-                .build();
+            .add(remoteNode1)
+            .localNodeId(remoteNode1.getId())
+            .add(remoteNode2)
+            .localNodeId(remoteNode2.getId())
+            .build();
         AllocationService allocationService = new AllocationService(
-                new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
-                new TestGatewayAllocator(),
-                new BalancedShardsAllocator(Settings.EMPTY),
-                EmptyClusterInfoService.INSTANCE,
-                EmptySnapshotsInfoService.INSTANCE
+            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
         );
         TransportClusterUpdateSettingsAction transportClusterUpdateSettingsAction = new TransportClusterUpdateSettingsAction(
-                transportService,
-                clusterService,
-                threadPool,
-                allocationService,
-                new ActionFilters(Collections.emptySet()),
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-                clusterService.getClusterSettings()
+            transportService,
+            clusterService,
+            threadPool,
+            allocationService,
+            new ActionFilters(Collections.emptySet()),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            clusterService.getClusterSettings()
         );
 
-        Metadata nonRemoteIndexMd = Metadata.builder(createIndexMetadataWithDocrepSettings("test")).persistentSettings(currentCompatibilityModeSettings).build();
-        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(nonRemoteIndexMd).nodes(discoveryNodes).build();
+        Metadata nonRemoteIndexMd = Metadata.builder(createIndexMetadataWithDocrepSettings("test"))
+            .persistentSettings(currentCompatibilityModeSettings)
+            .build();
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(nonRemoteIndexMd)
+            .nodes(discoveryNodes)
+            .build();
         final SettingsException exception = expectThrows(
-                SettingsException.class,
-                () -> transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, clusterState)
+            SettingsException.class,
+            () -> transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, clusterState)
         );
         assertEquals(
-                "can not switch to STRICT compatibility mode since all indices in the cluster does not have remote store based index settings",
-                exception.getMessage()
+            "can not switch to STRICT compatibility mode since all indices in the cluster does not have remote store based index settings",
+            exception.getMessage()
         );
 
-        Metadata remoteIndexMd = Metadata.builder(createIndexMetadataWithRemoteStoreSettings("test")).persistentSettings(currentCompatibilityModeSettings).build();
-        ClusterState clusterStateWithRemoteIndices = ClusterState.builder(ClusterName.DEFAULT).metadata(remoteIndexMd).nodes(discoveryNodes).build();
+        Metadata remoteIndexMd = Metadata.builder(createIndexMetadataWithRemoteStoreSettings("test"))
+            .persistentSettings(currentCompatibilityModeSettings)
+            .build();
+        ClusterState clusterStateWithRemoteIndices = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(remoteIndexMd)
+            .nodes(discoveryNodes)
+            .build();
         transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, clusterStateWithRemoteIndices);
     }
 
@@ -966,7 +976,10 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             .localNodeId(discoveryNode2.getId())
             .build();
 
-        ClusterState sameVersionClusterState = ClusterState.builder(differentVersionClusterState).nodes(discoveryNodes).metadata(createIndexMetadataWithRemoteStoreSettings("test")).build();
+        ClusterState sameVersionClusterState = ClusterState.builder(differentVersionClusterState)
+            .nodes(discoveryNodes)
+            .metadata(createIndexMetadataWithRemoteStoreSettings("test"))
+            .build();
         transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameVersionClusterState);
     }
 
@@ -979,7 +992,8 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
     private Metadata createIndexMetadataWithRemoteStoreSettings(String indexName) {
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
-        indexMetadata.settings(Settings.builder()
+        indexMetadata.settings(
+            Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -987,21 +1001,26 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
                 .put(IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "dummy-tlog-repo")
                 .put(IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "dummy-segment-repo")
                 .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), "SEGMENT")
-                .build())
-                .putCustom(REMOTE_STORE_CUSTOM_KEY, Map.of(RemoteStoreEnums.PathType.NAME, "dummy", RemoteStoreEnums.PathHashAlgorithm.NAME, "dummy"))
-                .build();
+                .build()
+        )
+            .putCustom(
+                REMOTE_STORE_CUSTOM_KEY,
+                Map.of(RemoteStoreEnums.PathType.NAME, "dummy", RemoteStoreEnums.PathHashAlgorithm.NAME, "dummy")
+            )
+            .build();
         return Metadata.builder().put(indexMetadata).build();
     }
 
     private Metadata createIndexMetadataWithDocrepSettings(String indexName) {
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
-        indexMetadata.settings(Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), "DOCUMENT")
-                        .build())
-                .build();
+        indexMetadata.settings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), "DOCUMENT")
+                .build()
+        ).build();
         return Metadata.builder().put(indexMetadata).build();
     }
 }

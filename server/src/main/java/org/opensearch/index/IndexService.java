@@ -132,7 +132,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
-import static org.opensearch.index.remote.RemoteStoreUtils.RemoteMigrationClusterStateUtils.indexHasRemoteStoreSettings;
+import static org.opensearch.index.remote.RemoteMigrationClusterStateUtils.indexHasRemoteStoreSettings;
 
 /**
  * The main OpenSearch index service
@@ -518,7 +518,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY, path);
             } else {
                 // Disallow shards with remote store based settings to be created on non-remote store enabled nodes
-                // Even though we have ample deciders in place to prevent something like this from happening at the allocation level,
+                // Even though we have `RemoteStoreMigrationAllocationDecider` in place to prevent something like this from happening at the
+                // allocation level,
                 // keeping this defensive check in place
                 // TODO: Remove this once remote to docrep migration is supported
                 if (indexHasRemoteStoreSettings(indexSettings)) {

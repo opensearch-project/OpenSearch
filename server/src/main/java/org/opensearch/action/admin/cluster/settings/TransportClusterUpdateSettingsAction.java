@@ -59,7 +59,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.index.remote.RemoteStoreUtils;
+import org.opensearch.index.remote.RemoteMigrationClusterStateUtils;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -69,7 +69,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.opensearch.index.remote.RemoteStoreUtils.RemoteMigrationClusterStateUtils.indexHasAllRemoteStoreRelatedMetadata;
+import static org.opensearch.index.remote.RemoteMigrationClusterStateUtils.indexHasAllRemoteStoreRelatedMetadata;
 
 /**
  * Transport action for updating cluster settings
@@ -324,7 +324,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
 
     /**
      * Verifies that while trying to switch to STRICT compatibility mode,
-     * all indices in the cluster have {@link RemoteStoreUtils.RemoteMigrationClusterStateUtils#indexHasAllRemoteStoreRelatedMetadata(IndexMetadata)} as <code>true</code>.
+     * all indices in the cluster have {@link RemoteMigrationClusterStateUtils#indexHasAllRemoteStoreRelatedMetadata(IndexMetadata)} as <code>true</code>.
      * If not, throws {@link SettingsException}
      * @param clusterState current cluster state
      */

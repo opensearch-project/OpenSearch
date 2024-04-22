@@ -57,8 +57,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.opensearch.index.remote.RemoteStoreUtils.RemoteMigrationClusterStateUtils.maybeAddRemoteIndexSettings;
-import static org.opensearch.index.remote.RemoteStoreUtils.RemoteMigrationClusterStateUtils.maybeUpdateRemoteStorePathStrategy;
+import static org.opensearch.index.remote.RemoteMigrationClusterStateUtils.maybeAddRemoteIndexSettings;
+import static org.opensearch.index.remote.RemoteMigrationClusterStateUtils.maybeUpdateRemoteStorePathStrategy;
 import static org.opensearch.index.remote.RemoteStoreUtils.getRemoteStoreRepoName;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -143,9 +143,9 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
         // To be used to update index metadata while computing new cluster state
         if (ongoingRemoteStoreMigration) {
             changes(targetRelocatingShard.shardId());
-        } else {
-            super.relocationStarted(startedShard, targetRelocatingShard);
         }
+        // Does not need a call to the super method since
+        // AbstractRoutingChangesObserver#relocationStarted is always No-Op
     }
 
     /**
