@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.search.resource_limit_group.cancellation.ResourceLimitGroupRequestCanceller;
+import org.opensearch.search.resource_limit_group.cancellation.ResourceLimitGroupTaskCanceller;
 import org.opensearch.search.resource_limit_group.tracker.ResourceLimitGroupResourceUsageTracker;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
@@ -26,11 +26,12 @@ public class ResourceLimitGroupService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(ResourceLimitGroupService.class);
 
     private final ResourceLimitGroupResourceUsageTracker requestTracker;
-    private final ResourceLimitGroupRequestCanceller requestCanceller;
+    private final ResourceLimitGroupTaskCanceller requestCanceller;
     private final ResourceLimitGroupPruner resourceLimitGroupPruner;
     private volatile Scheduler.Cancellable scheduledFuture;
     private final ResourceLimitGroupServiceSettings sandboxServiceSettings;
     private final ThreadPool threadPool;
+    private final ResourceLimitGroupTaskCanceller taskCanceller;
 
     /**
      * Guice managed constructor
@@ -43,16 +44,18 @@ public class ResourceLimitGroupService extends AbstractLifecycleComponent {
     @Inject
     public ResourceLimitGroupService(
         ResourceLimitGroupResourceUsageTracker requestTrackerService,
-        ResourceLimitGroupRequestCanceller requestCanceller,
+        ResourceLimitGroupTaskCanceller requestCanceller,
         ResourceLimitGroupPruner resourceLimitGroupPruner,
         ResourceLimitGroupServiceSettings sandboxServiceSettings,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        ResourceLimitGroupTaskCanceller taskCanceller
     ) {
         this.requestTracker = requestTrackerService;
         this.requestCanceller = requestCanceller;
         this.resourceLimitGroupPruner = resourceLimitGroupPruner;
         this.sandboxServiceSettings = sandboxServiceSettings;
         this.threadPool = threadPool;
+        this.taskCanceller = taskCanceller;
     }
 
     /**
@@ -60,7 +63,7 @@ public class ResourceLimitGroupService extends AbstractLifecycleComponent {
      */
     private void doRun() {
         requestTracker.updateResourceLimitGroupsResourceUsage();
-        requestCanceller.cancelViolatingTasks();
+        taskCanceller.cancelTasks();
         resourceLimitGroupPruner.pruneResourceLimitGroup();
     }
 

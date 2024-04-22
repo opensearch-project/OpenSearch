@@ -8,33 +8,38 @@
 
 package org.opensearch.search.resource_limit_group.tracker;
 
+import org.opensearch.cluster.metadata.ResourceLimitGroup;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.search.resource_limit_group.ResourceLimitGroupPruner;
-import org.opensearch.search.resource_limit_group.cancellation.ResourceLimitGroupRequestCanceller;
+import org.opensearch.search.resource_limit_group.ResourceLimitGroupTask;
+import org.opensearch.search.resource_limit_group.cancellation.CancellableTaskSelector;
+import org.opensearch.search.resource_limit_group.cancellation.ResourceLimitGroupTaskCanceller;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /**
  * This class tracks requests per resourceLimitGroups
  */
-public class ResourceLimitsGroupResourceUsageTrackerService
+public class ResourceLimitsGroupResourceUsageTrackerService extends ResourceLimitGroupTaskCanceller
     implements
         TaskManager.TaskEventListeners,
         ResourceLimitGroupResourceUsageTracker,
-        ResourceLimitGroupRequestCanceller,
         ResourceLimitGroupPruner {
 
-    private static final String CPU = "CPU";
-    private static final String JVM_ALLOCATIONS = "JVM_Allocations";
+    private static final String CPU = "cpu";
+    private static final String JVM = "jvm";
+    private static final List<String> TRACKED_RESOURCES = List.of(JVM);
     private static final int numberOfAvailableProcessors = Runtime.getRuntime().availableProcessors();
     private static final long totalAvailableJvmMemory = Runtime.getRuntime().totalMemory();
     private final LongSupplier timeNanosSupplier;
@@ -43,29 +48,94 @@ public class ResourceLimitsGroupResourceUsageTrackerService
      * {@link org.opensearch.search.resource_limit_group.ResourceLimitGroupService} runs
      */
     private List<String> toDeleteResourceLimitGroups;
-    private List<Object> activeResourceLimitGroups;
+    private List<ResourceLimitGroup> activeResourceLimitGroups;
+    /**
+     * This var will hold the sandbox level resource usage as per last run of
+     * {@link org.opensearch.search.resource_limit_group.ResourceLimitGroupService}
+     */
+    private Map<String, Map<String, Double>> resourceUsage;
+    /**
+     * We are keeping this as instance member as we will need this to identify the contended resource limit groups
+     * resourceLimitGroupName -> List&lt;ResourceLimitGroupTask&gt;
+     */
+    private Map<String, List<Task>> resourceLimitGroupTasks;
     private final TaskManager taskManager;
     private final TaskResourceTrackingService taskResourceTrackingService;
+    private final ClusterService clusterService;
+    private final CancellableTaskSelector taskSelector;
 
     /**
      * SandboxResourceTrackerService constructor
      * @param taskManager
      * @param taskResourceTrackingService
+     * @param clusterService
      */
     @Inject
     public ResourceLimitsGroupResourceUsageTrackerService(
-        TaskManager taskManager,
-        TaskResourceTrackingService taskResourceTrackingService
+        final TaskManager taskManager,
+        final TaskResourceTrackingService taskResourceTrackingService,
+        final ClusterService clusterService,
+        final LongSupplier timeNanosSupplier,
+        final CancellableTaskSelector taskSelector
     ) {
+        super(taskSelector);
         this.taskManager = taskManager;
         this.taskResourceTrackingService = taskResourceTrackingService;
-        toDeleteResourceLimitGroups = Collections.synchronizedList(new ArrayList<>());
-        this.timeNanosSupplier = System::nanoTime;
+        toDeleteResourceLimitGroups = new ArrayList<>();
+        this.clusterService = clusterService;
+        this.timeNanosSupplier = timeNanosSupplier;
+        this.taskSelector = taskSelector;
     }
 
     @Override
     public void updateResourceLimitGroupsResourceUsage() {
+        activeResourceLimitGroups = new ArrayList<>(clusterService.state().metadata().resourceLimitGroups().values());
 
+        updateResourceLimitGroupTasks();
+
+        refreshResourceLimitGroupsUsage(resourceLimitGroupTasks);
+    }
+
+    private void updateResourceLimitGroupTasks() {
+        List<ResourceLimitGroupTask> activeTasks = taskResourceTrackingService.getResourceAwareTasks()
+            .values()
+            .stream()
+            .filter(task -> task instanceof ResourceLimitGroupTask)
+            .map(task -> (ResourceLimitGroupTask) task)
+            .collect(Collectors.toList());
+
+        Map<String, List<Task>> newResourceLimitGroupTasks = new HashMap<>();
+        for (Map.Entry<String, List<ResourceLimitGroupTask>> entry : activeTasks.stream()
+            .collect(Collectors.groupingBy(ResourceLimitGroupTask::getResourceLimitGroupName))
+            .entrySet()) {
+            newResourceLimitGroupTasks.put(entry.getKey(), entry.getValue().stream().map(task -> (Task) task).collect(Collectors.toList()));
+        }
+
+        resourceLimitGroupTasks = newResourceLimitGroupTasks;
+    }
+
+    private void refreshResourceLimitGroupsUsage(Map<String, List<Task>> resourceLimitGroupTasks) {
+        /**
+         * remove the deleted resource limit groups
+         */
+        final List<String> nonExistingResourceLimitGroups = new ArrayList<>(resourceUsage.keySet());
+        for (String activeResourceLimitGroup : resourceLimitGroupTasks.keySet()) {
+            nonExistingResourceLimitGroups.remove(activeResourceLimitGroup);
+        }
+        nonExistingResourceLimitGroups.forEach(resourceUsage::remove);
+
+        for (Map.Entry<String, List<Task>> resourceLimitGroup : resourceLimitGroupTasks.entrySet()) {
+            final String resourceLimitGroupName = resourceLimitGroup.getKey();
+
+            Map<String, Double> resourceLimitGroupUsage = resourceLimitGroup.getValue()
+                .stream()
+                .map(this::calculateAbsoluteResourceUsageFor)
+                .reduce(new AbsoluteResourceUsage(0, 0), AbsoluteResourceUsage::merge)
+                .toMap();
+
+            resourceUsage.put(resourceLimitGroupName, resourceLimitGroupUsage);
+
+        }
     }
 
     // @Override
@@ -110,6 +180,18 @@ public class ResourceLimitsGroupResourceUsageTrackerService
         public double getAbsoluteJvmAllocationsUsageInPercent() {
             return absoluteJvmAllocationsUsage * 100;
         }
+
+        /**
+         *
+         * @return {@code Map<String, Double>}
+         * which captures key as resource and value as the percentage value
+         */
+        public Map<String, Double> toMap() {
+            Map<String, Double> map = new HashMap<>();
+            // We can put the additional resources into this map in the future
+            map.put(JVM, getAbsoluteJvmAllocationsUsageInPercent());
+            return map;
+        }
     }
 
     /**
@@ -140,7 +222,7 @@ public class ResourceLimitsGroupResourceUsageTrackerService
      * </ol>
      */
     @Override
-    public void cancelViolatingTasks() {
+    public void cancelTasks() {
         List<TaskCancellation> cancellableTasks = getCancellableTasks();
         for (TaskCancellation taskCancellation : cancellableTasks) {
             taskCancellation.cancel();
@@ -153,10 +235,14 @@ public class ResourceLimitsGroupResourceUsageTrackerService
      */
     private List<TaskCancellation> getCancellableTasks() {
         // get cancellations from enforced type sandboxes
-        List<String> inViolationSandboxes = getBreachingSandboxIds();
+        final List<ResourceLimitGroup> inViolationResourceLimitGroups = getBreachingResourceLimitGroups();
+        final List<ResourceLimitGroup> enforcedResourceLimitGroups = inViolationResourceLimitGroups.stream()
+            .filter(resourceLimitGroup -> resourceLimitGroup.getMode().equals(ResourceLimitGroup.ResourceLimitGroupMode.ENFORCED))
+            .collect(Collectors.toList());
         List<TaskCancellation> cancellableTasks = new ArrayList<>();
-        for (String sandboxId : inViolationSandboxes) {
-            cancellableTasks.addAll(getCancellableTasksFrom(sandboxId));
+
+        for (ResourceLimitGroup resourceLimitGroup : enforcedResourceLimitGroups) {
+            cancellableTasks.addAll(getCancellableTasksFrom(resourceLimitGroup));
         }
 
         // get cancellations from soft type sandboxes if the node is in duress (hitting node level cancellation
@@ -165,18 +251,50 @@ public class ResourceLimitsGroupResourceUsageTrackerService
         return cancellableTasks;
     }
 
-    public void deleteSandbox(String sandboxId) {
-        if (hasUnfinishedTasks(sandboxId)) {
-            toDeleteResourceLimitGroups.add(sandboxId);
+    public void deleteSandbox(String sandboxName) {
+        if (hasUnfinishedTasks(sandboxName)) {
+            toDeleteResourceLimitGroups.add(sandboxName);
         }
         // remove this sandbox from the active sandboxes
+        activeResourceLimitGroups = activeResourceLimitGroups.stream()
+            .filter(resourceLimitGroup -> !resourceLimitGroup.getName().equals(sandboxName))
+            .collect(Collectors.toList());
     }
 
-    private List<String> getBreachingSandboxIds() {
-        return Collections.emptyList();
+    private List<ResourceLimitGroup> getBreachingResourceLimitGroups() {
+        final List<ResourceLimitGroup> breachingResourceLimitGroupNames = new ArrayList<>();
+
+        for (ResourceLimitGroup resourceLimitGroup : activeResourceLimitGroups) {
+            Map<String, Double> currentResourceUsage = resourceUsage.get(resourceLimitGroup.getName());
+            boolean isBreaching = false;
+
+            for (ResourceLimitGroup.ResourceLimit resourceLimit : resourceLimitGroup.getResourceLimits()) {
+                if (currentResourceUsage.get(resourceLimit.getResourceName()) > resourceLimit.getValue()) {
+                    isBreaching = true;
+                    break;
+                }
+            }
+
+            if (isBreaching) breachingResourceLimitGroupNames.add(resourceLimitGroup);
+        }
+
+        return breachingResourceLimitGroupNames;
     }
 
-    private List<TaskCancellation> getCancellableTasksFrom(String sandboxId) {
-        return Collections.emptyList();
+    List<TaskCancellation> getCancellableTasksFrom(ResourceLimitGroup resourceLimitGroup) {
+        List<TaskCancellation> cancellations = new ArrayList<>();
+        for (String resource : TRACKED_RESOURCES) {
+            final double reduceBy = resourceUsage.get(resourceLimitGroup.getName()).get(resource) - resourceLimitGroup.getResourceLimitFor(
+                resource
+            ).getValue();
+            /**
+             * if the resource is not defined for this sandbox then ignore cancellations from it
+             */
+            if (reduceBy < 0.0) {
+                continue;
+            }
+            cancellations.addAll(taskSelector.selectTasks(resourceLimitGroupTasks.get(resourceLimitGroup.getName()), reduceBy, resource));
+        }
+        return cancellations;
     }
 }
