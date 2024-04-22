@@ -87,11 +87,11 @@ public class SearchShardTask extends CancellableTask implements SearchBackpressu
         return false;
     }
 
-    public String getResourceLimitGroupId() {
+    public String getResourceLimitGroupName() {
         return resourceLimitGroupId;
     }
 
-    public void setResourceLimitGroupId(String resourceLimitGroupId) {
+    public void setResourceLimitGroupName(String resourceLimitGroupId) {
         this.resourceLimitGroupId = resourceLimitGroupId;
     }
 }

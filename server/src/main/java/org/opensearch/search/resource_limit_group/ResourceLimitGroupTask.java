@@ -12,7 +12,7 @@ package org.opensearch.search.resource_limit_group;
  * This interface can be implemented by tasks which will be tracked and monitored using {@link org.opensearch.cluster.metadata.ResourceLimitGroup}
  */
 public interface ResourceLimitGroupTask {
-    public void setResourceLimitGroupId(String sandboxResourceLimitGroup);
+    public void setResourceLimitGroupName(String sandboxResourceLimitGroup);
 
-    public String getResourceLimitGroupId();
+    public String getResourceLimitGroupName();
 }

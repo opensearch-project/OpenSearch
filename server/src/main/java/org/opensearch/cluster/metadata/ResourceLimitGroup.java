@@ -174,6 +174,14 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         public int hashCode() {
             return Objects.hash(resourceName, value);
         }
+
+        public String getResourceName() {
+            return resourceName;
+        }
+
+        public Double getValue() {
+            return value;
+        }
     }
 
     /**
@@ -269,5 +277,12 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
 
     public List<ResourceLimit> getResourceLimits() {
         return resourceLimits;
+    }
+
+    public ResourceLimit getResourceLimitFor(String resourceName) {
+        return resourceLimits.stream()
+            .filter(resourceLimit -> resourceLimit.getResourceName().equals(resourceName))
+            .findFirst()
+            .orElseGet(() -> new ResourceLimit(resourceName, 100.0));
     }
 }
