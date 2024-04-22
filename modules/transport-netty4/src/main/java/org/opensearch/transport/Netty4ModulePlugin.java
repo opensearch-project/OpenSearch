@@ -51,6 +51,7 @@ import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.netty4.Netty4Transport;
@@ -103,8 +104,8 @@ public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
         CircuitBreakerService circuitBreakerService,
         NamedWriteableRegistry namedWriteableRegistry,
         NetworkService networkService,
-        Tracer tracer
-    ) {
+        Tracer tracer,
+        MetricsRegistry metricsRegistry) {
         return Collections.singletonMap(
             NETTY_TRANSPORT_NAME,
             () -> new Netty4Transport(
