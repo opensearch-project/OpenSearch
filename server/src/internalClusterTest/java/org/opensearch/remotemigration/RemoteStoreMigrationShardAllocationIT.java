@@ -27,61 +27,80 @@ public class RemoteStoreMigrationShardAllocationIT extends RemoteStoreMigrationS
     private Client client;
 
     // test for shard allocation decisions for MIXED mode and NONE direction
-    public void testAllocationForRemoteStoreBackedIndexForNoneDirectionAndMixedMode() throws Exception {
+    public void testAllocationForNoneDirectionAndMixedMode() throws Exception {
+        boolean isRemoteStoreBackedIndex = randomBoolean();
+        boolean isReplicaAllocation = randomBoolean();
+        logger.info(
+            String.format(
+                Locale.ROOT,
+                "Test for allocation decisions for %s shard of a %s store backed index under NONE direction",
+                (isReplicaAllocation ? "replica" : "primary"),
+                (isRemoteStoreBackedIndex ? "remote" : "non remote")
+            )
+        );
+
         logger.info("Initialize cluster");
-        initializeCluster(true);
+        initializeCluster(isRemoteStoreBackedIndex);
 
         logger.info("Add data nodes");
-        String remoteNodeName1 = internalCluster().startDataOnlyNode();
-        String remoteNodeName2 = internalCluster().startDataOnlyNode();
+        String previousNodeName1 = internalCluster().startDataOnlyNode();
+        String previousNodeName2 = internalCluster().startDataOnlyNode();
         internalCluster().validateClusterFormed();
-        DiscoveryNode remoteNode1 = assertNodeInCluster(remoteNodeName1);
-        DiscoveryNode remoteNode2 = assertNodeInCluster(remoteNodeName2);
+        DiscoveryNode previousNode1 = assertNodeInCluster(previousNodeName1);
+        DiscoveryNode previousNode2 = assertNodeInCluster(previousNodeName2);
 
         logger.info("Prepare test index");
-        boolean isReplicaAllocation = randomBoolean();
         if (isReplicaAllocation) {
-            prepareIndexWithAllocatedPrimary(remoteNode1, Optional.empty());
+            prepareIndexWithAllocatedPrimary(previousNode1, Optional.empty());
         } else {
             prepareIndexWithoutReplica(Optional.empty());
         }
-        assertRemoteStoreBackedIndex(TEST_INDEX);
+
+        if (isRemoteStoreBackedIndex) {
+            assertRemoteStoreBackedIndex(TEST_INDEX);
+        } else {
+            assertNonRemoteStoreBackedIndex(TEST_INDEX);
+        }
 
         logger.info("Switch to MIXED cluster compatibility mode");
         setClusterMode(MIXED.mode);
-        addRemote = false;
-        String docrepNodeName = internalCluster().startDataOnlyNode();
+        addRemote = !addRemote;
+        String newNodeName = internalCluster().startDataOnlyNode();
         internalCluster().validateClusterFormed();
-        DiscoveryNode docrepNode = assertNodeInCluster(docrepNodeName);
+        DiscoveryNode newNode = assertNodeInCluster(newNodeName);
 
-        logger.info("Verify decision for allocation on docrep node");
+        logger.info("Verify decision for allocation on the new node");
         prepareDecisions();
-        Decision decision = getDecisionForTargetNode(docrepNode, !isReplicaAllocation, false, false);
+        Decision decision = getDecisionForTargetNode(newNode, !isReplicaAllocation, false, false);
         assertEquals(Decision.Type.NO, decision.type());
         String expectedReason = String.format(
             Locale.ROOT,
-            "[none migration_direction]: %s shard copy can not be allocated to a non-remote node for remote store backed index",
-            (isReplicaAllocation ? "replica" : "primary")
+            "[none migration_direction]: %s shard copy can not be allocated to a %s node for %s store backed index",
+            (isReplicaAllocation ? "replica" : "primary"),
+            (isRemoteStoreBackedIndex ? "non-remote" : "remote"),
+            (isRemoteStoreBackedIndex ? "remote" : "non remote")
         );
         assertEquals(expectedReason, decision.getExplanation().toLowerCase(Locale.ROOT));
 
-        logger.info("Attempt allocation of shard on non-remote node");
-        attemptAllocation(docrepNodeName);
+        logger.info("Attempt allocation of shard on new node");
+        attemptAllocation(newNodeName);
 
         logger.info("Verify non-allocation of shard");
         assertNonAllocation(!isReplicaAllocation);
 
-        logger.info("Verify decision for allocation on remote node");
-        decision = getDecisionForTargetNode(remoteNode2, !isReplicaAllocation, true, false);
+        logger.info("Verify decision for allocation on previous node");
+        decision = getDecisionForTargetNode(previousNode2, !isReplicaAllocation, true, false);
         assertEquals(Decision.Type.YES, decision.type());
         expectedReason = String.format(
             Locale.ROOT,
-            "[none migration_direction]: %s shard copy can be allocated to a remote node for remote store backed index",
-            (isReplicaAllocation ? "replica" : "primary")
+            "[none migration_direction]: %s shard copy can be allocated to a %s node for %s store backed index",
+            (isReplicaAllocation ? "replica" : "primary"),
+            (isRemoteStoreBackedIndex ? "remote" : "non-remote"),
+            (isRemoteStoreBackedIndex ? "remote" : "non remote")
         );
         assertEquals(expectedReason, decision.getExplanation().toLowerCase(Locale.ROOT));
 
-        logger.info("Attempt free allocation of shard on remote node");
+        logger.info("Attempt free allocation of shard");
         attemptAllocation(null);
 
         logger.info("Verify successful allocation of shard");
@@ -91,9 +110,11 @@ public class RemoteStoreMigrationShardAllocationIT extends RemoteStoreMigrationS
             ensureYellowAndNoInitializingShards(TEST_INDEX);
         }
         assertAllocation(!isReplicaAllocation, null);
-        logger.info("Verify allocation on one of the remote nodes");
+        logger.info("Verify allocation on one of the previous nodes");
         ShardRouting shardRouting = getShardRouting(!isReplicaAllocation);
-        assertTrue(shardRouting.currentNodeId().equals(remoteNode1.getId()) || shardRouting.currentNodeId().equals(remoteNode2.getId()));
+        assertTrue(
+            shardRouting.currentNodeId().equals(previousNode1.getId()) || shardRouting.currentNodeId().equals(previousNode2.getId())
+        );
     }
 
     // bootstrap a cluster
