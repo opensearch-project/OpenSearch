@@ -95,6 +95,7 @@ import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.CompletionFieldMapper;
+import org.opensearch.index.mapper.ConstantKeywordFieldMapper;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DerivedFieldMapper;
@@ -778,6 +779,10 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             if (mappedType.getKey().equals(TextFieldMapper.CONTENT_TYPE) == false
                 && mappedType.getKey().equals(MatchOnlyTextFieldMapper.CONTENT_TYPE) == false) {
                 source.put("doc_values", "true");
+            }
+
+            if (mappedType.getKey().equals(ConstantKeywordFieldMapper.CONTENT_TYPE) == true) {
+                source.put("value", "default_value");
             }
 
             Mapper.Builder builder = mappedType.getValue().parse(fieldName, source, new MockParserContext());
