@@ -383,7 +383,13 @@ public class IndexNameExpressionResolver {
     private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, IndexMetadata index) {
         if (index.getState() == IndexMetadata.State.CLOSE) {
             if (options.forbidClosedIndices() && options.ignoreUnavailable() == false) {
-                throw new IndexClosedException(index.getIndex());
+                if (options.expandWildcardsClosed() == true && options.getExpandWildcards().size() == 1) {
+                    throw new IllegalArgumentException(
+                        "To expand [" + index.getState() + "] wildcard, please set forbid_closed_indices to `false`"
+                    );
+                } else {
+                    throw new IndexClosedException(index.getIndex());
+                }
             } else {
                 return options.forbidClosedIndices() == false && addIndex(index, context);
             }
