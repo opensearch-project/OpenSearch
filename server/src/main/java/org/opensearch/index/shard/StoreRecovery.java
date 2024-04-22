@@ -193,13 +193,6 @@ final class StoreRecovery {
                     indexShard.getEngine().forceMerge(false, -1, false, false, false, UUIDs.randomBase64UUID());
                     if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
                         indexShard.waitForRemoteStoreSync();
-                        if (indexShard.isRemoteSegmentStoreInSync() == false) {
-                            throw new IndexShardRecoveryException(
-                                indexShard.shardId(),
-                                "failed to upload to remote",
-                                new IOException("Failed to upload to remote segment store")
-                            );
-                        }
                     }
                     return true;
                 } catch (IOException ex) {
@@ -436,10 +429,6 @@ final class StoreRecovery {
                 indexShard.finalizeRecovery();
                 if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
                     indexShard.waitForRemoteStoreSync();
-                    if (indexShard.isRemoteSegmentStoreInSync() == false) {
-                        listener.onFailure(new IndexShardRestoreFailedException(shardId, "Failed to upload to remote segment store"));
-                        return;
-                    }
                 }
                 indexShard.postRecovery("restore done");
 
@@ -722,10 +711,6 @@ final class StoreRecovery {
             indexShard.finalizeRecovery();
             if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
                 indexShard.waitForRemoteStoreSync();
-                if (indexShard.isRemoteSegmentStoreInSync() == false) {
-                    listener.onFailure(new IndexShardRestoreFailedException(shardId, "Failed to upload to remote segment store"));
-                    return;
-                }
             }
             indexShard.postRecovery("restore done");
             listener.onResponse(true);
