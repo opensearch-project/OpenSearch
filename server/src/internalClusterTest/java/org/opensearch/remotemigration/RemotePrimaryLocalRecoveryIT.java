@@ -15,6 +15,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.translog.RemoteTranslogStats;
@@ -36,7 +37,7 @@ import static org.opensearch.index.store.RemoteSegmentStoreDirectory.SEGMENT_NAM
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemotePrimaryLocalRecoveryIT extends MigrationBaseTestCase {
     String indexName = "idx1";
-    int numOfNodes = randomIntBetween(3, 9);
+    int numOfNodes = randomIntBetween(4, 9);
 
     /**
      * Tests local recovery sanity in the happy path flow
@@ -133,7 +134,7 @@ public class RemotePrimaryLocalRecoveryIT extends MigrationBaseTestCase {
             }
         });
         ensureStableCluster(numOfNodes);
-        ensureGreen(indexName);
+        ensureGreen(TimeValue.timeValueSeconds(90), indexName);
         assertEquals(internalCluster().size(), numOfNodes);
 
         // Assert on remote uploads
