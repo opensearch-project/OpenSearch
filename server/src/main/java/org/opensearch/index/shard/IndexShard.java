@@ -2127,15 +2127,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return false;
     }
 
-    public void waitForRemoteStoreSync() {
+    public void waitForRemoteStoreSync() throws IOException {
         waitForRemoteStoreSync(() -> {});
     }
 
     /*
     Blocks the calling thread,  waiting for the remote store to get synced till internal Remote Upload Timeout
     Calls onProgress on seeing an increased file count on remote
+    Throws IOException if the remote store is not synced within the timeout
     */
-    public void waitForRemoteStoreSync(Runnable onProgress) {
+    public void waitForRemoteStoreSync(Runnable onProgress) throws IOException {
         assert indexSettings.isAssignedOnRemoteNode();
         RemoteSegmentStoreDirectory directory = getRemoteDirectory();
         int segmentUploadeCount = 0;
@@ -2147,7 +2148,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         while (System.nanoTime() - startNanos < getRecoverySettings().internalRemoteUploadTimeout().nanos()) {
             try {
                 if (isRemoteSegmentStoreInSync()) {
-                    break;
+                    return;
                 } else {
                     if (directory.getSegmentsUploadedToRemoteStore().size() > segmentUploadeCount) {
                         onProgress.run();
@@ -2165,6 +2166,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 return;
             }
         }
+        throw new IOException(
+            "Failed to upload to remote segment store within remote upload timeout of "
+                + getRecoverySettings().internalRemoteUploadTimeout().getMinutes()
+                + " minutes"
+        );
     }
 
     public void preRecovery() {
