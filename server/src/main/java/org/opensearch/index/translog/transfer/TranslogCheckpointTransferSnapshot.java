@@ -9,6 +9,7 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.index.translog.Checkpoint;
 import org.opensearch.index.translog.TranslogReader;
 
 import java.io.Closeable;
@@ -163,6 +164,7 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
                 final long checkpointGeneration = reader.getCheckpoint().getGeneration();
                 Path translogPath = reader.path();
                 Path checkpointPath = location.resolve(checkpointGenFileNameMapper.apply(readerGeneration));
+                final byte[] checkpointBytes = Checkpoint.createCheckpointBytes(checkpointPath, reader.getCheckpoint());
                 generations.add(readerGeneration);
                 translogTransferSnapshot.add(
                     new TranslogFileSnapshot(readerPrimaryTerm, readerGeneration, translogPath, reader.getTranslogChecksum()),
@@ -171,7 +173,8 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
                         checkpointGeneration,
                         minTranslogGeneration,
                         checkpointPath,
-                        reader.getCheckpointChecksum()
+                        reader.getCheckpointChecksum(),
+                        checkpointBytes
                     )
                 );
                 if (readerGeneration > highestGeneration) {

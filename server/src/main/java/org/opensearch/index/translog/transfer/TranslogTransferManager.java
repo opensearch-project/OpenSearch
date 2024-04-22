@@ -36,7 +36,6 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -129,7 +128,7 @@ public class TranslogTransferManager {
                 for (Tuple<TransferFileSnapshot, TransferFileSnapshot> tuple : tlogAndCkpFilesTupleSet) {
                     TransferFileSnapshot translogSnapshot = tuple.v1();
                     TransferFileSnapshot checkpointSnapshot = tuple.v2();
-                    if (fileTransferTracker.isAlreadyUploaded(translogSnapshot) == false) {
+                    if (!fileTransferTracker.isAlreadyUploaded(translogSnapshot)) {
                         Map<String, String> metadata = createCheckpointDataAsObjectMetadata(checkpointSnapshot);
                         translogSnapshot.setTransferFileSnapshotMetadata(metadata);
                         translogSnapshot.setTransferFileSnapshotMetadataFileName(checkpointSnapshot.getName());
@@ -242,19 +241,23 @@ public class TranslogTransferManager {
     private Map<String, String> createCheckpointDataAsObjectMetadata(TransferFileSnapshot checkpointFileSnapshot) throws IOException {
         Map<String, String> metadata = new HashMap<>();
 
-        // Set the checksum value
-        Long checksum = checkpointFileSnapshot.getChecksum();
-        String checksumBase64 = Base64.getEncoder().encodeToString(checksum.toString().getBytes(StandardCharsets.UTF_8));
-        metadata.put(CHECKPOINT_FILE_CHECKSUM_KEY, checksumBase64);
+        byte[] fileBytes = checkpointFileSnapshot.getContent();
+        // Do checksum validation here.
+        if (fileBytes != null) {
+            TranslogCheckedContainer translogCheckedContainer = new TranslogCheckedContainer(fileBytes);
+            Long calculatedChecksum = translogCheckedContainer.getChecksum();
 
-        // Set the file data value
-        Path checkpointFilePath = checkpointFileSnapshot.getPath();
-        long fileSize = Files.size(checkpointFilePath);
-        assert fileSize < 1500 : "checkpoint file size is more than 1.5KB size, can't be stored as metadata";
-        byte[] fileBytes = Files.readAllBytes(checkpointFilePath);
-        String fileDataBase64 = Base64.getEncoder().encodeToString(fileBytes);
-        metadata.put(CHECKPOINT_FILE_DATA_KEY, fileDataBase64);
+            Long checksum = checkpointFileSnapshot.getChecksum();
+            if (checksum != null && !checksum.equals(calculatedChecksum)) {
+                throw new TranslogUploadFailedException("Checksum validation failed for " + checkpointFileSnapshot.getName());
+            }
 
+            // Set the file data value
+            String fileDataBase64 = Base64.getEncoder().encodeToString(fileBytes);
+            metadata.put(CHECKPOINT_FILE_DATA_KEY, fileDataBase64);
+
+            return metadata;
+        }
         return metadata;
     }
 
@@ -389,56 +392,24 @@ public class TranslogTransferManager {
             }
 
             String ckpDataBase64 = metadata.get(CHECKPOINT_FILE_DATA_KEY);
-            String ckpChecksumBase64 = metadata.get(CHECKPOINT_FILE_CHECKSUM_KEY);
             if (ckpDataBase64 == null) {
                 throw new IllegalStateException(
                     "Checkpoint file data (ckp-data) key is expected but not found in metadata for file: " + fileName
                 );
             }
-            if (ckpChecksumBase64 == null) {
-                throw new IllegalStateException(
-                    "Checkpoint file checksum (ckp-checksum) key is expected but not found in metadata for file: " + fileName
-                );
-            }
 
             byte[] ckpFileBytes = convertBase64StringToCheckpointFileDataBytes(ckpDataBase64);
-            Long remoteDataChecksum = Long.parseLong(new String(Base64.getDecoder().decode(ckpChecksumBase64), StandardCharsets.UTF_8));
-
-            TranslogCheckedContainer translogCheckedContainer = new TranslogCheckedContainer(ckpFileBytes);
-            Long currentDataChecksum = translogCheckedContainer.getChecksum();
-
-            if (currentDataChecksum.equals(remoteDataChecksum)) {
-                logger.debug(
-                    "Checksum verification successful. currentDataChecksum={}, remoteDataChecksum={}",
-                    currentDataChecksum,
-                    remoteDataChecksum
-                );
-            } else {
-                logger.warn(
-                    "Checksum verification failed. currentDataChecksum={}, remoteDataChecksum={}",
-                    currentDataChecksum,
-                    remoteDataChecksum
-                );
-                throw new RuntimeException(
-                    "Checksum verification failed for file: "
-                        + fileName
-                        + ". currentDataChecksum="
-                        + currentDataChecksum
-                        + ", remoteChecksum="
-                        + remoteDataChecksum
-                );
-            }
 
             Files.write(filePath, ckpFileBytes);
 
             // Mark in FileTransferTracker so that the same files are not uploaded at the time of translog sync
             fileTransferTracker.add(ckpFileName, true);
-            logger.info("Wrote checkpoint file for fileName: {}", fileName);
+            logger.info("Wrote checkpoint file for translog file: {}", fileName);
         } catch (IOException e) {
-            logger.error("Error writing checkpoint file for file: {}", fileName);
+            logger.error("Error writing checkpoint file for translog file: {}", fileName);
             throw e;
         } catch (IllegalStateException e) {
-            logger.error("Error processing metadata for file: {}", fileName);
+            logger.error("Error processing metadata for translog file: {}", fileName);
             throw e;
         }
     }

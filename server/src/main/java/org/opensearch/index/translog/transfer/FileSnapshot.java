@@ -47,6 +47,14 @@ public class FileSnapshot implements Closeable {
         this.fileChannel = FileChannel.open(path, StandardOpenOption.READ);
     }
 
+    private FileSnapshot(Path path, byte[] content) throws IOException {
+        Objects.requireNonNull(path);
+        this.name = path.getFileName().toString();
+        this.path = path;
+        this.fileChannel = FileChannel.open(path, StandardOpenOption.READ);
+        this.content = content;
+    }
+
     private FileSnapshot(String name, byte[] content) {
         Objects.requireNonNull(name);
         this.name = name;
@@ -60,6 +68,10 @@ public class FileSnapshot implements Closeable {
 
     public String getName() {
         return name;
+    }
+
+    public byte[] getContent() {
+        return content;
     }
 
     public long getContentLength() throws IOException {
@@ -110,12 +122,18 @@ public class FileSnapshot implements Closeable {
         private final long primaryTerm;
         private Long checksum;
         @Nullable
-        private Map<String, String> metadata;
-        @Nullable
         private String metadataFileName;
+        @Nullable
+        private Map<String, String> metadata;
 
         public TransferFileSnapshot(Path path, long primaryTerm, Long checksum) throws IOException {
             super(path);
+            this.primaryTerm = primaryTerm;
+            this.checksum = checksum;
+        }
+
+        public TransferFileSnapshot(Path path, long primaryTerm, Long checksum, byte[] checkpointBytes) throws IOException {
+            super(path, checkpointBytes);
             this.primaryTerm = primaryTerm;
             this.checksum = checksum;
         }
@@ -133,20 +151,20 @@ public class FileSnapshot implements Closeable {
             return primaryTerm;
         }
 
-        public void setTransferFileSnapshotMetadata(Map<String, String> metadata) {
-            this.metadata = metadata;
-        }
-
         public void setTransferFileSnapshotMetadataFileName(String fileName) {
             this.metadataFileName = fileName;
         }
 
-        public Map<String, String> getTransferFileSnapshotMetadata() {
-            return metadata;
+        public void setTransferFileSnapshotMetadata(Map<String, String> metadata) {
+            this.metadata = metadata;
         }
 
         public String getTransferFileSnapshotMetadataFileName() {
             return metadataFileName;
+        }
+
+        public Map<String, String> getTransferFileSnapshotMetadata() {
+            return metadata;
         }
 
         @Override
@@ -212,9 +230,15 @@ public class FileSnapshot implements Closeable {
 
         private final long minTranslogGeneration;
 
-        public CheckpointFileSnapshot(long primaryTerm, long generation, long minTranslogGeneration, Path path, Long checksum)
-            throws IOException {
-            super(path, primaryTerm, checksum);
+        public CheckpointFileSnapshot(
+            long primaryTerm,
+            long generation,
+            long minTranslogGeneration,
+            Path path,
+            Long checksum,
+            byte[] checkpointBytes
+        ) throws IOException {
+            super(path, primaryTerm, checksum, checkpointBytes);
             this.minTranslogGeneration = minTranslogGeneration;
             this.generation = generation;
         }

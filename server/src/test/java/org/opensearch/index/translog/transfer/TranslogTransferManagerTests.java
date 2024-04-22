@@ -202,6 +202,74 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertEquals(4, fileTransferTracker.allUploaded().size());
     }
 
+    public void testTransferSnapshotWithCkpFileAsMetadataForTlogFile() throws Exception {
+        AtomicInteger fileTransferSucceeded = new AtomicInteger();
+        AtomicInteger fileTransferFailed = new AtomicInteger();
+        AtomicInteger translogTransferSucceeded = new AtomicInteger();
+        AtomicInteger translogTransferFailed = new AtomicInteger();
+
+        doNothing().when(transferService)
+            .uploadBlob(
+                any(TransferFileSnapshot.class),
+                Mockito.eq(remoteBaseTransferPath.add(String.valueOf(primaryTerm))),
+                any(WritePriority.class)
+            );
+
+        when(transferService.isObjectMetadataUploadSupported()).thenReturn(true);
+
+        doAnswer(invocationOnMock -> {
+            ActionListener<TransferFileSnapshot> listener = (ActionListener<TransferFileSnapshot>) invocationOnMock.getArguments()[2];
+            Set<TransferFileSnapshot> transferFileSnapshots = (Set<TransferFileSnapshot>) invocationOnMock.getArguments()[0];
+            transferFileSnapshots.forEach(listener::onResponse);
+            return null;
+        }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
+
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(
+            new ShardId("index", "indexUUid", 0),
+            remoteTranslogTransferTracker
+        ) {
+            @Override
+            public void onSuccess(TransferFileSnapshot fileSnapshot) {
+                fileTransferSucceeded.incrementAndGet();
+                super.onSuccess(fileSnapshot);
+            }
+
+            @Override
+            public void onFailure(TransferFileSnapshot fileSnapshot, Exception e) {
+                fileTransferFailed.incrementAndGet();
+                super.onFailure(fileSnapshot, e);
+            }
+
+        };
+
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath.add(TRANSLOG.getName()),
+            remoteBaseTransferPath.add(METADATA.getName()),
+            fileTransferTracker,
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE
+        );
+
+        assertTrue(translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {
+                translogTransferSucceeded.incrementAndGet();
+            }
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                translogTransferFailed.incrementAndGet();
+            }
+        }));
+        assertEquals(2, fileTransferSucceeded.get());
+        assertEquals(0, fileTransferFailed.get());
+        assertEquals(1, translogTransferSucceeded.get());
+        assertEquals(0, translogTransferFailed.get());
+        assertEquals(4, fileTransferTracker.allUploaded().size());
+    }
+
     public void testTransferSnapshotOnUploadTimeout() throws Exception {
         doAnswer(invocationOnMock -> {
             Set<TransferFileSnapshot> transferFileSnapshots = invocationOnMock.getArgument(0);
@@ -309,6 +377,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     }
 
     private TransferSnapshot createTransferSnapshot() {
+
+        byte[] byteArray = new byte[] { 0x01, 0x02, 0x03, 0x04 };
         return new TransferSnapshot() {
             @Override
             public Set<TransferFileSnapshot> getCheckpointFileSnapshots() {
@@ -319,6 +389,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                             generation,
                             minTranslogGeneration,
                             createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.CHECKPOINT_SUFFIX),
+                            null,
                             null
                         ),
                         new CheckpointFileSnapshot(
@@ -326,6 +397,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                             generation,
                             minTranslogGeneration,
                             createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.CHECKPOINT_SUFFIX),
+                            null,
                             null
                         )
                     );
@@ -377,7 +449,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                                 generation,
                                 minTranslogGeneration,
                                 createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.CHECKPOINT_SUFFIX),
-                                null
+                                null,
+                                byteArray
                             )
                         ),
                         new Tuple<>(
@@ -392,7 +465,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                                 generation - 1,
                                 minTranslogGeneration,
                                 createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.CHECKPOINT_SUFFIX),
-                                null
+                                null,
+                                byteArray
                             )
                         )
                     );
