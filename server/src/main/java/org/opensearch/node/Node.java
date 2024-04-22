@@ -730,6 +730,7 @@ public class Node implements Closeable {
             final RemoteIndexPathUploader remoteIndexPathUploader;
             if (isRemoteStoreClusterStateEnabled(settings)) {
                 remoteIndexPathUploader = new RemoteIndexPathUploader(
+                    threadPool,
                     settings,
                     repositoriesServiceReference::get,
                     clusterService.getClusterSettings()

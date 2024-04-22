@@ -10,8 +10,11 @@ package org.opensearch.gateway.remote;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Hook for running code that needs to be executed before the upload of index metadata. Here we have introduced a hook
@@ -20,7 +23,16 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public interface IndexMetadataUploadListener {
+public abstract class IndexMetadataUploadListener {
+
+    private final ExecutorService executorService;
+
+    public IndexMetadataUploadListener(ThreadPool threadPool, String threadPoolName) {
+        Objects.requireNonNull(threadPool);
+        Objects.requireNonNull(threadPoolName);
+        assert ThreadPool.THREAD_POOL_TYPES.containsKey(threadPoolName) && ThreadPool.Names.SAME.equals(threadPoolName) == false;
+        this.executorService = threadPool.executor(threadPoolName);
+    }
 
     /**
      * Runs before the new index upload of index metadata (or first time upload). The caller is expected to trigger
@@ -29,7 +41,9 @@ public interface IndexMetadataUploadListener {
      * @param indexMetadataList list of index metadata of new indexes (or first time index metadata upload).
      * @param actionListener    listener to be invoked on success or failure.
      */
-    void beforeNewIndexUpload(List<IndexMetadata> indexMetadataList, ActionListener<Void> actionListener);
+    public final void onNewIndexUpload(List<IndexMetadata> indexMetadataList, ActionListener<Void> actionListener) {
+        executorService.execute(() -> doOnNewIndexUpload(indexMetadataList, actionListener));
+    }
 
-    String getThreadpoolName();
+    protected abstract void doOnNewIndexUpload(List<IndexMetadata> indexMetadataList, ActionListener<Void> actionListener);
 }

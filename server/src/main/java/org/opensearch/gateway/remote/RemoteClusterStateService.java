@@ -532,17 +532,13 @@ public class RemoteClusterStateService implements Closeable {
         List<Exception> exceptionList
     ) {
         for (IndexMetadataUploadListener listener : indexMetadataUploadListeners) {
-            // We are submitting the task for async execution to ensure that we are not blocking the cluster state upload
             String listenerName = listener.getClass().getSimpleName();
-            String threadPoolName = listener.getThreadpoolName();
-            assert ThreadPool.THREAD_POOL_TYPES.containsKey(threadPoolName) && ThreadPool.Names.SAME.equals(threadPoolName) == false;
-            threadpool.executor(threadPoolName).execute(() -> {
-                listener.beforeNewIndexUpload(
-                    newIndexMetadataList,
-                    getIndexMetadataUploadActionListener(newIndexMetadataList, latch, exceptionList, listenerName)
-                );
-            });
+            listener.onNewIndexUpload(
+                newIndexMetadataList,
+                getIndexMetadataUploadActionListener(newIndexMetadataList, latch, exceptionList, listenerName)
+            );
         }
+
     }
 
     private ActionListener<Void> getIndexMetadataUploadActionListener(

@@ -27,8 +27,8 @@ import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
-import org.opensearch.repositories.blobstore.BlobStoreFormat;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.repositories.blobstore.ConfigBlobStoreFormat;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -57,9 +57,11 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteS
  * @opensearch.internal
  */
 @ExperimentalApi
-public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
+public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
 
-    public static final BlobStoreFormat<RemoteIndexPath> REMOTE_INDEX_PATH_FORMAT = new BlobStoreFormat<>(RemoteIndexPath.FILE_NAME_FORMAT);
+    public static final ConfigBlobStoreFormat<RemoteIndexPath> REMOTE_INDEX_PATH_FORMAT = new ConfigBlobStoreFormat<>(
+        RemoteIndexPath.FILE_NAME_FORMAT
+    );
 
     private static final String TIMEOUT_EXCEPTION_MSG = "Timed out waiting while uploading remote index path file for indexes=%s";
     private static final String UPLOAD_EXCEPTION_MSG = "Exception occurred while uploading remote index paths for indexes=%s";
@@ -79,7 +81,13 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
     private BlobStoreRepository translogRepository;
     private BlobStoreRepository segmentRepository;
 
-    public RemoteIndexPathUploader(Settings settings, Supplier<RepositoriesService> repositoriesService, ClusterSettings clusterSettings) {
+    public RemoteIndexPathUploader(
+        ThreadPool threadPool,
+        Settings settings,
+        Supplier<RepositoriesService> repositoriesService,
+        ClusterSettings clusterSettings
+    ) {
+        super(threadPool, ThreadPool.Names.GENERIC);
         this.settings = Objects.requireNonNull(settings);
         this.repositoriesService = Objects.requireNonNull(repositoriesService);
         isRemoteDataAttributePresent = isRemoteDataAttributePresent(settings);
@@ -91,12 +99,7 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
     }
 
     @Override
-    public String getThreadpoolName() {
-        return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
-    public void beforeNewIndexUpload(List<IndexMetadata> indexMetadataList, ActionListener<Void> actionListener) {
+    protected void doOnNewIndexUpload(List<IndexMetadata> indexMetadataList, ActionListener<Void> actionListener) {
         if (isRemoteDataAttributePresent == false) {
             logger.trace("Skipping beforeNewIndexUpload as there are no remote indexes");
             actionListener.onResponse(null);
@@ -105,24 +108,16 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
 
         long startTime = System.nanoTime();
         boolean success = false;
+        List<IndexMetadata> eligibleList = indexMetadataList.stream().filter(this::requiresPathUpload).collect(Collectors.toList());
+        String indexNames = eligibleList.stream().map(IndexMetadata::getIndex).map(Index::toString).collect(Collectors.joining(","));
+        int latchCount = eligibleList.size() * (isTranslogSegmentRepoSame ? 1 : 2);
+        CountDownLatch latch = new CountDownLatch(latchCount);
+        List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(latchCount));
         try {
-            List<IndexMetadata> eligibleList = indexMetadataList.stream().filter(this::requiresPathUpload).collect(Collectors.toList());
-            int latchCount = eligibleList.size() * (isTranslogSegmentRepoSame ? 1 : 2);
-            CountDownLatch latch = new CountDownLatch(latchCount);
-            List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(latchCount));
             for (IndexMetadata indexMetadata : eligibleList) {
-                try {
-                    writeIndexPathAsync(indexMetadata, latch, exceptionList);
-                } catch (IOException exception) {
-                    RemoteStateTransferException ex = new RemoteStateTransferException(
-                        String.format(Locale.ROOT, UPLOAD_EXCEPTION_MSG, List.of(indexMetadata.getIndex().getName()))
-                    );
-                    exceptionList.forEach(ex::addSuppressed);
-                    actionListener.onFailure(ex);
-                    return;
-                }
+                writeIndexPathAsync(indexMetadata, latch, exceptionList);
             }
-            String indexNames = eligibleList.stream().map(IndexMetadata::getIndex).map(Index::toString).collect(Collectors.joining(","));
+
             logger.trace(new ParameterizedMessage("Remote index path upload started for {}", indexNames));
 
             try {
@@ -153,9 +148,13 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
             }
             success = true;
             actionListener.onResponse(null);
-        } catch (Exception ex) {
+        } catch (Exception exception) {
+            RemoteStateTransferException ex = new RemoteStateTransferException(
+                String.format(Locale.ROOT, UPLOAD_EXCEPTION_MSG, indexNames),
+                exception
+            );
+            exceptionList.forEach(ex::addSuppressed);
             actionListener.onFailure(ex);
-            throw ex;
         } finally {
             long tookTimeNs = System.nanoTime() - startTime;
             logger.trace(new ParameterizedMessage("executed beforeNewIndexUpload status={} tookTimeNs={}", success, tookTimeNs));
@@ -163,7 +162,7 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
 
     }
 
-    private void writeIndexPathAsync(IndexMetadata idxMD, CountDownLatch latch, List<Exception> exceptionList) throws IOException {
+    private void writeIndexPathAsync(IndexMetadata idxMD, CountDownLatch latch, List<Exception> exceptionList) {
         if (isTranslogSegmentRepoSame) {
             // If the repositories are same, then we need to upload a single file containing paths for both translog and segments.
             writePathToRemoteStore(idxMD, translogRepository, latch, exceptionList, COMBINED_PATH);
@@ -181,7 +180,7 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
         CountDownLatch latch,
         List<Exception> exceptionList,
         Map<RemoteStoreEnums.DataCategory, List<RemoteStoreEnums.DataType>> pathCreationMap
-    ) throws IOException {
+    ) {
         Map<String, String> remoteCustomData = idxMD.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
         RemoteStoreEnums.PathType pathType = RemoteStoreEnums.PathType.valueOf(remoteCustomData.get(RemoteStoreEnums.PathType.NAME));
         RemoteStoreEnums.PathHashAlgorithm hashAlgorithm = RemoteStoreEnums.PathHashAlgorithm.valueOf(
@@ -191,13 +190,20 @@ public class RemoteIndexPathUploader implements IndexMetadataUploadListener {
         int shardCount = idxMD.getNumberOfShards();
         BlobPath basePath = repository.basePath();
         BlobContainer blobContainer = repository.blobStore().blobContainer(basePath.add(RemoteIndexPath.DIR));
-        REMOTE_INDEX_PATH_FORMAT.writeAsyncWithUrgentPriority(
-            new RemoteIndexPath(indexUUID, shardCount, basePath, pathType, hashAlgorithm, pathCreationMap),
-            blobContainer,
-            indexUUID,
-            getUploadPathLatchedActionListener(idxMD, latch, exceptionList, pathCreationMap)
-        );
-
+        ActionListener<Void> actionListener = getUploadPathLatchedActionListener(idxMD, latch, exceptionList, pathCreationMap);
+        try {
+            REMOTE_INDEX_PATH_FORMAT.writeAsyncWithUrgentPriority(
+                new RemoteIndexPath(indexUUID, shardCount, basePath, pathType, hashAlgorithm, pathCreationMap),
+                blobContainer,
+                indexUUID,
+                actionListener
+            );
+        } catch (IOException ioException) {
+            RemoteStateTransferException ex = new RemoteStateTransferException(
+                String.format(Locale.ROOT, UPLOAD_EXCEPTION_MSG, List.of(idxMD.getIndex().getName()))
+            );
+            actionListener.onFailure(ioException);
+        }
     }
 
     private Repository validateAndGetRepository(String repoSetting) {

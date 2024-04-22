@@ -29,6 +29,9 @@ import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -62,6 +65,7 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
     private static final String TRANSLOG_REPO_NAME = "translog-repo";
     private static final String SEGMENT_REPO_NAME = "segment-repo";
 
+    private final ThreadPool threadPool = new TestThreadPool(getTestName());
     private Settings settings;
     private ClusterSettings clusterSettings;
     private RepositoriesService repositoriesService;
@@ -112,35 +116,56 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
         indexMetadataList = List.of(indexMetadata);
     }
 
-    public void testInterceptWithNoRemoteDataAttributes() throws IOException {
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        terminate(threadPool);
+    }
+
+    public void testInterceptWithNoRemoteDataAttributes() {
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
         clusterSettings.applySettings(settings);
-        RemoteIndexPathUploader remoteIndexPathUploader = new RemoteIndexPathUploader(settings, () -> repositoriesService, clusterSettings);
+        RemoteIndexPathUploader remoteIndexPathUploader = new RemoteIndexPathUploader(
+            threadPool,
+            settings,
+            () -> repositoriesService,
+            clusterSettings
+        );
         List<IndexMetadata> indexMetadataList = Mockito.<List>mock(List.class);
         ActionListener<Void> actionListener = ActionListener.wrap(
             res -> successCount.incrementAndGet(),
             ex -> failureCount.incrementAndGet()
         );
-        remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
+        remoteIndexPathUploader.doOnNewIndexUpload(indexMetadataList, actionListener);
         assertEquals(1, successCount.get());
         assertEquals(0, failureCount.get());
         verify(indexMetadataList, times(0)).stream();
     }
 
-    public void testInterceptWithEmptyIndexMetadataList() throws IOException {
-        RemoteIndexPathUploader remoteIndexPathUploader = new RemoteIndexPathUploader(settings, () -> repositoriesService, clusterSettings);
+    public void testInterceptWithEmptyIndexMetadataList() {
+        RemoteIndexPathUploader remoteIndexPathUploader = new RemoteIndexPathUploader(
+            threadPool,
+            settings,
+            () -> repositoriesService,
+            clusterSettings
+        );
         remoteIndexPathUploader.start();
         ActionListener<Void> actionListener = ActionListener.wrap(
             res -> successCount.incrementAndGet(),
             ex -> failureCount.incrementAndGet()
         );
-        remoteIndexPathUploader.beforeNewIndexUpload(Collections.emptyList(), actionListener);
+        remoteIndexPathUploader.doOnNewIndexUpload(Collections.emptyList(), actionListener);
         assertEquals(1, successCount.get());
         assertEquals(0, failureCount.get());
     }
 
-    public void testInterceptWithEmptyEligibleIndexMetadataList() throws IOException {
-        RemoteIndexPathUploader remoteIndexPathUploader = new RemoteIndexPathUploader(settings, () -> repositoriesService, clusterSettings);
+    public void testInterceptWithEmptyEligibleIndexMetadataList() {
+        RemoteIndexPathUploader remoteIndexPathUploader = new RemoteIndexPathUploader(
+            threadPool,
+            settings,
+            () -> repositoriesService,
+            clusterSettings
+        );
         remoteIndexPathUploader.start();
         ActionListener<Void> actionListener = ActionListener.wrap(
             res -> successCount.incrementAndGet(),
@@ -151,39 +176,44 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
         List<IndexMetadata> indexMetadataList = new ArrayList<>();
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
         indexMetadataList.add(indexMetadata);
-        remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
+        remoteIndexPathUploader.doOnNewIndexUpload(indexMetadataList, actionListener);
         assertEquals(1, successCount.get());
         assertEquals(0, failureCount.get());
 
         // Case 2 - Empty remoteCustomData
         when(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY)).thenReturn(new HashMap<>());
-        remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
+        remoteIndexPathUploader.doOnNewIndexUpload(indexMetadataList, actionListener);
         assertEquals(2, successCount.get());
         assertEquals(0, failureCount.get());
 
         // Case 3 - RemoteStoreEnums.PathType.NAME not in remoteCustomData map
         Map<String, String> remoteCustomData = Map.of("test", "test");
         when(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY)).thenReturn(remoteCustomData);
-        remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
+        remoteIndexPathUploader.doOnNewIndexUpload(indexMetadataList, actionListener);
         assertEquals(3, successCount.get());
         assertEquals(0, failureCount.get());
 
         // Case 4 - RemoteStoreEnums.PathType.NAME is not HASHED_PREFIX
         remoteCustomData = Map.of(PathType.NAME, randomFrom(FIXED, HASHED_INFIX).name());
         when(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY)).thenReturn(remoteCustomData);
-        remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
+        remoteIndexPathUploader.doOnNewIndexUpload(indexMetadataList, actionListener);
         assertEquals(4, successCount.get());
         assertEquals(0, failureCount.get());
     }
 
     public void testInterceptWithSameRepo() throws IOException {
-        RemoteIndexPathUploader remoteIndexPathUploader = new RemoteIndexPathUploader(settings, () -> repositoriesService, clusterSettings);
+        RemoteIndexPathUploader remoteIndexPathUploader = new RemoteIndexPathUploader(
+            threadPool,
+            settings,
+            () -> repositoriesService,
+            clusterSettings
+        );
         remoteIndexPathUploader.start();
         ActionListener<Void> actionListener = ActionListener.wrap(
             res -> successCount.incrementAndGet(),
             ex -> failureCount.incrementAndGet()
         );
-        remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
+        remoteIndexPathUploader.doOnNewIndexUpload(indexMetadataList, actionListener);
         assertEquals(1, successCount.get());
         assertEquals(0, failureCount.get());
         verify(blobContainer, times(1)).writeBlob(anyString(), any(InputStream.class), anyLong(), anyBoolean());
@@ -195,13 +225,18 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
             .put(RemoteIndexPathUploader.SEGMENT_REPO_NAME_KEY, SEGMENT_REPO_NAME)
             .build();
         when(repositoriesService.repository(SEGMENT_REPO_NAME)).thenReturn(repository);
-        RemoteIndexPathUploader remoteIndexPathUploader = new RemoteIndexPathUploader(settings, () -> repositoriesService, clusterSettings);
+        RemoteIndexPathUploader remoteIndexPathUploader = new RemoteIndexPathUploader(
+            threadPool,
+            settings,
+            () -> repositoriesService,
+            clusterSettings
+        );
         remoteIndexPathUploader.start();
         ActionListener<Void> actionListener = ActionListener.wrap(
             res -> successCount.incrementAndGet(),
             ex -> failureCount.incrementAndGet()
         );
-        remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
+        remoteIndexPathUploader.doOnNewIndexUpload(indexMetadataList, actionListener);
         assertEquals(1, successCount.get());
         assertEquals(0, failureCount.get());
         verify(blobContainer, times(2)).writeBlob(anyString(), any(InputStream.class), anyLong(), anyBoolean());
@@ -210,7 +245,12 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
     public void testInterceptWithLatchAwaitTimeout() throws IOException {
         blobContainer = mock(AsyncMultiStreamBlobContainer.class);
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
-        RemoteIndexPathUploader remoteIndexPathUploader = new RemoteIndexPathUploader(settings, () -> repositoriesService, clusterSettings);
+        RemoteIndexPathUploader remoteIndexPathUploader = new RemoteIndexPathUploader(
+            threadPool,
+            settings,
+            () -> repositoriesService,
+            clusterSettings
+        );
         remoteIndexPathUploader.start();
 
         Settings settings = Settings.builder()
@@ -223,7 +263,7 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
             failureCount.incrementAndGet();
             exceptionSetOnce.set(ex);
         });
-        remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
+        remoteIndexPathUploader.doOnNewIndexUpload(indexMetadataList, actionListener);
         assertEquals(0, successCount.get());
         assertEquals(1, failureCount.get());
         assertTrue(exceptionSetOnce.get() instanceof RemoteStateTransferException);
@@ -236,7 +276,12 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
     public void testInterceptWithInterruptedExceptionDuringLatchAwait() throws Exception {
         AsyncMultiStreamBlobContainer asyncMultiStreamBlobContainer = mock(AsyncMultiStreamBlobContainer.class);
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(asyncMultiStreamBlobContainer);
-        RemoteIndexPathUploader remoteIndexPathUploader = new RemoteIndexPathUploader(settings, () -> repositoriesService, clusterSettings);
+        RemoteIndexPathUploader remoteIndexPathUploader = new RemoteIndexPathUploader(
+            threadPool,
+            settings,
+            () -> repositoriesService,
+            clusterSettings
+        );
         remoteIndexPathUploader.start();
         Settings settings = Settings.builder()
             .put(this.settings)
@@ -250,7 +295,7 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
         });
         Thread thread = new Thread(() -> {
             try {
-                remoteIndexPathUploader.beforeNewIndexUpload(indexMetadataList, actionListener);
+                remoteIndexPathUploader.onNewIndexUpload(indexMetadataList, actionListener);
             } catch (Exception e) {
                 assertTrue(e instanceof InterruptedException);
                 assertEquals("sleep interrupted", e.getMessage());
