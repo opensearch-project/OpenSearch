@@ -167,20 +167,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      *
      * @return a copy of the current SearchRequest
      */
-    @Override
-    public SearchRequest clone() {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            try {
-                this.writeTo(out);
-            } catch (IOException e) {
-                throw new IllegalArgumentException(e);
-            }
-            try (StreamInput in = out.bytes().streamInput()) {
-                return new SearchRequest(in);
-            } catch (IOException e) {
-                throw new IllegalArgumentException(e);
-            }
-        }
+    public SearchRequest deepCopy() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        this.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        return new SearchRequest(in);
     }
 
     /**
