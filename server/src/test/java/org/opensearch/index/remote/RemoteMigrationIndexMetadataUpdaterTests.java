@@ -29,10 +29,13 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.REMOTE_STORE_CUSTOM_KEY;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
 
 public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase {
     private final String tlogRepoName = "test-tlog-repo";
@@ -147,6 +150,29 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
         );
         assertEquals(currentSettingsVersion, indexMetadataBuilder.settingsVersion());
         assertDocrepSettingsApplied(indexMetadataBuilder.build());
+    }
+
+    public void testMaybeUpdateRemoteStorePathStrategyExecutes() {
+        Metadata currentMetadata = createIndexMetadataWithDocrepSettings(indexName);
+        IndexMetadata.Builder builder = IndexMetadata.builder(currentMetadata.index(indexName));
+        RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(logger);
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(IndexShardTestUtils.getFakeRemoteEnabledNode("1")).build();
+        migrationIndexMetadataUpdater.maybeUpdateRemoteStorePathStrategy(currentMetadata.index(indexName), builder, indexName, discoveryNodes, Settings.builder()
+                .put(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING.getKey(), RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1.name())
+                .put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.HASHED_PREFIX.name()).build());
+        assertCustomPathMetadataIsPresent(builder.build());
+    }
+
+    public void testMaybeUpdateRemoteStorePathStrategyDoesNotExecute() {
+        Metadata currentMetadata = createIndexMetadataWithRemoteStoreSettings(indexName);
+        IndexMetadata.Builder builder = IndexMetadata.builder(currentMetadata.index(indexName));
+        RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(logger);
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(IndexShardTestUtils.getFakeRemoteEnabledNode("1")).build();
+        migrationIndexMetadataUpdater.maybeUpdateRemoteStorePathStrategy(currentMetadata.index(indexName), builder, indexName, discoveryNodes, Settings.builder()
+                .put(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING.getKey(), RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1.name())
+                .put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.HASHED_PREFIX.name()).build());
+
+        assertCustomPathMetadataIsPresent(builder.build());
     }
 
     private RoutingTable createRoutingTableAllShardsStarted(
@@ -275,6 +301,15 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
         return Metadata.builder().put(indexMetadata).build();
     }
 
+    private static IndexMetadata createIndexMetadataWithCustomRemotePath(String indexName) {
+        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
+        Map<String, String> customRemotePathData = new HashMap<>();
+        customRemotePathData.put(RemoteStoreEnums.PathType.NAME, RemoteStoreEnums.PathType.FIXED.name());
+        customRemotePathData.put(RemoteStoreEnums.PathHashAlgorithm.NAME, RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64.name());
+        indexMetadata.putCustom(REMOTE_STORE_CUSTOM_KEY, customRemotePathData);
+        return indexMetadata.build();
+    }
+
     private void assertRemoteSettingsApplied(IndexMetadata indexMetadata) {
         assertTrue(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexMetadata.getSettings()));
         assertTrue(IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.exists(indexMetadata.getSettings()));
@@ -287,5 +322,11 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
         assertFalse(IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.exists(indexMetadata.getSettings()));
         assertFalse(IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.exists(indexMetadata.getSettings()));
         assertEquals(ReplicationType.DOCUMENT, IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(indexMetadata.getSettings()));
+    }
+
+    private void assertCustomPathMetadataIsPresent(IndexMetadata indexMetadata) {
+        assertNotNull(indexMetadata.getCustomData(REMOTE_STORE_CUSTOM_KEY));
+        assertNotNull(indexMetadata.getCustomData(REMOTE_STORE_CUSTOM_KEY).get(RemoteStoreEnums.PathType.NAME));
+        assertNotNull(indexMetadata.getCustomData(REMOTE_STORE_CUSTOM_KEY).get(RemoteStoreEnums.PathHashAlgorithm.NAME));
     }
 }
