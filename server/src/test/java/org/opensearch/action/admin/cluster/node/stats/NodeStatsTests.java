@@ -95,6 +95,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -966,7 +967,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 }
             }
             ImmutableCacheStatsHolder cacheStats = statsHolder.getImmutableCacheStatsHolder(dimensionNames.toArray(new String[0]));
-            Map<CacheType, ImmutableCacheStatsHolder> cacheStatsMap = new HashMap<>();
+            TreeMap<CacheType, ImmutableCacheStatsHolder> cacheStatsMap = new TreeMap<>();
             cacheStatsMap.put(CacheType.INDICES_REQUEST_CACHE, cacheStats);
             nodeCacheStats = new NodeCacheStats(cacheStatsMap, flags);
         }

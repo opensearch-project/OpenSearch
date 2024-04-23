@@ -90,7 +90,7 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
         int requestSize = (int) ((Map<String, Object>) ImmutableCacheStatsHolderTests.getValueFromNestedXContentMap(
             xContentMap,
             index1Keys
-        )).get(ImmutableCacheStats.Fields.MEMORY_SIZE_IN_BYTES);
+        )).get(ImmutableCacheStats.Fields.SIZE_IN_BYTES);
         assertTrue(requestSize > 0);
 
         List<String> index2Keys = List.of(
@@ -293,10 +293,7 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
         assertEquals(expectedStats.getMisses(), (int) aggregatedStatsResponse.get(ImmutableCacheStats.Fields.MISS_COUNT));
         assertEquals(expectedStats.getEvictions(), (int) aggregatedStatsResponse.get(ImmutableCacheStats.Fields.EVICTIONS));
         if (checkMemorySize) {
-            assertEquals(
-                expectedStats.getSizeInBytes(),
-                (int) aggregatedStatsResponse.get(ImmutableCacheStats.Fields.MEMORY_SIZE_IN_BYTES)
-            );
+            assertEquals(expectedStats.getSizeInBytes(), (int) aggregatedStatsResponse.get(ImmutableCacheStats.Fields.SIZE_IN_BYTES));
         }
         if (checkEntries) {
             assertEquals(expectedStats.getEntries(), (int) aggregatedStatsResponse.get(ImmutableCacheStats.Fields.ENTRIES));

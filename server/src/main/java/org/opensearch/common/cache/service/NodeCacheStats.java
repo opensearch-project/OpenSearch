@@ -30,11 +30,12 @@ import java.util.TreeMap;
  */
 @ExperimentalApi
 public class NodeCacheStats implements ToXContentFragment, Writeable {
+    // Use TreeMap to force consistent ordering of caches in API responses
     private final TreeMap<CacheType, ImmutableCacheStatsHolder> statsByCache;
     private final CommonStatsFlags flags;
 
-    public NodeCacheStats(Map<CacheType, ImmutableCacheStatsHolder> statsByCache, CommonStatsFlags flags) {
-        this.statsByCache = new TreeMap<>(statsByCache); // Use TreeMap to force consistent ordering of caches in API responses
+    public NodeCacheStats(TreeMap<CacheType, ImmutableCacheStatsHolder> statsByCache, CommonStatsFlags flags) {
+        this.statsByCache = statsByCache;
         this.flags = flags;
     }
 

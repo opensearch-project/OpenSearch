@@ -205,7 +205,7 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
         Map<String, Object> result = XContentHelper.convertToMap(MediaTypeRegistry.JSON.xContent(), resultString, true);
 
         Map<String, BiConsumer<CacheStats, Integer>> fieldNamesMap = Map.of(
-            ImmutableCacheStats.Fields.MEMORY_SIZE_IN_BYTES,
+            ImmutableCacheStats.Fields.SIZE_IN_BYTES,
             (counter, value) -> counter.sizeInBytes.inc(value),
             ImmutableCacheStats.Fields.EVICTIONS,
             (counter, value) -> counter.evictions.inc(value),
@@ -283,7 +283,7 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
 
     private void assertTotalStatsPresentInXContentResponse(Map<String, Object> result) {
         // assert the total stats are present
-        assertNotEquals(0, (int) result.get(ImmutableCacheStats.Fields.MEMORY_SIZE_IN_BYTES));
+        assertNotEquals(0, (int) result.get(ImmutableCacheStats.Fields.SIZE_IN_BYTES));
         assertNotEquals(0, (int) result.get(ImmutableCacheStats.Fields.EVICTIONS));
         assertNotEquals(0, (int) result.get(ImmutableCacheStats.Fields.HIT_COUNT));
         assertNotEquals(0, (int) result.get(ImmutableCacheStats.Fields.MISS_COUNT));

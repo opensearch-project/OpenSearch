@@ -22,6 +22,7 @@ import org.opensearch.common.util.FeatureFlags;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Service responsible to create caches.
@@ -66,7 +67,7 @@ public class CacheService {
     }
 
     public NodeCacheStats stats(CommonStatsFlags flags) {
-        Map<CacheType, ImmutableCacheStatsHolder> statsMap = new HashMap<>();
+        TreeMap<CacheType, ImmutableCacheStatsHolder> statsMap = new TreeMap<>();
         for (CacheType type : cacheTypeMap.keySet()) {
             statsMap.put(type, cacheTypeMap.get(type).stats(flags.getLevels()));
         }

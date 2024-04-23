@@ -453,7 +453,8 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     }
 
     /**
-     * Relevant stats for this cache, aggregated by levels..
+     * Relevant stats for this cache, aggregated by levels.
+     * @param levels The levels to aggregate by.
      * @return ImmutableCacheStatsHolder
      */
     @Override
