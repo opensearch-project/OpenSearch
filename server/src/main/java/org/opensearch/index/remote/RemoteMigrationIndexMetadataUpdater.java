@@ -183,19 +183,14 @@ public class RemoteMigrationIndexMetadataUpdater {
 
     /**
      * Asserts current index metadata customs has the {@link IndexMetadata#REMOTE_STORE_CUSTOM_KEY} key.
-     * If it does, checks if the following sub-keys are present
-     * - path_type
-     * - path_hash_algorithm
+     * If it does, checks if the path_type sub-key is present
      *
      * @param indexMetadata Current index metadata
      * @return <code>true</code> if all above conditions match. <code>false</code> otherwise
      */
     public static boolean indexHasRemotePathMetadata(IndexMetadata indexMetadata) {
         Map<String, String> customMetadata = indexMetadata.getCustomData(REMOTE_STORE_CUSTOM_KEY);
-        if (Objects.nonNull(customMetadata)) {
-            return Objects.nonNull(customMetadata.get(PathType.NAME)) && Objects.nonNull(customMetadata.get(PathHashAlgorithm.NAME));
-        }
-        return false;
+        return Objects.nonNull(customMetadata) && Objects.nonNull(customMetadata.get(PathType.NAME));
     }
 
     public static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, String segmentRepository, String translogRepository) {
