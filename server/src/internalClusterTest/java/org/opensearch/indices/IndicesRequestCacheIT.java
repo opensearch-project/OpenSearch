@@ -990,33 +990,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         }, 1, TimeUnit.SECONDS);
     }
 
-    private void setupIndex(Client client, String index) throws Exception {
-        assertAcked(
-            client.admin()
-                .indices()
-                .prepareCreate(index)
-                .setMapping("k", "type=keyword")
-                .setSettings(
-                    Settings.builder()
-                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                )
-                .get()
-        );
-        indexRandom(true, client.prepareIndex(index).setSource("k", "hello"));
-        indexRandom(true, client.prepareIndex(index).setSource("k", "there"));
-        ensureSearchable(index);
-    }
-
-    private void createCacheEntry(Client client, String index, String value) {
-        SearchResponse resp = client.prepareSearch(index).setRequestCache(true).setQuery(QueryBuilders.termQuery("k", value)).get();
-        assertSearchResponse(resp);
-        OpenSearchAssertions.assertAllSuccessful(resp);
-    }
-
-    private static void assertCacheState(Client client, String index, long expectedHits, long expectedMisses) {
-        RequestCacheStats requestCacheStats = getRequestCacheStats(client, index);// staleness threshold dynamic updates should take effect in cleaning
     public void testStaleKeysCleanup_ThresholdUpdatesShouldTakeEffectAndCleanAppropriately() throws Exception {
         String node = internalCluster().startNode(
             Settings.builder()
