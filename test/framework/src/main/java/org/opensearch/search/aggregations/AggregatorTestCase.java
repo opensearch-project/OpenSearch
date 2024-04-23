@@ -410,6 +410,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         );
         fieldNameToType.putAll(getFieldAliases(fieldTypes));
 
+        when(searchContext.maxAggRewriteFilters()).thenReturn(10_000);
         registerFieldTypes(searchContext, mapperService, fieldNameToType);
         doAnswer(invocation -> {
             /* Store the release-ables so we can release them at the end of the test case. This is important because aggregations don't
@@ -1123,7 +1124,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         private final AtomicInteger collectCounter;
         public final Aggregator delegate;
 
-        public CountingAggregator(AtomicInteger collectCounter, TermsAggregator delegate) {
+        public CountingAggregator(AtomicInteger collectCounter, Aggregator delegate) {
             this.collectCounter = collectCounter;
             this.delegate = delegate;
         }

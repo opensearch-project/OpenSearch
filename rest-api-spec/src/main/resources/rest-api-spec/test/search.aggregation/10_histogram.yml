@@ -599,6 +599,10 @@ setup:
   - match: { profile.shards.0.aggregations.0.type: DateHistogramAggregator }
   - match: { profile.shards.0.aggregations.0.description: histo }
   - match: { profile.shards.0.aggregations.0.debug.total_buckets: 3 }
+  - match: { profile.shards.0.aggregations.0.debug.optimized_segments: 1 }
+  - match: { profile.shards.0.aggregations.0.debug.unoptimized_segments: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.leaf_visited: 1 }
+  - match: { profile.shards.0.aggregations.0.debug.inner_visited: 0 }
 
 ---
 "histogram with hard bounds":

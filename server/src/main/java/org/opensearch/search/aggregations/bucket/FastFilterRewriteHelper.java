@@ -271,7 +271,7 @@ public final class FastFilterRewriteHelper {
         }
 
         public boolean isRewriteable(final Object parent, final int subAggLength) {
-            // if (context.maxAggRewriteFilters() == 0) return false;
+            if (context.maxAggRewriteFilters() == 0) return false;
 
             boolean rewriteable = aggregationType.isRewriteable(parent, subAggLength);
             logger.debug("Fast filter rewriteable: {} for shard {}", rewriteable, context.indexShard().shardId());

@@ -38,6 +38,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -45,12 +46,18 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.common.time.DateFormatters;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DocCountFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
@@ -58,9 +65,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toList;
+import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCase {
@@ -1332,54 +1341,6 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
     }
 
-    public void testMultiRangeDebug() throws IOException {
-        testSearchCase(
-            new MatchAllDocsQuery(),
-            Arrays.asList(
-                "2017-02-01T09:02:00.000Z",
-                "2017-02-01T09:35:00.000Z",
-                "2017-02-01T10:15:00.000Z",
-                "2017-02-01T13:06:00.000Z",
-                "2017-02-01T14:04:00.000Z",
-                "2017-02-01T14:05:00.000Z",
-                "2017-02-01T15:59:00.000Z",
-                "2017-02-01T16:06:00.000Z",
-                "2017-02-01T16:48:00.000Z",
-                "2017-02-01T16:59:00.000Z"
-            ),
-            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("60m")).field(AGGREGABLE_DATE).minDocCount(1L),
-            histogram -> {
-                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                assertEquals(6, buckets.size());
-
-                Histogram.Bucket bucket = buckets.get(0);
-                assertEquals("2017-02-01T09:00:00.000Z", bucket.getKeyAsString());
-                assertEquals(2, bucket.getDocCount());
-
-                bucket = buckets.get(1);
-                assertEquals("2017-02-01T10:00:00.000Z", bucket.getKeyAsString());
-                assertEquals(1, bucket.getDocCount());
-
-                bucket = buckets.get(2);
-                assertEquals("2017-02-01T13:00:00.000Z", bucket.getKeyAsString());
-                assertEquals(1, bucket.getDocCount());
-
-                bucket = buckets.get(3);
-                assertEquals("2017-02-01T14:00:00.000Z", bucket.getKeyAsString());
-                assertEquals(2, bucket.getDocCount());
-
-                bucket = buckets.get(4);
-                assertEquals("2017-02-01T15:00:00.000Z", bucket.getKeyAsString());
-                assertEquals(1, bucket.getDocCount());
-
-                bucket = buckets.get(5);
-                assertEquals("2017-02-01T16:00:00.000Z", bucket.getKeyAsString());
-                assertEquals(3, bucket.getDocCount());
-            },
-            false
-        );
-    }
-
     public void testDocCountField() throws IOException {
         testSearchCase(
             new MatchAllDocsQuery(),
@@ -1496,6 +1457,192 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 verify.accept(histogram);
             }
         }
+    }
+
+    public void testMultiRangeDebug() throws IOException {
+        testFilterRewrite(
+            new MatchAllDocsQuery(),
+            Arrays.asList(
+                "2017-02-01T09:02:00.000Z",
+                "2017-02-01T09:35:00.000Z",
+                "2017-02-01T10:15:00.000Z",
+                "2017-02-01T13:06:00.000Z",
+                "2017-02-01T14:04:00.000Z",
+                "2017-02-01T14:05:00.000Z",
+                "2017-02-01T15:59:00.000Z",
+                "2017-02-01T16:06:00.000Z",
+                "2017-02-01T16:48:00.000Z",
+                "2017-02-01T16:59:00.000Z"
+            ),
+            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("60m")).field(AGGREGABLE_DATE).minDocCount(1L),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(6, buckets.size());
+
+                Histogram.Bucket bucket = buckets.get(0);
+                assertEquals("2017-02-01T09:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(2, bucket.getDocCount());
+
+                bucket = buckets.get(1);
+                assertEquals("2017-02-01T10:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(1, bucket.getDocCount());
+
+                bucket = buckets.get(2);
+                assertEquals("2017-02-01T13:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(1, bucket.getDocCount());
+
+                bucket = buckets.get(3);
+                assertEquals("2017-02-01T14:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(2, bucket.getDocCount());
+
+                bucket = buckets.get(4);
+                assertEquals("2017-02-01T15:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(1, bucket.getDocCount());
+
+                bucket = buckets.get(5);
+                assertEquals("2017-02-01T16:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(3, bucket.getDocCount());
+            },
+            false,
+            0
+        );
+
+        testFilterRewrite(
+            new MatchAllDocsQuery(),
+            Arrays.asList(
+                "2017-02-01T09:02:00.000Z",
+                "2017-02-01T09:35:00.000Z",
+                "2017-02-01T10:15:00.000Z",
+                "2017-02-01T13:06:00.000Z",
+                "2017-02-01T14:04:00.000Z",
+                "2017-02-01T14:05:00.000Z",
+                "2017-02-01T15:59:00.000Z",
+                "2017-02-01T16:06:00.000Z",
+                "2017-02-01T16:48:00.000Z",
+                "2017-02-01T16:59:00.000Z"
+            ),
+            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("60m")).field(AGGREGABLE_DATE).minDocCount(1L),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(6, buckets.size());
+
+                Histogram.Bucket bucket = buckets.get(0);
+                assertEquals("2017-02-01T09:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(6, bucket.getDocCount());
+
+                bucket = buckets.get(1);
+                assertEquals("2017-02-01T10:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(1, bucket.getDocCount());
+
+                bucket = buckets.get(2);
+                assertEquals("2017-02-01T13:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(1, bucket.getDocCount());
+
+                bucket = buckets.get(3);
+                assertEquals("2017-02-01T14:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(2, bucket.getDocCount());
+
+                bucket = buckets.get(4);
+                assertEquals("2017-02-01T15:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(1, bucket.getDocCount());
+
+                bucket = buckets.get(5);
+                assertEquals("2017-02-01T16:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(3, bucket.getDocCount());
+            },
+            true,
+            10
+        );
+    }
+
+    private void testFilterRewrite(
+        Query query,
+        List<String> dataset,
+        Consumer<DateHistogramAggregationBuilder> configure,
+        Consumer<InternalDateHistogram> verify,
+        boolean useDocCountField,
+        int actualCollectCount
+    ) throws IOException {
+
+        DateFieldMapper.DateFieldType fieldType = aggregableDateFieldType(randomBoolean(), true);
+
+        try (Directory directory = newDirectory()) {
+
+            try (
+                RandomIndexWriter indexWriter = new RandomIndexWriter(
+                    random(),
+                    directory,
+                    newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+                )
+            ) {
+                Document document = new Document();
+                if (useDocCountField) {
+                    // add the doc count field to the first document
+                    document.add(new NumericDocValuesField(DocCountFieldMapper.NAME, 5));
+                }
+                for (String date : dataset) {
+                    long instant = asLong(date, fieldType);
+                    document.add(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant));
+                    document.add(new LongPoint(AGGREGABLE_DATE, instant));
+                    document.add(new LongPoint(SEARCHABLE_DATE, instant));
+                    indexWriter.addDocument(document);
+                    document.clear();
+                }
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+                DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("_name");
+                if (configure != null) {
+                    configure.accept(aggregationBuilder);
+                }
+
+                CountingAggregator aggregator = createCountingAggregator(query, aggregationBuilder, indexSearcher, fieldType);
+                aggregator.preCollection();
+                indexSearcher.search(query, aggregator);
+                aggregator.postCollection();
+
+                MultiBucketConsumerService.MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
+                    Integer.MAX_VALUE,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                );
+                InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+                    aggregator.context().bigArrays(),
+                    getMockScriptService(),
+                    reduceBucketConsumer,
+                    PipelineAggregator.PipelineTree.EMPTY
+                );
+                InternalDateHistogram topLevel = (InternalDateHistogram) aggregator.buildTopLevel();
+                InternalDateHistogram histogram = (InternalDateHistogram) topLevel.reduce(Collections.singletonList(topLevel), context);
+                doAssertReducedMultiBucketConsumer(histogram, reduceBucketConsumer);
+
+                verify.accept(histogram);
+
+                assertEquals(aggregator.getCollectCount().get(), actualCollectCount);
+            }
+        }
+    }
+
+    protected CountingAggregator createCountingAggregator(
+        Query query,
+        AggregationBuilder builder,
+        IndexSearcher searcher,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        return new CountingAggregator(
+            new AtomicInteger(),
+            createAggregator(
+                query,
+                builder,
+                searcher,
+                new MultiBucketConsumerService.MultiBucketConsumer(
+                    DEFAULT_MAX_BUCKETS,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                ),
+                fieldTypes
+            )
+        );
     }
 
     private static long asLong(String dateTime) {
