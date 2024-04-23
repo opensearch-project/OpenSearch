@@ -15,10 +15,10 @@ import org.opensearch.action.ActionRunnable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
-import org.opensearch.common.blobstore.BlobDownloadResponse;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.FetchBlobResult;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
@@ -168,7 +168,7 @@ public class BlobStoreTransferService implements TransferService {
 
     @Override
     @ExperimentalApi
-    public BlobDownloadResponse downloadBlobWithMetadata(Iterable<String> path, String fileName) throws IOException {
+    public FetchBlobResult downloadBlobWithMetadata(Iterable<String> path, String fileName) throws IOException {
         return blobStore.blobContainer((BlobPath) path).readBlobWithMetadata(fileName);
     }
 

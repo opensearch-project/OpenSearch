@@ -53,6 +53,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.RandomQueryBuilder;
 import org.opensearch.index.query.Rewriteable;
+import org.opensearch.script.Script;
 import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
@@ -309,6 +310,51 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 assertEquals(new ScoreSortBuilder(), searchSourceBuilder.sorts().get(4));
             }
         }
+    }
+
+    public void testDerivedFieldsParsingAndSerialization() throws IOException {
+        {
+            String restContent = "{\n"
+                + "  \"derived\": {\n"
+                + "    \"duration\": {\n"
+                + "      \"type\": \"long\",\n"
+                + "      \"script\": \"emit(doc['test'])\"\n"
+                + "    },\n"
+                + "    \"ip_from_message\": {\n"
+                + "      \"type\": \"keyword\",\n"
+                + "      \"script\": \"emit(doc['message'])\"\n"
+                + "    }\n"
+                + "  },\n"
+                + "    \"query\" : {\n"
+                + "        \"match\": { \"content\": { \"query\": \"foo bar\" }}\n"
+                + "     }\n"
+                + "}";
+
+            String expectedContent =
+                "{\"query\":{\"match\":{\"content\":{\"query\":\"foo bar\",\"operator\":\"OR\",\"prefix_length\":0,\"max_expansions\":50,\"fuzzy_transpositions\":true,\"lenient\":false,\"zero_terms_query\":\"NONE\",\"auto_generate_synonyms_phrase_query\":true,\"boost\":1.0}}},"
+                    + "\"derived\":{"
+                    + "\"duration\":{\"type\":\"long\",\"script\":\"emit(doc['test'])\"},\"ip_from_message\":{\"type\":\"keyword\",\"script\":\"emit(doc['message'])\"},\"derived_field\":{\"type\":\"keyword\",\"script\":{\"source\":\"emit(doc['message']\",\"lang\":\"painless\"}}}}";
+
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                searchSourceBuilder.derivedField("derived_field", "keyword", new Script("emit(doc['message']"));
+                searchSourceBuilder = rewrite(searchSourceBuilder);
+                assertEquals(2, searchSourceBuilder.getDerivedFieldsObject().size());
+                assertEquals(1, searchSourceBuilder.getDerivedFields().size());
+
+                try (BytesStreamOutput output = new BytesStreamOutput()) {
+                    searchSourceBuilder.writeTo(output);
+                    try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                        SearchSourceBuilder deserializedBuilder = new SearchSourceBuilder(in);
+                        String actualContent = deserializedBuilder.toString();
+                        assertEquals(expectedContent, actualContent);
+                        assertEquals(searchSourceBuilder.hashCode(), deserializedBuilder.hashCode());
+                        assertNotSame(searchSourceBuilder, deserializedBuilder);
+                    }
+                }
+            }
+        }
+
     }
 
     public void testAggsParsing() throws IOException {

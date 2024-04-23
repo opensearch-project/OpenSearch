@@ -68,13 +68,6 @@ public abstract class DerivedFieldScript {
         this.totalByteSize = 0;
     }
 
-    public DerivedFieldScript() {
-        this.params = null;
-        this.leafLookup = null;
-        this.emittedValues = new ArrayList<>();
-        this.totalByteSize = 0;
-    }
-
     /**
      * Return the parameters for this script.
      */

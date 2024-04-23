@@ -146,12 +146,12 @@ Adding in the change is two step process:
 2. Update the entry for your change in [`CHANGELOG.md`](CHANGELOG.md) and make sure that you reference the pull request there.
 
 ### Where should I put my CHANGELOG entry?
-Please review the [branching strategy](https://github.com/opensearch-project/.github/blob/main/RELEASING.md#opensearch-branching) document. The changelog on the `main` branch will contain sections for the _next major_ and _next minor_ releases. Your entry should go into the section it is intended to be released in. In practice, most changes to `main` will be backported to the next minor release so most entries will likely be in that section.
+Please review the [branching strategy](https://github.com/opensearch-project/.github/blob/main/RELEASING.md#opensearch-branching) document. The changelog on the `main` branch will contain **two files**: `CHANGELOG.md` which corresponds to unreleased changes intended for the _next minor_ release and `CHANGELOG-3.0.md` which correspond to unreleased changes intended for the _next major_ release. Your entry should go into file corresponding to the version it is intended to be released in. In practice, most changes to `main` will be backported to the next minor release so most entries will be in the `CHANGELOG.md` file.
 
 The following examples assume the _next major_ release on main is 3.0, then _next minor_ release is 2.5, and the _current_ release is 2.4.
 
-- **Add a new feature to release in next minor:** Add a changelog entry to `[Unreleased 2.x]` on main, then backport to 2.x (including the changelog entry).
-- **Introduce a breaking API change to release in next major:** Add a changelog entry to `[Unreleased 3.0]` on main, do not backport.
+- **Add a new feature to release in next minor:** Add a changelog entry to `[Unreleased 2.x]` in CHANGELOG.md on main, then backport to 2.x (including the changelog entry).
+- **Introduce a breaking API change to release in next major:** Add a changelog entry to `[Unreleased 3.0]` to CHANGELOG-3.0.md on main, do not backport.
 - **Upgrade a dependency to fix a CVE:** Add a changelog entry to `[Unreleased 2.x]` on main, then backport to 2.x (including the changelog entry), then backport to 2.4 and ensure the changelog entry is added to `[Unreleased 2.4.1]`.
 
 ## Review Process

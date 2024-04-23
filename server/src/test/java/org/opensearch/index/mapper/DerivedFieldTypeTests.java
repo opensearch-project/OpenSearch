@@ -15,6 +15,7 @@ import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.script.Script;
 
 import java.util.List;
@@ -28,9 +29,7 @@ public class DerivedFieldTypeTests extends FieldTypeTestCase {
         Mapper.BuilderContext context = mock(Mapper.BuilderContext.class);
         when(context.path()).thenReturn(new ContentPath());
         return new DerivedFieldType(
-            type + " _derived_field",
-            type,
-            new Script(""),
+            new DerivedField(type + " _derived_field", type, new Script("")),
             DerivedFieldSupportedTypes.getFieldMapperFromType(type, type + "_derived_field", context),
             DerivedFieldSupportedTypes.getIndexableFieldGeneratorType(type, type + "_derived_field")
         );
@@ -53,7 +52,7 @@ public class DerivedFieldTypeTests extends FieldTypeTestCase {
     public void testGeoPointType() {
         DerivedFieldType dft = createDerivedFieldType("geo_point");
         assertTrue(dft.typeFieldMapper instanceof GeoPointFieldMapper);
-        assertTrue(dft.indexableFieldGenerator.apply(List.of(10.0, 20.0)) instanceof LatLonPoint);
+        assertTrue(dft.indexableFieldGenerator.apply(new Tuple<>(10.0, 20.0)) instanceof LatLonPoint);
         expectThrows(ClassCastException.class, () -> dft.indexableFieldGenerator.apply(List.of(10.0)));
         expectThrows(ClassCastException.class, () -> dft.indexableFieldGenerator.apply(List.of()));
         expectThrows(ClassCastException.class, () -> dft.indexableFieldGenerator.apply(List.of("10")));
