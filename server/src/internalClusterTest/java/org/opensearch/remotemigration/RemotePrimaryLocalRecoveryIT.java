@@ -37,13 +37,14 @@ import static org.opensearch.index.store.RemoteSegmentStoreDirectory.SEGMENT_NAM
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemotePrimaryLocalRecoveryIT extends MigrationBaseTestCase {
     String indexName = "idx1";
-    int numOfNodes = randomIntBetween(4, 9);
+    int numOfNodes = randomIntBetween(6, 9);
 
     /**
      * Tests local recovery sanity in the happy path flow
      */
     public void testLocalRecoveryRollingRestart() throws Exception {
         triggerRollingRestartForRemoteMigration(0);
+        internalCluster().stopAllNodes();
     }
 
     /**
@@ -53,7 +54,7 @@ public class RemotePrimaryLocalRecoveryIT extends MigrationBaseTestCase {
         triggerRollingRestartForRemoteMigration(0);
 
         DiscoveryNodes discoveryNodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
-        DiscoveryNode nodeToRestart = (DiscoveryNode) discoveryNodes.getDataNodes().values().toArray()[randomIntBetween(0, numOfNodes - 2)];
+        DiscoveryNode nodeToRestart = (DiscoveryNode) discoveryNodes.getDataNodes().values().toArray()[randomIntBetween(0, numOfNodes - 4)];
         internalCluster().restartNode(nodeToRestart.getName());
 
         Map<ShardRouting, ShardStats> shardStatsMap = internalCluster().client().admin().indices().prepareStats(indexName).get().asMap();
@@ -90,6 +91,8 @@ public class RemotePrimaryLocalRecoveryIT extends MigrationBaseTestCase {
                 );
             }, 90, TimeUnit.SECONDS);
         }
+
+        internalCluster().stopAllNodes();
     }
 
     /**
@@ -97,14 +100,15 @@ public class RemotePrimaryLocalRecoveryIT extends MigrationBaseTestCase {
      */
     public void testLocalRecoveryFlowWithReplicas() throws Exception {
         triggerRollingRestartForRemoteMigration(randomIntBetween(1, 2));
+        internalCluster().stopAllNodes();
     }
 
     /**
      * Helper method to run a rolling restart for migration to remote backed cluster
      */
     private void triggerRollingRestartForRemoteMigration(int replicaCount) throws Exception {
-        internalCluster().startNodes(numOfNodes - 1);
-        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startClusterManagerOnlyNodes(3);
+        internalCluster().startNodes(numOfNodes - 3);
 
         // create index
         Settings indexSettings = Settings.builder()
