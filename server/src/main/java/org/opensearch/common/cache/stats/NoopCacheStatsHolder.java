@@ -17,6 +17,11 @@ import java.util.List;
  */
 public class NoopCacheStatsHolder implements CacheStatsHolder {
     private static final NoopCacheStatsHolder singletonInstance = new NoopCacheStatsHolder();
+    private static final ImmutableCacheStatsHolder immutableCacheStatsHolder;
+    static {
+        ImmutableCacheStatsHolder.Node dummyNode = new ImmutableCacheStatsHolder.Node("", null, new ImmutableCacheStats(0, 0, 0, 0, 0));
+        immutableCacheStatsHolder = new ImmutableCacheStatsHolder(dummyNode, List.of());
+    }
 
     private NoopCacheStatsHolder() {}
 
@@ -58,7 +63,6 @@ public class NoopCacheStatsHolder implements CacheStatsHolder {
 
     @Override
     public ImmutableCacheStatsHolder getImmutableCacheStatsHolder() {
-        ImmutableCacheStatsHolder.Node dummyNode = new ImmutableCacheStatsHolder.Node("", null, new ImmutableCacheStats(0, 0, 0, 0, 0));
-        return new ImmutableCacheStatsHolder(dummyNode, List.of());
+        return immutableCacheStatsHolder;
     }
 }
