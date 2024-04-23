@@ -134,7 +134,12 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
 
     @Override
     public ImmutableCacheStatsHolder stats() {
-        return cacheStatsHolder.getImmutableCacheStatsHolder();
+        return stats(null);
+    }
+
+    @Override
+    public ImmutableCacheStatsHolder stats(String[] levels) {
+        return cacheStatsHolder.getImmutableCacheStatsHolder(levels);
     }
 
     @Override

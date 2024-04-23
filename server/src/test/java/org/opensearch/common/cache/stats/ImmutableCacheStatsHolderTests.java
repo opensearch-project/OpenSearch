@@ -32,17 +32,27 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
         CacheStatsHolder statsHolder = new CacheStatsHolder(dimensionNames, storeName);
         Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
         CacheStatsHolderTests.populateStats(statsHolder, usedDimensionValues, 100, 10);
-        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder();
+        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder(null);
+        assertNotEquals(0, stats.getStatsRoot().children.size());
 
         BytesStreamOutput os = new BytesStreamOutput();
         stats.writeTo(os);
         BytesStreamInput is = new BytesStreamInput(BytesReference.toBytes(os.bytes()));
         ImmutableCacheStatsHolder deserialized = new ImmutableCacheStatsHolder(is);
 
-        assertEquals(stats.dimensionNames, deserialized.dimensionNames);
-        assertEquals(stats.storeName, deserialized.storeName);
-
         assertEquals(stats, deserialized);
+
+        // also test empty dimension stats
+        ImmutableCacheStatsHolder emptyDims = statsHolder.getImmutableCacheStatsHolder(new String[] {});
+        assertEquals(0, emptyDims.getStatsRoot().children.size());
+        assertEquals(stats.getTotalStats(), emptyDims.getTotalStats());
+
+        os = new BytesStreamOutput();
+        emptyDims.writeTo(os);
+        is = new BytesStreamInput(BytesReference.toBytes(os.bytes()));
+        deserialized = new ImmutableCacheStatsHolder(is);
+
+        assertEquals(emptyDims, deserialized);
     }
 
     public void testEquals() throws Exception {
@@ -53,13 +63,13 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
         Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
         CacheStatsHolderTests.populateStats(List.of(statsHolder, differentStoreNameStatsHolder), usedDimensionValues, 100, 10);
         CacheStatsHolderTests.populateStats(nonMatchingStatsHolder, usedDimensionValues, 100, 10);
-        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder();
+        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder(null);
 
-        ImmutableCacheStatsHolder secondStats = statsHolder.getImmutableCacheStatsHolder();
+        ImmutableCacheStatsHolder secondStats = statsHolder.getImmutableCacheStatsHolder(null);
         assertEquals(stats, secondStats);
-        ImmutableCacheStatsHolder nonMatchingStats = nonMatchingStatsHolder.getImmutableCacheStatsHolder();
+        ImmutableCacheStatsHolder nonMatchingStats = nonMatchingStatsHolder.getImmutableCacheStatsHolder(null);
         assertNotEquals(stats, nonMatchingStats);
-        ImmutableCacheStatsHolder differentStoreNameStats = differentStoreNameStatsHolder.getImmutableCacheStatsHolder();
+        ImmutableCacheStatsHolder differentStoreNameStats = differentStoreNameStatsHolder.getImmutableCacheStatsHolder(null);
         assertNotEquals(stats, differentStoreNameStats);
     }
 
@@ -68,7 +78,7 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
         CacheStatsHolder cacheStatsHolder = new CacheStatsHolder(dimensionNames, storeName);
         Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(cacheStatsHolder, 10);
         Map<List<String>, CacheStats> expected = CacheStatsHolderTests.populateStats(cacheStatsHolder, usedDimensionValues, 1000, 10);
-        ImmutableCacheStatsHolder stats = cacheStatsHolder.getImmutableCacheStatsHolder();
+        ImmutableCacheStatsHolder stats = cacheStatsHolder.getImmutableCacheStatsHolder(dimensionNames.toArray(new String[0]));
 
         // test the value in the map is as expected for each distinct combination of values
         for (List<String> dimensionValues : expected.keySet()) {
@@ -103,7 +113,7 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
         CacheStatsHolder cacheStatsHolder = new CacheStatsHolder(List.of(), storeName);
         Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(cacheStatsHolder, 100);
         CacheStatsHolderTests.populateStats(cacheStatsHolder, usedDimensionValues, 10, 100);
-        ImmutableCacheStatsHolder stats = cacheStatsHolder.getImmutableCacheStatsHolder();
+        ImmutableCacheStatsHolder stats = cacheStatsHolder.getImmutableCacheStatsHolder(null);
 
         ImmutableCacheStatsHolder.Node statsRoot = stats.getStatsRoot();
         assertEquals(0, statsRoot.children.size());
@@ -116,17 +126,16 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
         CacheStatsHolder statsHolder = new CacheStatsHolder(dimensionNames, storeName);
         Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
         Map<List<String>, CacheStats> expected = CacheStatsHolderTests.populateStats(statsHolder, usedDimensionValues, 1000, 10);
-        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder();
+        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder(dimensionNames.toArray(new String[0]));
 
-        ImmutableCacheStatsHolder.Node aggregated = stats.aggregateByLevels(dimensionNames);
         for (Map.Entry<List<String>, CacheStats> expectedEntry : expected.entrySet()) {
             List<String> dimensionValues = new ArrayList<>();
             for (String dimValue : expectedEntry.getKey()) {
                 dimensionValues.add(dimValue);
             }
-            assertEquals(expectedEntry.getValue().immutableSnapshot(), getNode(dimensionValues, aggregated).getStats());
+            assertEquals(expectedEntry.getValue().immutableSnapshot(), getNode(dimensionValues, stats.statsRoot).getStats());
         }
-        assertSumOfChildrenStats(aggregated);
+        assertSumOfChildrenStats(stats.statsRoot);
     }
 
     public void testAggregateBySomeDimensions() throws Exception {
@@ -134,7 +143,6 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
         CacheStatsHolder statsHolder = new CacheStatsHolder(dimensionNames, storeName);
         Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
         Map<List<String>, CacheStats> expected = CacheStatsHolderTests.populateStats(statsHolder, usedDimensionValues, 1000, 10);
-        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder();
 
         for (int i = 0; i < (1 << dimensionNames.size()); i++) {
             // Test each combination of possible levels
@@ -144,11 +152,15 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
                     levels.add(dimensionNames.get(nameIndex));
                 }
             }
+
             if (levels.size() == 0) {
-                assertThrows(IllegalArgumentException.class, () -> stats.aggregateByLevels(levels));
+                // If we pass empty levels to CacheStatsHolder to aggregate by, we should only get a root node with the total stats in it
+                ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder(levels.toArray(new String[0]));
+                assertEquals(statsHolder.getStatsRoot().getImmutableStats(), stats.getStatsRoot().getStats());
+                assertEquals(0, stats.getStatsRoot().children.size());
             } else {
-                ImmutableCacheStatsHolder.Node aggregated = stats.aggregateByLevels(levels);
-                Map<List<String>, ImmutableCacheStatsHolder.Node> aggregatedLeafNodes = getAllLeafNodes(aggregated);
+                ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder(levels.toArray(new String[0]));
+                Map<List<String>, ImmutableCacheStatsHolder.Node> aggregatedLeafNodes = getAllLeafNodes(stats.statsRoot);
 
                 for (Map.Entry<List<String>, ImmutableCacheStatsHolder.Node> aggEntry : aggregatedLeafNodes.entrySet()) {
                     CacheStats expectedCounter = new CacheStats();
@@ -159,7 +171,7 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
                     }
                     assertEquals(expectedCounter.immutableSnapshot(), aggEntry.getValue().getStats());
                 }
-                assertSumOfChildrenStats(aggregated);
+                assertSumOfChildrenStats(stats.statsRoot);
             }
         }
     }
@@ -181,13 +193,13 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
                 new CacheStats(4, 4, 4, 4, 4)
             )
         );
-        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder();
+        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder(dimensionNames.toArray(new String[0]));
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         ToXContent.Params params = ToXContent.EMPTY_PARAMS;
 
         builder.startObject();
-        stats.toXContentForLevels(builder, params, List.of("A", "B", "C"));
+        stats.toXContentForLevels(builder, params);
         builder.endObject();
         String resultString = builder.toString();
         Map<String, Object> result = XContentHelper.convertToMap(MediaTypeRegistry.JSON.xContent(), resultString, true);
@@ -233,12 +245,13 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
         CacheStatsHolder statsHolder = new CacheStatsHolder(dimensionNames, storeName);
         Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
         CacheStatsHolderTests.populateStats(statsHolder, usedDimensionValues, 100, 10);
-        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder();
 
         // If the levels in the params are empty or contains only unrecognized levels, we should only see the total stats and no level
         // aggregation
-        List<ToXContent.Params> paramsList = List.of(ToXContent.EMPTY_PARAMS, getLevelParams(List.of()), getLevelParams(List.of("D")));
-        for (ToXContent.Params params : paramsList) {
+        List<List<String>> levelsList = List.of(List.of(), List.of("D"));
+        for (List<String> levels : levelsList) {
+            ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder(levels.toArray(new String[0]));
+            ToXContent.Params params = getLevelParams(levels);
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             stats.toXContent(builder, params);
@@ -253,7 +266,9 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
         }
 
         // if we pass recognized levels in any order, alongside ignored unrecognized levels, we should see the above plus level aggregation
-        ToXContent.Params params = getLevelParams(List.of("C", "A", "E"));
+        List<String> levels = List.of("C", "A", "E");
+        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder(levels.toArray(new String[0]));
+        ToXContent.Params params = getLevelParams(levels);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         stats.toXContent(builder, params);

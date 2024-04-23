@@ -65,6 +65,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     private boolean includeOnlyTopIndexingPressureMetrics = false;
     // Used for metric CACHE_STATS, to determine which caches to report stats for
     private EnumSet<CacheType> includeCaches = EnumSet.noneOf(CacheType.class);
+    private String[] levels;
 
     /**
      * @param flags flags to set. If no flags are supplied, default flags will be set.
@@ -96,6 +97,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         includeOnlyTopIndexingPressureMetrics = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             includeCaches = in.readEnumSet(CacheType.class);
+            levels = in.readStringArray();
         }
     }
 
@@ -119,6 +121,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeEnumSet(includeCaches);
+            out.writeStringArrayNullable(levels);
         }
     }
 
@@ -135,6 +138,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         includeAllShardIndexingPressureTrackers = false;
         includeOnlyTopIndexingPressureMetrics = false;
         includeCaches = EnumSet.noneOf(CacheType.class);
+        levels = null;
         return this;
     }
 
@@ -151,6 +155,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         includeAllShardIndexingPressureTrackers = false;
         includeOnlyTopIndexingPressureMetrics = false;
         includeCaches = EnumSet.noneOf(CacheType.class);
+        levels = null;
         return this;
     }
 
@@ -164,6 +169,10 @@ public class CommonStatsFlags implements Writeable, Cloneable {
 
     public EnumSet<CacheType> getIncludeCaches() {
         return includeCaches;
+    }
+
+    public String[] getLevels() {
+        return levels;
     }
 
     /**
@@ -228,6 +237,11 @@ public class CommonStatsFlags implements Writeable, Cloneable {
 
     public CommonStatsFlags includeAllCacheTypes() {
         includeCaches = EnumSet.allOf(CacheType.class);
+        return this;
+    }
+
+    public CommonStatsFlags setLevels(String[] inputLevels) {
+        levels = inputLevels;
         return this;
     }
 

@@ -209,6 +209,11 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         return null; // TODO: in TSC stats PR
     }
 
+    @Override
+    public ImmutableCacheStatsHolder stats(String[] levels) {
+        return null; // TODO: in TSC stats PR
+    }
+
     private Function<ICacheKey<K>, V> getValueFromTieredCache() {
         return key -> {
             try (ReleasableLock ignore = readLock.acquire()) {

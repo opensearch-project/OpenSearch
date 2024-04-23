@@ -965,7 +965,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     flags.includeCacheType(cacheType);
                 }
             }
-            ImmutableCacheStatsHolder cacheStats = statsHolder.getImmutableCacheStatsHolder();
+            ImmutableCacheStatsHolder cacheStats = statsHolder.getImmutableCacheStatsHolder(dimensionNames.toArray(new String[0]));
             Map<CacheType, ImmutableCacheStatsHolder> cacheStatsMap = new HashMap<>();
             cacheStatsMap.put(CacheType.INDICES_REQUEST_CACHE, cacheStats);
             nodeCacheStats = new NodeCacheStats(cacheStatsMap, flags);

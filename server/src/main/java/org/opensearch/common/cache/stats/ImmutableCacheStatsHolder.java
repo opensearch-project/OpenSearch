@@ -35,15 +35,24 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
     // Root node of immutable snapshot of stats within a CacheStatsHolder, containing all the stats maintained by the cache.
     // Pkg-private for testing.
     final Node statsRoot;
+    // The dimension names for each level in this tree.
     final List<String> dimensionNames;
     // The name of the cache type producing these stats. Returned in API response.
     final String storeName;
     public static String STORE_NAME_FIELD = "store_name";
 
-    public ImmutableCacheStatsHolder(Node statsRoot, List<String> dimensionNames, String storeName) {
-        this.statsRoot = statsRoot;
-        this.dimensionNames = dimensionNames;
+    ImmutableCacheStatsHolder(
+        CacheStatsHolder.Node originalStatsRoot,
+        List<String> levels,
+        List<String> originalDimensionNames,
+        String storeName
+    ) {
+        // Aggregate from the original CacheStatsHolder according to the levels passed in.
+        List<String> filteredLevels = filterLevels(levels, originalDimensionNames);
+        this.dimensionNames = filteredLevels; // The dimension names for this immutable snapshot should reflect the levels we aggregate in
+                                              // the snapshot
         this.storeName = storeName;
+        this.statsRoot = aggregateByLevels(filteredLevels, originalStatsRoot, originalDimensionNames);
     }
 
     public ImmutableCacheStatsHolder(StreamInput in) throws IOException {
@@ -51,17 +60,12 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
         // of the last node we read. This allows us to avoid ambiguity if nodes have the same dimension value, without
         // having to serialize the whole path to each node.
         this.dimensionNames = List.of(in.readStringArray());
-        this.statsRoot = new Node("", false, new ImmutableCacheStats(0, 0, 0, 0, 0));
+        ImmutableCacheStats rootNodeStats = new ImmutableCacheStats(in);
+        this.statsRoot = new Node("", false, rootNodeStats);
         List<Node> ancestorsOfLastRead = List.of(statsRoot);
         while (ancestorsOfLastRead != null) {
             ancestorsOfLastRead = readAndAttachDimensionNode(in, ancestorsOfLastRead);
         }
-        // Finally, update sum-of-children stats for the root node
-        CacheStats totalStats = new CacheStats();
-        for (Node child : statsRoot.children.values()) {
-            totalStats.add(child.getStats());
-        }
-        statsRoot.incrementStats(totalStats.immutableSnapshot());
         this.storeName = in.readString();
     }
 
@@ -70,6 +74,7 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
         // Write each node in preorder order, along with its depth.
         // Then, when rebuilding the tree from the stream, we can always find the correct parent to attach each node to.
         out.writeStringArray(dimensionNames.toArray(new String[0]));
+        statsRoot.stats.writeTo(out);
         for (Node child : statsRoot.children.values()) {
             writeDimensionNodeRecursive(out, child, 1);
         }
@@ -158,13 +163,10 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
      * The new tree only has dimensions matching the levels passed in.
      * The levels passed in must be in the proper order, as they would be in the output of filterLevels().
      */
-    Node aggregateByLevels(List<String> filteredLevels) {
-        if (filteredLevels.isEmpty()) {
-            throw new IllegalArgumentException("Filtered levels passed to aggregateByLevels() cannot be empty");
-        }
-        Node newRoot = new Node("", false, statsRoot.getStats());
-        for (Node child : statsRoot.children.values()) {
-            aggregateByLevelsHelper(newRoot, child, filteredLevels, 0);
+    Node aggregateByLevels(List<String> filteredLevels, CacheStatsHolder.Node originalStatsRoot, List<String> originalDimensionNames) {
+        Node newRoot = new Node("", false, originalStatsRoot.getImmutableStats());
+        for (CacheStatsHolder.Node child : originalStatsRoot.children.values()) {
+            aggregateByLevelsHelper(newRoot, child, filteredLevels, originalDimensionNames, 0);
         }
         return newRoot;
     }
@@ -177,22 +179,28 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
      * This should be ok because the resulting trees are short-lived objects that are not exposed anywhere outside this class,
      * and the original tree is never changed.
      */
-    private void aggregateByLevelsHelper(Node parentInNewTree, Node currentInOriginalTree, List<String> levels, int depth) {
-        if (levels.contains(dimensionNames.get(depth))) {
+    private void aggregateByLevelsHelper(
+        Node parentInNewTree,
+        CacheStatsHolder.Node currentInOriginalTree,
+        List<String> levels,
+        List<String> originalDimensionNames,
+        int depth
+    ) {
+        if (levels.contains(originalDimensionNames.get(depth))) {
             // If this node is in a level we want to aggregate, create a new dimension node with the same value and stats, and connect it to
             // the last parent node in the new tree. If it already exists, increment it instead.
             String dimensionValue = currentInOriginalTree.getDimensionValue();
             Node nodeInNewTree = parentInNewTree.children.get(dimensionValue);
             if (nodeInNewTree == null) {
                 // Create new node with stats matching the node from the original tree
-                int indexOfLastLevel = dimensionNames.indexOf(levels.get(levels.size() - 1));
+                int indexOfLastLevel = originalDimensionNames.indexOf(levels.get(levels.size() - 1));
                 boolean isLeafNode = depth == indexOfLastLevel; // If this is the last level we aggregate, the new node should be a leaf
                 // node
-                nodeInNewTree = new Node(dimensionValue, isLeafNode, currentInOriginalTree.getStats());
+                nodeInNewTree = new Node(dimensionValue, isLeafNode, currentInOriginalTree.getImmutableStats());
                 parentInNewTree.addChild(dimensionValue, nodeInNewTree);
             } else {
                 // Otherwise increment existing stats
-                nodeInNewTree.incrementStats(currentInOriginalTree.getStats());
+                nodeInNewTree.incrementStats(currentInOriginalTree.getImmutableStats());
             }
             // Finally set the parent node to be this node for the next callers of this function
             parentInNewTree = nodeInNewTree;
@@ -200,9 +208,9 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
 
         if (!currentInOriginalTree.children.isEmpty()) {
             // Not a leaf node
-            for (Map.Entry<String, Node> childEntry : currentInOriginalTree.children.entrySet()) {
-                Node child = childEntry.getValue();
-                aggregateByLevelsHelper(parentInNewTree, child, levels, depth + 1);
+            for (Map.Entry<String, CacheStatsHolder.Node> childEntry : currentInOriginalTree.children.entrySet()) {
+                CacheStatsHolder.Node child = childEntry.getValue();
+                aggregateByLevelsHelper(parentInNewTree, child, levels, originalDimensionNames, depth + 1);
             }
         }
     }
@@ -211,12 +219,12 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
      * Filters out levels that aren't in dimensionNames, and orders the resulting list to match the order in dimensionNames.
      * Unrecognized levels are ignored.
      */
-    private List<String> filterLevels(List<String> levels) {
+    private List<String> filterLevels(List<String> levels, List<String> originalDimensionNames) {
         if (levels == null) {
             return new ArrayList<>();
         }
         List<String> filtered = new ArrayList<>();
-        for (String dimensionName : dimensionNames) {
+        for (String dimensionName : originalDimensionNames) {
             if (levels.contains(dimensionName)) {
                 filtered.add(dimensionName);
             }
@@ -229,9 +237,9 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
         // Always show total stats, regardless of levels
         getTotalStats().toXContent(builder, params);
 
-        List<String> filteredLevels = filterLevels(getLevels(params));
+        List<String> filteredLevels = filterLevels(getLevels(params), dimensionNames);
         if (!filteredLevels.isEmpty()) {
-            toXContentForLevels(builder, params, filteredLevels);
+            toXContentForLevels(builder, params);
         }
 
         // Also add the store name for the cache that produced the stats
@@ -239,26 +247,24 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
         return builder;
     }
 
-    XContentBuilder toXContentForLevels(XContentBuilder builder, Params params, List<String> filteredLevels) throws IOException {
-        Node aggregated = aggregateByLevels(filteredLevels);
+    XContentBuilder toXContentForLevels(XContentBuilder builder, Params params) throws IOException {
         // Depth -1 corresponds to the dummy root node
-        toXContentForLevelsHelper(-1, aggregated, filteredLevels, builder, params);
+        toXContentForLevelsHelper(-1, statsRoot, builder, params);
         return builder;
     }
 
-    private void toXContentForLevelsHelper(int depth, Node current, List<String> levels, XContentBuilder builder, Params params)
-        throws IOException {
+    private void toXContentForLevelsHelper(int depth, Node current, XContentBuilder builder, Params params) throws IOException {
         if (depth >= 0) {
             builder.startObject(current.dimensionValue);
         }
 
-        if (depth == levels.size() - 1) {
+        if (depth == dimensionNames.size() - 1) {
             // This is a leaf node
             current.getStats().toXContent(builder, params);
         } else {
-            builder.startObject(levels.get(depth + 1));
+            builder.startObject(dimensionNames.get(depth + 1));
             for (Node nextNode : current.children.values()) {
-                toXContentForLevelsHelper(depth + 1, nextNode, levels, builder, params);
+                toXContentForLevelsHelper(depth + 1, nextNode, builder, params);
             }
             builder.endObject();
         }

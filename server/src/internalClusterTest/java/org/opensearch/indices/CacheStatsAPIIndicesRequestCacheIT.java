@@ -166,7 +166,7 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
         Client client = client();
         startIndex(client, index);
 
-        int numKeys = Randomness.get().nextInt(100);
+        int numKeys = Randomness.get().nextInt(100) + 1;
         for (int i = 0; i < numKeys; i++) {
             searchIndex(client, index, String.valueOf(i));
         }
@@ -195,6 +195,19 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
         );
         // Don't check entries, as the old API doesn't track this
         checkCacheStatsAPIResponse(xContentMap, xContentMapKeys, expected, true, false);
+    }
+
+    public void testNullLevels() throws Exception {
+        String index = "index";
+        Client client = client();
+        startIndex(client, index);
+        int numKeys = Randomness.get().nextInt(100) + 1;
+        for (int i = 0; i < numKeys; i++) {
+            searchIndex(client, index, String.valueOf(i));
+        }
+        Map<String, Object> xContentMap = getNodeCacheStatsXContentMap(client, null);
+        // Null levels should result in only the total cache stats being returned -> 6 fields inside the response.
+        assertEquals(6, ((Map<String, Object>) xContentMap.get("request_cache")).size());
     }
 
     private void startIndex(Client client, String indexName) throws InterruptedException {
@@ -229,6 +242,13 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
 
         CommonStatsFlags statsFlags = new CommonStatsFlags();
         statsFlags.includeAllCacheTypes();
+        String[] flagsLevels;
+        if (aggregationLevels == null) {
+            flagsLevels = null;
+        } else {
+            flagsLevels = aggregationLevels.toArray(new String[0]);
+        }
+        statsFlags.setLevels(flagsLevels);
 
         NodesStatsResponse nodeStatsResponse = client.admin()
             .cluster()
@@ -242,7 +262,7 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         Map<String, String> paramMap = new HashMap<>();
-        if (!aggregationLevels.isEmpty()) {
+        if (aggregationLevels != null && !aggregationLevels.isEmpty()) {
             paramMap.put("level", String.join(",", aggregationLevels));
         }
         ToXContent.Params params = new ToXContent.MapParams(paramMap);

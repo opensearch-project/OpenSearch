@@ -229,6 +229,10 @@ public class RestNodesStatsAction extends BaseRestHandler {
             nodesStatsRequest.indices().includeOnlyTopIndexingPressureMetrics(request.paramAsBoolean("top", false));
         }
 
+        // If no levels are passed in this results in an empty array.
+        String[] levels = Strings.splitStringByCommaToArray(request.param("level"));
+        nodesStatsRequest.indices().setLevels(levels);
+
         return channel -> client.admin().cluster().nodesStats(nodesStatsRequest, new NodesResponseRestListener<>(channel));
     }
 

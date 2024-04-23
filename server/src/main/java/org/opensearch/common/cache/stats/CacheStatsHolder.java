@@ -10,6 +10,7 @@ package org.opensearch.common.cache.stats;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -160,10 +161,17 @@ public class CacheStatsHolder {
     }
 
     /**
-     * Produce an immutable version of these stats.
+     * Produce an immutable version of these stats, aggregated according to levels.
+     * If levels is null, do not aggregate and return an immutable version of the original tree.
      */
-    public ImmutableCacheStatsHolder getImmutableCacheStatsHolder() {
-        return new ImmutableCacheStatsHolder(statsRoot.snapshot(), dimensionNames, storeName);
+    public ImmutableCacheStatsHolder getImmutableCacheStatsHolder(String[] levels) {
+        List<String> levelsList;
+        if (levels == null) {
+            levelsList = dimensionNames;
+        } else {
+            levelsList = Arrays.asList(levels);
+        }
+        return new ImmutableCacheStatsHolder(this.statsRoot, levelsList, dimensionNames, storeName);
     }
 
     public void removeDimensions(List<String> dimensionValues) {
