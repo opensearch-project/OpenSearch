@@ -13,10 +13,16 @@ import java.util.List;
 /**
  * A dummy version of CacheStatsHolder, which cache implementations use when FeatureFlags.PLUGGABLE_CACHES is false.
  * Returns all-zero stats when calling getImmutableCacheStatsHolder(). Always returns 0 for count().
+ * A singleton instance is used for memory purposes.
  */
 public class NoopCacheStatsHolder implements CacheStatsHolder {
+    private static final NoopCacheStatsHolder singletonInstance = new NoopCacheStatsHolder();
 
-    public NoopCacheStatsHolder() {}
+    private NoopCacheStatsHolder() {}
+
+    public static NoopCacheStatsHolder getInstance() {
+        return singletonInstance;
+    }
 
     @Override
     public void incrementHits(List<String> dimensionValues) {}

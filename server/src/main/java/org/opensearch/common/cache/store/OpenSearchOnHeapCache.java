@@ -53,8 +53,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
     private final RemovalListener<ICacheKey<K>, V> removalListener;
     private final List<String> dimensionNames;
     private final ToLongBiFunction<ICacheKey<K>, V> weigher;
-
-    private final Settings settings;
+    private final boolean useNoopStats;
 
     public OpenSearchOnHeapCache(Builder<K, V> builder) {
         CacheBuilder<ICacheKey<K>, V> cacheBuilder = CacheBuilder.<ICacheKey<K>, V>builder()
@@ -66,14 +65,14 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         }
         cache = cacheBuilder.build();
         this.dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
-        if (useNoopStats(builder.getSettings())) {
-            this.cacheStatsHolder = new NoopCacheStatsHolder();
+        this.useNoopStats = builder.useNoopStats;
+        if (useNoopStats) {
+            this.cacheStatsHolder = NoopCacheStatsHolder.getInstance();
         } else {
             this.cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames);
         }
         this.removalListener = builder.getRemovalListener();
         this.weigher = builder.getWeigher();
-        this.settings = builder.getSettings();
     }
 
     @Override
@@ -130,7 +129,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
 
     @Override
     public long count() {
-        if (useNoopStats(settings)) {
+        if (useNoopStats) {
             return cache.count();
         } else {
             return cacheStatsHolder.count();
@@ -165,11 +164,6 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         }
     }
 
-    private boolean useNoopStats(Settings settings) {
-        // Use noop stats when pluggable caching is off
-        return !FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings);
-    }
-
     /**
      * Factory to create OpenSearchOnheap cache.
      */
@@ -182,10 +176,10 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
             Map<String, Setting<?>> settingList = OpenSearchOnHeapCacheSettings.getSettingListForCacheType(cacheType);
             Settings settings = config.getSettings();
             ICacheBuilder<K, V> builder = new Builder<K, V>().setDimensionNames(config.getDimensionNames())
+                .setUseNoopStats(useNoopStats(config.getSettings()))
                 .setMaximumWeightInBytes(((ByteSizeValue) settingList.get(MAXIMUM_SIZE_IN_BYTES_KEY).get(settings)).getBytes())
                 .setExpireAfterAccess(((TimeValue) settingList.get(EXPIRE_AFTER_ACCESS_KEY).get(settings)))
                 .setWeigher(config.getWeigher())
-                .setSettings(config.getSettings())
                 .setRemovalListener(config.getRemovalListener());
             Setting<String> cacheSettingForCacheType = CacheSettings.CACHE_TYPE_STORE_NAME.getConcreteSettingForNamespace(
                 cacheType.getSettingPrefix()
@@ -203,6 +197,11 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         public String getCacheName() {
             return NAME;
         }
+
+        private boolean useNoopStats(Settings settings) {
+            // Use noop stats when pluggable caching is off
+            return !FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings);
+        }
     }
 
     /**
@@ -212,9 +211,15 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
      */
     public static class Builder<K, V> extends ICacheBuilder<K, V> {
         private List<String> dimensionNames;
+        private boolean useNoopStats;
 
         public Builder<K, V> setDimensionNames(List<String> dimensionNames) {
             this.dimensionNames = dimensionNames;
+            return this;
+        }
+
+        public Builder<K, V> setUseNoopStats(boolean useNoopStats) {
+            this.useNoopStats = useNoopStats;
             return this;
         }
 
