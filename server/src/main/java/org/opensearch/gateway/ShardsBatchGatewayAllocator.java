@@ -254,6 +254,9 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         allocation.routingNodes().forEach(routingNode -> routingNode.getInitializingShards().forEach(shardRouting -> {
             if (currentBatchedShards.containsKey(shardRouting.shardId()) && shardRouting.primary() == primary) {
                 batchedShardsToAssign.add(shardRouting.shardId());
+                // Set updated shard routing in batch if it already exists
+                String batchId = currentBatchedShards.get(shardRouting.shardId());
+                currentBatches.get(batchId).batchInfo.get(shardRouting.shardId()).setShardRouting(shardRouting);
             }
         }));
 
@@ -410,10 +413,6 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                     Sets.difference(newEphemeralIds, lastSeenEphemeralIds)
                 )
             );
-            // ToDo : Validate that we don't need below call for batch allocation
-            // storeShardBatchLookup.values().forEach(batch ->
-            // clearCacheForBatchPrimary(batchIdToStoreShardBatch.get(batch), allocation)
-            // );
             batchIdToStoreShardBatch.values().forEach(batch -> clearCacheForBatchPrimary(batch, allocation));
 
             // recalc to also (lazily) clear out old nodes.
@@ -422,20 +421,16 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     }
 
     private static void clearCacheForBatchPrimary(ShardsBatch batch, RoutingAllocation allocation) {
-        // We're not running below code because for removing a node from cache we need all replica's primaries
-        // to be assigned on same node. This was easy in single shard case and we're saving a call for a node
-        // if primary was already assigned for a replica. But here we don't keep track of per shard data in cache
-        // so it's not feasible to do any removal of node entry just based on single shard.
-        // ONLY run if single shard is present in the batch, to maintain backward compatibility
-        if (batch.getBatchedShards().size() == 1) {
-            List<ShardRouting> primaries = batch.getBatchedShards()
-                .stream()
-                .map(allocation.routingNodes()::activePrimary)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-            AsyncShardFetch<? extends BaseNodeResponse> fetch = batch.getAsyncFetcher();
-            primaries.forEach(node -> fetch.clearCacheForNode(node.currentNodeId()));
-        }
+        // We need to clear the cache for the primary shard to ensure we do not cancel recoveries based on excessively
+        // stale data. We do this by clearing the cache of primary shards on nodes for all the active primaries of
+        // replicas in the current batch.
+        List<ShardRouting> primaries = batch.getBatchedShards()
+            .stream()
+            .map(allocation.routingNodes()::activePrimary)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+        AsyncShardBatchFetch<? extends BaseNodeResponse, ?> fetch = batch.getAsyncFetcher();
+        primaries.forEach(shardRouting -> fetch.clearCache(shardRouting.currentNodeId(), shardRouting.shardId()));
     }
 
     private boolean hasNewNodes(DiscoveryNodes nodes) {
