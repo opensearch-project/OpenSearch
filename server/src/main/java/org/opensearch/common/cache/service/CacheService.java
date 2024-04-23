@@ -67,7 +67,7 @@ public class CacheService {
     }
 
     public NodeCacheStats stats(CommonStatsFlags flags) {
-        TreeMap<CacheType, ImmutableCacheStatsHolder> statsMap = new TreeMap<>();
+        final TreeMap<CacheType, ImmutableCacheStatsHolder> statsMap = new TreeMap<>();
         for (CacheType type : cacheTypeMap.keySet()) {
             statsMap.put(type, cacheTypeMap.get(type).stats(flags.getLevels()));
         }

@@ -10,12 +10,10 @@ package org.opensearch.common.cache.stats;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -165,13 +163,7 @@ public class CacheStatsHolder {
      * If levels is null, do not aggregate and return an immutable version of the original tree.
      */
     public ImmutableCacheStatsHolder getImmutableCacheStatsHolder(String[] levels) {
-        List<String> levelsList;
-        if (levels == null) {
-            levelsList = dimensionNames;
-        } else {
-            levelsList = Arrays.asList(levels);
-        }
-        return new ImmutableCacheStatsHolder(this.statsRoot, levelsList, dimensionNames, storeName);
+        return new ImmutableCacheStatsHolder(this.statsRoot, levels, dimensionNames, storeName);
     }
 
     public void removeDimensions(List<String> dimensionValues) {
@@ -293,17 +285,6 @@ public class CacheStatsHolder {
 
         Node createChild(String dimensionValue, boolean createMapInChild) {
             return children.computeIfAbsent(dimensionValue, (key) -> new Node(dimensionValue, createMapInChild));
-        }
-
-        ImmutableCacheStatsHolder.Node snapshot() {
-            TreeMap<String, ImmutableCacheStatsHolder.Node> snapshotChildren = null;
-            if (!children.isEmpty()) {
-                snapshotChildren = new TreeMap<>();
-                for (Node child : children.values()) {
-                    snapshotChildren.put(child.getDimensionValue(), child.snapshot());
-                }
-            }
-            return new ImmutableCacheStatsHolder.Node(dimensionValue, snapshotChildren, getImmutableStats());
         }
     }
 }

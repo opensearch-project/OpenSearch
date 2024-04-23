@@ -199,7 +199,7 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
         ToXContent.Params params = ToXContent.EMPTY_PARAMS;
 
         builder.startObject();
-        stats.toXContentForLevels(builder, params);
+        stats.toXContent(builder, params);
         builder.endObject();
         String resultString = builder.toString();
         Map<String, Object> result = XContentHelper.convertToMap(MediaTypeRegistry.JSON.xContent(), resultString, true);

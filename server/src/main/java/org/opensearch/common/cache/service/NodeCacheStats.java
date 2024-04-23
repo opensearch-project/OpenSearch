@@ -19,9 +19,8 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
+import java.util.SortedMap;
 
 /**
  * A class creating XContent responses to cache stats API requests.
@@ -31,18 +30,17 @@ import java.util.TreeMap;
 @ExperimentalApi
 public class NodeCacheStats implements ToXContentFragment, Writeable {
     // Use TreeMap to force consistent ordering of caches in API responses
-    private final TreeMap<CacheType, ImmutableCacheStatsHolder> statsByCache;
+    private final SortedMap<CacheType, ImmutableCacheStatsHolder> statsByCache;
     private final CommonStatsFlags flags;
 
-    public NodeCacheStats(TreeMap<CacheType, ImmutableCacheStatsHolder> statsByCache, CommonStatsFlags flags) {
+    public NodeCacheStats(SortedMap<CacheType, ImmutableCacheStatsHolder> statsByCache, CommonStatsFlags flags) {
         this.statsByCache = statsByCache;
         this.flags = flags;
     }
 
     public NodeCacheStats(StreamInput in) throws IOException {
         this.flags = new CommonStatsFlags(in);
-        Map<CacheType, ImmutableCacheStatsHolder> readMap = in.readMap(i -> i.readEnum(CacheType.class), ImmutableCacheStatsHolder::new);
-        this.statsByCache = new TreeMap<>(readMap);
+        this.statsByCache = in.readOrderedMap(i -> i.readEnum(CacheType.class), ImmutableCacheStatsHolder::new);
     }
 
     @Override

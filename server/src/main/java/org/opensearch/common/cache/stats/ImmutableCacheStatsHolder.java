@@ -17,11 +17,12 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.SortedMap;
 import java.util.Stack;
 import java.util.TreeMap;
 
@@ -50,22 +51,23 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
 
     ImmutableCacheStatsHolder(
         CacheStatsHolder.Node originalStatsRoot,
-        List<String> levels,
+        String[] levels,
         List<String> originalDimensionNames,
         String storeName
     ) {
         // Aggregate from the original CacheStatsHolder according to the levels passed in.
-        List<String> filteredLevels = filterLevels(levels, originalDimensionNames);
-        this.dimensionNames = filteredLevels; // The dimension names for this immutable snapshot should reflect the levels we aggregate in
-                                              // the snapshot
+        // The dimension names for this immutable snapshot should reflect the levels we aggregate in the snapshot
+        this.dimensionNames = filterLevels(levels, originalDimensionNames);
         this.storeName = storeName;
-        this.statsRoot = aggregateByLevels(filteredLevels, originalStatsRoot, originalDimensionNames);
+        this.statsRoot = aggregateByLevels(originalStatsRoot, originalDimensionNames);
+        makeNodeUnmodifiable(statsRoot);
     }
 
     public ImmutableCacheStatsHolder(StreamInput in) throws IOException {
         this.dimensionNames = List.of(in.readStringArray());
         this.storeName = in.readString();
         this.statsRoot = deserializeTree(in);
+        makeNodeUnmodifiable(statsRoot);
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -90,7 +92,7 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
     }
 
     private Node deserializeTree(StreamInput in) throws IOException {
-        Stack<Node> stack = new Stack<>();
+        final Stack<Node> stack = new Stack<>();
         in.readString(); // Read and discard SERIALIZATION_BEGIN_NODE for the root node
         Node statsRoot = readSingleNode(in);
         Node current = statsRoot;
@@ -118,6 +120,15 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
         boolean isLeafNode = in.readBoolean();
         ImmutableCacheStats stats = new ImmutableCacheStats(in);
         return new Node(dimensionValue, isLeafNode, stats);
+    }
+
+    private void makeNodeUnmodifiable(Node node) {
+        if (!node.children.isEmpty()) {
+            node.children = Collections.unmodifiableSortedMap(node.children);
+        }
+        for (Node child : node.children.values()) {
+            makeNodeUnmodifiable(child);
+        }
     }
 
     public ImmutableCacheStats getTotalStats() {
@@ -160,10 +171,10 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
      * The new tree only has dimensions matching the levels passed in.
      * The levels passed in must be in the proper order, as they would be in the output of filterLevels().
      */
-    Node aggregateByLevels(List<String> filteredLevels, CacheStatsHolder.Node originalStatsRoot, List<String> originalDimensionNames) {
+    Node aggregateByLevels(CacheStatsHolder.Node originalStatsRoot, List<String> originalDimensionNames) {
         Node newRoot = new Node("", false, originalStatsRoot.getImmutableStats());
         for (CacheStatsHolder.Node child : originalStatsRoot.children.values()) {
-            aggregateByLevelsHelper(newRoot, child, filteredLevels, originalDimensionNames, 0);
+            aggregateByLevelsHelper(newRoot, child, originalDimensionNames, 0);
         }
         return newRoot;
     }
@@ -173,24 +184,25 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
      * fully recursively while also passing in a completed map of children nodes before constructing the parent node.
      * For this reason, in this function we have to build the new tree top down rather than bottom up.
      * We use private methods allowing us to add children to/increment the stats for an existing node.
-     * This should be ok because the resulting trees are short-lived objects that are not exposed anywhere outside this class,
-     * and the original tree is never changed.
+     * This should be ok because the resulting tree is unmodifiable after creation in the constructor.
+     *
+     * @param allDimensions the list of all dimensions present in the original CacheStatsHolder which produced
+     *                      the CacheStatsHolder.Node object we are traversing.
      */
     private void aggregateByLevelsHelper(
         Node parentInNewTree,
         CacheStatsHolder.Node currentInOriginalTree,
-        List<String> levels,
-        List<String> originalDimensionNames,
+        List<String> allDimensions,
         int depth
     ) {
-        if (levels.contains(originalDimensionNames.get(depth))) {
+        if (dimensionNames.contains(allDimensions.get(depth))) {
             // If this node is in a level we want to aggregate, create a new dimension node with the same value and stats, and connect it to
             // the last parent node in the new tree. If it already exists, increment it instead.
             String dimensionValue = currentInOriginalTree.getDimensionValue();
             Node nodeInNewTree = parentInNewTree.children.get(dimensionValue);
             if (nodeInNewTree == null) {
                 // Create new node with stats matching the node from the original tree
-                int indexOfLastLevel = originalDimensionNames.indexOf(levels.get(levels.size() - 1));
+                int indexOfLastLevel = allDimensions.indexOf(dimensionNames.get(dimensionNames.size() - 1));
                 boolean isLeafNode = depth == indexOfLastLevel; // If this is the last level we aggregate, the new node should be a leaf
                 // node
                 nodeInNewTree = new Node(dimensionValue, isLeafNode, currentInOriginalTree.getImmutableStats());
@@ -203,12 +215,9 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
             parentInNewTree = nodeInNewTree;
         }
 
-        if (!currentInOriginalTree.children.isEmpty()) {
-            // Not a leaf node
-            for (Map.Entry<String, CacheStatsHolder.Node> childEntry : currentInOriginalTree.children.entrySet()) {
-                CacheStatsHolder.Node child = childEntry.getValue();
-                aggregateByLevelsHelper(parentInNewTree, child, levels, originalDimensionNames, depth + 1);
-            }
+        for (Map.Entry<String, CacheStatsHolder.Node> childEntry : currentInOriginalTree.children.entrySet()) {
+            CacheStatsHolder.Node child = childEntry.getValue();
+            aggregateByLevelsHelper(parentInNewTree, child, allDimensions, depth + 1);
         }
     }
 
@@ -216,13 +225,14 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
      * Filters out levels that aren't in dimensionNames, and orders the resulting list to match the order in dimensionNames.
      * Unrecognized levels are ignored.
      */
-    private List<String> filterLevels(List<String> levels, List<String> originalDimensionNames) {
+    private List<String> filterLevels(String[] levels, List<String> originalDimensionNames) {
         if (levels == null) {
-            return new ArrayList<>();
+            return originalDimensionNames;
         }
+        List<String> levelsList = Arrays.asList(levels);
         List<String> filtered = new ArrayList<>();
         for (String dimensionName : originalDimensionNames) {
-            if (levels.contains(dimensionName)) {
+            if (levelsList.contains(dimensionName)) {
                 filtered.add(dimensionName);
             }
         }
@@ -235,8 +245,10 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
         getTotalStats().toXContent(builder, params);
 
         List<String> filteredLevels = filterLevels(getLevels(params), dimensionNames);
+        assert filteredLevels.equals(dimensionNames);
         if (!filteredLevels.isEmpty()) {
-            toXContentForLevels(builder, params);
+            // Depth -1 corresponds to the dummy root node
+            toXContentForLevels(-1, statsRoot, builder, params);
         }
 
         // Also add the store name for the cache that produced the stats
@@ -244,13 +256,7 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
         return builder;
     }
 
-    XContentBuilder toXContentForLevels(XContentBuilder builder, Params params) throws IOException {
-        // Depth -1 corresponds to the dummy root node
-        toXContentForLevelsHelper(-1, statsRoot, builder, params);
-        return builder;
-    }
-
-    private void toXContentForLevelsHelper(int depth, Node current, XContentBuilder builder, Params params) throws IOException {
+    private void toXContentForLevels(int depth, Node current, XContentBuilder builder, Params params) throws IOException {
         if (depth >= 0) {
             builder.startObject(current.dimensionValue);
         }
@@ -261,7 +267,7 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
         } else {
             builder.startObject(dimensionNames.get(depth + 1));
             for (Node nextNode : current.children.values()) {
-                toXContentForLevelsHelper(depth + 1, nextNode, builder, params);
+                toXContentForLevels(depth + 1, nextNode, builder, params);
             }
             builder.endObject();
         }
@@ -271,12 +277,12 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
         }
     }
 
-    private List<String> getLevels(Params params) {
+    private String[] getLevels(Params params) {
         String levels = params.param("level");
         if (levels == null) {
             return null;
         }
-        return List.of(levels.split(","));
+        return levels.split(",");
     }
 
     @Override
@@ -314,25 +320,17 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
         return Objects.hash(statsRoot.stats, dimensionNames);
     }
 
-    // A similar class to CacheStatsHolder.Node, which uses an ordered TreeMap and holds immutable CacheStatsSnapshot as its stats.
+    // A similar class to CacheStatsHolder.Node, which uses a SortedMap and holds immutable CacheStatsSnapshot as its stats.
     static class Node {
         private final String dimensionValue;
-        final Map<String, Node> children; // Map from dimensionValue to the Node for that dimension value
+        // Map from dimensionValue to the Node for that dimension value. Not final so we can set it to be unmodifiable before we are done in
+        // the constructor.
+        SortedMap<String, Node> children;
 
         // The stats for this node. If a leaf node, corresponds to the stats for this combination of dimensions; if not,
         // contains the sum of its children's stats.
         private ImmutableCacheStats stats;
-        private static final Map<String, Node> EMPTY_CHILDREN_MAP = Collections.unmodifiableMap(new HashMap<>());
-
-        Node(String dimensionValue, TreeMap<String, Node> snapshotChildren, ImmutableCacheStats stats) {
-            this.dimensionValue = dimensionValue;
-            this.stats = stats;
-            if (snapshotChildren == null) {
-                this.children = EMPTY_CHILDREN_MAP;
-            } else {
-                this.children = Collections.unmodifiableMap(snapshotChildren);
-            }
-        }
+        private static final SortedMap<String, Node> EMPTY_CHILDREN_MAP = Collections.unmodifiableSortedMap(new TreeMap<>());
 
         private Node(String dimensionValue, boolean isLeafNode, ImmutableCacheStats stats) {
             this.dimensionValue = dimensionValue;

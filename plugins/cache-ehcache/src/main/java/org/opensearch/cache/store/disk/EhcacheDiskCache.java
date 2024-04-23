@@ -444,15 +444,6 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     }
 
     /**
-     * Relevant stats for this cache, with no aggregation.
-     * @return ImmutableCacheStatsHolder
-     */
-    @Override
-    public ImmutableCacheStatsHolder stats() {
-        return stats(null);
-    }
-
-    /**
      * Relevant stats for this cache, aggregated by levels.
      * @param levels The levels to aggregate by.
      * @return ImmutableCacheStatsHolder

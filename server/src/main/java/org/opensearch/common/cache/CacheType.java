@@ -10,7 +10,9 @@ package org.opensearch.common.cache;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
-import java.util.HashSet;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -22,6 +24,15 @@ public enum CacheType {
 
     private final String settingPrefix;
     private final String apiRepresentation;
+
+    private static final Map<String, CacheType> representationsMap;
+    static {
+        Map<String, CacheType> reprs = new HashMap<>();
+        for (CacheType cacheType : values()) {
+            reprs.put(cacheType.apiRepresentation, cacheType);
+        }
+        representationsMap = Collections.unmodifiableMap(reprs);
+    }
 
     CacheType(String settingPrefix, String representation) {
         this.settingPrefix = settingPrefix;
@@ -37,19 +48,14 @@ public enum CacheType {
     }
 
     public static CacheType getByRepresentation(String representation) {
-        for (CacheType cacheType : values()) {
-            if (cacheType.apiRepresentation.equals(representation)) {
-                return cacheType;
-            }
+        CacheType result = representationsMap.get(representation);
+        if (result == null) {
+            throw new IllegalArgumentException("No CacheType with representation = " + representation);
         }
-        throw new IllegalArgumentException("No CacheType with representation = " + representation);
+        return result;
     }
 
     public static Set<String> allRepresentations() {
-        Set<String> reprs = new HashSet<>();
-        for (CacheType cacheType : values()) {
-            reprs.add(cacheType.apiRepresentation);
-        }
-        return reprs;
+        return representationsMap.keySet();
     }
 }
