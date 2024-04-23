@@ -77,7 +77,7 @@ public interface ExistingShardsAllocator {
      */
     Setting<Boolean> EXISTING_SHARDS_ALLOCATOR_BATCH_MODE = Setting.boolSetting(
         "cluster.allocator.existing_shards_allocator.batch_enabled",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 
