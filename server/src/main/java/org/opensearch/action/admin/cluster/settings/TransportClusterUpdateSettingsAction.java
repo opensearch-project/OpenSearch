@@ -332,7 +332,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
     private void validateIndexSettings(ClusterState clusterState) {
         Collection<IndexMetadata> allIndicesMetadata = clusterState.metadata().indices().values();
         if (allIndicesMetadata.isEmpty() == false
-            && allIndicesMetadata.stream().allMatch(indexMetadata -> indexHasAllRemoteStoreRelatedMetadata(indexMetadata) == false)) {
+            && allIndicesMetadata.stream().anyMatch(indexMetadata -> indexHasAllRemoteStoreRelatedMetadata(indexMetadata) == false)) {
             throw new SettingsException(
                 "can not switch to STRICT compatibility mode since all indices in the cluster does not have remote store based index settings"
             );
