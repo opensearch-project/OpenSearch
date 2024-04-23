@@ -504,7 +504,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         if (routing.primary() == false) {
                             throw new IllegalStateException("Can't migrate a remote shard to replica before primary " + routing.shardId());
                         }
-
                         logger.info("DocRep shard {} is migrating to remote", shardId);
                         seedRemote = true;
                     }

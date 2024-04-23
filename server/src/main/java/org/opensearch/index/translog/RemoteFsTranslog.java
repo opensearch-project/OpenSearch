@@ -265,12 +265,12 @@ public class RemoteFsTranslog extends Translog {
             logger.debug("No translog files found on remote, checking local filesystem for cleanup");
             if (FileSystemUtils.exists(location.resolve(CHECKPOINT_FILE_NAME))) {
                 final Checkpoint checkpoint = readCheckpoint(location);
-                if (isEmptyTranslog(checkpoint) == false && seedRemote == false) {
+                if (seedRemote) {
+                    logger.debug("Remote migration ongoing. Retaining the translog on local, skipping clean-up");
+                } else if (isEmptyTranslog(checkpoint) == false) {
                     logger.debug("Translog files exist on local without any metadata in remote, cleaning up these files");
                     // Creating empty translog will cleanup the older un-referenced tranlog files, we don't have to explicitly delete
                     Translog.createEmptyTranslog(location, translogTransferManager.getShardId(), checkpoint);
-                } else if (isEmptyTranslog(checkpoint) == false && seedRemote) {
-                    logger.debug("Remote migration ongoing. Retaining the translog on local, skipping clean-up");
                 } else {
                     logger.debug("Empty translog on local, skipping clean-up");
                 }
