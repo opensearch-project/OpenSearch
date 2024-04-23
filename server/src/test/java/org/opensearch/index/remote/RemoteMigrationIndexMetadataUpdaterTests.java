@@ -157,9 +157,19 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
         IndexMetadata.Builder builder = IndexMetadata.builder(currentMetadata.index(indexName));
         RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(logger);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(IndexShardTestUtils.getFakeRemoteEnabledNode("1")).build();
-        migrationIndexMetadataUpdater.maybeUpdateRemoteStorePathStrategy(currentMetadata.index(indexName), builder, indexName, discoveryNodes, Settings.builder()
-                .put(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING.getKey(), RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1.name())
-                .put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.HASHED_PREFIX.name()).build());
+        migrationIndexMetadataUpdater.maybeUpdateRemoteStorePathStrategy(
+            currentMetadata.index(indexName),
+            builder,
+            indexName,
+            discoveryNodes,
+            Settings.builder()
+                .put(
+                    CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING.getKey(),
+                    RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1.name()
+                )
+                .put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.HASHED_PREFIX.name())
+                .build()
+        );
         assertCustomPathMetadataIsPresent(builder.build());
     }
 
@@ -168,9 +178,19 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
         IndexMetadata.Builder builder = IndexMetadata.builder(currentMetadata.index(indexName));
         RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(logger);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(IndexShardTestUtils.getFakeRemoteEnabledNode("1")).build();
-        migrationIndexMetadataUpdater.maybeUpdateRemoteStorePathStrategy(currentMetadata.index(indexName), builder, indexName, discoveryNodes, Settings.builder()
-                .put(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING.getKey(), RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1.name())
-                .put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.HASHED_PREFIX.name()).build());
+        migrationIndexMetadataUpdater.maybeUpdateRemoteStorePathStrategy(
+            currentMetadata.index(indexName),
+            builder,
+            indexName,
+            discoveryNodes,
+            Settings.builder()
+                .put(
+                    CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING.getKey(),
+                    RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1.name()
+                )
+                .put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.HASHED_PREFIX.name())
+                .build()
+        );
 
         assertCustomPathMetadataIsPresent(builder.build());
     }
