@@ -50,6 +50,7 @@ import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.module.CacheModule;
+import org.opensearch.common.cache.stats.ImmutableCacheStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
@@ -90,6 +91,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     private ThreadPool threadPool;
@@ -459,11 +461,10 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         cache.onRemoval(
             new RemovalNotification<ICacheKey<IndicesRequestCache.Key>, BytesReference>(
                 new ICacheKey<>(key),
-                termBytes,
+                getTermBytes(),
                 RemovalReason.EVICTED
             )
         );
-        staleKeysCount = cache.cacheCleanupManager.getStaleKeysCount();
         // eviction of previous stale key from the cache should decrement staleKeysCount in iRC
         assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
 
@@ -500,7 +501,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         cache.onRemoval(
             new RemovalNotification<ICacheKey<IndicesRequestCache.Key>, BytesReference>(
                 new ICacheKey<>(key),
-                termBytes,
+                getTermBytes(),
                 RemovalReason.EVICTED
             )
         );
@@ -532,7 +533,12 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
         // create notification for removal of non-stale entry
         IndicesRequestCache.Key key = new IndicesRequestCache.Key(indexShard.shardId(), getTermBytes(), getReaderCacheKeyId(reader));
-        cache.onRemoval(new RemovalNotification<IndicesRequestCache.Key, BytesReference>(key, getTermBytes(), RemovalReason.EVICTED));
+        cache.onRemoval(
+            new RemovalNotification<ICacheKey<IndicesRequestCache.Key>, BytesReference>(
+                new ICacheKey<>(key),
+                getTermBytes(),
+                RemovalReason.EVICTED
+            ));
         // stale keys count should stay zero
         assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
 
@@ -576,14 +582,24 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
         int staleCount = cache.cacheCleanupManager.getStaleKeysCount().get();
         // Notification for Replaced should not deduct the staleCount
-        cache.onRemoval(new RemovalNotification<IndicesRequestCache.Key, BytesReference>(key, termBytes, RemovalReason.REPLACED));
+        cache.onRemoval(
+            new RemovalNotification<ICacheKey<IndicesRequestCache.Key>, BytesReference>(
+                new ICacheKey<>(key),
+                getTermBytes(),
+                RemovalReason.REPLACED
+            ));
         // stale keys count should stay the same
         assertEquals(staleCount, cache.cacheCleanupManager.getStaleKeysCount().get());
 
         // Notification for all but Replaced should deduct the staleCount
         RemovalReason[] reasons = { RemovalReason.INVALIDATED, RemovalReason.EVICTED, RemovalReason.EXPLICIT, RemovalReason.CAPACITY };
         for (RemovalReason reason : reasons) {
-            cache.onRemoval(new RemovalNotification<IndicesRequestCache.Key, BytesReference>(key, termBytes, reason));
+            cache.onRemoval(
+                new RemovalNotification<ICacheKey<IndicesRequestCache.Key>, BytesReference>(
+                    new ICacheKey<>(key),
+                    getTermBytes(),
+                    reason
+                ));
             assertEquals(--staleCount, cache.cacheCleanupManager.getStaleKeysCount().get());
         }
     }
@@ -713,6 +729,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
         String indexToKeepName = "test";
         String indexToCloseName = "test2";
+        // delete all indices if already
+        assertAcked(client().admin().indices().prepareDelete("_all").get());
         IndexService indexToKeep = createIndex(indexToKeepName, indexSettings);
         IndexService indexToClose = createIndex(indexToCloseName, indexSettings);
         for (int i = 0; i < numShards; i++) {
@@ -720,9 +738,9 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             assertNotNull(indexToKeep.getShard(i));
             assertNotNull(indexToClose.getShard(i));
         }
-        ThreadPool threadPool = getThreadPool();
+        threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.001%").build();
-        IndicesRequestCache cache = new IndicesRequestCache(settings, (shardId -> {
+        cache = new IndicesRequestCache(settings, (shardId -> {
             IndexService indexService = null;
             try {
                 indexService = indicesService.indexServiceSafe(shardId.getIndex());
@@ -739,8 +757,6 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             threadPool,
             ClusterServiceUtils.createClusterService(threadPool)
         );
-        Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
         writer.addDocument(newDoc(0, "foo"));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
@@ -813,8 +829,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         for (DirectoryReader reader : readersToKeep) {
             IOUtils.close(reader);
         }
-        IOUtils.close(secondReader, writer, dir, cache);
-        terminate(threadPool);
+        IOUtils.close(secondReader);
     }
 
     public void testEviction() throws Exception {

@@ -224,9 +224,9 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             notification.getValue(),
             notification.getRemovalReason()
         );
-        cacheEntityLookup.apply(key.shardId).ifPresent(entity -> entity.onRemoval(notification));
+        cacheEntityLookup.apply(key.shardId).ifPresent(entity -> entity.onRemoval(newNotification));
         CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId);
-        cacheCleanupManager.updateStaleCountOnEntryRemoval(cleanupKey, notification);
+        cacheCleanupManager.updateStaleCountOnEntryRemoval(cleanupKey, newNotification);
     }
 
     private ICacheKey<Key> getICacheKey(Key key) {
