@@ -425,8 +425,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             currentPhase.getName()
                         );
                     }
-                    onPhaseFailure(currentPhase, "Partial shards failure (" + discrepancy + " shards unavailable)", null);
-                    return;
+                    if (!request.indicesOptions().ignoreUnavailable()) {
+                        onPhaseFailure(currentPhase, "Partial shards failure (" + discrepancy + " shards unavailable)", null);
+                        return;
+                    }
                 }
             }
             if (logger.isTraceEnabled()) {

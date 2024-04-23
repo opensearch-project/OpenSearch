@@ -1052,4 +1052,15 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         settings.updateIndexMetadata(metadata);
         assertEquals("foo", settings.getDefaultSearchPipeline());
     }
+
+    public void testIsOnRemoteNode() {
+        Version version = VersionUtils.getPreviousVersion();
+        Settings theSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "0xdeadbeef")
+            .build();
+        Settings nodeSettings = Settings.builder().put("node.attr.remote_store.translog.repository", "my-repo-1").build();
+        IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), nodeSettings);
+        assertTrue("Index should be on remote node", settings.isAssignedOnRemoteNode());
+    }
 }

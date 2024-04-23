@@ -39,6 +39,7 @@ import org.opensearch.Version;
 import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.metrics.MeanMetric;
@@ -111,8 +112,9 @@ import static org.opensearch.common.util.concurrent.ConcurrentCollections.newCon
 /**
  * The TCP Transport layer
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class TcpTransport extends AbstractLifecycleComponent implements Transport {
     private static final Logger logger = LogManager.getLogger(TcpTransport.class);
 
@@ -760,12 +762,24 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected abstract void stopInternal();
 
     /**
+     * @deprecated use {@link #inboundMessage(TcpChannel, ProtocolInboundMessage)}
      * Handles inbound message that has been decoded.
      *
      * @param channel the channel the message is from
      * @param message the message
      */
+    @Deprecated(since = "2.14.0", forRemoval = true)
     public void inboundMessage(TcpChannel channel, InboundMessage message) {
+        inboundMessage(channel, (ProtocolInboundMessage) message);
+    }
+
+    /**
+     * Handles inbound message that has been decoded.
+     *
+     * @param channel the channel the message is from
+     * @param message the message
+     */
+    public void inboundMessage(TcpChannel channel, ProtocolInboundMessage message) {
         try {
             inboundHandler.inboundMessage(channel, message);
         } catch (Exception e) {
@@ -966,7 +980,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     /**
      * Representation of a transport profile settings for a {@code transport.profiles.$profilename.*}
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class ProfileSettings {
         public final String profileName;
         public final boolean tcpNoDelay;

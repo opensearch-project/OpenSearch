@@ -14,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.repositories.RepositoriesService;
@@ -222,5 +223,19 @@ public class RemoteStoreNodeService {
         } else {
             return existingRepositories;
         }
+    }
+
+    /**
+     * To check if the cluster is undergoing remote store migration
+     * @param clusterSettings cluster level settings
+     * @return
+     * <code>true</code> For <code>REMOTE_STORE</code> migration direction and <code>MIXED</code> compatibility mode,
+     * <code>false</code> otherwise
+     */
+    public static boolean isMigratingToRemoteStore(ClusterSettings clusterSettings) {
+        boolean isMixedMode = clusterSettings.get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING).equals(CompatibilityMode.MIXED);
+        boolean isRemoteStoreMigrationDirection = clusterSettings.get(MIGRATION_DIRECTION_SETTING).equals(Direction.REMOTE_STORE);
+
+        return (isMixedMode && isRemoteStoreMigrationDirection);
     }
 }
