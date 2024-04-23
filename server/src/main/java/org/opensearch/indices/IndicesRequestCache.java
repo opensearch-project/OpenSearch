@@ -563,7 +563,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
                     // it should have already been accounted for and hence been removed from this map
                     // so decrement staleKeysCount
                     staleKeysCount.decrementAndGet();
-                    // Returning null removes the entry for the shardId, if it exists
+                    // Returning the current value null
                     return null;
                 } else {
                     // If it is in the map, it is not stale yet.

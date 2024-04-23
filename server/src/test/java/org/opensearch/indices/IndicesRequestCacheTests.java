@@ -378,7 +378,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         cache.getOrCompute(getEntity(indexShard), getLoader(reader), reader, getTermBytes());
         assertEquals(1, cache.count());
 
-        cache.getOrCompute(getEntity(indexShard), getLoader(reader), secondReader, getTermBytes());
+        cache.getOrCompute(getEntity(indexShard), getLoader(secondReader), secondReader, getTermBytes());
         assertEquals(2, cache.count());
 
         // no stale keys so far
