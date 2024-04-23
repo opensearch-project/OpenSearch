@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Stack;
 import java.util.TreeMap;
 
 /**
@@ -41,6 +42,12 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
     final String storeName;
     public static String STORE_NAME_FIELD = "store_name";
 
+    // Values used for serializing/deserializing the tree.
+    private static final String SERIALIZATION_CHILDREN_OPEN_BRACKET = "<";
+    private static final String SERIALIZATION_CHILDREN_CLOSE_BRACKET = ">";
+    private static final String SERIALIZATION_BEGIN_NODE = "_";
+    private static final String SERIALIZATION_DONE = "end";
+
     ImmutableCacheStatsHolder(
         CacheStatsHolder.Node originalStatsRoot,
         List<String> levels,
@@ -56,71 +63,61 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
     }
 
     public ImmutableCacheStatsHolder(StreamInput in) throws IOException {
-        // Because we write in preorder order, the parent of the next node we read will always be one of the ancestors
-        // of the last node we read. This allows us to avoid ambiguity if nodes have the same dimension value, without
-        // having to serialize the whole path to each node.
         this.dimensionNames = List.of(in.readStringArray());
-        ImmutableCacheStats rootNodeStats = new ImmutableCacheStats(in);
-        this.statsRoot = new Node("", false, rootNodeStats);
-        List<Node> ancestorsOfLastRead = List.of(statsRoot);
-        while (ancestorsOfLastRead != null) {
-            ancestorsOfLastRead = readAndAttachDimensionNode(in, ancestorsOfLastRead);
-        }
         this.storeName = in.readString();
+        this.statsRoot = deserializeTree(in);
     }
 
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // Write each node in preorder order, along with its depth.
-        // Then, when rebuilding the tree from the stream, we can always find the correct parent to attach each node to.
         out.writeStringArray(dimensionNames.toArray(new String[0]));
-        statsRoot.stats.writeTo(out);
-        for (Node child : statsRoot.children.values()) {
-            writeDimensionNodeRecursive(out, child, 1);
-        }
-        out.writeBoolean(false); // Write false to signal there are no more nodes
         out.writeString(storeName);
+        writeNode(statsRoot, out);
+        out.writeString(SERIALIZATION_DONE);
     }
 
-    private void writeDimensionNodeRecursive(StreamOutput out, Node node, int depth) throws IOException {
-        out.writeBoolean(true); // Signals there is a following node to deserialize
-        out.writeVInt(depth);
-        out.writeString(node.getDimensionValue());
-        node.getStats().writeTo(out);
+    private void writeNode(Node node, StreamOutput out) throws IOException {
+        out.writeString(SERIALIZATION_BEGIN_NODE);
+        out.writeString(node.dimensionValue);
+        out.writeBoolean(node.children.isEmpty()); // Write whether this is a leaf node
+        node.stats.writeTo(out);
 
-        if (!node.children.isEmpty()) {
-            // Not a leaf node
-            out.writeBoolean(false); // Write true to indicate this is not a leaf node
-            for (Node child : node.children.values()) {
-                writeDimensionNodeRecursive(out, child, depth + 1);
+        out.writeString(SERIALIZATION_CHILDREN_OPEN_BRACKET);
+        for (Map.Entry<String, Node> entry : node.children.entrySet()) {
+            out.writeString(entry.getKey());
+            writeNode(entry.getValue(), out);
+        }
+        out.writeString(SERIALIZATION_CHILDREN_CLOSE_BRACKET);
+    }
+
+    private Node deserializeTree(StreamInput in) throws IOException {
+        Stack<Node> stack = new Stack<>();
+        in.readString(); // Read and discard SERIALIZATION_BEGIN_NODE for the root node
+        Node statsRoot = readSingleNode(in);
+        Node current = statsRoot;
+        stack.push(statsRoot);
+        String nextSymbol = in.readString();
+        while (!nextSymbol.equals(SERIALIZATION_DONE)) {
+            switch (nextSymbol) {
+                case SERIALIZATION_CHILDREN_OPEN_BRACKET:
+                    stack.push(current);
+                    break;
+                case SERIALIZATION_CHILDREN_CLOSE_BRACKET:
+                    stack.pop();
+                    break;
+                case SERIALIZATION_BEGIN_NODE:
+                    current = readSingleNode(in);
+                    stack.peek().children.put(current.dimensionValue, current);
             }
-        } else {
-            out.writeBoolean(true); // Write true to indicate this is a leaf node
+            nextSymbol = in.readString();
         }
+        return statsRoot;
     }
 
-    /**
-     * Reads a serialized dimension node, attaches it to its appropriate place in the tree, and returns the list of
-     * ancestors of the newly attached node.
-     */
-    private List<Node> readAndAttachDimensionNode(StreamInput in, List<Node> ancestorsOfLastRead) throws IOException {
-        boolean hasNextNode = in.readBoolean();
-        if (hasNextNode) {
-            int depth = in.readVInt();
-            String nodeDimensionValue = in.readString();
-            ImmutableCacheStats stats = new ImmutableCacheStats(in);
-            boolean isLeafNode = in.readBoolean();
-
-            Node result = new Node(nodeDimensionValue, isLeafNode, stats);
-            Node parent = ancestorsOfLastRead.get(depth - 1);
-            parent.getChildren().put(nodeDimensionValue, result);
-            List<Node> ancestors = new ArrayList<>(ancestorsOfLastRead.subList(0, depth));
-            ancestors.add(result);
-            return ancestors;
-        } else {
-            // No more nodes
-            return null;
-        }
+    private Node readSingleNode(StreamInput in) throws IOException {
+        String dimensionValue = in.readString();
+        boolean isLeafNode = in.readBoolean();
+        ImmutableCacheStats stats = new ImmutableCacheStats(in);
+        return new Node(dimensionValue, isLeafNode, stats);
     }
 
     public ImmutableCacheStats getTotalStats() {
