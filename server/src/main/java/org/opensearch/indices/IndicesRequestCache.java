@@ -524,15 +524,13 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         }
 
         /**
-         * Updates the cleanupKeyToCountMap and staleKeysCount when a cache eviction occurs.
+         * Handles the eviction of a cache entry.
          *
          * <p>This method is called when an entry is evicted from the cache.
-         * It decrements the count of the entry in the cleanupKeyToCountMap.
-         * It also decrements the staleKeysCount only if the entry was accounted.
-         * If the count of the CleanupKey becomes zero, it removes the CleanupKey from the map.
-         *
-         * <p> We update the cleanupKeyToCountMap on every key removed from cache
-         * except for the keys removed with reason Replaced
+         * We consider all removal notifications except with the reason Replaced
+         * {@link #incrementStaleKeysCount} would have removed the entries from the map and increment the {@link #staleKeysCount}
+         * Hence we decrement {@link #staleKeysCount} if we do not find the shardId or readerCacheKeyId in the map.
+         * Skip decrementing staleKeysCount if we find the shardId or readerCacheKeyId in the map since it would have not been accounted for in the staleKeysCount in
          *
          * @param cleanupKey   the CleanupKey that has been evicted from the cache
          * @param notification RemovalNotification of the cache entry evicted
