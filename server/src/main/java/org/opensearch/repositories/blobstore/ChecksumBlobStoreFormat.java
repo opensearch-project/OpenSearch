@@ -74,7 +74,7 @@ import static org.opensearch.common.blobstore.transfer.RemoteTransferContainer.c
  *
  * @opensearch.internal
  */
-public final class ChecksumBlobStoreFormat<T extends ToXContent> extends AbstractBlobStoreFormat<T> {
+public final class ChecksumBlobStoreFormat<T extends ToXContent> extends BaseBlobStoreFormat<T> {
 
     // Serialization parameters to specify correct context for metadata serialization
     public static final ToXContent.Params SNAPSHOT_ONLY_FORMAT_PARAMS;

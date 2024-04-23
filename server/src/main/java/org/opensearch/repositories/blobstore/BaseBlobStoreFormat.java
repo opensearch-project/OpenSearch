@@ -30,7 +30,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class AbstractBlobStoreFormat<T extends ToXContent> {
+public class BaseBlobStoreFormat<T extends ToXContent> {
 
     private static final int BUFFER_SIZE = 4096;
 
@@ -41,7 +41,7 @@ public class AbstractBlobStoreFormat<T extends ToXContent> {
     /**
      * @param blobNameFormat format of the blobname in {@link String#format} format
      */
-    public AbstractBlobStoreFormat(String blobNameFormat, boolean skipHeaderFooter) {
+    public BaseBlobStoreFormat(String blobNameFormat, boolean skipHeaderFooter) {
         this.blobNameFormat = blobNameFormat;
         this.skipHeaderFooter = skipHeaderFooter;
     }

@@ -34,7 +34,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class ConfigBlobStoreFormat<T extends ToXContent> extends AbstractBlobStoreFormat<T> {
+public class ConfigBlobStoreFormat<T extends ToXContent> extends BaseBlobStoreFormat<T> {
 
     /**
      * @param blobNameFormat format of the blobname in {@link String#format} format
