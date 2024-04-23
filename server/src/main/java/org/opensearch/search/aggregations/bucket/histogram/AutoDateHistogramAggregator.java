@@ -308,6 +308,17 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
     }
 
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        if (fastFilterContext.optimizedSegments > 0) {
+            add.accept("optimized_segments", fastFilterContext.optimizedSegments);
+            add.accept("unoptimized_segments", fastFilterContext.segments - fastFilterContext.optimizedSegments);
+            add.accept("leaf_visited", fastFilterContext.leaf);
+            add.accept("inner_visited", fastFilterContext.inner);
+        }
+    }
+
     /**
      * Initially it uses the most fine grained rounding configuration possible
      * but as more data arrives it rebuckets the data until it "fits" in the

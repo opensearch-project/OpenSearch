@@ -126,7 +126,6 @@ import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregatorFactories.Builder;
 import org.opensearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.opensearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
-import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.metrics.MetricsAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;

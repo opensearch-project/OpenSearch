@@ -171,8 +171,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             )
         );
         if (optimized) throw new CollectionTerminatedException();
-        // we will return the debug info for each segment
-        // or we should just cache it in the fast filter context
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {

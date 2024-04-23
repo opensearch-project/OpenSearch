@@ -87,6 +87,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.LongUnaryOperator;
 import java.util.stream.Collectors;
 
@@ -171,7 +172,7 @@ final class CompositeAggregator extends BucketsAggregator {
             // bucketOrds is used for saving date histogram results
             bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
             preparedRounding = ((CompositeAggregationType) fastFilterContext.getAggregationType()).getRoundingPrepared();
-            fastFilterContext.setFieldName(sourceConfigs[0].name());
+            fastFilterContext.setFieldName(sourceConfigs[0].fieldType().name());
             fastFilterContext.buildRanges();
         }
     }
@@ -705,6 +706,16 @@ final class CompositeAggregator extends BucketsAggregator {
         Entry(LeafReaderContext context, DocIdSet docIdSet) {
             this.context = context;
             this.docIdSet = docIdSet;
+        }
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        if (fastFilterContext.optimizedSegments > 0) {
+            add.accept("optimized_segments", fastFilterContext.optimizedSegments);
+            add.accept("unoptimized_segments", fastFilterContext.segments - fastFilterContext.optimizedSegments);
+            add.accept("leaf_visited", fastFilterContext.leaf);
+            add.accept("inner_visited", fastFilterContext.inner);
         }
     }
 }
