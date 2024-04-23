@@ -8,12 +8,10 @@
 
 package org.opensearch.index.remote;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
@@ -30,6 +28,10 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.REMOTE_STORE_CUSTOM_KEY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
 
@@ -38,8 +40,12 @@ import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PA
  *
  * @opensearch.internal
  */
-public class RemoteMigrationClusterStateUtils {
-    private static final Logger logger = LogManager.getLogger(RemoteMigrationClusterStateUtils.class);
+public class RemoteMigrationIndexMetadataUpdater {
+    private final Logger logger;
+
+    public RemoteMigrationIndexMetadataUpdater(Logger logger) {
+        this.logger = logger;
+    }
 
     /**
      * During docrep to remote store migration, applies the following remote store based index settings
@@ -47,7 +53,7 @@ public class RemoteMigrationClusterStateUtils {
      * <br>
      * Also appends the requisite Remote Store Path based custom metadata to the existing index metadata
      */
-    public static void maybeAddRemoteIndexSettings(
+    public void maybeAddRemoteIndexSettings(
         IndexMetadata indexMetadata,
         IndexMetadata.Builder indexMetadataBuilder,
         RoutingTable routingTable,
@@ -62,8 +68,9 @@ public class RemoteMigrationClusterStateUtils {
                 "Index {} does not have remote store based index settings but all primary shards and STARTED replica shards have moved to remote enabled nodes. Applying remote store settings to the index",
                 index
             );
+            assert Objects.nonNull(segmentRepoName) && Objects.nonNull(tlogRepoName) : "Remote repo names cannot be null";
             Settings.Builder indexSettingsBuilder = Settings.builder().put(currentIndexSettings);
-            MetadataCreateIndexService.updateRemoteStoreSettings(indexSettingsBuilder, segmentRepoName, tlogRepoName);
+            updateRemoteStoreSettings(indexSettingsBuilder, segmentRepoName, tlogRepoName);
             indexMetadataBuilder.settings(indexSettingsBuilder);
             indexMetadataBuilder.settingsVersion(1 + indexMetadata.getVersion());
         } else {
@@ -82,7 +89,7 @@ public class RemoteMigrationClusterStateUtils {
      * @param currentIndexSettings current {@link IndexMetadata} from cluster state
      * @return <code>true</code> or <code>false</code> depending on the met conditions
      */
-    public static boolean needsRemoteIndexSettingsUpdate(
+    public boolean needsRemoteIndexSettingsUpdate(
         IndexRoutingTable indexRoutingTable,
         DiscoveryNodes discoveryNodes,
         Settings currentIndexSettings
@@ -104,8 +111,10 @@ public class RemoteMigrationClusterStateUtils {
 
     /**
      * Updates the remote store path strategy metadata for the index when it is migrating to remote.
-     * This should be run only when the first primary copy moves over from docrep to remote.
-     * Checks are in place to make this execution no-op if the index metadata is already present
+     * This is run during state change of each shard copy when the cluster is in `MIXED` mode and the direction of migration is `REMOTE_STORE`
+     * Should not interfere with docrep functionality even if the index is in docrep nodes since this metadata
+     * is not used anywhere in the docrep flow
+     * Checks are in place to make this execution no-op if the index metadata is already present.
      *
      * @param indexMetadata        Current {@link IndexMetadata}
      * @param indexMetadataBuilder Mutated {@link IndexMetadata.Builder} having the previous state updates
@@ -113,7 +122,7 @@ public class RemoteMigrationClusterStateUtils {
      * @param discoveryNodes       Current {@link DiscoveryNodes} from the cluster state
      * @param settings             current cluster settings from {@link ClusterState}
      */
-    public static void maybeUpdateRemoteStorePathStrategy(
+    public void maybeUpdateRemoteStorePathStrategy(
         IndexMetadata indexMetadata,
         IndexMetadata.Builder indexMetadataBuilder,
         String index,
@@ -124,7 +133,7 @@ public class RemoteMigrationClusterStateUtils {
             logger.info("Adding remote store path strategy for index [{}] during migration", index);
             indexMetadataBuilder.putCustom(REMOTE_STORE_CUSTOM_KEY, createRemoteStorePathTypeMetadata(settings, discoveryNodes));
         } else {
-            logger.debug("Does not match criteria to update remote store path type for index {}", index);
+            logger.debug("Index {} already has remote store path strategy", index);
         }
     }
 
@@ -135,7 +144,7 @@ public class RemoteMigrationClusterStateUtils {
      * @param discoveryNodes Current {@link DiscoveryNodes} from the cluster state
      * @return {@link Map} to be added as custom data in index metadata
      */
-    public static Map<String, String> createRemoteStorePathTypeMetadata(Settings settings, DiscoveryNodes discoveryNodes) {
+    public Map<String, String> createRemoteStorePathTypeMetadata(Settings settings, DiscoveryNodes discoveryNodes) {
         Version minNodeVersion = discoveryNodes.getMinNodeVersion();
         PathType pathType = Version.CURRENT.compareTo(minNodeVersion) <= 0
             ? CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.get(settings)
@@ -187,5 +196,12 @@ public class RemoteMigrationClusterStateUtils {
             return Objects.nonNull(customMetadata.get(PathType.NAME)) && Objects.nonNull(customMetadata.get(PathHashAlgorithm.NAME));
         }
         return false;
+    }
+
+    public static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, String segmentRepository, String translogRepository) {
+        settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
+            .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepository)
+            .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, translogRepository);
     }
 }

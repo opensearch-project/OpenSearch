@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -154,9 +155,13 @@ public class RemoteStoreUtils {
     }
 
     /**
-     * Fetches segment and translog repository names from remote store node attributes
+     * Fetches segment and translog repository names from remote store node attributes.
+     * Returns a blank {@link HashMap} if the cluster does not contain any remote nodes.
+     * <br>
+     * Caller need to handle null checks if {@link DiscoveryNodes} object does not have any remote nodes
+     *
      * @param discoveryNodes Current set of {@link DiscoveryNodes} in the cluster
-     * @return {@link Tuple} with segment repository name as first element and translog repository name as second element
+     * @return {@link Map} of data repository node attributes keys and their values
      */
     public static Map<String, String> getRemoteStoreRepoName(DiscoveryNodes discoveryNodes) {
         Optional<DiscoveryNode> remoteNode = discoveryNodes.getNodes()
@@ -164,18 +169,6 @@ public class RemoteStoreUtils {
             .stream()
             .filter(DiscoveryNode::isRemoteStoreNode)
             .findFirst();
-        assert remoteNode.isPresent() : "Cannot fetch remote store repository names as no remote nodes are present in the cluster";
-        return remoteNode.get().getRemoteStoreRepoNames();
-    }
-
-    /**
-     * Ensures that the current set of {@link DiscoveryNodes} contains at-least one node
-     * matching the {@link DiscoveryNode#isRemoteStoreNode()} predicate
-     *
-     * @param discoveryNodes Current set of {@link DiscoveryNodes}
-     * @return <code>true</code> if there is at-least one remote store enabled node, <code>false</code> otherwise
-     */
-    public static boolean hasAtLeastOneRemoteNode(DiscoveryNodes discoveryNodes) {
-        return discoveryNodes.getNodes().values().stream().anyMatch(DiscoveryNode::isRemoteStoreNode);
+        return remoteNode.map(RemoteStoreNodeAttribute::getDataRepoNames).orElseGet(HashMap::new);
     }
 }

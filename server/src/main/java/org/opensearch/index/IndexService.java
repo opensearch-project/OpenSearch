@@ -132,7 +132,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
-import static org.opensearch.index.remote.RemoteMigrationClusterStateUtils.indexHasRemoteStoreSettings;
+import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater.indexHasRemoteStoreSettings;
 
 /**
  * The main OpenSearch index service

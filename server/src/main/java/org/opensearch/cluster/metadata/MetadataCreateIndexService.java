@@ -1030,13 +1030,6 @@ public class MetadataCreateIndexService {
         settingsBuilder.put(SETTING_REPLICATION_TYPE, indexReplicationType);
     }
 
-    public static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, String segmentRepository, String translogRepository) {
-        settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
-            .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepository)
-            .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, translogRepository);
-    }
-
     /**
      * Updates index settings to enable remote store by default based on node attributes
      * @param settingsBuilder index settings builder to be updated with relevant settings

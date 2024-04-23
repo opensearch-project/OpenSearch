@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -46,6 +47,7 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -57,8 +59,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.opensearch.index.remote.RemoteMigrationClusterStateUtils.maybeAddRemoteIndexSettings;
-import static org.opensearch.index.remote.RemoteMigrationClusterStateUtils.maybeUpdateRemoteStorePathStrategy;
 import static org.opensearch.index.remote.RemoteStoreUtils.getRemoteStoreRepoName;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -74,6 +74,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
  * @opensearch.internal
  */
 public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRoutingChangesObserver {
+    private final Logger logger = LogManager.getLogger(IndexMetadataUpdater.class);
     private final Map<ShardId, Updates> shardChanges = new HashMap<>();
     private boolean ongoingRemoteStoreMigration = false;
 
@@ -144,8 +145,6 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
         if (ongoingRemoteStoreMigration) {
             changes(targetRelocatingShard.shardId());
         }
-        // Does not need a call to the super method since
-        // AbstractRoutingChangesObserver#relocationStarted is always No-Op
     }
 
     /**
@@ -178,15 +177,15 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                 indexMetadataBuilder = updateInSyncAllocations(newRoutingTable, oldIndexMetadata, indexMetadataBuilder, shardId, updates);
                 indexMetadataBuilder = updatePrimaryTerm(oldIndexMetadata, indexMetadataBuilder, shardId, updates);
                 if (ongoingRemoteStoreMigration) {
-                    assert remoteRepoNames.isEmpty() == false : "Remote repo names cannot be empty during remote store migration";
-                    maybeUpdateRemoteStorePathStrategy(
+                    RemoteMigrationIndexMetadataUpdater migrationImdUpdater = new RemoteMigrationIndexMetadataUpdater(logger);
+                    migrationImdUpdater.maybeUpdateRemoteStorePathStrategy(
                         oldIndexMetadata,
                         indexMetadataBuilder,
                         index.getName(),
                         discoveryNodes,
                         oldMetadata.settings()
                     );
-                    maybeAddRemoteIndexSettings(
+                    migrationImdUpdater.maybeAddRemoteIndexSettings(
                         oldIndexMetadata,
                         indexMetadataBuilder,
                         newRoutingTable,

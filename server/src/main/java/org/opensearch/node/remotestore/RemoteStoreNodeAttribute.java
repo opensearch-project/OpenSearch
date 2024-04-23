@@ -18,6 +18,7 @@ import org.opensearch.node.Node;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -46,6 +47,11 @@ public class RemoteStoreNodeAttribute {
         + CryptoMetadata.SETTINGS_KEY;
     public static final String REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX = "remote_store.repository.%s.settings.";
     private final RepositoriesMetadata repositoriesMetadata;
+
+    public static List<String> SUPPORTED_DATA_REPO_NAME_ATTRIBUTES = List.of(
+        REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
+        REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
+    );
 
     /**
      * Creates a new {@link RemoteStoreNodeAttribute}
@@ -183,6 +189,30 @@ public class RemoteStoreNodeAttribute {
 
     public RepositoriesMetadata getRepositoriesMetadata() {
         return this.repositoriesMetadata;
+    }
+
+    /**
+     * Return {@link Map} of all the supported data repo names listed on {@link RemoteStoreNodeAttribute#SUPPORTED_DATA_REPO_NAME_ATTRIBUTES}
+     *
+     * @param node Node to fetch attributes from
+     * @return {@link Map} of all remote store data repo attribute keys and their values
+     */
+    public static Map<String, String> getDataRepoNames(DiscoveryNode node) {
+        assert remoteDataAttributesPresent(node.getAttributes());
+        Map<String, String> dataRepoNames = new HashMap<>();
+        for (String supportedRepoAttribute : SUPPORTED_DATA_REPO_NAME_ATTRIBUTES) {
+            dataRepoNames.put(supportedRepoAttribute, node.getAttributes().get(supportedRepoAttribute));
+        }
+        return dataRepoNames;
+    }
+
+    private static boolean remoteDataAttributesPresent(Map<String, String> nodeAttrs) {
+        for (String supportedRepoAttributes : SUPPORTED_DATA_REPO_NAME_ATTRIBUTES) {
+            if (nodeAttrs.get(supportedRepoAttributes) == null || nodeAttrs.get(supportedRepoAttributes).isEmpty()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
