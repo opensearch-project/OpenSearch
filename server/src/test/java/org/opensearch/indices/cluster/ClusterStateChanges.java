@@ -105,6 +105,7 @@ import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.IndexEventListener;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndices;
@@ -312,7 +313,8 @@ public class ClusterStateChanges {
             xContentRegistry,
             systemIndices,
             true,
-            awarenessReplicaBalance
+            awarenessReplicaBalance,
+            DefaultRemoteStoreSettings.INSTANCE
         );
 
         transportCloseIndexAction = new TransportCloseIndexAction(

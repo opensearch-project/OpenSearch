@@ -22,6 +22,7 @@ import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.utils.CollectionUtils;
 import software.amazon.awssdk.utils.CompletableFutureUtils;
 
 import org.apache.logging.log4j.LogManager;
@@ -131,6 +132,10 @@ public final class AsyncTransferManager {
             .bucket(uploadRequest.getBucket())
             .key(uploadRequest.getKey())
             .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector));
+
+        if (CollectionUtils.isNotEmpty(uploadRequest.getMetadata())) {
+            createMultipartUploadRequestBuilder.metadata(uploadRequest.getMetadata());
+        }
         if (uploadRequest.doRemoteDataIntegrityCheck()) {
             createMultipartUploadRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
         }
@@ -327,6 +332,10 @@ public final class AsyncTransferManager {
             .key(uploadRequest.getKey())
             .contentLength(uploadRequest.getContentLength())
             .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.putObjectMetricPublisher));
+
+        if (CollectionUtils.isNotEmpty(uploadRequest.getMetadata())) {
+            putObjectRequestBuilder.metadata(uploadRequest.getMetadata());
+        }
         if (uploadRequest.doRemoteDataIntegrityCheck()) {
             putObjectRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
             putObjectRequestBuilder.checksumCRC32(base64StringFromLong(uploadRequest.getExpectedChecksum()));
