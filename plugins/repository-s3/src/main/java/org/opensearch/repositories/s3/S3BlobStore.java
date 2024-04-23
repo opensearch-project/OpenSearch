@@ -215,7 +215,7 @@ class S3BlobStore implements BlobStore {
     }
 
     @Override
-    public boolean isObjectMetadataUploadSupported() {
+    public boolean isBlobMetadataSupported() {
         return true;
     }
 

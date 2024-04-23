@@ -15,7 +15,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.blobstore.FetchBlobResult;
+import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
@@ -24,6 +24,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.index.translog.Checkpoint;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
@@ -121,12 +122,12 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         when(transferService.downloadBlobWithMetadata(any(BlobPath.class), eq("translog-23.tlog"))).thenAnswer(invocation -> {
             Thread.sleep(delayForBlobDownload);
-            return new FetchBlobResult(new ByteArrayInputStream(tlogBytes), null);
+            return new InputStreamWithMetadata(new ByteArrayInputStream(tlogBytes), null);
         });
 
         when(transferService.downloadBlobWithMetadata(any(BlobPath.class), eq("translog-23.ckp"))).thenAnswer(invocation -> {
             Thread.sleep(delayForBlobDownload);
-            return new FetchBlobResult(new ByteArrayInputStream(ckpBytes), null);
+            return new InputStreamWithMetadata(new ByteArrayInputStream(ckpBytes), null);
         });
     }
 
@@ -215,7 +216,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                 any(WritePriority.class)
             );
 
-        when(transferService.isObjectMetadataUploadSupported()).thenReturn(true);
+        when(transferService.isBlobMetadataSupported()).thenReturn(true);
 
         doAnswer(invocationOnMock -> {
             ActionListener<TransferFileSnapshot> listener = (ActionListener<TransferFileSnapshot>) invocationOnMock.getArguments()[2];
@@ -376,9 +377,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         uploadThread.get().interrupt();
     }
 
-    private TransferSnapshot createTransferSnapshot() {
-
-        byte[] byteArray = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+    private TransferSnapshot createTransferSnapshot() throws IOException {
+        Checkpoint checkpoint = new Checkpoint(1, 2, 4, 4, 4, 4, 2, 1);
         return new TransferSnapshot() {
             @Override
             public Set<TransferFileSnapshot> getCheckpointFileSnapshots() {
@@ -390,7 +390,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                             minTranslogGeneration,
                             createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.CHECKPOINT_SUFFIX),
                             null,
-                            null
+                            checkpoint
                         ),
                         new CheckpointFileSnapshot(
                             primaryTerm,
@@ -398,7 +398,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                             minTranslogGeneration,
                             createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.CHECKPOINT_SUFFIX),
                             null,
-                            null
+                            checkpoint
                         )
                     );
                 } catch (IOException e) {
@@ -450,7 +450,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                                 minTranslogGeneration,
                                 createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.CHECKPOINT_SUFFIX),
                                 null,
-                                byteArray
+                                checkpoint
                             )
                         ),
                         new Tuple<>(
@@ -466,7 +466,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                                 minTranslogGeneration,
                                 createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.CHECKPOINT_SUFFIX),
                                 null,
-                                byteArray
+                                checkpoint
                             )
                         )
                     );

@@ -100,7 +100,7 @@ public final class Checkpoint {
      * @param trimmedAboveSeqNo     all operations with seq# above trimmedAboveSeqNo should be ignored and not read from the
      *                              corresponding translog file. {@link SequenceNumbers#UNASSIGNED_SEQ_NO} is used to disable trimming.
      */
-    Checkpoint(
+    public Checkpoint(
         long offset,
         int numOps,
         long generation,

@@ -12,6 +12,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.index.translog.Checkpoint;
 
 import java.io.BufferedInputStream;
 import java.io.Closeable;
@@ -35,6 +36,7 @@ public class FileSnapshot implements Closeable {
     private final String name;
     @Nullable
     private final FileChannel fileChannel;
+
     @Nullable
     private Path path;
     @Nullable
@@ -45,14 +47,6 @@ public class FileSnapshot implements Closeable {
         this.name = path.getFileName().toString();
         this.path = path;
         this.fileChannel = FileChannel.open(path, StandardOpenOption.READ);
-    }
-
-    private FileSnapshot(Path path, byte[] content) throws IOException {
-        Objects.requireNonNull(path);
-        this.name = path.getFileName().toString();
-        this.path = path;
-        this.fileChannel = FileChannel.open(path, StandardOpenOption.READ);
-        this.content = content;
     }
 
     private FileSnapshot(String name, byte[] content) {
@@ -122,9 +116,11 @@ public class FileSnapshot implements Closeable {
         private final long primaryTerm;
         private Long checksum;
         @Nullable
-        private String metadataFileName;
+        private String checkpointFileName;
         @Nullable
         private Map<String, String> metadata;
+        @Nullable
+        private Checkpoint checkpoint;
 
         public TransferFileSnapshot(Path path, long primaryTerm, Long checksum) throws IOException {
             super(path);
@@ -132,15 +128,20 @@ public class FileSnapshot implements Closeable {
             this.checksum = checksum;
         }
 
-        public TransferFileSnapshot(Path path, long primaryTerm, Long checksum, byte[] checkpointBytes) throws IOException {
-            super(path, checkpointBytes);
+        public TransferFileSnapshot(Path path, long primaryTerm, Long checksum, Checkpoint checkpoint) throws IOException {
+            super(path);
             this.primaryTerm = primaryTerm;
             this.checksum = checksum;
+            this.checkpoint = checkpoint;
         }
 
         public TransferFileSnapshot(String name, byte[] content, long primaryTerm) throws IOException {
             super(name, content);
             this.primaryTerm = primaryTerm;
+        }
+
+        public void setCheckpointFileName(String name) {
+            this.checkpointFileName = name;
         }
 
         public Long getChecksum() {
@@ -151,20 +152,20 @@ public class FileSnapshot implements Closeable {
             return primaryTerm;
         }
 
-        public void setTransferFileSnapshotMetadataFileName(String fileName) {
-            this.metadataFileName = fileName;
-        }
-
         public void setTransferFileSnapshotMetadata(Map<String, String> metadata) {
             this.metadata = metadata;
         }
 
-        public String getTransferFileSnapshotMetadataFileName() {
-            return metadataFileName;
+        public String getCheckpointFileName() {
+            return checkpointFileName;
         }
 
         public Map<String, String> getTransferFileSnapshotMetadata() {
             return metadata;
+        }
+
+        public Checkpoint getCheckpoint() {
+            return checkpoint;
         }
 
         @Override
@@ -236,9 +237,9 @@ public class FileSnapshot implements Closeable {
             long minTranslogGeneration,
             Path path,
             Long checksum,
-            byte[] checkpointBytes
+            Checkpoint checkpoint
         ) throws IOException {
-            super(path, primaryTerm, checksum, checkpointBytes);
+            super(path, primaryTerm, checksum, checkpoint);
             this.minTranslogGeneration = minTranslogGeneration;
             this.generation = generation;
         }

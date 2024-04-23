@@ -74,7 +74,7 @@ public interface BlobStore extends Closeable {
     /**
      * Returns a boolean indicating if blobStore support object metadata upload
      */
-    default boolean isObjectMetadataUploadSupported() {
+    default boolean isBlobMetadataSupported() {
         return false;
     }
 

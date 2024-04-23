@@ -130,6 +130,13 @@ public class RemoteStoreUtils {
         return ByteBuffer.wrap(hashBytes).getLong();
     }
 
+    public static byte[] convertBase64StringToBytesArray(String base64String) {
+        if (base64String == null) {
+            return null;
+        }
+        return Base64.getDecoder().decode(base64String);
+    }
+
     /**
      * Converts an input hash which occupies 64 bits of memory into a composite encoded string. The string will have 2 parts -
      * 1. Base 64 string and 2. Binary String. We will use the first 6 bits for creating the base 64 string.

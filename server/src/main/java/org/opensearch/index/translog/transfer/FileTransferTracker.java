@@ -117,18 +117,24 @@ public class FileTransferTracker implements FileTransferListener {
             .collect(Collectors.toSet());
     }
 
-    public boolean isAlreadyUploaded(TransferFileSnapshot transferFileSnapshot) {
-        return fileTransferTracker.get(transferFileSnapshot.getName()) == TransferState.SUCCESS;
-    }
-
     public Set<String> allUploaded() {
         Set<String> successFileTransferTracker = new HashSet<>();
         fileTransferTracker.forEach((k, v) -> {
-            if (v == TransferState.SUCCESS) {
+            if (v == TransferState.SUCCESS || v == TransferState.SUCCESS_AS_METADATA) {
                 successFileTransferTracker.add(k);
             }
         });
         return successFileTransferTracker;
+    }
+
+    public void markFileTransferStateToSuccessAsMetadata(String fileName, boolean successAsMetadata) {
+        TransferState targetState = successAsMetadata ? TransferState.SUCCESS_AS_METADATA : TransferState.FAILED;
+        fileTransferTracker.compute(fileName, (k, v) -> {
+            if (v == null || v.validateNextState(targetState)) {
+                return targetState;
+            }
+            throw new IllegalStateException("Unexpected transfer state " + v + "while setting target to" + targetState);
+        });
     }
 
     /**
@@ -136,12 +142,15 @@ public class FileTransferTracker implements FileTransferListener {
      */
     private enum TransferState {
         SUCCESS,
-        FAILED;
+        FAILED,
+        SUCCESS_AS_METADATA;
 
         public boolean validateNextState(TransferState target) {
             switch (this) {
                 case FAILED:
                     return true;
+                case SUCCESS_AS_METADATA:
+                    return Objects.equals(SUCCESS_AS_METADATA, target);
                 case SUCCESS:
                     return Objects.equals(SUCCESS, target);
             }
