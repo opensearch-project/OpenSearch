@@ -56,7 +56,7 @@ public class SearchCorrelatedEventsResponse extends ActionResponse implements To
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject().field(EVENTS, events).endObject();
-        return builder.endObject();
+        return builder;
     }
 
     @Override

@@ -136,8 +136,68 @@ public class EventsCorrelationPluginRestIT extends OpenSearchRestTestCase {
         Assert.assertEquals(1, ((Map<String, Object>) responseAsMap.get("neighbor_events")).size());
     }
 
+    @SuppressWarnings("unchecked")
+    public void testSearchCorrelationsWithSingleRule() throws IOException {
+        String windowsIndex = "windows";
+        Request request = new Request("PUT", "/" + windowsIndex);
+        request.setJsonEntity(windowsMappings());
+        client().performRequest(request);
+
+        String appLogsIndex = "app_logs";
+        request = new Request("PUT", "/" + appLogsIndex);
+        request.setJsonEntity(appLogMappings());
+        client().performRequest(request);
+
+        String correlationRule = windowsToAppLogsCorrelationRule();
+        request = new Request("POST", "/_correlation/rules");
+        request.setJsonEntity(correlationRule);
+        client().performRequest(request);
+
+        request = new Request("POST", String.format(Locale.ROOT, "/%s/_doc?refresh", windowsIndex));
+        request.setJsonEntity(sampleWindowsEvent());
+        Response response = client().performRequest(request);
+        String windowsId = responseAsMap(response).get("_id").toString();
+
+        request = new Request("POST", String.format(Locale.ROOT, "/%s/_doc?refresh", appLogsIndex));
+        request.setJsonEntity(sampleAppLogsEvent());
+        response = client().performRequest(request);
+        String appLogsId = responseAsMap(response).get("_id").toString();
+
+        request = new Request("POST", "/_correlation/events");
+        request.setJsonEntity(prepareCorrelateEventRequest(windowsIndex, windowsId, true));
+        client().performRequest(request);
+
+        request = new Request("POST", "/_correlation/events");
+        request.setJsonEntity(prepareCorrelateEventRequest(appLogsIndex, appLogsId, true));
+        response = client().performRequest(request);
+        Map<String, Object> responseAsMap = responseAsMap(response);
+        Assert.assertEquals(1, ((Map<String, Object>) responseAsMap.get("neighbor_events")).size());
+
+        request = new Request("GET", prepareSearchCorrelationsRequest(windowsIndex, windowsId, "winlog.timestamp", 300000L, 5));
+        response = client().performRequest(request);
+        responseAsMap = responseAsMap(response);
+        Assert.assertEquals(1, ((List<Object>) responseAsMap.get("events")).size());
+    }
+
     private String prepareCorrelateEventRequest(String index, String event) {
         return "{\n" + "  \"index\": \"" + index + "\",\n" + "  \"event\": \"" + event + "\",\n" + "  \"store\": false\n" + "}";
+    }
+
+    private String prepareCorrelateEventRequest(String index, String event, Boolean store) {
+        return "{\n" + "  \"index\": \"" + index + "\",\n" + "  \"event\": \"" + event + "\",\n" + "  \"store\": " + store + "\n" + "}";
+    }
+
+    private String prepareSearchCorrelationsRequest(String index, String event, String timestampField, Long timeWindow, int neighbors) {
+        return String.format(
+            Locale.ROOT,
+            "%s?index=%s&event=%s&timestamp_field=%s&time_window=%s&nearby_events=%s",
+            "/_correlation/events",
+            index,
+            event,
+            timestampField,
+            timeWindow,
+            neighbors
+        );
     }
 
     private String windowsToAppLogsCorrelationRule() {

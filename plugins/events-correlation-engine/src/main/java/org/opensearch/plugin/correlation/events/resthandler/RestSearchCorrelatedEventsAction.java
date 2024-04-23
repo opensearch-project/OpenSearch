@@ -60,6 +60,7 @@ public class RestSearchCorrelatedEventsAction extends BaseRestHandler {
         String timestampField = request.param("timestamp_field");
         Long timeWindow = request.paramAsLong("time_window", 300000L);
         int noOfNearbyEvents = request.paramAsInt("nearby_events", 5);
+        log.info("hit here1-" + index + "-" + event);
 
         SearchCorrelatedEventsRequest correlatedEventsRequest = new SearchCorrelatedEventsRequest(
             index,
