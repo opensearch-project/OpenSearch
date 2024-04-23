@@ -89,9 +89,9 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     private ThreadPool threadPool;
@@ -538,7 +538,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 new ICacheKey<>(key),
                 getTermBytes(),
                 RemovalReason.EVICTED
-            ));
+            )
+        );
         // stale keys count should stay zero
         assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
 
@@ -587,7 +588,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 new ICacheKey<>(key),
                 getTermBytes(),
                 RemovalReason.REPLACED
-            ));
+            )
+        );
         // stale keys count should stay the same
         assertEquals(staleCount, cache.cacheCleanupManager.getStaleKeysCount().get());
 
@@ -595,11 +597,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         RemovalReason[] reasons = { RemovalReason.INVALIDATED, RemovalReason.EVICTED, RemovalReason.EXPLICIT, RemovalReason.CAPACITY };
         for (RemovalReason reason : reasons) {
             cache.onRemoval(
-                new RemovalNotification<ICacheKey<IndicesRequestCache.Key>, BytesReference>(
-                    new ICacheKey<>(key),
-                    getTermBytes(),
-                    reason
-                ));
+                new RemovalNotification<ICacheKey<IndicesRequestCache.Key>, BytesReference>(new ICacheKey<>(key), getTermBytes(), reason)
+            );
             assertEquals(--staleCount, cache.cacheCleanupManager.getStaleKeysCount().get());
         }
     }
