@@ -407,6 +407,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
             // drops out, we fetch the shard data, then some indexing happens and then the node rejoins the cluster again. There are other
             // ways we could decide to cancel a recovery based on stale data (e.g. changing allocation filters or a primary failure) but
             // making the wrong decision here is not catastrophic so we only need to cover the common case.
+
             logger.trace(
                 () -> new ParameterizedMessage(
                     "new nodes {} found, clearing primary async-fetch-store cache",
@@ -422,15 +423,18 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     private static void clearCacheForBatchPrimary(ShardsBatch batch, RoutingAllocation allocation) {
         // We need to clear the cache for the primary shard to ensure we do not cancel recoveries based on excessively
-        // stale data. We do this by clearing the cache of primary shards on nodes for all the active primaries of
-        // replicas in the current batch.
+        // stale data. We do this by clearing the cache of nodes for all the active primaries of replicas in the current batch.
+        // Although this flow can be optimized by only clearing the cache for the primary shard but currently
+        // when we want to fetch data we do for complete node, for doing this a new fetch flow will also handle just
+        // fetching the data for a single shard on the node and fill that up in our cache
+        // Opened issue #13352 - to track the improvement
         List<ShardRouting> primaries = batch.getBatchedShards()
             .stream()
             .map(allocation.routingNodes()::activePrimary)
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
         AsyncShardBatchFetch<? extends BaseNodeResponse, ?> fetch = batch.getAsyncFetcher();
-        primaries.forEach(shardRouting -> fetch.clearCache(shardRouting.currentNodeId(), shardRouting.shardId()));
+        primaries.forEach(shardRouting -> fetch.clearCacheForNode(shardRouting.currentNodeId()));
     }
 
     private boolean hasNewNodes(DiscoveryNodes nodes) {

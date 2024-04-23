@@ -315,11 +315,6 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             cache.clear(); // single shard cache can clear the full map
         }
 
-        @Override
-        public void cleanCacheForNodeForShardId(String nodeId, ShardId shardId) {
-            cache.remove(nodeId); // non batch cache only has one entry per node
-        }
-
         /**
          * A node entry, holding the state of the fetched data for a specific shard
          * for a giving node.

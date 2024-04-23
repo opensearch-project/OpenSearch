@@ -81,16 +81,6 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extend
     }
 
     /**
-     * Clear the cache for a given node and shardId.
-     *
-     * @param nodeId node id to be removed from the batch.
-     * @param shardId shard id to be removed from the batch.
-     */
-    public synchronized void clearCache(String nodeId, ShardId shardId) {
-        this.cache.cleanCacheForNodeForShardId(nodeId, shardId);
-    }
-
-    /**
      * Cache implementation of transport actions returning batch of shards related data in the response.
      * Store node level responses of transport actions like {@link TransportNodesListGatewayStartedShardsBatch} or
      * {@link org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch} with memory efficient caching
@@ -145,14 +135,6 @@ public abstract class AsyncShardBatchFetch<T extends BaseNodeResponse, V> extend
                 for (String nodeId : cache.keySet()) {
                     cache.get(nodeId).clearShard(shardIdIndex);
                 }
-            }
-        }
-
-        @Override
-        public void cleanCacheForNodeForShardId(String nodeId, ShardId shardId) {
-            if (shardIdToArray.containsKey(shardId)) {
-                Integer shardIdIndex = shardIdToArray.remove(shardId);
-                cache.get(nodeId).clearShard(shardIdIndex);
             }
         }
 

@@ -74,8 +74,6 @@ public abstract class AsyncShardFetchCache<K extends BaseNodeResponse> {
      */
     abstract void deleteShard(ShardId shardId);
 
-    abstract void cleanCacheForNodeForShardId(String nodeId, ShardId shardId);
-
     /**
      * Returns the number of fetches that are currently ongoing.
      */
