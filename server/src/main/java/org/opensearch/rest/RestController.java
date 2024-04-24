@@ -324,17 +324,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
             }
-            if (handler.allowSystemIndexAccessByDefault() == false && request.header(OPENSEARCH_PRODUCT_ORIGIN_HTTP_HEADER) == null) {
+            if (request.header(OPENSEARCH_PRODUCT_ORIGIN_HTTP_HEADER) != null) {
+                client.threadPool().getThreadContext().putHeader(OPENSEARCH_PRODUCT_ORIGIN_HTTP_HEADER, Boolean.TRUE.toString());
+            } else if (handler.allowSystemIndexAccessByDefault() == false) {
                 // The OPENSEARCH_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an OpenSearch product with a plan
                 // to move away from direct access to system indices, and thus deprecation warnings should not be emitted.
                 // This header is intended for internal use only.
                 client.threadPool().getThreadContext().putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
-            }
-            if (request.header(OPENSEARCH_PRODUCT_ORIGIN_HTTP_HEADER) != null) {
-                client.threadPool().getThreadContext().putHeader(
-                    OPENSEARCH_PRODUCT_ORIGIN_HTTP_HEADER,
-                    request.header(OPENSEARCH_PRODUCT_ORIGIN_HTTP_HEADER)
-                );
             }
 
             handler.handleRequest(request, responseChannel, client);
