@@ -302,7 +302,7 @@ public class ShardRouting implements Writeable, ToXContentObject {
 
     public ShardRouting(ShardId shardId, StreamInput in) throws IOException {
         this.shardId = shardId;
-        currentNodeId = in.readOptionalString()!=null? in.readOptionalString().intern():null;
+        currentNodeId = in.readOptionalString() != null ? in.readOptionalString().intern() : null;
         relocatingNodeId = in.readOptionalString();
         primary = in.readBoolean();
         state = ShardRoutingState.fromValue(in.readByte());
