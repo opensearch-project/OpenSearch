@@ -177,20 +177,17 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                 indexMetadataBuilder = updateInSyncAllocations(newRoutingTable, oldIndexMetadata, indexMetadataBuilder, shardId, updates);
                 indexMetadataBuilder = updatePrimaryTerm(oldIndexMetadata, indexMetadataBuilder, shardId, updates);
                 if (ongoingRemoteStoreMigration) {
-                    RemoteMigrationIndexMetadataUpdater migrationImdUpdater = new RemoteMigrationIndexMetadataUpdater(logger);
-                    migrationImdUpdater.maybeUpdateRemoteStorePathStrategy(
-                        oldIndexMetadata,
-                        indexMetadataBuilder,
-                        index.getName(),
+                    RemoteMigrationIndexMetadataUpdater migrationImdUpdater = new RemoteMigrationIndexMetadataUpdater(
                         discoveryNodes,
-                        oldMetadata.settings()
-                    );
-                    migrationImdUpdater.maybeAddRemoteIndexSettings(
-                        oldIndexMetadata,
-                        indexMetadataBuilder,
                         newRoutingTable,
+                        oldIndexMetadata,
+                        oldMetadata.settings(),
+                        logger
+                    );
+                    migrationImdUpdater.maybeUpdateRemoteStorePathStrategy(indexMetadataBuilder, index.getName());
+                    migrationImdUpdater.maybeAddRemoteIndexSettings(
+                        indexMetadataBuilder,
                         index.getName(),
-                        discoveryNodes,
                         remoteRepoNames.get(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY),
                         remoteRepoNames.get(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY)
                     );

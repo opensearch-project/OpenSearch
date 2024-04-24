@@ -41,9 +41,24 @@ import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PA
  * @opensearch.internal
  */
 public class RemoteMigrationIndexMetadataUpdater {
+    private final DiscoveryNodes discoveryNodes;
+    private final RoutingTable routingTable;
+    private final Settings settings;
+    private final IndexMetadata indexMetadata;
     private final Logger logger;
 
-    public RemoteMigrationIndexMetadataUpdater(Logger logger) {
+    public RemoteMigrationIndexMetadataUpdater(
+        DiscoveryNodes discoveryNodes,
+        RoutingTable routingTable,
+        IndexMetadata indexMetadata,
+        Settings settings,
+        Logger logger
+
+    ) {
+        this.discoveryNodes = discoveryNodes;
+        this.routingTable = routingTable;
+        this.settings = settings;
+        this.indexMetadata = indexMetadata;
         this.logger = logger;
     }
 
@@ -54,11 +69,8 @@ public class RemoteMigrationIndexMetadataUpdater {
      * Also appends the requisite Remote Store Path based custom metadata to the existing index metadata
      */
     public void maybeAddRemoteIndexSettings(
-        IndexMetadata indexMetadata,
         IndexMetadata.Builder indexMetadataBuilder,
-        RoutingTable routingTable,
         String index,
-        DiscoveryNodes discoveryNodes,
         String segmentRepoName,
         String tlogRepoName
     ) {
@@ -89,7 +101,7 @@ public class RemoteMigrationIndexMetadataUpdater {
      * @param currentIndexSettings current {@link IndexMetadata} from cluster state
      * @return <code>true</code> or <code>false</code> depending on the met conditions
      */
-    public boolean needsRemoteIndexSettingsUpdate(
+    private boolean needsRemoteIndexSettingsUpdate(
         IndexRoutingTable indexRoutingTable,
         DiscoveryNodes discoveryNodes,
         Settings currentIndexSettings
@@ -116,19 +128,10 @@ public class RemoteMigrationIndexMetadataUpdater {
      * is not used anywhere in the docrep flow
      * Checks are in place to make this execution no-op if the index metadata is already present.
      *
-     * @param indexMetadata        Current {@link IndexMetadata}
      * @param indexMetadataBuilder Mutated {@link IndexMetadata.Builder} having the previous state updates
      * @param index                index name
-     * @param discoveryNodes       Current {@link DiscoveryNodes} from the cluster state
-     * @param settings             current cluster settings from {@link ClusterState}
      */
-    public void maybeUpdateRemoteStorePathStrategy(
-        IndexMetadata indexMetadata,
-        IndexMetadata.Builder indexMetadataBuilder,
-        String index,
-        DiscoveryNodes discoveryNodes,
-        Settings settings
-    ) {
+    public void maybeUpdateRemoteStorePathStrategy(IndexMetadata.Builder indexMetadataBuilder, String index) {
         if (indexHasRemotePathMetadata(indexMetadata) == false) {
             logger.info("Adding remote store path strategy for index [{}] during migration", index);
             indexMetadataBuilder.putCustom(REMOTE_STORE_CUSTOM_KEY, createRemoteStorePathTypeMetadata(settings, discoveryNodes));
@@ -144,7 +147,7 @@ public class RemoteMigrationIndexMetadataUpdater {
      * @param discoveryNodes Current {@link DiscoveryNodes} from the cluster state
      * @return {@link Map} to be added as custom data in index metadata
      */
-    public Map<String, String> createRemoteStorePathTypeMetadata(Settings settings, DiscoveryNodes discoveryNodes) {
+    private Map<String, String> createRemoteStorePathTypeMetadata(Settings settings, DiscoveryNodes discoveryNodes) {
         Version minNodeVersion = discoveryNodes.getMinNodeVersion();
         PathType pathType = Version.CURRENT.compareTo(minNodeVersion) <= 0
             ? CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.get(settings)

@@ -29,13 +29,13 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.REMOTE_STORE_CUSTOM_KEY;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
+import static org.mockito.Mockito.mock;
 
 public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase {
     private final String tlogRepoName = "test-tlog-repo";
@@ -44,153 +44,151 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
 
     public void testMaybeAddRemoteIndexSettingsAllPrimariesAndReplicasOnRemote() throws IOException {
         Metadata metadata = createIndexMetadataWithDocrepSettings(indexName);
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(metadata.index(indexName));
+        IndexMetadata existingIndexMetadata = metadata.index(indexName);
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(existingIndexMetadata);
         long currentSettingsVersion = indexMetadataBuilder.settingsVersion();
         DiscoveryNode primaryNode = IndexShardTestUtils.getFakeRemoteEnabledNode("1");
         DiscoveryNode replicaNode = IndexShardTestUtils.getFakeRemoteEnabledNode("2");
         DiscoveryNodes allNodes = DiscoveryNodes.builder().add(primaryNode).add(replicaNode).build();
         RoutingTable routingTable = createRoutingTableAllShardsStarted(indexName, 1, 1, primaryNode, replicaNode);
-        RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(logger);
-        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(
-            metadata.index(indexName),
-            indexMetadataBuilder,
-            routingTable,
-            indexName,
+        RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(
             allNodes,
-            segmentRepoName,
-            tlogRepoName
+            routingTable,
+            existingIndexMetadata,
+            existingIndexMetadata.getSettings(),
+            logger
         );
+        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName, segmentRepoName, tlogRepoName);
         assertTrue(currentSettingsVersion < indexMetadataBuilder.settingsVersion());
         assertRemoteSettingsApplied(indexMetadataBuilder.build());
     }
 
     public void testMaybeAddRemoteIndexSettingsDoesNotRunWhenSettingsAlreadyPresent() throws IOException {
         Metadata metadata = createIndexMetadataWithRemoteStoreSettings(indexName);
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(metadata.index(indexName));
+        IndexMetadata existingIndexMetadata = metadata.index(indexName);
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(existingIndexMetadata);
         long currentSettingsVersion = indexMetadataBuilder.settingsVersion();
         DiscoveryNode primaryNode = IndexShardTestUtils.getFakeRemoteEnabledNode("1");
         DiscoveryNode replicaNode = IndexShardTestUtils.getFakeRemoteEnabledNode("2");
         DiscoveryNodes allNodes = DiscoveryNodes.builder().add(primaryNode).add(replicaNode).build();
         RoutingTable routingTable = createRoutingTableAllShardsStarted(indexName, 1, 1, primaryNode, replicaNode);
-        RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(logger);
-        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(
-            metadata.index(indexName),
-            indexMetadataBuilder,
-            routingTable,
-            indexName,
+        RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(
             allNodes,
-            segmentRepoName,
-            tlogRepoName
+            routingTable,
+            existingIndexMetadata,
+            existingIndexMetadata.getSettings(),
+            logger
         );
+        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName, segmentRepoName, tlogRepoName);
         assertEquals(currentSettingsVersion, indexMetadataBuilder.settingsVersion());
     }
 
     public void testMaybeAddRemoteIndexSettingsDoesNotUpdateSettingsWhenAllShardsInDocrep() throws IOException {
         Metadata metadata = createIndexMetadataWithDocrepSettings(indexName);
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(metadata.index(indexName));
+        IndexMetadata existingIndexMetadata = metadata.index(indexName);
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(existingIndexMetadata);
         long currentSettingsVersion = indexMetadataBuilder.settingsVersion();
         DiscoveryNode primaryNode = IndexShardTestUtils.getFakeDiscoNode("1");
         DiscoveryNode replicaNode = IndexShardTestUtils.getFakeDiscoNode("2");
         DiscoveryNodes allNodes = DiscoveryNodes.builder().add(primaryNode).add(replicaNode).build();
         RoutingTable routingTable = createRoutingTableAllShardsStarted(indexName, 1, 1, primaryNode, replicaNode);
-        RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(logger);
-        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(
-            metadata.index(indexName),
-            indexMetadataBuilder,
-            routingTable,
-            indexName,
+        RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(
             allNodes,
-            segmentRepoName,
-            tlogRepoName
+            routingTable,
+            existingIndexMetadata,
+            existingIndexMetadata.getSettings(),
+            logger
         );
+        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName, segmentRepoName, tlogRepoName);
         assertEquals(currentSettingsVersion, indexMetadataBuilder.settingsVersion());
         assertDocrepSettingsApplied(indexMetadataBuilder.build());
     }
 
     public void testMaybeAddRemoteIndexSettingsUpdatesIndexSettingsWithUnassignedReplicas() throws IOException {
         Metadata metadata = createIndexMetadataWithDocrepSettings(indexName);
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(metadata.index(indexName));
+        IndexMetadata existingIndexMetadata = metadata.index(indexName);
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(existingIndexMetadata);
         long currentSettingsVersion = indexMetadataBuilder.settingsVersion();
         DiscoveryNode primaryNode = IndexShardTestUtils.getFakeRemoteEnabledNode("1");
         DiscoveryNode replicaNode = IndexShardTestUtils.getFakeDiscoNode("2");
         DiscoveryNodes allNodes = DiscoveryNodes.builder().add(primaryNode).add(replicaNode).build();
         RoutingTable routingTable = createRoutingTableReplicasUnassigned(indexName, 1, 1, primaryNode);
-        RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(logger);
-        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(
-            metadata.index(indexName),
-            indexMetadataBuilder,
-            routingTable,
-            indexName,
+        RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(
             allNodes,
-            segmentRepoName,
-            tlogRepoName
+            routingTable,
+            existingIndexMetadata,
+            existingIndexMetadata.getSettings(),
+            logger
         );
+        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName, segmentRepoName, tlogRepoName);
         assertTrue(currentSettingsVersion < indexMetadataBuilder.settingsVersion());
         assertRemoteSettingsApplied(indexMetadataBuilder.build());
     }
 
     public void testMaybeAddRemoteIndexSettingsDoesNotUpdateIndexSettingsWithRelocatingReplicas() throws IOException {
         Metadata metadata = createIndexMetadataWithDocrepSettings(indexName);
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(metadata.index(indexName));
+        IndexMetadata existingIndexMetadata = metadata.index(indexName);
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(existingIndexMetadata);
         long currentSettingsVersion = indexMetadataBuilder.settingsVersion();
         DiscoveryNode primaryNode = IndexShardTestUtils.getFakeRemoteEnabledNode("1");
         DiscoveryNode replicaNode = IndexShardTestUtils.getFakeDiscoNode("2");
         DiscoveryNode replicaRelocatingNode = IndexShardTestUtils.getFakeDiscoNode("3");
         DiscoveryNodes allNodes = DiscoveryNodes.builder().add(primaryNode).add(replicaNode).build();
         RoutingTable routingTable = createRoutingTableReplicasRelocating(indexName, 1, 1, primaryNode, replicaNode, replicaRelocatingNode);
-        RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(logger);
-        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(
-            metadata.index(indexName),
-            indexMetadataBuilder,
-            routingTable,
-            indexName,
+        RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(
             allNodes,
-            segmentRepoName,
-            tlogRepoName
+            routingTable,
+            existingIndexMetadata,
+            existingIndexMetadata.getSettings(),
+            logger
         );
+        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName, segmentRepoName, tlogRepoName);
         assertEquals(currentSettingsVersion, indexMetadataBuilder.settingsVersion());
         assertDocrepSettingsApplied(indexMetadataBuilder.build());
     }
 
     public void testMaybeUpdateRemoteStorePathStrategyExecutes() {
         Metadata currentMetadata = createIndexMetadataWithDocrepSettings(indexName);
-        IndexMetadata.Builder builder = IndexMetadata.builder(currentMetadata.index(indexName));
-        RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(logger);
+        IndexMetadata existingIndexMetadata = currentMetadata.index(indexName);
+        IndexMetadata.Builder builder = IndexMetadata.builder(existingIndexMetadata);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(IndexShardTestUtils.getFakeRemoteEnabledNode("1")).build();
-        migrationIndexMetadataUpdater.maybeUpdateRemoteStorePathStrategy(
-            currentMetadata.index(indexName),
-            builder,
-            indexName,
+        RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(
             discoveryNodes,
+            mock(RoutingTable.class),
+            existingIndexMetadata,
             Settings.builder()
                 .put(
                     CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING.getKey(),
                     RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1.name()
                 )
                 .put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.HASHED_PREFIX.name())
-                .build()
+                .build(),
+            logger
         );
+        migrationIndexMetadataUpdater.maybeUpdateRemoteStorePathStrategy(builder, indexName);
         assertCustomPathMetadataIsPresent(builder.build());
     }
 
     public void testMaybeUpdateRemoteStorePathStrategyDoesNotExecute() {
         Metadata currentMetadata = createIndexMetadataWithRemoteStoreSettings(indexName);
+        IndexMetadata existingIndexMetadata = currentMetadata.index(indexName);
         IndexMetadata.Builder builder = IndexMetadata.builder(currentMetadata.index(indexName));
-        RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(logger);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(IndexShardTestUtils.getFakeRemoteEnabledNode("1")).build();
-        migrationIndexMetadataUpdater.maybeUpdateRemoteStorePathStrategy(
-            currentMetadata.index(indexName),
-            builder,
-            indexName,
+        RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(
             discoveryNodes,
+            mock(RoutingTable.class),
+            existingIndexMetadata,
             Settings.builder()
                 .put(
                     CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING.getKey(),
                     RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1.name()
                 )
                 .put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.HASHED_PREFIX.name())
-                .build()
+                .build(),
+            logger
         );
+
+        migrationIndexMetadataUpdater.maybeUpdateRemoteStorePathStrategy(builder, indexName);
 
         assertCustomPathMetadataIsPresent(builder.build());
     }
@@ -319,15 +317,6 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
                 .build()
         ).build();
         return Metadata.builder().put(indexMetadata).build();
-    }
-
-    private static IndexMetadata createIndexMetadataWithCustomRemotePath(String indexName) {
-        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
-        Map<String, String> customRemotePathData = new HashMap<>();
-        customRemotePathData.put(RemoteStoreEnums.PathType.NAME, RemoteStoreEnums.PathType.FIXED.name());
-        customRemotePathData.put(RemoteStoreEnums.PathHashAlgorithm.NAME, RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64.name());
-        indexMetadata.putCustom(REMOTE_STORE_CUSTOM_KEY, customRemotePathData);
-        return indexMetadata.build();
     }
 
     private void assertRemoteSettingsApplied(IndexMetadata indexMetadata) {
