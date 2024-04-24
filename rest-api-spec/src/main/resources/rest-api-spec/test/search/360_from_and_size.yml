@@ -37,8 +37,8 @@ teardown:
 ---
 "Throws exception if from or size query parameter is negative":
   - skip:
-      version: " - 2.99.99"
-      reason: "fixed in 3.0.0"
+      version: " - 2.13.99"
+      reason: "fixed in 2.14.0"
   - do:
       catch: '/\[from\] parameter cannot be negative, found \[-5\]/'
       search:
@@ -76,8 +76,8 @@ teardown:
 ---
 "Throws exception if from or size request body parameter is negative":
   - skip:
-      version: " - 2.99.99"
-      reason: "fixed in 3.0.0"
+      version: " - 2.13.99"
+      reason: "fixed in 2.14.0"
   - do:
       catch: '/\[from\] parameter cannot be negative, found \[-5\]/'
       search:
