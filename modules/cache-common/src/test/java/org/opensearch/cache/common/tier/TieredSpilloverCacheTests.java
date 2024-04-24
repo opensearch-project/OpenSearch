@@ -174,7 +174,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME,
                 new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory(),
                 MockDiskCache.MockDiskCacheFactory.NAME,
-                new MockDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300))
+                new MockDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300), false)
             )
         );
 
@@ -249,7 +249,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                     OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME,
                     new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory(),
                     MockDiskCache.MockDiskCacheFactory.NAME,
-                    new MockDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300))
+                    new MockDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300), false)
                 )
             )
         );
@@ -294,7 +294,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                     OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME,
                     new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory(),
                     MockDiskCache.MockDiskCacheFactory.NAME,
-                    new MockDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300))
+                    new MockDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300), false)
                 )
             )
         );
@@ -334,7 +334,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             .setClusterSettings(clusterSettings)
             .build();
 
-        ICache.Factory mockDiskCacheFactory = new MockDiskCache.MockDiskCacheFactory(0, diskCacheSize);
+        ICache.Factory mockDiskCacheFactory = new MockDiskCache.MockDiskCacheFactory(0, diskCacheSize, false);
 
         TieredSpilloverCache<String, String> tieredSpilloverCache = new TieredSpilloverCache.Builder<String, String>()
             .setOnHeapCacheFactory(onHeapCacheFactory)
@@ -818,7 +818,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
 
         ICache.Factory onHeapCacheFactory = new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory();
-        ICache.Factory diskCacheFactory = new MockDiskCache.MockDiskCacheFactory(500, diskCacheSize);
+        ICache.Factory diskCacheFactory = new MockDiskCache.MockDiskCacheFactory(500, diskCacheSize, false);
         CacheConfig<String, String> cacheConfig = new CacheConfig.Builder<String, String>().setKeyType(String.class)
             .setKeyType(String.class)
             .setWeigher((k, v) -> 150)
@@ -1023,7 +1023,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME,
                 new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory(),
                 MockDiskCache.MockDiskCacheFactory.NAME,
-                new MockDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300))
+                new MockDiskCache.MockDiskCacheFactory(0, randomIntBetween(100, 300), false)
             )
         );
 
@@ -1115,7 +1115,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         int diskCacheSize = randomIntBetween(onHeapCacheSize + 1, 100);
         int keyValueSize = 50;
         int totalSize = onHeapCacheSize + diskCacheSize;
-
         MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
         TieredSpilloverCache<String, String> tieredSpilloverCache = initializeTieredSpilloverCache(
             keyValueSize,
@@ -1183,6 +1182,39 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         tieredSpilloverCache.invalidateAll(); // Clear up all the keys.
         assertEquals(0, tieredSpilloverCache.count());
     }
+
+        public void testTiersDoNotTrackStats() throws Exception {
+            int onHeapCacheSize = randomIntBetween(10, 30);
+            int diskCacheSize = randomIntBetween(onHeapCacheSize + 1, 100);
+            int keyValueSize = 50;
+            MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+            TieredSpilloverCache<String, String> tieredSpilloverCache = initializeTieredSpilloverCache(
+                keyValueSize,
+                diskCacheSize,
+                removalListener,
+                Settings.builder()
+                    .put(
+                        OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                            .get(MAXIMUM_SIZE_IN_BYTES_KEY)
+                            .getKey(),
+                        onHeapCacheSize * keyValueSize + "b"
+                    )
+                    .build(),
+                0
+            );
+
+            // do some gets to put entries in both tiers
+            int numMisses = onHeapCacheSize + randomIntBetween(10, 20);
+            for (int iter = 0; iter < numMisses; iter++) {
+                ICacheKey<String> key = getICacheKey(UUID.randomUUID().toString());
+                LoadAwareCacheLoader<ICacheKey<String>, String> tieredCacheLoader = getLoadAwareCacheLoader();
+                tieredSpilloverCache.computeIfAbsent(key, tieredCacheLoader);
+            }
+            assertNotEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), tieredSpilloverCache.stats().getTotalStats());
+            assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), tieredSpilloverCache.getOnHeapCache().stats().getTotalStats());
+            ImmutableCacheStats diskStats = tieredSpilloverCache.getDiskCache().stats().getTotalStats();
+            assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), diskStats);
+        }
 
     private List<String> getMockDimensions() {
         List<String> dims = new ArrayList<>();
@@ -1299,7 +1331,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             )
             .setClusterSettings(clusterSettings)
             .build();
-        ICache.Factory mockDiskCacheFactory = new MockDiskCache.MockDiskCacheFactory(diskDeliberateDelay, diskCacheSize);
+        ICache.Factory mockDiskCacheFactory = new MockDiskCache.MockDiskCacheFactory(diskDeliberateDelay, diskCacheSize, false);
 
         TieredSpilloverCache.Builder<String, String> builder = new TieredSpilloverCache.Builder<String, String>().setCacheType(
             CacheType.INDICES_REQUEST_CACHE

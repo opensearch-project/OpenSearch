@@ -68,6 +68,8 @@ public class CacheConfig<K, V> {
 
     private final ClusterSettings clusterSettings;
 
+    private final boolean useNoopStats;
+
     private CacheConfig(Builder<K, V> builder) {
         this.keyType = builder.keyType;
         this.valueType = builder.valueType;
@@ -81,6 +83,7 @@ public class CacheConfig<K, V> {
         this.maxSizeInBytes = builder.maxSizeInBytes;
         this.expireAfterAccess = builder.expireAfterAccess;
         this.clusterSettings = builder.clusterSettings;
+        this.useNoopStats = builder.useNoopStats;
     }
 
     public Class<K> getKeyType() {
@@ -131,6 +134,10 @@ public class CacheConfig<K, V> {
         return clusterSettings;
     }
 
+    public boolean getUseNoopStats() {
+        return useNoopStats;
+    }
+
     /**
      * Builder class to build Cache config related parameters.
      * @param <K> Type of key.
@@ -155,6 +162,7 @@ public class CacheConfig<K, V> {
 
         private TimeValue expireAfterAccess;
         private ClusterSettings clusterSettings;
+        private boolean useNoopStats;
 
         public Builder() {}
 
@@ -215,6 +223,11 @@ public class CacheConfig<K, V> {
 
         public Builder<K, V> setClusterSettings(ClusterSettings clusterSettings) {
             this.clusterSettings = clusterSettings;
+            return this;
+        }
+
+        public Builder<K, V> setUseNoopStats(boolean useNoopStats) {
+            this.useNoopStats = useNoopStats;
             return this;
         }
 

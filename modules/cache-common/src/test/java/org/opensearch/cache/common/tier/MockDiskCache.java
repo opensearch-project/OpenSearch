@@ -16,11 +16,15 @@ import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.serializer.Serializer;
+import org.opensearch.common.cache.stats.CacheStatsHolder;
+import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
+import org.opensearch.common.cache.stats.NoopCacheStatsHolder;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,12 +36,18 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
     long delay;
 
     private final RemovalListener<ICacheKey<K>, V> removalListener;
+    private final CacheStatsHolder statsHolder; // Only update for number of entries; this is only used to test useNoopStats logic in TSC
 
-    public MockDiskCache(int maxSize, long delay, RemovalListener<ICacheKey<K>, V> removalListener) {
+    public MockDiskCache(int maxSize, long delay, RemovalListener<ICacheKey<K>, V> removalListener, boolean useNoopStats) {
         this.maxSize = maxSize;
         this.delay = delay;
         this.removalListener = removalListener;
         this.cache = new ConcurrentHashMap<ICacheKey<K>, V>();
+        if (useNoopStats) {
+            this.statsHolder = NoopCacheStatsHolder.getInstance();
+        } else {
+            this.statsHolder = new DefaultCacheStatsHolder(List.of());
+        }
     }
 
     @Override
@@ -50,6 +60,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
     public void put(ICacheKey<K> key, V value) {
         if (this.cache.size() >= maxSize) { // For simplification
             this.removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EVICTED));
+            this.statsHolder.decrementEntries(List.of());
         }
         try {
             Thread.sleep(delay);
@@ -57,6 +68,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
             throw new RuntimeException(e);
         }
         this.cache.put(key, value);
+        this.statsHolder.incrementEntries(List.of());
     }
 
     @Override
@@ -97,7 +109,9 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
 
     @Override
     public ImmutableCacheStatsHolder stats() {
-        return null;
+        // To allow testing of useNoopStats logic in TSC, return a dummy ImmutableCacheStatsHolder with the
+        // right number of entries, unless useNoopStats is true
+        return statsHolder.getImmutableCacheStatsHolder();
     }
 
     @Override
@@ -110,10 +124,12 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
         public static final String NAME = "mockDiskCache";
         final long delay;
         final int maxSize;
+        final boolean useNoopStats;
 
-        public MockDiskCacheFactory(long delay, int maxSize) {
+        public MockDiskCacheFactory(long delay, int maxSize, boolean useNoopStats) {
             this.delay = delay;
             this.maxSize = maxSize;
+            this.useNoopStats = useNoopStats;
         }
 
         @Override
@@ -124,6 +140,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
                 .setMaxSize(maxSize)
                 .setDeliberateDelay(delay)
                 .setRemovalListener(config.getRemovalListener())
+                .setUseNoopStats(config.getUseNoopStats())
                 .build();
         }
 
@@ -142,7 +159,8 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
 
         @Override
         public ICache<K, V> build() {
-            return new MockDiskCache<K, V>(this.maxSize, this.delay, this.getRemovalListener());
+            boolean useNoopStats = getUseNoopStats();
+            return new MockDiskCache<K, V>(this.maxSize, this.delay, this.getRemovalListener(), getUseNoopStats());
         }
 
         public Builder<K, V> setMaxSize(int maxSize) {
