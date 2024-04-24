@@ -186,10 +186,10 @@ public class RestNodesStatsAction extends BaseRestHandler {
                 } else {
                     for (String cacheName : cacheMetrics) {
                         try {
-                            cacheFlags.includeCacheType(CacheType.getByRepresentation(cacheName));
+                            cacheFlags.includeCacheType(CacheType.getByValue(cacheName));
                         } catch (IllegalArgumentException e) {
                             throw new IllegalArgumentException(
-                                unrecognized(request, Set.of(cacheName), CacheType.allRepresentations(), "cache type")
+                                unrecognized(request, Set.of(cacheName), CacheType.allValues(), "cache type")
                             );
                         }
                     }

@@ -78,11 +78,7 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
         // First, aggregate by indices only
         Map<String, Object> xContentMap = getNodeCacheStatsXContentMap(client, List.of(IndicesRequestCache.INDEX_DIMENSION_NAME));
 
-        List<String> index1Keys = List.of(
-            CacheType.INDICES_REQUEST_CACHE.getApiRepresentation(),
-            IndicesRequestCache.INDEX_DIMENSION_NAME,
-            index1Name
-        );
+        List<String> index1Keys = List.of(CacheType.INDICES_REQUEST_CACHE.getValue(), IndicesRequestCache.INDEX_DIMENSION_NAME, index1Name);
         // Since we searched twice, we expect to see 1 hit, 1 miss and 1 entry for index 1
         ImmutableCacheStats expectedStats = new ImmutableCacheStats(1, 1, 0, 0, 1);
         checkCacheStatsAPIResponse(xContentMap, index1Keys, expectedStats, false, true);
@@ -93,25 +89,21 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
         )).get(ImmutableCacheStats.Fields.SIZE_IN_BYTES);
         assertTrue(requestSize > 0);
 
-        List<String> index2Keys = List.of(
-            CacheType.INDICES_REQUEST_CACHE.getApiRepresentation(),
-            IndicesRequestCache.INDEX_DIMENSION_NAME,
-            index2Name
-        );
+        List<String> index2Keys = List.of(CacheType.INDICES_REQUEST_CACHE.getValue(), IndicesRequestCache.INDEX_DIMENSION_NAME, index2Name);
         // We searched once in index 2, we expect 1 miss + 1 entry
         expectedStats = new ImmutableCacheStats(0, 1, 0, requestSize, 1);
         checkCacheStatsAPIResponse(xContentMap, index2Keys, expectedStats, true, true);
 
         // The total stats for the node should be 1 hit, 2 misses, and 2 entries
         expectedStats = new ImmutableCacheStats(1, 2, 0, 2 * requestSize, 2);
-        List<String> totalStatsKeys = List.of(CacheType.INDICES_REQUEST_CACHE.getApiRepresentation());
+        List<String> totalStatsKeys = List.of(CacheType.INDICES_REQUEST_CACHE.getValue());
         checkCacheStatsAPIResponse(xContentMap, totalStatsKeys, expectedStats, true, true);
 
         // Aggregate by shards only
         xContentMap = getNodeCacheStatsXContentMap(client, List.of(IndicesRequestCache.SHARD_ID_DIMENSION_NAME));
 
         List<String> index1Shard0Keys = List.of(
-            CacheType.INDICES_REQUEST_CACHE.getApiRepresentation(),
+            CacheType.INDICES_REQUEST_CACHE.getValue(),
             IndicesRequestCache.SHARD_ID_DIMENSION_NAME,
             "[" + index1Name + "][0]"
         );
@@ -120,7 +112,7 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
         checkCacheStatsAPIResponse(xContentMap, index1Shard0Keys, expectedStats, true, true);
 
         List<String> index2Shard0Keys = List.of(
-            CacheType.INDICES_REQUEST_CACHE.getApiRepresentation(),
+            CacheType.INDICES_REQUEST_CACHE.getValue(),
             IndicesRequestCache.SHARD_ID_DIMENSION_NAME,
             "[" + index2Name + "][0]"
         );
@@ -134,7 +126,7 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
         );
 
         index1Keys = List.of(
-            CacheType.INDICES_REQUEST_CACHE.getApiRepresentation(),
+            CacheType.INDICES_REQUEST_CACHE.getValue(),
             IndicesRequestCache.INDEX_DIMENSION_NAME,
             index1Name,
             IndicesRequestCache.SHARD_ID_DIMENSION_NAME,
@@ -145,7 +137,7 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
         checkCacheStatsAPIResponse(xContentMap, index1Keys, expectedStats, true, true);
 
         index2Keys = List.of(
-            CacheType.INDICES_REQUEST_CACHE.getApiRepresentation(),
+            CacheType.INDICES_REQUEST_CACHE.getValue(),
             IndicesRequestCache.INDEX_DIMENSION_NAME,
             index2Name,
             IndicesRequestCache.SHARD_ID_DIMENSION_NAME,
@@ -184,7 +176,7 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
             .getRequestCache();
         assertNotEquals(0, oldApiStats.getMemorySizeInBytes());
 
-        List<String> xContentMapKeys = List.of(CacheType.INDICES_REQUEST_CACHE.getApiRepresentation());
+        List<String> xContentMapKeys = List.of(CacheType.INDICES_REQUEST_CACHE.getValue());
         Map<String, Object> xContentMap = getNodeCacheStatsXContentMap(client, List.of());
         ImmutableCacheStats expected = new ImmutableCacheStats(
             oldApiStats.getHitCount(),

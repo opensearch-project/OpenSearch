@@ -23,39 +23,39 @@ public enum CacheType {
     INDICES_REQUEST_CACHE("indices.requests.cache", "request_cache");
 
     private final String settingPrefix;
-    private final String apiRepresentation;
+    private final String value; // The value displayed for this cache type in API responses
 
-    private static final Map<String, CacheType> representationsMap;
+    private static final Map<String, CacheType> valuesMap;
     static {
-        Map<String, CacheType> reprs = new HashMap<>();
+        Map<String, CacheType> values = new HashMap<>();
         for (CacheType cacheType : values()) {
-            reprs.put(cacheType.apiRepresentation, cacheType);
+            values.put(cacheType.value, cacheType);
         }
-        representationsMap = Collections.unmodifiableMap(reprs);
+        valuesMap = Collections.unmodifiableMap(values);
     }
 
     CacheType(String settingPrefix, String representation) {
         this.settingPrefix = settingPrefix;
-        this.apiRepresentation = representation;
+        this.value = representation;
     }
 
     public String getSettingPrefix() {
         return settingPrefix;
     }
 
-    public String getApiRepresentation() {
-        return apiRepresentation;
+    public String getValue() {
+        return value;
     }
 
-    public static CacheType getByRepresentation(String representation) {
-        CacheType result = representationsMap.get(representation);
+    public static CacheType getByValue(String value) {
+        CacheType result = valuesMap.get(value);
         if (result == null) {
-            throw new IllegalArgumentException("No CacheType with representation = " + representation);
+            throw new IllegalArgumentException("No CacheType with value = " + value);
         }
         return result;
     }
 
-    public static Set<String> allRepresentations() {
-        return representationsMap.keySet();
+    public static Set<String> allValues() {
+        return valuesMap.keySet();
     }
 }

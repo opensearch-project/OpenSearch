@@ -29,7 +29,7 @@ import java.util.SortedMap;
  */
 @ExperimentalApi
 public class NodeCacheStats implements ToXContentFragment, Writeable {
-    // Use TreeMap to force consistent ordering of caches in API responses
+    // Use SortedMap to force consistent ordering of caches in API responses
     private final SortedMap<CacheType, ImmutableCacheStatsHolder> statsByCache;
     private final CommonStatsFlags flags;
 
@@ -53,7 +53,7 @@ public class NodeCacheStats implements ToXContentFragment, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (CacheType type : statsByCache.keySet()) {
             if (flags.getIncludeCaches().contains(type)) {
-                builder.startObject(type.getApiRepresentation());
+                builder.startObject(type.getValue());
                 statsByCache.get(type).toXContent(builder, params);
                 builder.endObject();
             }

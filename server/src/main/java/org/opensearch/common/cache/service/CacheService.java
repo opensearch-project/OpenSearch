@@ -22,6 +22,7 @@ import org.opensearch.common.util.FeatureFlags;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.SortedMap;
 import java.util.TreeMap;
 
 /**
@@ -67,7 +68,7 @@ public class CacheService {
     }
 
     public NodeCacheStats stats(CommonStatsFlags flags) {
-        final TreeMap<CacheType, ImmutableCacheStatsHolder> statsMap = new TreeMap<>();
+        final SortedMap<CacheType, ImmutableCacheStatsHolder> statsMap = new TreeMap<>();
         for (CacheType type : cacheTypeMap.keySet()) {
             statsMap.put(type, cacheTypeMap.get(type).stats(flags.getLevels()));
         }
