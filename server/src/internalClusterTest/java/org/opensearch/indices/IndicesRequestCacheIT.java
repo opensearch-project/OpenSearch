@@ -1108,7 +1108,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
 
     // closing the Index after caching will clean up from Indices Request Cache
     public void testCacheCleanupAfterClosingIndex() throws Exception {
-        int cacheCleanIntervalInMillis = 1;
+        int cacheCleanIntervalInMillis = 100;
         String node = internalCluster().startNode(
             Settings.builder()
                 .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_STALENESS_THRESHOLD_SETTING_KEY, 0.10)
@@ -1181,7 +1181,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
 
     // when staleness threshold is lower than staleness, it should clean the cache from all indices having stale keys
     public void testStaleKeysCleanup_CleansUpStaleKeysAcrossMultipleIndices() throws Exception {
-        int cacheCleanIntervalInMillis = 50;
+        int cacheCleanIntervalInMillis = 100;
         String node = internalCluster().startNode(
             Settings.builder()
                 .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_STALENESS_THRESHOLD_SETTING_KEY, 0.10)
