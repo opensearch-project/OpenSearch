@@ -345,13 +345,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
 
                 boolean remoteStoreIndexShallowCopy = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
-                logger.info("remote_store_index_shallow_copy setting is set as [{}]", remoteStoreIndexShallowCopy);
-                CompatibilityMode compatibilityMode = clusterService.getClusterSettings().get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING);
-                if (remoteStoreIndexShallowCopy && compatibilityMode.equals(CompatibilityMode.STRICT) == false) {
+                logger.debug("remote_store_index_shallow_copy setting is set as [{}]", remoteStoreIndexShallowCopy);
+                if (remoteStoreIndexShallowCopy
+                    && clusterService.getClusterSettings().get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING).equals(CompatibilityMode.MIXED)) {
                     // don't allow shallow snapshots if compatibility mode is not strict
-                    logger.warn(
-                        "Shallow snapshots are not allowed during migration, thus overriding remote_store_index_shallow_copy to false"
-                    );
+                    logger.warn("Shallow snapshots are not supported during migration. Falling back to full snapshot.");
                     remoteStoreIndexShallowCopy = false;
                 }
                 newEntry = SnapshotsInProgress.startedEntry(
