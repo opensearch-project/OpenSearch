@@ -59,6 +59,7 @@ import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.indices.NodeIndicesStats;
+import org.opensearch.indices.recovery.PeerRecoveryStats;
 import org.opensearch.ingest.IngestStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.jvm.JvmStats;
@@ -577,6 +578,24 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         deserializedAdmissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType())
                     );
                 }
+
+                PeerRecoveryStats peerRecoveryStats = nodeStats.getPeerRecoveryStats();
+                PeerRecoveryStats deserializedPeerRecoveryStats = deserializedNodeStats.getPeerRecoveryStats();
+                if (peerRecoveryStats == null) {
+                    assertNull(deserializedPeerRecoveryStats);
+                } else {
+                    assertEquals(
+                        peerRecoveryStats.getTotalCancelledRecoveries(),
+                        deserializedPeerRecoveryStats.getTotalCancelledRecoveries()
+                    );
+                    assertEquals(
+                        peerRecoveryStats.getTotalCompletedRecoveries(),
+                        deserializedPeerRecoveryStats.getTotalCompletedRecoveries()
+                    );
+                    assertEquals(peerRecoveryStats.getTotalFailedRecoveries(), deserializedPeerRecoveryStats.getTotalFailedRecoveries());
+                    assertEquals(peerRecoveryStats.getTotalRetriedRecoveries(), deserializedPeerRecoveryStats.getTotalRetriedRecoveries());
+                    assertEquals(peerRecoveryStats.getTotalStartedRecoveries(), deserializedPeerRecoveryStats.getTotalStartedRecoveries());
+                }
             }
         }
     }
@@ -928,6 +947,17 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
         NodeIndicesStats indicesStats = getNodeIndicesStats(remoteStoreStats);
 
+        PeerRecoveryStats peerRecoveryStats = null;
+        if (frequently()) {
+            peerRecoveryStats = new PeerRecoveryStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
+        }
+
         // TODO: Only remote_store based aspects of NodeIndicesStats are being tested here.
         // It is possible to test other metrics in NodeIndicesStats as well since it extends Writeable now
         return new NodeStats(
@@ -958,7 +988,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null,
             segmentReplicationRejectionStats,
             null,
-            admissionControlStats
+            admissionControlStats,
+            peerRecoveryStats
         );
     }
 
