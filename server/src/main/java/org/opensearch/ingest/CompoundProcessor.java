@@ -162,7 +162,7 @@ public class CompoundProcessor implements Processor {
      * Internal logic to process documents with current processor.
      *
      * @param currentProcessor index of processor to process batched documents
-     * @param ingestDocumentWrappers {@link List<IngestDocumentWrapper> } batched documents to be processed
+     * @param ingestDocumentWrappers batched documents to be processed
      * @param handler callback function
      */
     void innerBatchExecute(
@@ -251,6 +251,7 @@ public class CompoundProcessor implements Processor {
                     }
                 }
             }
+            assert counter.get() >= 0;
         });
     }
 

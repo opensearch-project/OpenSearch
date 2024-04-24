@@ -90,7 +90,7 @@ public interface Processor {
      * Only override this method if the processor can benefit from processing documents in batches, otherwise, please
      * use default implementation.
      *
-     * @param ingestDocumentWrappers {@link List<IngestDocumentWrapper>} a list of wrapped IngestDocument
+     * @param ingestDocumentWrappers a list of wrapped IngestDocument
      * @param handler callback with IngestDocument result and exception wrapped in IngestDocumentWrapper.
      */
     default void batchExecute(List<IngestDocumentWrapper> ingestDocumentWrappers, Consumer<List<IngestDocumentWrapper>> handler) {

@@ -111,7 +111,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
         if (in.getVersion().onOrAfter(MINIMAL_VERSION_SUPPORT_BATCH)) {
-            batchIngestionOption = BatchIngestionOption.readFrom(in);
+            batchIngestionOption = in.readEnum(BatchIngestionOption.class);
             maximumBatchSize = in.readInt();
         }
     }
@@ -501,7 +501,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
         if (out.getVersion().onOrAfter(MINIMAL_VERSION_SUPPORT_BATCH)) {
-            batchIngestionOption.writeTo(out);
+            out.writeEnum(batchIngestionOption);
             out.writeInt(maximumBatchSize);
         }
     }

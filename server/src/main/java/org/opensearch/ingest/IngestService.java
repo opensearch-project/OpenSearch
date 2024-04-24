@@ -1106,6 +1106,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
                 handler.accept(results);
             }
+            assert counter.get() >= 0;
         });
     }
 

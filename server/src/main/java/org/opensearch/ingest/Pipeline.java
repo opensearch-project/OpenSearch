@@ -210,7 +210,7 @@ public final class Pipeline {
      * this document will be kept and indexed. Document and the exception happened during processing are kept in
      * IngestDocumentWrapper and callback to upper level.
      *
-     * @param ingestDocumentWrappers {@link List<IngestDocumentWrapper>} a list of wrapped IngestDocument to ingest.
+     * @param ingestDocumentWrappers a list of wrapped IngestDocument to ingest.
      * @param handler callback with IngestDocument result and exception wrapped in IngestDocumentWrapper.
      */
     public void batchExecute(List<IngestDocumentWrapper> ingestDocumentWrappers, Consumer<List<IngestDocumentWrapper>> handler) {
