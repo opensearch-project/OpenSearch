@@ -892,7 +892,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
 
     // when staleness threshold is explicitly set to 0, cache cleaner regularly cleans up stale keys.
     public void testCacheCleanupOnZeroStalenessThreshold() throws Exception {
-        int cacheCleanIntervalInMillis = 1;
+        int cacheCleanIntervalInMillis = 50;
         String node = internalCluster().startNode(
             Settings.builder()
                 .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_STALENESS_THRESHOLD_SETTING_KEY, 0)
@@ -1018,6 +1018,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         }, cacheCleanIntervalInMillis, TimeUnit.MILLISECONDS);
     }
 
+    // staleness threshold updates flows through to the cache cleaner
     public void testDynamicStalenessThresholdUpdate() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
