@@ -95,7 +95,7 @@ class S3BlobStore implements BlobStore {
     private final AsyncExecutorContainer priorityExecutorBuilder;
     private final AsyncExecutorContainer normalExecutorBuilder;
     private final boolean multipartUploadEnabled;
-    private final SizeBasedBlockingQ otherPrioritySizeBasedBlockingQ;
+    private final SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ;
     private final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
 
     S3BlobStore(
@@ -113,7 +113,7 @@ class S3BlobStore implements BlobStore {
         AsyncExecutorContainer urgentExecutorBuilder,
         AsyncExecutorContainer priorityExecutorBuilder,
         AsyncExecutorContainer normalExecutorBuilder,
-        SizeBasedBlockingQ otherPrioritySizeBasedBlockingQ,
+        SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ,
         SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ
     ) {
         this.service = service;
@@ -133,7 +133,7 @@ class S3BlobStore implements BlobStore {
         // Settings to initialize blobstore with.
         this.redirectLargeUploads = REDIRECT_LARGE_S3_UPLOAD.get(repositoryMetadata.settings());
         this.uploadRetryEnabled = UPLOAD_RETRY_ENABLED.get(repositoryMetadata.settings());
-        this.otherPrioritySizeBasedBlockingQ = otherPrioritySizeBasedBlockingQ;
+        this.normalPrioritySizeBasedBlockingQ = normalPrioritySizeBasedBlockingQ;
         this.lowPrioritySizeBasedBlockingQ = lowPrioritySizeBasedBlockingQ;
     }
 
@@ -191,8 +191,8 @@ class S3BlobStore implements BlobStore {
         return bulkDeletesSize;
     }
 
-    public SizeBasedBlockingQ getOtherPrioritySizeBasedBlockingQ() {
-        return otherPrioritySizeBasedBlockingQ;
+    public SizeBasedBlockingQ getNormalPrioritySizeBasedBlockingQ() {
+        return normalPrioritySizeBasedBlockingQ;
     }
 
     public SizeBasedBlockingQ getLowPrioritySizeBasedBlockingQ() {

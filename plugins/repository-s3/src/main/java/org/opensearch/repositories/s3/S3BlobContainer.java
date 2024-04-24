@@ -222,10 +222,10 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             // If file size is greater than the queue capacity than SizeBasedBlockingQ will always reject the upload.
             // Therefore, redirecting it to slow client.
             if ((uploadRequest.getWritePriority() == WritePriority.LOW
-                && blobStore.getLowPrioritySizeBasedBlockingQ().canProduce(uploadRequest.getContentLength()) == false)
+                && blobStore.getLowPrioritySizeBasedBlockingQ().isBelowCapacity(uploadRequest.getContentLength()) == false)
                 || (uploadRequest.getWritePriority() != WritePriority.HIGH
                     && uploadRequest.getWritePriority() != WritePriority.URGENT
-                    && blobStore.getOtherPrioritySizeBasedBlockingQ().canProduce(uploadRequest.getContentLength()) == false)) {
+                    && blobStore.getNormalPrioritySizeBasedBlockingQ().isBelowCapacity(uploadRequest.getContentLength()) == false)) {
                 StreamContext streamContext = SocketAccess.doPrivileged(
                     () -> writeContext.getStreamProvider(uploadRequest.getContentLength())
                 );
@@ -276,14 +276,16 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                                 () -> createFileCompletableFuture(s3AsyncClient, uploadRequest, streamContext, completionListener)
                             )
                         );
-                } else {
-                    blobStore.getOtherPrioritySizeBasedBlockingQ()
+                } else if (writeContext.getWritePriority() == WritePriority.NORMAL) {
+                    blobStore.getNormalPrioritySizeBasedBlockingQ()
                         .produce(
                             new SizeBasedBlockingQ.Item(
                                 writeContext.getFileSize(),
                                 () -> createFileCompletableFuture(s3AsyncClient, uploadRequest, streamContext, completionListener)
                             )
                         );
+                } else {
+                    throw new IllegalStateException("Cannot perform upload for other priority types.");
                 }
             }
         } catch (Exception e) {

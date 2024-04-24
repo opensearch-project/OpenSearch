@@ -8,6 +8,8 @@
 
 package org.opensearch.repositories.s3.async;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 
 import java.util.Objects;
@@ -18,7 +20,7 @@ import java.util.concurrent.TimeUnit;
  * Transfer semaphore holder for controlled transfer of data to remote.
  */
 public class TransferSemaphoresHolder {
-
+    private static final Logger log = LogManager.getLogger(TransferSemaphoresHolder.class);
     // For tests
     protected TypeSemaphore lowPrioritySemaphore;
     protected TypeSemaphore highPrioritySemaphore;
@@ -88,6 +90,14 @@ public class TransferSemaphoresHolder {
      * transfers.
      */
     public TypeSemaphore acquirePermit(WritePriority writePriority, RequestContext requestContext) throws InterruptedException {
+        log.debug(
+            () -> "Acquire permit request for transfer type: "
+                + writePriority
+                + ". Available high priority permits: "
+                + highPrioritySemaphore.availablePermits()
+                + " and low priority permits: "
+                + lowPrioritySemaphore.availablePermits()
+        );
         // Try acquiring low priority permit or high priority permit immediately if available.
         // Otherwise, we wait for low priority permit.
         if (Objects.requireNonNull(writePriority) == WritePriority.LOW) {

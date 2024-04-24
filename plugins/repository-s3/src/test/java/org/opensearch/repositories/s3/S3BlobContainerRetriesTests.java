@@ -122,7 +122,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     private ExecutorService transferQueueConsumerService;
     private ScheduledExecutorService scheduler;
     private AsyncTransferEventLoopGroup transferNIOGroup;
-    private SizeBasedBlockingQ otherPrioritySizeBasedBlockingQ;
+    private SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ;
     private SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
 
     @Before
@@ -137,7 +137,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         remoteTransferRetry = Executors.newFixedThreadPool(20);
         transferQueueConsumerService = Executors.newFixedThreadPool(2);
         scheduler = new ScheduledThreadPoolExecutor(1);
-        otherPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
+        normalPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
             new ByteSizeValue(Runtime.getRuntime().availableProcessors() * 5L, ByteSizeUnit.GB),
             transferQueueConsumerService,
             2
@@ -147,7 +147,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             transferQueueConsumerService,
             2
         );
-        otherPrioritySizeBasedBlockingQ.start();
+        normalPrioritySizeBasedBlockingQ.start();
         lowPrioritySizeBasedBlockingQ.start();
         // needed by S3AsyncService
         SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
@@ -163,7 +163,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         remoteTransferRetry.shutdown();
         transferQueueConsumerService.shutdown();
         scheduler.shutdown();
-        otherPrioritySizeBasedBlockingQ.close();
+        normalPrioritySizeBasedBlockingQ.close();
         lowPrioritySizeBasedBlockingQ.close();
         IOUtils.close(transferNIOGroup);
 
@@ -257,7 +257,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 asyncExecutorContainer,
                 asyncExecutorContainer,
                 asyncExecutorContainer,
-                otherPrioritySizeBasedBlockingQ,
+                normalPrioritySizeBasedBlockingQ,
                 lowPrioritySizeBasedBlockingQ
             )
         ) {

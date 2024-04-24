@@ -69,6 +69,7 @@ public class SizeBasedBlockingQ extends AbstractLifecycleComponent {
         if (item == null || item.size <= 0) {
             throw new IllegalStateException("Invalid item input to produce.");
         }
+        log.debug(() -> "Transfer queue event received of size: " + item.size + ". Current queue utilisation: " + currentSize.get());
 
         if (currentSize.get() + item.size >= capacity.getBytes()) {
             throw new S3TransferRejectedException("S3 Transfer queue capacity reached");
@@ -96,8 +97,8 @@ public class SizeBasedBlockingQ extends AbstractLifecycleComponent {
         return queue.size();
     }
 
-    public boolean canProduce(long contentLength) {
-        return (currentSize.get() + contentLength) < capacity.getBytes();
+    public boolean isBelowCapacity(long contentLength) {
+        return contentLength < capacity.getBytes();
     }
 
     protected static class Consumer extends Thread {

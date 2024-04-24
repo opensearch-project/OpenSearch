@@ -14,8 +14,12 @@ package org.opensearch.common.blobstore.stream.write;
  * @opensearch.internal
  */
 public enum WritePriority {
+    // Used for segment transfers during refresh, flush or merges
     NORMAL,
+    // Used for transfer of translog or ckp files.
     HIGH,
+    // Used for transfer of remote cluster state
     URGENT,
+    // All other background transfers such as in snapshot recovery, recovery from local store or index etc.
     LOW
 }

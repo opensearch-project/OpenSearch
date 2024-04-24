@@ -100,7 +100,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
     private ScheduledExecutorService scheduler;
     private AsyncTransferEventLoopGroup transferNIOGroup;
     private S3BlobContainer blobContainer;
-    private SizeBasedBlockingQ otherPrioritySizeBasedBlockingQ;
+    private SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ;
     private SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
 
     static class MockS3AsyncService extends S3AsyncService {
@@ -377,7 +377,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         transferQueueConsumerService = Executors.newFixedThreadPool(20);
         scheduler = new Scheduler.SafeScheduledThreadPoolExecutor(1);
         transferNIOGroup = new AsyncTransferEventLoopGroup(1);
-        otherPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
+        normalPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
             new ByteSizeValue(Runtime.getRuntime().availableProcessors() * 10L, ByteSizeUnit.GB),
             transferQueueConsumerService,
             10
@@ -387,7 +387,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             transferQueueConsumerService,
             5
         );
-        otherPrioritySizeBasedBlockingQ.start();
+        normalPrioritySizeBasedBlockingQ.start();
         lowPrioritySizeBasedBlockingQ.start();
         blobContainer = createBlobContainer();
         super.setUp();
@@ -401,7 +401,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         streamReaderService.shutdown();
         remoteTransferRetry.shutdown();
         transferQueueConsumerService.shutdown();
-        otherPrioritySizeBasedBlockingQ.close();
+        normalPrioritySizeBasedBlockingQ.close();
         lowPrioritySizeBasedBlockingQ.close();
         scheduler.shutdown();
         transferNIOGroup.close();
@@ -448,7 +448,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             asyncExecutorContainer,
             asyncExecutorContainer,
             asyncExecutorContainer,
-            otherPrioritySizeBasedBlockingQ,
+            normalPrioritySizeBasedBlockingQ,
             lowPrioritySizeBasedBlockingQ
         );
     }
@@ -651,7 +651,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
 
         when(blobStore.getLowPrioritySizeBasedBlockingQ()).thenReturn(sizeBasedBlockingQ);
-        when(blobStore.getOtherPrioritySizeBasedBlockingQ()).thenReturn(sizeBasedBlockingQ);
+        when(blobStore.getNormalPrioritySizeBasedBlockingQ()).thenReturn(sizeBasedBlockingQ);
 
         final boolean serverSideEncryption = randomBoolean();
         when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);

@@ -285,7 +285,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     private final AsyncExecutorContainer priorityExecutorBuilder;
     private final AsyncExecutorContainer normalExecutorBuilder;
     private final Path pluginConfigPath;
-    private final SizeBasedBlockingQ otherPrioritySizeBasedBlockingQ;
+    private final SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ;
     private final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
 
     private volatile int bulkDeletesSize;
@@ -303,7 +303,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         final AsyncExecutorContainer normalExecutorBuilder,
         final S3AsyncService s3AsyncService,
         final boolean multipartUploadEnabled,
-        final SizeBasedBlockingQ otherPrioritySizeBasedBlockingQ,
+        final SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ,
         final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ
     ) {
         this(
@@ -319,7 +319,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             s3AsyncService,
             multipartUploadEnabled,
             Path.of(""),
-            otherPrioritySizeBasedBlockingQ,
+            normalPrioritySizeBasedBlockingQ,
             lowPrioritySizeBasedBlockingQ
         );
     }
@@ -340,7 +340,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         final S3AsyncService s3AsyncService,
         final boolean multipartUploadEnabled,
         Path pluginConfigPath,
-        final SizeBasedBlockingQ otherPrioritySizeBasedBlockingQ,
+        final SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ,
         final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ
     ) {
         super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
@@ -352,7 +352,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         this.urgentExecutorBuilder = urgentExecutorBuilder;
         this.priorityExecutorBuilder = priorityExecutorBuilder;
         this.normalExecutorBuilder = normalExecutorBuilder;
-        this.otherPrioritySizeBasedBlockingQ = otherPrioritySizeBasedBlockingQ;
+        this.normalPrioritySizeBasedBlockingQ = normalPrioritySizeBasedBlockingQ;
         this.lowPrioritySizeBasedBlockingQ = lowPrioritySizeBasedBlockingQ;
 
         validateRepositoryMetadata(metadata);
@@ -417,7 +417,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             urgentExecutorBuilder,
             priorityExecutorBuilder,
             normalExecutorBuilder,
-            otherPrioritySizeBasedBlockingQ,
+            normalPrioritySizeBasedBlockingQ,
             lowPrioritySizeBasedBlockingQ
         );
     }
