@@ -705,7 +705,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // calling cache clear api, when staleness threshold is lower than staleness, it should clean the stale keys from cache
-    public void testStaleKeysCleanup_viaCacheClearAPI_LowStaleThresholdShouldCleanUpStaleKeysFromCache() throws Exception {
+    public void testCacheClearAPIRemovesStaleKeysWhenStalenessThresholdIsLow() throws Exception {
         String node = internalCluster().startNode(
             Settings.builder()
                 .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_STALENESS_THRESHOLD_SETTING_KEY, 0.10)
@@ -751,7 +751,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when staleness threshold is lower than staleness, it should clean the stale keys from cache
-    public void testStaleKeysCleanup_LowStaleThresholdShouldCleanUpStaleKeysFromCache() throws Exception {
+    public void testStaleKeysCleanupWithLowThreshold() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
             Settings.builder()
@@ -797,7 +797,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when staleness threshold is equal to staleness, it should clean the stale keys from cache
-    public void testStaleKeysCleanup_EqualThresholdAndStalenessShouldCleanUpStaleKeysFromCache() throws Exception {
+    public void testCacheCleanupOnEqualStalenessAndThreshold() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
             Settings.builder()
@@ -842,7 +842,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when staleness threshold is higher than staleness, it should NOT clean the cache
-    public void testStaleKeysCleanup_HighStaleThresholdShouldSkipCleanUp() throws Exception {
+    public void testCacheCleanupSkipsWithHighStalenessThreshold() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
             Settings.builder()
@@ -887,7 +887,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when staleness threshold is explicitly set to 0, cache cleaner regularly cleans up stale keys.
-    public void testStaleKeysCleanup_ZeroStaleThresholdShouldCleanUpStaleKeysFromCache() throws Exception {
+    public void testCacheCleanupOnZeroStalenessThreshold() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
             Settings.builder()
@@ -931,7 +931,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when staleness threshold is not explicitly set, cache cleaner regularly cleans up stale keys
-    public void testStaleKeysCleanup_NoStaleThresholdShouldCleanUpStaleKeysFromCache() throws Exception {
+    public void testStaleKeysRemovalWithoutExplicitThreshold() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
             Settings.builder()
@@ -975,7 +975,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when cache cleaner interval setting is not set, cache cleaner is configured appropriately with the fall-back setting
-    public void testStaleKeysCleanup_testFallbackSettings() throws Exception {
+    public void testCacheCleanupWithDefaultSettings() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
             Settings.builder().put(INDICES_CACHE_CLEANUP_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(cacheCleanIntervalInMillis))
@@ -1014,7 +1014,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         }, cacheCleanIntervalInMillis, TimeUnit.MILLISECONDS);
     }
 
-    public void testStalesKeyCleanupWithDynamicThresholdUpdate() throws Exception {
+    public void testDynamicStalenessThresholdUpdate() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
             Settings.builder()
@@ -1068,7 +1068,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // staleness threshold dynamic updates should throw exceptions on invalid input
-    public void testStaleKeysCleanup_ThresholdUpdatesShouldThrowExceptionsOnInvalidInput() throws Exception {
+    public void testInvalidStalenessThresholdUpdateThrowsException() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
             Settings.builder()
@@ -1107,7 +1107,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // closing the Index after caching will clean up from Indices Request Cache
-    public void testCacheCleanupAfterClosingIndex() throws Exception {
+    public void testCacheClearanceAfterIndexClosure() throws Exception {
         int cacheCleanIntervalInMillis = 100;
         String node = internalCluster().startNode(
             Settings.builder()
@@ -1143,7 +1143,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // deleting the Index after caching will clean up from Indices Request Cache
-    public void testCacheCleanupAfterDeletingIndex() throws Exception {
+    public void testCacheCleanupAfterIndexDeletion() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
             Settings.builder()
@@ -1180,7 +1180,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when staleness threshold is lower than staleness, it should clean the cache from all indices having stale keys
-    public void testStaleKeysCleanup_CleansUpStaleKeysAcrossMultipleIndices() throws Exception {
+    public void testStaleKeysCleanupWithMultipleIndices() throws Exception {
         int cacheCleanIntervalInMillis = 100;
         String node = internalCluster().startNode(
             Settings.builder()
