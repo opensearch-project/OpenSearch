@@ -1,5 +1,11 @@
 # build files
 artifacts/
+*.deb
+*.rpm
+*.zip
+*.tar.gz
+
+integrations/amazon-security-lake/package
 
 .java
 .m2

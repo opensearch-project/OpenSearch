@@ -83,7 +83,8 @@ services:
       AWS_ACCESS_KEY_ID: "AKIAIOSFODNN7EXAMPLE"
       AWS_SECRET_ACCESS_KEY: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
       AWS_REGION: "us-east-1"
-      AWS_BUCKET: "wazuh-indexer-amazon-security-lake-bucket"
+      AUX_BUCKET: "indexer-amazon-security-lake-bucket"
+      AWS_ENDPOINT: "http://s3.ninja:9000"
     ports:
       - "5000:5000/tcp"
       - "5000:5000/udp"
@@ -104,6 +105,27 @@ services:
       - "9444:9000"
     volumes:
       - s3-data:/home/sirius/data
+
+  aws.lambda:
+    image: wazuh/indexer-security-lake-integration:lambda
+    build:
+      context: ../amazon-security-lake
+      dockerfile: ../amazon-security-lake/aws-lambda.dockerfile
+    container_name: wazuh.integration.security.lake.aws.lambda
+    hostname: wazuh.integration.security.lake.aws.lambda
+    environment:
+      AWS_ACCESS_KEY_ID: "AKIAIOSFODNN7EXAMPLE"
+      AWS_SECRET_ACCESS_KEY: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+      AWS_REGION: "us-east-1"
+      AWS_BUCKET: "wazuh-indexer-amazon-security-lake-bucket"
+      AWS_ENDPOINT: "http://s3.ninja:9000"
+      SOURCE_LOCATION: "wazuh"
+      ACCOUNT_ID: "111111111111"
+      IS_DEV: true
+    volumes:
+      - ../amazon-security-lake/src:/var/task
+    ports:
+      - "9000:8080"
 
   wazuh-certs-generator:
     image: wazuh/wazuh-certs-generator:0.0.1

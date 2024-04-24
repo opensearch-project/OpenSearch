@@ -5,7 +5,7 @@ services:
     image: wi-dev:${VERSION}
     container_name: wi-dev_${VERSION}
     build:
-      context: ./../..
+      context: ${REPO_PATH}
       dockerfile: ${REPO_PATH}/docker/dev/images/Dockerfile
     ports:
       # OpenSearch REST API
