@@ -78,6 +78,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.opensearch.rest.RestController.OPENSEARCH_PRODUCT_ORIGIN_HTTP_HEADER;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -203,6 +204,54 @@ public class RestControllerTests extends OpenSearchTestCase {
         assertEquals("true", threadContext.getHeader("header.1"));
         assertEquals("true", threadContext.getHeader("header.2"));
         assertNull(threadContext.getHeader("header.3"));
+    }
+
+    public void testRequestWithProductHeader() {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        Set<RestHeaderDefinition> headers = new HashSet<>();
+        final RestController restController = new RestController(
+            headers,
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            identityService
+        );
+        Map<String, List<String>> restHeaders = new HashMap<>();
+        restHeaders.put(OPENSEARCH_PRODUCT_ORIGIN_HTTP_HEADER, Collections.singletonList("foo"));
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).withPath("/bar").build();
+        restController.registerHandler(RestRequest.Method.GET, "/bar", new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+        });
+        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.OK);
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
+        assertEquals("true", threadContext.getHeader(OPENSEARCH_PRODUCT_ORIGIN_HTTP_HEADER));
+    }
+
+    public void testRequestWithoutProductHeader() {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        Set<RestHeaderDefinition> headers = new HashSet<>();
+        final RestController restController = new RestController(
+            headers,
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            identityService
+        );
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/bar").build();
+        restController.registerHandler(RestRequest.Method.GET, "/bar", new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+        });
+        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.OK);
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
+        assertNull(threadContext.getHeader(OPENSEARCH_PRODUCT_ORIGIN_HTTP_HEADER));
     }
 
     public void testRequestWithDisallowedMultiValuedHeader() {
