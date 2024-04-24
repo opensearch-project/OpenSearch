@@ -1083,7 +1083,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 List<IngestDocumentWrapper> succeeded = new ArrayList<>();
                 List<IngestDocumentWrapper> dropped = new ArrayList<>();
                 List<IngestDocumentWrapper> exceptions = new ArrayList<>();
-                for (IngestDocumentWrapper result : results) {
+                for (IngestDocumentWrapper result : allResults) {
                     if (result.getException() != null) {
                         exceptions.add(result);
                     } else if (result.getIngestDocument() == null) {
@@ -1104,7 +1104,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         );
                     }
                 }
-                handler.accept(results);
+                handler.accept(allResults);
             }
             assert counter.get() >= 0;
         });
@@ -1316,7 +1316,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
     }
 
-    private static IngestDocument toIngestDocument(IndexRequest indexRequest) {
+    static IngestDocument toIngestDocument(IndexRequest indexRequest) {
         return new IngestDocument(
             indexRequest.index(),
             indexRequest.id(),

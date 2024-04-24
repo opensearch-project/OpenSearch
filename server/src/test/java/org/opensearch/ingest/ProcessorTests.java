@@ -12,6 +12,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.ingest.IngestDocumentPreparer.SHOULD_FAIL_KEY;
@@ -37,6 +38,13 @@ public class ProcessorTests extends OpenSearchTestCase {
                 assertNull(wrapper.getException());
                 assertEquals(FIELD_VALUE_PROCESSED, wrapper.getIngestDocument().getFieldValue(FIELD_KEY, String.class));
             }
+        });
+    }
+
+    public void test_batchExecute_empty() {
+        processor = new FakeProcessor("type", "tag", "description", doc -> { doc.setFieldValue(FIELD_KEY, FIELD_VALUE_PROCESSED); });
+        processor.batchExecute(Collections.emptyList(), results -> {
+            assertEquals(0, results.size());
         });
     }
 

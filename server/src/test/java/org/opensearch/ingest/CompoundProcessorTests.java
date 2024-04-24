@@ -467,6 +467,52 @@ public class CompoundProcessorTests extends OpenSearchTestCase {
         });
     }
 
+    public void testBatchExecute_documentToDrop() {
+        List<IngestDocumentWrapper> wrapperList = Arrays.asList(
+            IngestDocumentPreparer.createIngestDocumentWrapper(1),
+            IngestDocumentPreparer.createIngestDocumentWrapper(2, true),
+            IngestDocumentPreparer.createIngestDocumentWrapper(3)
+        );
+        TestProcessor firstProcessor = new TestProcessor("", "", "", doc -> {
+            if (doc.hasField(SHOULD_FAIL_KEY) && doc.getFieldValue(SHOULD_FAIL_KEY, Boolean.class)) {
+                return null;
+            }
+            return doc;
+        });
+        TestProcessor secondProcessor = new TestProcessor(doc -> {});
+        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
+        CompoundProcessor compoundProcessor = new CompoundProcessor(
+            false,
+            Arrays.asList(firstProcessor, secondProcessor),
+            null,
+            relativeTimeProvider
+        );
+
+        AtomicInteger callCounter = new AtomicInteger();
+        List<IngestDocumentWrapper> totalResults = Collections.synchronizedList(new ArrayList<>());
+        compoundProcessor.batchExecute(wrapperList, results -> {
+            totalResults.addAll(results);
+            if (callCounter.addAndGet(results.size()) == 3) {
+                assertEquals(firstProcessor.getInvokedCounter(), wrapperList.size());
+                assertEquals(secondProcessor.getInvokedCounter(), wrapperList.size() - 1);
+                assertEquals(totalResults.size(), wrapperList.size());
+                OperationStats stats = compoundProcessor.getProcessorsWithMetrics().get(0).v2().createStats();
+                assertEquals(0, stats.getCurrent());
+                assertEquals(3, stats.getCount());
+                totalResults.sort(Comparator.comparingInt(IngestDocumentWrapper::getSlot));
+                for (int i = 0; i < wrapperList.size(); ++i) {
+                    assertEquals(wrapperList.get(i).getSlot(), totalResults.get(i).getSlot());
+                    if (2 == wrapperList.get(i).getSlot()) {
+                        assertNull(totalResults.get(i).getIngestDocument());
+                    } else {
+                        assertEquals(wrapperList.get(i).getIngestDocument(), totalResults.get(i).getIngestDocument());
+                    }
+                    assertEquals(wrapperList.get(i).getException(), totalResults.get(i).getException());
+                }
+            }
+        });
+    }
+
     public void testBatchExecute_ignoreFailure() {
         List<IngestDocumentWrapper> wrapperList = Arrays.asList(
             IngestDocumentPreparer.createIngestDocumentWrapper(1),
