@@ -571,7 +571,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testNegativeFromErrors() {
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().from(-2));
-        assertEquals("[from] parameter cannot be negative", expected.getMessage());
+        assertEquals("[from] parameter cannot be negative, found [-2]", expected.getMessage());
     }
 
     public void testNegativeSizeErrors() {
@@ -580,6 +580,42 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertEquals("[size] parameter cannot be negative, found [" + randomSize + "]", expected.getMessage());
         expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().size(-1));
         assertEquals("[size] parameter cannot be negative, found [-1]", expected.getMessage());
+    }
+
+    public void testParseFromAndSize() throws IOException {
+        int negativeFrom = randomIntBetween(-100, -1);
+        String restContent = " { \"from\": \"" + negativeFrom + "\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            IllegalArgumentException expected = expectThrows(
+                IllegalArgumentException.class,
+                () -> SearchSourceBuilder.fromXContent(parser)
+            );
+            assertEquals("[from] parameter cannot be negative, found [" + negativeFrom + "]", expected.getMessage());
+        }
+
+        int validFrom = randomIntBetween(0, 100);
+        restContent = " { \"from\": \"" + validFrom + "\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+            assertEquals(validFrom, searchSourceBuilder.from());
+        }
+
+        int negativeSize = randomIntBetween(-100, -1);
+        restContent = " { \"size\": \"" + negativeSize + "\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            IllegalArgumentException expected = expectThrows(
+                IllegalArgumentException.class,
+                () -> SearchSourceBuilder.fromXContent(parser)
+            );
+            assertEquals("[size] parameter cannot be negative, found [" + negativeSize + "]", expected.getMessage());
+        }
+
+        int validSize = randomIntBetween(0, 100);
+        restContent = " { \"size\": \"" + validSize + "\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+            assertEquals(validSize, searchSourceBuilder.size());
+        }
     }
 
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {
