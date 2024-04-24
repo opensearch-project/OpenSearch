@@ -122,10 +122,10 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
 
         boolean scheduled = false;
         try {
-            this.threadPool.schedule(
-                () -> runAfterRefreshWithPermit(didRefresh, () -> retryScheduled.set(false)),
+            this.threadPool.scheduleUnlessShuttingDown(
                 interval,
-                retryThreadPoolName
+                retryThreadPoolName,
+                () -> runAfterRefreshWithPermit(didRefresh, () -> retryScheduled.set(false))
             );
             scheduled = true;
             getLogger().info("Scheduled retry with didRefresh={}", didRefresh);
