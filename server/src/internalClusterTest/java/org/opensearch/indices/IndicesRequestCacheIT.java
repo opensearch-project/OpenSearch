@@ -706,11 +706,15 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
 
     // calling cache clear api, when staleness threshold is lower than staleness, it should clean the stale keys from cache
     public void testCacheClearAPIRemovesStaleKeysWhenStalenessThresholdIsLow() throws Exception {
+        int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
             Settings.builder()
                 .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_STALENESS_THRESHOLD_SETTING_KEY, 0.10)
                 // setting intentionally high to avoid cache cleaner interfering
-                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(10_000))
+                .put(
+                    IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING_KEY,
+                    TimeValue.timeValueMillis(cacheCleanIntervalInMillis)
+                )
         );
         Client client = client(node);
         String index1 = "index1";
@@ -746,7 +750,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
             // cache cleaner should NOT have cleaned from index 1
             assertEquals(finalMemorySizeForIndex1, getRequestCacheStats(client, index1).getMemorySizeInBytes());
-        }, 1, TimeUnit.SECONDS);
+        }, cacheCleanIntervalInMillis, TimeUnit.MILLISECONDS);
         // sleep until cache cleaner would have cleaned up the stale key from index 2
     }
 
@@ -1144,7 +1148,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
 
     // deleting the Index after caching will clean up from Indices Request Cache
     public void testCacheCleanupAfterIndexDeletion() throws Exception {
-        int cacheCleanIntervalInMillis = 1;
+        int cacheCleanIntervalInMillis = 100;
         String node = internalCluster().startNode(
             Settings.builder()
                 .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_STALENESS_THRESHOLD_SETTING_KEY, 0.10)
