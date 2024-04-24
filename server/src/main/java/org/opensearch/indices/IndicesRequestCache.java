@@ -561,8 +561,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
                     // it should have already been accounted for and hence been removed from this map
                     // so decrement staleKeysCount
                     staleKeysCount.decrementAndGet();
-                    // Returning the current value null
-                    return null;
+                    // Return the current map
+                    return readerCacheKeyMap;
                 } else {
                     // If it is in the map, it is not stale yet.
                     // Proceed to adjust the count for the readerCacheKeyId in the map
@@ -572,12 +572,12 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
                     assert (count != null && count >= 0);
                     // Reduce the count by 1
                     int newCount = count - 1;
-                    if (newCount <= 0) {
-                        // Remove the readerCacheKeyId entry if new count is zero or less
-                        readerCacheKeyMap.remove(cleanupKey.readerCacheKeyId);
-                    } else {
+                    if (newCount > 0) {
                         // Update the map with the new count
                         readerCacheKeyMap.put(cleanupKey.readerCacheKeyId, newCount);
+                    } else {
+                        // Remove the readerCacheKeyId entry if new count is zero
+                        readerCacheKeyMap.remove(cleanupKey.readerCacheKeyId);
                     }
                     // If after modification, the readerCacheKeyMap is empty, we return null to remove the ShardId entry
                     return readerCacheKeyMap.isEmpty() ? null : readerCacheKeyMap;
