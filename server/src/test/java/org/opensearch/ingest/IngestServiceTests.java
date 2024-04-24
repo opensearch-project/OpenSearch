@@ -1806,9 +1806,15 @@ public class IngestServiceTests extends OpenSearchTestCase {
         createPipeline("_id", ingestService);
         BulkRequest bulkRequest = new BulkRequest();
         // will not be handled as not valid document type
-        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1").source(emptyMap()).setPipeline("_none").setFinalPipeline("_none");
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
+            .source(emptyMap())
+            .setPipeline("_none")
+            .setFinalPipeline("_none");
         bulkRequest.add(indexRequest1);
-        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline("_none").setFinalPipeline("_none");
+        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2")
+            .source(emptyMap())
+            .setPipeline("_none")
+            .setFinalPipeline("_none");
         bulkRequest.add(indexRequest2);
         bulkRequest.batchIngestionOption("enabled");
         bulkRequest.maximumBatchSize(2);
@@ -1913,7 +1919,8 @@ public class IngestServiceTests extends OpenSearchTestCase {
 
         List<IngestDocumentWrapper> results = Arrays.asList(
             new IngestDocumentWrapper(0, IngestService.toIngestDocument(indexRequest1), null),
-            new IngestDocumentWrapper(1, null, new RuntimeException()));
+            new IngestDocumentWrapper(1, null, new RuntimeException())
+        );
         doAnswer(args -> {
             @SuppressWarnings("unchecked")
             Consumer<List<IngestDocumentWrapper>> handler = (Consumer) args.getArguments()[1];

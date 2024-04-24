@@ -43,9 +43,7 @@ public class ProcessorTests extends OpenSearchTestCase {
 
     public void test_batchExecute_empty() {
         processor = new FakeProcessor("type", "tag", "description", doc -> { doc.setFieldValue(FIELD_KEY, FIELD_VALUE_PROCESSED); });
-        processor.batchExecute(Collections.emptyList(), results -> {
-            assertEquals(0, results.size());
-        });
+        processor.batchExecute(Collections.emptyList(), results -> { assertEquals(0, results.size()); });
     }
 
     public void test_batchExecute_exception() {
