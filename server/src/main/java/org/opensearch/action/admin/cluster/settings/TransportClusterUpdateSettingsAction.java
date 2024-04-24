@@ -67,6 +67,9 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
+
 /**
  * Transport action for updating cluster settings
  *
@@ -259,6 +262,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
                     validateCompatibilityModeSettingRequest(request, state);
+                    validateRemoteClusterStateEnabled(request);
                     final ClusterState clusterState = updater.updateSettings(
                         currentState,
                         clusterSettings.upgradeSettings(request.transientSettings()),
@@ -317,4 +321,24 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
         }
     }
 
+    /**
+     * Verifies that remote cluster state is enabled if the compatibility mode is set to MIXED
+     * and migration direction is getting updated to remote store
+     * @param request cluster settings update request, for settings to be updated and new values
+     * @throws SettingsException if remote cluster state is not enabled
+     */
+    public void validateRemoteClusterStateEnabled(ClusterUpdateSettingsRequest request) {
+        Settings settings = Settings.builder().put(request.persistentSettings()).put(request.transientSettings()).build();
+        boolean isMixedOrGettingMixed = clusterSettings.get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING)
+            .equals(RemoteStoreNodeService.CompatibilityMode.MIXED)
+            || RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(settings)
+                .equals(RemoteStoreNodeService.CompatibilityMode.MIXED);
+        boolean isGettingRemote = RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING.get(settings)
+            .equals(RemoteStoreNodeService.Direction.REMOTE_STORE);
+        if (isMixedOrGettingMixed && isGettingRemote) {
+            if (clusterSettings.get(REMOTE_CLUSTER_STATE_ENABLED_SETTING) == false) {
+                throw new SettingsException("can not switch migration direction to remote store when remote cluster state is not enabled");
+            }
+        }
+    }
 }
