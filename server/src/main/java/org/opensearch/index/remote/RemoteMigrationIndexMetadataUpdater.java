@@ -43,7 +43,7 @@ import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PA
 public class RemoteMigrationIndexMetadataUpdater {
     private final DiscoveryNodes discoveryNodes;
     private final RoutingTable routingTable;
-    private final Settings settings;
+    private final Settings clusterSettings;
     private final IndexMetadata indexMetadata;
     private final Logger logger;
 
@@ -51,13 +51,13 @@ public class RemoteMigrationIndexMetadataUpdater {
         DiscoveryNodes discoveryNodes,
         RoutingTable routingTable,
         IndexMetadata indexMetadata,
-        Settings settings,
+        Settings clusterSettings,
         Logger logger
 
     ) {
         this.discoveryNodes = discoveryNodes;
         this.routingTable = routingTable;
-        this.settings = settings;
+        this.clusterSettings = clusterSettings;
         this.indexMetadata = indexMetadata;
         this.logger = logger;
     }
@@ -134,7 +134,7 @@ public class RemoteMigrationIndexMetadataUpdater {
     public void maybeUpdateRemoteStorePathStrategy(IndexMetadata.Builder indexMetadataBuilder, String index) {
         if (indexHasRemotePathMetadata(indexMetadata) == false) {
             logger.info("Adding remote store path strategy for index [{}] during migration", index);
-            indexMetadataBuilder.putCustom(REMOTE_STORE_CUSTOM_KEY, createRemoteStorePathTypeMetadata(settings, discoveryNodes));
+            indexMetadataBuilder.putCustom(REMOTE_STORE_CUSTOM_KEY, createRemoteStorePathTypeMetadata(clusterSettings, discoveryNodes));
         } else {
             logger.debug("Index {} already has remote store path strategy", index);
         }
@@ -143,18 +143,18 @@ public class RemoteMigrationIndexMetadataUpdater {
     /**
      * Generates the remote store path type information to be added to custom data of index metadata.
      *
-     * @param settings       Current Cluster settings from {@link ClusterState}
+     * @param clusterSettings Current Cluster settings from {@link ClusterState}
      * @param discoveryNodes Current {@link DiscoveryNodes} from the cluster state
      * @return {@link Map} to be added as custom data in index metadata
      */
-    private Map<String, String> createRemoteStorePathTypeMetadata(Settings settings, DiscoveryNodes discoveryNodes) {
+    private Map<String, String> createRemoteStorePathTypeMetadata(Settings clusterSettings, DiscoveryNodes discoveryNodes) {
         Version minNodeVersion = discoveryNodes.getMinNodeVersion();
         PathType pathType = Version.CURRENT.compareTo(minNodeVersion) <= 0
-            ? CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.get(settings)
+            ? CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.get(clusterSettings)
             : PathType.FIXED;
         PathHashAlgorithm pathHashAlgorithm = pathType == PathType.FIXED
             ? null
-            : CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING.get(settings);
+            : CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING.get(clusterSettings);
         Map<String, String> remoteCustomData = new HashMap<>();
         remoteCustomData.put(PathType.NAME, pathType.name());
         if (Objects.nonNull(pathHashAlgorithm)) {

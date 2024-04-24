@@ -55,7 +55,7 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
             allNodes,
             routingTable,
             existingIndexMetadata,
-            existingIndexMetadata.getSettings(),
+            metadata.settings(),
             logger
         );
         migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName, segmentRepoName, tlogRepoName);
@@ -76,7 +76,7 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
             allNodes,
             routingTable,
             existingIndexMetadata,
-            existingIndexMetadata.getSettings(),
+            metadata.settings(),
             logger
         );
         migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName, segmentRepoName, tlogRepoName);
@@ -96,7 +96,7 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
             allNodes,
             routingTable,
             existingIndexMetadata,
-            existingIndexMetadata.getSettings(),
+            metadata.settings(),
             logger
         );
         migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName, segmentRepoName, tlogRepoName);
@@ -117,7 +117,7 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
             allNodes,
             routingTable,
             existingIndexMetadata,
-            existingIndexMetadata.getSettings(),
+            metadata.settings(),
             logger
         );
         migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName, segmentRepoName, tlogRepoName);
@@ -139,7 +139,7 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
             allNodes,
             routingTable,
             existingIndexMetadata,
-            existingIndexMetadata.getSettings(),
+            metadata.settings(),
             logger
         );
         migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName, segmentRepoName, tlogRepoName);
