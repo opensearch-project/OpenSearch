@@ -132,7 +132,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         new TimeValue(0),
         Property.NodeScope
     );
-    public static final Setting<TimeValue> INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING = Setting.positiveTimeSetting(
+    public static final Setting<TimeValue> INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING = Setting.positiveTimeSetting(
         INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING_KEY,
         INDICES_CACHE_CLEAN_INTERVAL_SETTING,
         Property.NodeScope
@@ -176,7 +176,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         ToLongBiFunction<ICacheKey<Key>, BytesReference> weigher = (k, v) -> k.ramBytesUsed(k.key.ramBytesUsed()) + v.ramBytesUsed();
         this.cacheCleanupManager = new IndicesRequestCacheCleanupManager(
             threadPool,
-            INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING.get(settings),
+            INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING.get(settings),
             getStalenessThreshold(settings)
         );
         this.cacheEntityLookup = cacheEntityFunction;

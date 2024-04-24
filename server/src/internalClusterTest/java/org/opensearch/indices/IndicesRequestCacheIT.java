@@ -34,6 +34,7 @@ package org.opensearch.indices;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -974,7 +975,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when cache cleaner interval setting is not set, cache cleaner is configured appropriately with the fall-back setting
-    public void testStaleKeysCleanup_NoIntervalSettingFallsBackAppropriately() throws Exception {
+    public void testStaleKeysCleanup_testFallbackSettings() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
             Settings.builder().put(INDICES_CACHE_CLEANUP_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(cacheCleanIntervalInMillis))
@@ -1067,7 +1068,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // staleness threshold dynamic updates should throw exceptions on invalid input
-    public void testStaleKeysCleanup_ThresholdUpdatesShouldThrowExceptionsAppropriately() throws Exception {
+    public void testStaleKeysCleanup_ThresholdUpdatesShouldThrowExceptionsOnInvalidInput() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
             Settings.builder()
@@ -1087,15 +1088,13 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         assertTrue(getRequestCacheStats(client, index1).getMemorySizeInBytes() > 0);
 
         // Update indices.requests.cache.cleanup.staleness_threshold to "10%" with illegal argument
-        try {
+        assertThrows("Ratio should be in [0-1.0]", IllegalArgumentException.class, () -> {
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
             updateSettingsRequest.persistentSettings(
-                Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), 10)
+                Settings.builder().put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_STALENESS_THRESHOLD_SETTING_KEY, 10)
             );
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
-        } catch (Exception e) {
-            assert (e instanceof IllegalArgumentException);
-        }
+            client().admin().cluster().updateSettings(updateSettingsRequest).actionGet();
+        });
 
         // everything else should continue to work fine later on.
         // force refresh so that it creates 1 stale key
@@ -1181,7 +1180,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when staleness threshold is lower than staleness, it should clean the cache from all indices having stale keys
-    public void testStaleKeysCleanup_CleanUpStaleKeysDeletesAppropriatelyAcrossMultipleIndices() throws Exception {
+    public void testStaleKeysCleanup_CleansUpStaleKeysAcrossMultipleIndices() throws Exception {
         int cacheCleanIntervalInMillis = 50;
         String node = internalCluster().startNode(
             Settings.builder()
@@ -1273,6 +1272,11 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
 
     private static RequestCacheStats getNodeCacheStats(Client client) {
         NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().execute().actionGet();
-        return stats.getNodes().get(0).getIndices().getRequestCache();
+        for (NodeStats stat : stats.getNodes()) {
+            if (stat.getNode().isDataNode()) {
+                return stat.getIndices().getRequestCache();
+            }
+        }
+        return null;
     }
 }
