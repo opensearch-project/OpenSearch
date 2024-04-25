@@ -13,6 +13,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.index.remote.RemoteIndexPath;
+import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -87,21 +88,20 @@ public class RemoteStoreUploadIndexPathIT extends RemoteStoreBaseIntegTestCase {
             .prepareGetSettings(INDEX_NAME)
             .get()
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
-
+        String fileName = RemoteIndexPathUploader.generateFileName(indexUUID, 2L, RemoteIndexPath.DEFAULT_VERSION);
         assertEquals(exists, FileSystemUtils.exists(translogRepoPath.resolve(RemoteIndexPath.DIR)));
         assertEquals(
             exists,
             FileSystemUtils.exists(
                 translogRepoPath.resolve(RemoteIndexPath.DIR)
-                    .resolve(String.format(Locale.ROOT, RemoteIndexPath.FILE_NAME_FORMAT, indexUUID))
+                    .resolve(String.format(Locale.ROOT, RemoteIndexPath.FILE_NAME_FORMAT, fileName))
             )
         );
         assertEquals(exists, FileSystemUtils.exists(segmentRepoPath.resolve(RemoteIndexPath.DIR)));
         assertEquals(
             exists,
             FileSystemUtils.exists(
-                segmentRepoPath.resolve(RemoteIndexPath.DIR)
-                    .resolve(String.format(Locale.ROOT, RemoteIndexPath.FILE_NAME_FORMAT, indexUUID))
+                segmentRepoPath.resolve(RemoteIndexPath.DIR).resolve(String.format(Locale.ROOT, RemoteIndexPath.FILE_NAME_FORMAT, fileName))
             )
         );
     }
