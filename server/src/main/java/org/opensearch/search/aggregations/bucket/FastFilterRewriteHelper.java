@@ -24,7 +24,9 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.index.mapper.DateFieldMapper;
@@ -496,132 +498,137 @@ public final class FastFilterRewriteHelper {
         final DateFieldMapper.DateFieldType fieldType,
         final int size
     ) throws IOException {
+        // ranges are connected and in ascending order
         Iterator<long[]> rangeIter = Arrays.stream(ranges).iterator();
         long[] activeRange = rangeIter.next();
 
-        // The ranges are connected and in ascending order
         // make sure the first range at least crosses the min value of the tree
         boolean noRangeMatches = false;
-        while (activeRange[1] < NumericUtils.sortableBytesToLong(tree.getMinPackedValue(), 0)) {
-            if (rangeIter.hasNext()) {
-                activeRange = rangeIter.next();
-            } else {
-                noRangeMatches = true;
-                break;
+        if (activeRange[0] > NumericUtils.sortableBytesToLong(tree.getMaxPackedValue(), 0)) {
+            noRangeMatches = true;
+        } else {
+            while (activeRange[1] < NumericUtils.sortableBytesToLong(tree.getMinPackedValue(), 0)) {
+                if (rangeIter.hasNext()) {
+                    activeRange = rangeIter.next();
+                } else {
+                    noRangeMatches = true;
+                    break;
+                }
             }
         }
         DebugInfo debugInfo = new DebugInfo();
         if (noRangeMatches) {
+            logger.debug("No ranges match the query, skip the fast filter optimization");
             return debugInfo;
         }
 
-        RangeCollectorForPointTree collector = new RangeCollectorForPointTree(incrementDocCount, fieldType, rangeIter, size);
-        collector.setActiveRange(activeRange);
+        RangeCollectorForPointTree collector = new RangeCollectorForPointTree(incrementDocCount, fieldType, rangeIter, size, activeRange);
 
-        PointValues.IntersectVisitor visitor = getIntersectVisitor(collector);
-        intersectWithRanges(visitor, tree, debugInfo);
+        final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(8);
+        PointValues.IntersectVisitor visitor = getIntersectVisitor(collector, comparator);
+        try {
+            intersectWithRanges(visitor, tree, collector, debugInfo);
+        } catch (CollectionTerminatedException e) {
+            logger.debug("Early terminate since no more range to collect");
+        }
         collector.finalizePreviousRange();
 
         return debugInfo;
     }
 
-    private static void intersectWithRanges(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, DebugInfo debug)
-        throws IOException {
+    private static void intersectWithRanges(
+        PointValues.IntersectVisitor visitor,
+        PointValues.PointTree pointTree,
+        RangeCollectorForPointTree collector,
+        DebugInfo debug
+    ) throws IOException {
         PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
 
-        try {
-            switch (r) {
-                case CELL_INSIDE_QUERY:
-                    pointTree.visitDocIDs(visitor);
-                    debug.visitInner();
-                    break;
-                case CELL_CROSSES_QUERY:
-                    if (pointTree.moveToChild()) {
-                        intersectWithRanges(visitor, pointTree, debug);
-                        pointTree.moveToSibling();
-                        intersectWithRanges(visitor, pointTree, debug);
-                        pointTree.moveToParent();
-                    } else {
-                        pointTree.visitDocValues(visitor);
-                        debug.visitLeaf();
-                    }
-                    break;
-                case CELL_OUTSIDE_QUERY:
-            }
-        } catch (CollectionTerminatedException e) {
-            logger.debug("Early terminate since no more range to collect");
+        switch (r) {
+            case CELL_INSIDE_QUERY:
+                collector.countNode((int) pointTree.size());
+                debug.visitInner();
+                break;
+            case CELL_CROSSES_QUERY:
+                if (pointTree.moveToChild()) {
+                    intersectWithRanges(visitor, pointTree, collector, debug);
+                    pointTree.moveToSibling();
+                    intersectWithRanges(visitor, pointTree, collector, debug);
+                    pointTree.moveToParent();
+                } else {
+                    pointTree.visitDocValues(visitor);
+                    debug.visitLeaf();
+                }
+                break;
+            case CELL_OUTSIDE_QUERY:
         }
     }
 
-    /**
-     *
-     */
-    private static PointValues.IntersectVisitor getIntersectVisitor(RangeCollectorForPointTree collector) {
+    private static PointValues.IntersectVisitor getIntersectVisitor(
+        RangeCollectorForPointTree collector,
+        ArrayUtil.ByteArrayComparator comparator
+    ) {
         return new PointValues.IntersectVisitor() {
             @Override
             public void visit(int docID) throws IOException {
-                collector.count();
+                // this branch should be unreachable
+                throw new UnsupportedOperationException(
+                    "This IntersectVisitor does not perform any actions on a " + "docID=" + docID + " node being visited"
+                );
             }
 
             @Override
             public void visit(int docID, byte[] packedValue) throws IOException {
-                long value = NumericUtils.sortableBytesToLong(packedValue, 0);
-                if (value > collector.activeRange[1]) {
-                    // need to move to next range
-                    collector.finalizePreviousRange();
-
-                    if (collector.iterateRangeEnd(value)) {
-                        throw new CollectionTerminatedException();
-                    }
-                }
-                if (collector.activeRange[0] <= value && value <= collector.activeRange[1]) {
-                    collector.count();
-                }
+                visitPoints(packedValue, collector::count);
             }
 
             @Override
             public void visit(DocIdSetIterator iterator, byte[] packedValue) throws IOException {
-                long value = NumericUtils.sortableBytesToLong(packedValue, 0);
-                if (value > collector.activeRange[1]) {
-                    collector.finalizePreviousRange();
-
-                    if (collector.iterateRangeEnd(value)) {
-                        throw new CollectionTerminatedException();
-                    }
-                }
-                if (collector.activeRange[0] <= value && value <= collector.activeRange[1]) {
+                visitPoints(packedValue, () -> {
                     for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
                         collector.count();
                     }
+                });
+            }
+
+            private void visitPoints(byte[] packedValue, CheckedRunnable<IOException> collect) throws IOException {
+                if (comparator.compare(packedValue, 0, collector.activeRangeAsByteArray[1], 0) > 0) {
+                    // need to move to next range
+                    collector.finalizePreviousRange();
+                    if (collector.iterateRangeEnd(packedValue, comparator)) {
+                        throw new CollectionTerminatedException();
+                    }
                 }
+
+                if (pointCompare(collector.activeRangeAsByteArray[0], collector.activeRangeAsByteArray[1], packedValue)) {
+                    collect.run();
+                }
+            }
+
+            private boolean pointCompare(byte[] lower, byte[] upper, byte[] packedValue) {
+                if (comparator.compare(packedValue, 0, lower, 0) < 0) {
+                    return false;
+                }
+                return comparator.compare(packedValue, 0, upper, 0) <= 0;
             }
 
             @Override
             public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                long min = NumericUtils.sortableBytesToLong(minPackedValue, 0);
-                long max = NumericUtils.sortableBytesToLong(maxPackedValue, 0);
-                long queryMin = collector.activeRange[0];
-                long queryMax = collector.activeRange[1];
+                byte[] rangeMin = collector.activeRangeAsByteArray[0];
+                byte[] rangeMax = collector.activeRangeAsByteArray[1];
 
-                boolean crosses = false;
-                if (collector.activeRange[1] < min) {
-                    // need to move to next range
+                if (comparator.compare(rangeMax, 0, minPackedValue, 0) < 0) {
                     collector.finalizePreviousRange();
-                    if (collector.iterateRangeEnd(min)) {
+                    if (collector.iterateRangeEnd(minPackedValue, comparator)) {
                         throw new CollectionTerminatedException();
-                        // return PointValues.Relation.CELL_OUTSIDE_QUERY;
                     }
 
                     // compare the next range with this node's min max again
-                    // it cannot be outside again, can only be cross or inside
-                    if (collector.activeRange[1] < max) {
-                        crosses = true;
-                    }
-                } else if (queryMin > min || queryMax < max) {
-                    crosses = true;
+                    // new rangeMin = previous rangeMax + 1 <= min
+                    rangeMax = collector.activeRangeAsByteArray[1];
                 }
 
-                if (crosses) {
+                if (comparator.compare(rangeMin, 0, minPackedValue, 0) > 0 || comparator.compare(rangeMax, 0, maxPackedValue, 0) < 0) {
                     return PointValues.Relation.CELL_CROSSES_QUERY;
                 } else {
                     return PointValues.Relation.CELL_INSIDE_QUERY;
@@ -634,8 +641,11 @@ public final class FastFilterRewriteHelper {
         private final BiConsumer<Long, Integer> incrementDocCount;
         private final DateFieldMapper.DateFieldType fieldType;
         private int counter = 0;
+
         private long[] activeRange;
+        private byte[][] activeRangeAsByteArray;
         private final Iterator<long[]> rangeIter;
+
         private int visitedRange = 0;
         private final int size; // the given size of non-zero buckets used in composite agg
 
@@ -643,43 +653,57 @@ public final class FastFilterRewriteHelper {
             BiConsumer<Long, Integer> incrementDocCount,
             DateFieldMapper.DateFieldType fieldType,
             Iterator<long[]> rangeIter,
-            int size
+            int size,
+            long[] activeRange
         ) {
             this.incrementDocCount = incrementDocCount;
             this.fieldType = fieldType;
             this.rangeIter = rangeIter;
             this.size = size;
+            this.activeRange = activeRange;
+            this.activeRangeAsByteArray = activeRangeAsByteArray();
         }
 
         private void count() {
             counter++;
         }
 
+        private void countNode(int count) {
+            counter += count;
+        }
+
         private void finalizePreviousRange() {
             if (counter > 0) {
+                logger.debug("finalize previous range: {}", activeRange[0]);
+                logger.debug("counter: {}", counter);
                 incrementDocCount.accept(fieldType.convertNanosToMillis(activeRange[0]), counter);
                 counter = 0;
             }
         }
 
-        private void setActiveRange(long[] activeRange) {
-            this.activeRange = activeRange;
-        }
-
         /**
          * @return true when iterator exhausted or collect enough non-zero ranges
          */
-        private boolean iterateRangeEnd(long value) {
+        private boolean iterateRangeEnd(byte[] value, ArrayUtil.ByteArrayComparator comparator) {
             // the new value may not be contiguous to the previous one
             // so try to find the first next range that cross the new value
-            while (activeRange[1] < value) {
+            while (comparator.compare(activeRangeAsByteArray[1], 0, value, 0) < 0) {
                 if (!rangeIter.hasNext()) {
                     return true;
                 }
                 activeRange = rangeIter.next();
+                activeRangeAsByteArray = activeRangeAsByteArray();
             }
             visitedRange++;
             return visitedRange > size;
+        }
+
+        private byte[][] activeRangeAsByteArray() {
+            byte[] lower = new byte[8];
+            byte[] upper = new byte[8];
+            NumericUtils.longToSortableBytes(activeRange[0], lower, 0);
+            NumericUtils.longToSortableBytes(activeRange[1], upper, 0);
+            return new byte[][] { lower, upper };
         }
     }
 
