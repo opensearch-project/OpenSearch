@@ -29,6 +29,7 @@ import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.Translog.Durability;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -58,6 +59,7 @@ import java.util.stream.Stream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -870,5 +872,46 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         indexBulk(INDEX_NAME, 15);
         refresh(INDEX_NAME);
         assertHitCount(client(dataNode).prepareSearch(INDEX_NAME).setSize(0).get(), searchableDocs + 15);
+    }
+
+    public void testFlushOnTooManyRemoteTranslogFiles() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        String datanode = internalCluster().startDataOnlyNodes(1).get(0);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0, 10000L, -1));
+        ensureGreen(INDEX_NAME);
+
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS.getKey(), "100")
+        );
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        IndexShard indexShard = getIndexShard(datanode, INDEX_NAME);
+        Path translogLocation = getTranslog(indexShard).location();
+        assertFalse(indexShard.shouldPeriodicallyFlush());
+
+        try (Stream<Path> files = Files.list(translogLocation)) {
+            long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
+            assertEquals(totalFiles, 1L);
+        }
+
+        // indexing 100 documents (100 bulk requests), no flush will be triggered yet
+        for (int i = 0; i < 100; i++) {
+            indexBulk(INDEX_NAME, 1);
+        }
+
+        try (Stream<Path> files = Files.list(translogLocation)) {
+            long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
+            assertEquals(totalFiles, 101L);
+        }
+        // Will flush and trim the translog readers
+        indexBulk(INDEX_NAME, 1);
+
+        assertBusy(() -> {
+            try (Stream<Path> files = Files.list(translogLocation)) {
+                long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
+                assertEquals(totalFiles, 1L);
+            }
+        }, 30, TimeUnit.SECONDS);
     }
 }

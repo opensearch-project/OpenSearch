@@ -54,8 +54,20 @@ public class RemoteStoreSettings {
         Property.Dynamic
     );
 
+    /**
+     * Controls the maximum referenced remote translog files. If breached the shard will be flushed.
+     */
+    public static final Setting<Integer> CLUSTER_REMOTE_MAX_TRANSLOG_READERS = Setting.intSetting(
+        "cluster.remote_store.translog.max_readers",
+        1000,
+        100,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     private volatile TimeValue clusterRemoteTranslogBufferInterval;
     private volatile int minRemoteSegmentMetadataFiles;
+    private volatile int maxRemoteTranslogReaders;
 
     public RemoteStoreSettings(Settings settings, ClusterSettings clusterSettings) {
         this.clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
@@ -69,6 +81,10 @@ public class RemoteStoreSettings {
             CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING,
             this::setMinRemoteSegmentMetadataFiles
         );
+
+        maxRemoteTranslogReaders = CLUSTER_REMOTE_MAX_TRANSLOG_READERS.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_MAX_TRANSLOG_READERS, this::setMaxRemoteTranslogReaders);
+
     }
 
     // Exclusively for testing, please do not use it elsewhere.
@@ -86,5 +102,13 @@ public class RemoteStoreSettings {
 
     public int getMinRemoteSegmentMetadataFiles() {
         return this.minRemoteSegmentMetadataFiles;
+    }
+
+    public int getMaxRemoteTranslogReaders() {
+        return maxRemoteTranslogReaders;
+    }
+
+    private void setMaxRemoteTranslogReaders(int maxRemoteTranslogReaders) {
+        this.maxRemoteTranslogReaders = maxRemoteTranslogReaders;
     }
 }
