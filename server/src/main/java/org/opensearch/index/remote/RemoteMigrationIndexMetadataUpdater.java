@@ -32,8 +32,11 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGME
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
+import static org.opensearch.index.remote.RemoteStoreUtils.getRemoteStoreRepoName;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
 /**
  * Utils for checking and mutating cluster state during remote migration
@@ -68,18 +71,16 @@ public class RemoteMigrationIndexMetadataUpdater {
      * <br>
      * Also appends the requisite Remote Store Path based custom metadata to the existing index metadata
      */
-    public void maybeAddRemoteIndexSettings(
-        IndexMetadata.Builder indexMetadataBuilder,
-        String index,
-        String segmentRepoName,
-        String tlogRepoName
-    ) {
+    public void maybeAddRemoteIndexSettings(IndexMetadata.Builder indexMetadataBuilder, String index) {
         Settings currentIndexSettings = indexMetadata.getSettings();
         if (needsRemoteIndexSettingsUpdate(routingTable.indicesRouting().get(index), discoveryNodes, currentIndexSettings)) {
             logger.info(
                 "Index {} does not have remote store based index settings but all primary shards and STARTED replica shards have moved to remote enabled nodes. Applying remote store settings to the index",
                 index
             );
+            Map<String, String> remoteRepoNames = getRemoteStoreRepoName(discoveryNodes);
+            String segmentRepoName = remoteRepoNames.get(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY);
+            String tlogRepoName = remoteRepoNames.get(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY);
             assert Objects.nonNull(segmentRepoName) && Objects.nonNull(tlogRepoName) : "Remote repo names cannot be null";
             Settings.Builder indexSettingsBuilder = Settings.builder().put(currentIndexSettings);
             updateRemoteStoreSettings(indexSettingsBuilder, segmentRepoName, tlogRepoName);

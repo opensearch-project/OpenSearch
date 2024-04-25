@@ -60,8 +60,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.remote.RemoteStoreUtils.getRemoteStoreRepoName;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
 /**
  * Observer that tracks changes made to RoutingNodes in order to update the primary terms and in-sync allocation ids in
@@ -185,12 +183,7 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                         logger
                     );
                     migrationImdUpdater.maybeUpdateRemoteStorePathStrategy(indexMetadataBuilder, index.getName());
-                    migrationImdUpdater.maybeAddRemoteIndexSettings(
-                        indexMetadataBuilder,
-                        index.getName(),
-                        remoteRepoNames.get(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY),
-                        remoteRepoNames.get(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY)
-                    );
+                    migrationImdUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, index.getName());
                 }
             }
 

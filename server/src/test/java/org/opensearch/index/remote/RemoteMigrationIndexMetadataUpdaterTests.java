@@ -38,8 +38,6 @@ import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PA
 import static org.mockito.Mockito.mock;
 
 public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase {
-    private final String tlogRepoName = "test-tlog-repo";
-    private final String segmentRepoName = "test-segment-repo";
     private final String indexName = "test-index";
 
     public void testMaybeAddRemoteIndexSettingsAllPrimariesAndReplicasOnRemote() throws IOException {
@@ -58,7 +56,7 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
             metadata.settings(),
             logger
         );
-        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName, segmentRepoName, tlogRepoName);
+        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName);
         assertTrue(currentSettingsVersion < indexMetadataBuilder.settingsVersion());
         assertRemoteSettingsApplied(indexMetadataBuilder.build());
     }
@@ -79,7 +77,7 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
             metadata.settings(),
             logger
         );
-        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName, segmentRepoName, tlogRepoName);
+        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName);
         assertEquals(currentSettingsVersion, indexMetadataBuilder.settingsVersion());
     }
 
@@ -99,7 +97,7 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
             metadata.settings(),
             logger
         );
-        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName, segmentRepoName, tlogRepoName);
+        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName);
         assertEquals(currentSettingsVersion, indexMetadataBuilder.settingsVersion());
         assertDocrepSettingsApplied(indexMetadataBuilder.build());
     }
@@ -120,7 +118,7 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
             metadata.settings(),
             logger
         );
-        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName, segmentRepoName, tlogRepoName);
+        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName);
         assertTrue(currentSettingsVersion < indexMetadataBuilder.settingsVersion());
         assertRemoteSettingsApplied(indexMetadataBuilder.build());
     }
@@ -142,7 +140,7 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
             metadata.settings(),
             logger
         );
-        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName, segmentRepoName, tlogRepoName);
+        migrationIndexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexName);
         assertEquals(currentSettingsVersion, indexMetadataBuilder.settingsVersion());
         assertDocrepSettingsApplied(indexMetadataBuilder.build());
     }
