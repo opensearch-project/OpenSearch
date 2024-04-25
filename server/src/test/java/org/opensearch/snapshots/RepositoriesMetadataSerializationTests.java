@@ -34,12 +34,13 @@ package org.opensearch.snapshots;
 
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.Diff;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.Metadata.Custom;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractDiffableSerializationTestCase;
 
@@ -57,13 +58,18 @@ public class RepositoriesMetadataSerializationTests extends AbstractDiffableSeri
         for (int i = 0; i < numberOfRepositories; i++) {
             // divide by 2 to not overflow when adding to this number for the pending generation below
             final long generation = randomNonNegativeLong() / 2L;
+            CryptoMetadata cryptoMetadata = null;
+            if (randomBoolean()) {
+                cryptoMetadata = new CryptoMetadata(randomAlphaOfLength(10), randomAlphaOfLength(10), randomSettings());
+            }
             entries.add(
                 new RepositoryMetadata(
                     randomAlphaOfLength(10),
                     randomAlphaOfLength(10),
                     randomSettings(),
                     generation,
-                    generation + randomLongBetween(0, generation)
+                    generation + randomLongBetween(0, generation),
+                    cryptoMetadata
                 )
             );
         }
@@ -81,7 +87,11 @@ public class RepositoriesMetadataSerializationTests extends AbstractDiffableSeri
         List<RepositoryMetadata> entries = new ArrayList<>(((RepositoriesMetadata) instance).repositories());
         boolean addEntry = entries.isEmpty() ? true : randomBoolean();
         if (addEntry) {
-            entries.add(new RepositoryMetadata(randomAlphaOfLength(10), randomAlphaOfLength(10), randomSettings()));
+            CryptoMetadata cryptoMetadata = null;
+            if (randomBoolean()) {
+                cryptoMetadata = new CryptoMetadata(randomAlphaOfLength(10), randomAlphaOfLength(10), randomSettings());
+            }
+            entries.add(new RepositoryMetadata(randomAlphaOfLength(10), randomAlphaOfLength(10), randomSettings(), cryptoMetadata));
         } else {
             entries.remove(randomIntBetween(0, entries.size() - 1));
         }
@@ -114,7 +124,11 @@ public class RepositoriesMetadataSerializationTests extends AbstractDiffableSeri
             // add some elements
             int addElements = randomInt(10);
             for (int i = 0; i < addElements; i++) {
-                repos.add(new RepositoryMetadata(randomAlphaOfLength(10), randomAlphaOfLength(10), randomSettings()));
+                CryptoMetadata cryptoMetadata = null;
+                if (randomBoolean()) {
+                    cryptoMetadata = new CryptoMetadata(randomAlphaOfLength(10), randomAlphaOfLength(10), randomSettings());
+                }
+                repos.add(new RepositoryMetadata(randomAlphaOfLength(10), randomAlphaOfLength(10), randomSettings(), cryptoMetadata));
             }
         }
         return new RepositoriesMetadata(repos);

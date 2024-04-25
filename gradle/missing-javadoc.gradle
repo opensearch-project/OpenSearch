@@ -6,6 +6,7 @@
  * compatible open source license.
  */
 
+
 import javax.annotation.Nullable
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -135,6 +136,7 @@ configure([
   project(":plugins:discovery-ec2:qa:amazon-ec2"),
   project(":plugins:discovery-gce"),
   project(":plugins:discovery-gce:qa:gce"),
+  project(":plugins:identity-shiro"),
   project(":plugins:ingest-attachment"),
   project(":plugins:mapper-annotated-text"),
   project(":plugins:mapper-murmur3"),
@@ -145,6 +147,7 @@ configure([
   project(":plugins:repository-s3"),
   project(":plugins:store-smb"),
   project(":plugins:transport-nio"),
+  project(":plugins:crypto-kms"),
   project(":qa:die-with-dignity"),
   project(":qa:wildfly"),
   project(":test:external-modules:test-delayed-aggs"),
@@ -164,6 +167,7 @@ configure([
 configure([
   project(":libs:opensearch-common"),
   project(":libs:opensearch-core"),
+  project(":libs:opensearch-compress"),
   project(":plugins:events-correlation-engine"),
   project(":server")
 ]) {

@@ -32,11 +32,10 @@
 
 package org.opensearch.common.logging;
 
-import java.util.Map;
-
-import org.opensearch.common.Strings;
 import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.core.common.Strings;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 

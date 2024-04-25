@@ -32,7 +32,8 @@
 
 package org.opensearch.action.admin.indices.segments;
 
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.util.Arrays;
 import java.util.Iterator;
@@ -40,8 +41,9 @@ import java.util.Iterator;
 /**
  * List of Index Shard Segments
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndexShardSegments implements Iterable<ShardSegments> {
 
     private final ShardId shardId;

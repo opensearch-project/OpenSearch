@@ -31,10 +31,10 @@
 
 package org.opensearch.script;
 
-import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;

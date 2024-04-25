@@ -32,6 +32,33 @@
 
 package org.opensearch.http.nio;
 
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.http.CorsHandler;
+import org.opensearch.http.HttpChannel;
+import org.opensearch.http.HttpHandlingSettings;
+import org.opensearch.http.HttpPipelinedRequest;
+import org.opensearch.http.HttpPipelinedResponse;
+import org.opensearch.http.HttpReadTimeoutException;
+import org.opensearch.http.HttpRequest;
+import org.opensearch.nio.FlushOperation;
+import org.opensearch.nio.InboundChannelBuffer;
+import org.opensearch.nio.SocketChannelContext;
+import org.opensearch.nio.TaskScheduler;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.BiConsumer;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelPromise;
@@ -46,42 +73,14 @@ import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
-
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.http.CorsHandler;
-import org.opensearch.http.HttpChannel;
-import org.opensearch.http.HttpHandlingSettings;
-import org.opensearch.http.HttpPipelinedRequest;
-import org.opensearch.http.HttpPipelinedResponse;
-import org.opensearch.http.HttpReadTimeoutException;
-import org.opensearch.http.HttpRequest;
-import org.opensearch.nio.FlushOperation;
-import org.opensearch.nio.InboundChannelBuffer;
-import org.opensearch.nio.SocketChannelContext;
-import org.opensearch.nio.TaskScheduler;
-import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.RestStatus;
-import org.opensearch.test.OpenSearchTestCase;
-
-import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
-import java.util.function.BiConsumer;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;

@@ -32,8 +32,9 @@
 
 package org.opensearch.action;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -43,6 +44,7 @@ import java.io.IOException;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class ActionRequest extends TransportRequest {
 
     public ActionRequest() {

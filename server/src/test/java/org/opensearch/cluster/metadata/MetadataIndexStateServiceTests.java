@@ -51,13 +51,12 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.Index;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexNotFoundException;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
@@ -403,7 +402,7 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
     private static ClusterState addRestoredIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
         ClusterState newState = addOpenedIndex(index, numShards, numReplicas, state);
 
-        final ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder();
+        final Map<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = new HashMap<>();
         for (ShardRouting shardRouting : newState.routingTable().index(index).randomAllActiveShardsIt()) {
             shardsBuilder.put(shardRouting.shardId(), new RestoreInProgress.ShardRestoreStatus(shardRouting.currentNodeId()));
         }
@@ -414,7 +413,7 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
             snapshot,
             RestoreInProgress.State.INIT,
             Collections.singletonList(index),
-            shardsBuilder.build()
+            shardsBuilder
         );
         return ClusterState.builder(newState).putCustom(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(entry).build()).build();
     }
@@ -422,7 +421,7 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
     private static ClusterState addSnapshotIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
         ClusterState newState = addOpenedIndex(index, numShards, numReplicas, state);
 
-        final ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();
+        final Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsBuilder = new HashMap<>();
         for (ShardRouting shardRouting : newState.routingTable().index(index).randomAllActiveShardsIt()) {
             shardsBuilder.put(shardRouting.shardId(), new SnapshotsInProgress.ShardSnapshotStatus(shardRouting.currentNodeId(), "1"));
         }
@@ -437,10 +436,11 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
             Collections.emptyList(),
             randomNonNegativeLong(),
             randomLong(),
-            shardsBuilder.build(),
+            shardsBuilder,
             null,
             SnapshotInfoTests.randomUserMetadata(),
-            VersionUtils.randomVersion(random())
+            VersionUtils.randomVersion(random()),
+            false
         );
         return ClusterState.builder(newState)
             .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(Collections.singletonList(entry)))

@@ -1,0 +1,94 @@
+---
+teardown:
+  - do:
+      search_pipeline.delete:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test empty script in script processor":
+  - do:
+      catch: bad_request
+      search_pipeline.put:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "request_processors": [
+              {
+                "script" : {
+                  "tag": "empty_script",
+                  "lang": "painless",
+                  "source" : ""
+                }
+              }
+            ]
+          }
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "script_exception" }
+
+---
+"Test supported search source builder fields":
+  - do:
+      search_pipeline.put:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "request_processors": [
+              {
+                "script" : {
+                  "tag": "working",
+                  "lang" : "painless",
+                  "source" : "ctx._source['size'] += 10; ctx._source['from'] = ctx._source['from'] <= 0 ? ctx._source['from'] : ctx._source['from'] - 1 ; ctx._source['explain'] = !ctx._source['explain']; ctx._source['version'] = !ctx._source['version']; ctx._source['seq_no_primary_term'] = !ctx._source['seq_no_primary_term']; ctx._source['track_scores'] = !ctx._source['track_scores']; ctx._source['track_total_hits'] = 1; ctx._source['min_score'] -= 0.9; ctx._source['terminate_after'] += 2; ctx._source['profile'] = !ctx._source['profile'];"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: {
+          "field": 2
+        }
+  - do:
+      index:
+        index: test
+        id: 2
+        body: {
+          "field": 3
+        }
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline"
+        body: {
+          "from": 1,
+          "size": 1,
+          "explain": true,
+          "version": true,
+          "seq_no_primary_term": true,
+          "track_scores": true,
+          "track_total_hits": true,
+          "min_score": 1.0,
+          "timeout": "60s",
+          "terminate_after": 2,
+          "profile": true
+        }
+  - length: { hits.hits: 2 }
+  - is_false: hits.hits.0._explanation
+  - is_false: hits.hits.1._explanation
+  - is_false: hits.hits.0._seq_no
+  - is_false: hits.hits.1._seq_no
+  - is_false: hits.hits.0._primary_term
+  - is_false: hits.hits.1._primary_term
+  - is_false: profile

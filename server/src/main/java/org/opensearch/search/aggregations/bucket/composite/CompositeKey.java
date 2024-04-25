@@ -32,9 +32,9 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -44,7 +44,7 @@ import java.util.Arrays;
  *
  * @opensearch.internal
  */
-class CompositeKey implements Writeable {
+public class CompositeKey implements Writeable {
     private final Comparable[] values;
 
     CompositeKey(Comparable... values) {
@@ -64,11 +64,11 @@ class CompositeKey implements Writeable {
         return values;
     }
 
-    int size() {
+    public int size() {
         return values.length;
     }
 
-    Comparable get(int pos) {
+    public Comparable get(int pos) {
         assert pos < values.length;
         return values[pos];
     }

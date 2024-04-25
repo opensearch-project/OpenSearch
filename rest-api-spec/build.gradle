@@ -28,7 +28,6 @@ artifacts {
 
 testClusters.all {
   module ':modules:mapper-extras'
-  setting 'opensearch.experimental.feature.search_pipeline.enabled', 'true'
 }
 
 test.enabled = false

@@ -79,6 +79,12 @@ grant codeBase "${codebase.jna}" {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
+
+// ZSTD compression
+grant codeBase "${codebase.zstd-jni}" {
+  permission java.lang.RuntimePermission "loadLibrary.*";
+};
+
 //// Everything else:
 
 grant {
@@ -181,5 +187,4 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
-
 };

@@ -32,13 +32,14 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.core.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -54,8 +55,9 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
 /**
  * Represents snapshot status of all shards in the index
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, ToXContentFragment {
 
     private final String index;

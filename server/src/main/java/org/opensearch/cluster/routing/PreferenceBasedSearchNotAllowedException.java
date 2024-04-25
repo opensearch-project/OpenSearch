@@ -9,8 +9,8 @@
 package org.opensearch.cluster.routing;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 

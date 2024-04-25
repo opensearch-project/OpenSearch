@@ -33,7 +33,6 @@
 package org.opensearch.cluster.shards;
 
 import org.opensearch.Version;
-
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -46,8 +45,8 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Priority;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotState;
@@ -247,21 +246,21 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
     }
 
     public void testCreateIndexWithMaxClusterShardSetting() {
-        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        setMaxShardLimit(dataNodes, shardsPerNodeKey);
+        int maxAllowedShardsPerNode = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+        setMaxShardLimit(maxAllowedShardsPerNode, shardsPerNodeKey);
 
-        int maxAllowedShards = dataNodes + 1;
-        int extraShardCount = maxAllowedShards + 1;
+        // Always keep
+        int maxAllowedShardsPerCluster = maxAllowedShardsPerNode * 1000;
+        int extraShardCount = 1;
         // Getting total active shards in the cluster.
         int currentActiveShards = client().admin().cluster().prepareHealth().get().getActiveShards();
         try {
-            setMaxShardLimit(maxAllowedShards, SETTING_MAX_SHARDS_PER_CLUSTER_KEY);
+            setMaxShardLimit(maxAllowedShardsPerCluster, SETTING_MAX_SHARDS_PER_CLUSTER_KEY);
             prepareCreate("test_index_with_cluster_shard_limit").setSettings(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, extraShardCount).put(SETTING_NUMBER_OF_REPLICAS, 0).build()
             ).get();
         } catch (final IllegalArgumentException ex) {
-            verifyException(Math.min(maxAllowedShards, dataNodes * dataNodes), currentActiveShards, extraShardCount, ex);
+            verifyException(maxAllowedShardsPerCluster, currentActiveShards, extraShardCount, ex);
         } finally {
             setMaxShardLimit(-1, SETTING_MAX_SHARDS_PER_CLUSTER_KEY);
         }

@@ -33,7 +33,6 @@
 package org.opensearch.snapshots;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -41,15 +40,15 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardSt
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.SnapshotsInProgress;
-import org.opensearch.common.Strings;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -101,13 +100,40 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.version(), equalTo(Version.CURRENT));
 
-        final List<SnapshotStatus> snapshotStatus = clusterAdmin().snapshotsStatus(
-            new SnapshotsStatusRequest("test-repo", new String[] { "test-snap" })
-        ).actionGet().getSnapshots();
-        assertThat(snapshotStatus.size(), equalTo(1));
-        final SnapshotStatus snStatus = snapshotStatus.get(0);
-        assertEquals(snStatus.getStats().getStartTime(), snapshotInfo.startTime());
-        assertEquals(snStatus.getStats().getTime(), snapshotInfo.endTime() - snapshotInfo.startTime());
+        final SnapshotStatus snapshotStatus = getSnapshotStatus("test-repo", "test-snap");
+        assertEquals(snapshotStatus.getStats().getStartTime(), snapshotInfo.startTime());
+        assertEquals(snapshotStatus.getStats().getTime(), snapshotInfo.endTime() - snapshotInfo.startTime());
+    }
+
+    public void testStatusAPICallForShallowCopySnapshot() {
+        disableRepoConsistencyCheck("Remote store repository is being used for the test");
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        final String snapshotRepoName = "snapshot-repo-name";
+        createRepository(snapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy());
+
+        final String indexName = "index-1";
+        createIndex(indexName);
+        ensureGreen();
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index(indexName, "_doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+
+        final String snapshot = "snapshot";
+        createFullSnapshot(snapshotRepoName, snapshot);
+
+        final SnapshotStatus snapshotStatus = getSnapshotStatus(snapshotRepoName, snapshot);
+        assertThat(snapshotStatus.getState(), is(SnapshotsInProgress.State.SUCCESS));
+
+        final SnapshotIndexShardStatus snapshotShardState = stateFirstShard(snapshotStatus, indexName);
+        assertThat(snapshotShardState.getStage(), is(SnapshotIndexShardStage.DONE));
+        assertThat(snapshotShardState.getStats().getTotalFileCount(), greaterThan(0));
+        assertThat(snapshotShardState.getStats().getTotalSize(), greaterThan(0L));
+        assertThat(snapshotShardState.getStats().getIncrementalFileCount(), greaterThan(0));
+        assertThat(snapshotShardState.getStats().getIncrementalSize(), greaterThan(0L));
     }
 
     public void testStatusAPICallInProgressSnapshot() throws Exception {
@@ -324,6 +350,63 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
         assertEquals(SnapshotsInProgress.State.FAILED, snapshotsStatusResponse.getSnapshots().get(0).getState());
+    }
+
+    public void testSnapshotStatusOnPartialSnapshot() throws Exception {
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
+        final String indexName = "test-idx";
+        createRepository(repoName, "fs");
+        // create an index with a single shard on the data node, that will be stopped
+        createIndex(indexName, singleShardOneNode(dataNode));
+        index(indexName, "_doc", "some_doc_id", "foo", "bar");
+        logger.info("--> stopping data node before creating snapshot");
+        stopNode(dataNode);
+        startFullSnapshot(repoName, snapshotName, true).get();
+        final SnapshotStatus snapshotStatus = getSnapshotStatus(repoName, snapshotName);
+        assertEquals(SnapshotsInProgress.State.PARTIAL, snapshotStatus.getState());
+    }
+
+    public void testStatusAPICallInProgressShallowSnapshot() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        final String snapshotRepoName = "snapshot-repo-name";
+        createRepository(snapshotRepoName, "mock", snapshotRepoSettingsForShallowCopy().put("block_on_data", true));
+
+        final String indexName = "index-1";
+        createIndex(indexName);
+        ensureGreen();
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index(indexName, "_doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+
+        logger.info("--> snapshot");
+        ActionFuture<CreateSnapshotResponse> createSnapshotResponseActionFuture = startFullSnapshot(snapshotRepoName, "test-snap");
+
+        logger.info("--> wait for data nodes to get blocked");
+        waitForBlockOnAnyDataNode(snapshotRepoName, TimeValue.timeValueMinutes(1));
+        awaitNumberOfSnapshotsInProgress(1);
+        assertEquals(
+            SnapshotsInProgress.State.STARTED,
+            client().admin()
+                .cluster()
+                .prepareSnapshotStatus(snapshotRepoName)
+                .setSnapshots("test-snap")
+                .get()
+                .getSnapshots()
+                .get(0)
+                .getState()
+        );
+
+        logger.info("--> unblock all data nodes");
+        unblockAllDataNodes(snapshotRepoName);
+
+        logger.info("--> wait for snapshot to finish");
+        createSnapshotResponseActionFuture.actionGet();
     }
 
     public void testGetSnapshotsRequest() throws Exception {

@@ -33,11 +33,9 @@
 package org.opensearch.snapshots;
 
 import org.apache.lucene.util.BytesRef;
-
-import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -65,17 +63,18 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Numbers;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.index.Index;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.util.BytesRefUtils;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
@@ -1885,7 +1884,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
      * This test ensures that when a shard is removed from a node (perhaps due to the node
      * leaving the cluster, then returning), all snapshotting of that shard is aborted, so
      * all Store references held onto by the snapshot are released.
-     *
+     * <p>
      * See https://github.com/elastic/elasticsearch/issues/20876
      */
     public void testSnapshotCanceledOnRemovedShard() throws Exception {
@@ -2374,7 +2373,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         createFullSnapshot(repoName, "snapshot-1");
         repository.setFailOnIndexLatest(false);
         createFullSnapshot(repoName, "snapshot-2");
-        final long repoGenInIndexLatest = Numbers.bytesToLong(
+        final long repoGenInIndexLatest = BytesRefUtils.bytesToLong(
             new BytesRef(Files.readAllBytes(repoPath.resolve(BlobStoreRepository.INDEX_LATEST_BLOB)))
         );
         assertEquals(getRepositoryData(repoName).getGenId(), repoGenInIndexLatest);
@@ -2385,14 +2384,14 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             Settings.builder().put("location", repoPath).put(BlobStoreRepository.SUPPORT_URL_REPO.getKey(), false)
         );
         createFullSnapshot(repoName, "snapshot-3");
-        final long repoGenInIndexLatest2 = Numbers.bytesToLong(
+        final long repoGenInIndexLatest2 = BytesRefUtils.bytesToLong(
             new BytesRef(Files.readAllBytes(repoPath.resolve(BlobStoreRepository.INDEX_LATEST_BLOB)))
         );
         assertEquals("index.latest should not have been written to", repoGenInIndexLatest, repoGenInIndexLatest2);
 
         createRepository(repoName, "fs", repoPath);
         createFullSnapshot(repoName, "snapshot-4");
-        final long repoGenInIndexLatest3 = Numbers.bytesToLong(
+        final long repoGenInIndexLatest3 = BytesRefUtils.bytesToLong(
             new BytesRef(Files.readAllBytes(repoPath.resolve(BlobStoreRepository.INDEX_LATEST_BLOB)))
         );
         assertEquals(getRepositoryData(repoName).getGenId(), repoGenInIndexLatest3);

@@ -47,12 +47,13 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.opensearch.common.Strings;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -68,6 +69,7 @@ import org.opensearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.opensearch.index.query.MatchPhraseQueryBuilder;
 import org.opensearch.index.query.MultiMatchQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryStringQueryBuilder;
 import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
@@ -541,6 +543,31 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testNestedExistsQuery() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("nested_field");
+                    {
+                        b.field("type", "search_as_you_type");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        Query actual = new QueryStringQueryBuilder("field:*").toQuery(queryShardContext);
+        Query expected = new ConstantScoreQuery(
+            new BooleanQuery.Builder().add(new NormsFieldExistsQuery("field.nested_field"), BooleanClause.Occur.SHOULD).build()
+        );
+        assertEquals(expected, actual);
+    }
+
     private static BooleanQuery buildBoolPrefixQuery(String shingleFieldName, String prefixFieldName, List<String> terms) {
         final BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (int i = 0; i < terms.size() - 1; i++) {
@@ -600,7 +627,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             b.field("type", "search_as_you_type");
             b.field("analyzer", "simple");
         }));
-        String serialized = Strings.toString(XContentType.JSON, ms.documentMapper());
+        String serialized = Strings.toString(MediaTypeRegistry.JSON, ms.documentMapper());
         assertEquals(
             serialized,
             "{\"_doc\":{\"properties\":{\"field\":"
@@ -608,7 +635,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         );
 
         merge(ms, mapping(b -> {}));
-        assertEquals(serialized, Strings.toString(XContentType.JSON, ms.documentMapper()));
+        assertEquals(serialized, Strings.toString(MediaTypeRegistry.JSON, ms.documentMapper()));
     }
 
     private void documentParsingTestCase(Collection<String> values) throws IOException {

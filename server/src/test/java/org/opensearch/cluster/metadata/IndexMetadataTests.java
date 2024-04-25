@@ -36,23 +36,22 @@ import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -130,9 +129,9 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         final IndexMetadata fromXContentMeta = IndexMetadata.fromXContent(parser);
         assertEquals(
             "expected: "
-                + Strings.toString(XContentType.JSON, metadata)
+                + Strings.toString(MediaTypeRegistry.JSON, metadata)
                 + "\nactual  : "
-                + Strings.toString(XContentType.JSON, fromXContentMeta),
+                + Strings.toString(MediaTypeRegistry.JSON, fromXContentMeta),
             metadata,
             fromXContentMeta
         );
@@ -146,9 +145,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         assertEquals(metadata.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
         assertEquals(metadata.primaryTerm(0), fromXContentMeta.primaryTerm(0));
         assertEquals(metadata.isSystem(), fromXContentMeta.isSystem());
-        ImmutableOpenMap.Builder<String, DiffableStringMap> expectedCustomBuilder = ImmutableOpenMap.builder();
-        expectedCustomBuilder.put("my_custom", new DiffableStringMap(customMap));
-        ImmutableOpenMap<String, DiffableStringMap> expectedCustom = expectedCustomBuilder.build();
+        final Map<String, DiffableStringMap> expectedCustom = Map.of("my_custom", new DiffableStringMap(customMap));
         assertEquals(metadata.getCustomData(), expectedCustom);
         assertEquals(metadata.getCustomData(), fromXContentMeta.getCustomData());
 
@@ -228,6 +225,25 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         assertEquals(
             "the number of target shards (8) must be greater than the shard id: 8",
             expectThrows(IllegalArgumentException.class, () -> IndexMetadata.selectShrinkShards(8, metadata, 8)).getMessage()
+        );
+    }
+
+    public void testSelectCloneShard() {
+        int numberOfReplicas = randomIntBetween(0, 10);
+        IndexMetadata metadata = IndexMetadata.builder("foo")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1)
+                    .put("index.number_of_shards", 10)
+                    .put("index.number_of_replicas", numberOfReplicas)
+                    .build()
+            )
+            .creationDate(randomLong())
+            .build();
+
+        assertEquals(
+            "the number of target shards (11) must be the same as the number of source shards (10)",
+            expectThrows(IllegalArgumentException.class, () -> IndexMetadata.selectCloneShard(0, metadata, 11)).getMessage()
         );
     }
 

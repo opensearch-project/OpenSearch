@@ -33,7 +33,6 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
@@ -46,11 +45,11 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -345,7 +344,7 @@ public class TemplateUpgradeServiceTests extends OpenSearchTestCase {
 
             @Override
             Optional<Tuple<Map<String, BytesReference>, Set<String>>> calculateTemplateChanges(
-                ImmutableOpenMap<String, IndexTemplateMetadata> templates
+                final Map<String, IndexTemplateMetadata> templates
             ) {
                 final Optional<Tuple<Map<String, BytesReference>, Set<String>>> ans = super.calculateTemplateChanges(templates);
                 calculateInvocation.release();

@@ -32,18 +32,18 @@
 
 package org.opensearch.action.bulk;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.delete.DeleteResponseTests;
 import org.opensearch.action.index.IndexResponseTests;
 import org.opensearch.action.update.UpdateResponseTests;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -51,7 +51,7 @@ import java.io.IOException;
 import static org.opensearch.OpenSearchExceptionTests.randomExceptions;
 import static org.opensearch.action.bulk.BulkItemResponseTests.assertBulkItemResponse;
 import static org.opensearch.action.bulk.BulkResponse.NO_INGEST_TOOK;
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
 public class BulkResponseTests extends OpenSearchTestCase {

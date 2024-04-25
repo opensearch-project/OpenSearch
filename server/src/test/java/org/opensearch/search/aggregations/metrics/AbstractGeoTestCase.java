@@ -32,37 +32,39 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.ObjectObjectMap;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.Strings;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.geo.RandomGeoGenerator;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public abstract class AbstractGeoTestCase extends OpenSearchIntegTestCase {
+public abstract class AbstractGeoTestCase extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     protected static final String SINGLE_VALUED_FIELD_NAME = "geo_value";
     protected static final String MULTI_VALUED_FIELD_NAME = "geo_values";
@@ -73,15 +75,26 @@ public abstract class AbstractGeoTestCase extends OpenSearchIntegTestCase {
     protected static final String DATELINE_IDX_NAME = "dateline_idx";
     protected static final String HIGH_CARD_IDX_NAME = "high_card_idx";
     protected static final String IDX_ZERO_NAME = "idx_zero";
-
     protected static int numDocs;
     protected static int numUniqueGeoPoints;
     protected static GeoPoint[] singleValues, multiValues;
     protected static GeoPoint singleTopLeft, singleBottomRight, multiTopLeft, multiBottomRight, singleCentroid, multiCentroid,
         unmappedCentroid;
-    protected static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
-    protected static ObjectObjectMap<String, GeoPoint> expectedCentroidsForGeoHash = null;
+    protected static Map<String, Integer> expectedDocCountsForGeoHash = null;
+    protected static Map<String, GeoPoint> expectedCentroidsForGeoHash = null;
     protected static final double GEOHASH_TOLERANCE = 1E-5D;
+
+    public AbstractGeoTestCase(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -109,8 +122,8 @@ public abstract class AbstractGeoTestCase extends OpenSearchIntegTestCase {
 
         numDocs = randomIntBetween(6, 20);
         numUniqueGeoPoints = randomIntBetween(1, numDocs);
-        expectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);
-        expectedCentroidsForGeoHash = new ObjectObjectHashMap<>(numDocs * 2);
+        expectedDocCountsForGeoHash = new HashMap<>(numDocs * 2);
+        expectedCentroidsForGeoHash = new HashMap<>(numDocs * 2);
 
         singleValues = new GeoPoint[numUniqueGeoPoints];
         for (int i = 0; i < singleValues.length; i++) {
@@ -262,7 +275,7 @@ public abstract class AbstractGeoTestCase extends OpenSearchIntegTestCase {
         long totalHits = response.getHits().getTotalHits().value;
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        logger.info("Full high_card_idx Response Content:\n{ {} }", Strings.toString(builder));
+        logger.info("Full high_card_idx Response Content:\n{ {} }", builder.toString());
         for (int i = 0; i < totalHits; i++) {
             SearchHit searchHit = response.getHits().getAt(i);
             assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getIndex(), equalTo("high_card_idx"));

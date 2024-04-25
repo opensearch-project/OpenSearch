@@ -33,8 +33,8 @@
 package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregations;
@@ -491,7 +491,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
      * Makes a merge plan by simulating the merging of the two closest buckets, until the target number of buckets is reached.
      * Distance is determined by centroid comparison.
      * Then, this plan is actually executed and the underlying buckets are merged.
-     *
+     * <p>
      * Requires: <code>buckets</code> is sorted by centroid.
      */
     private void mergeBucketsIfNeeded(List<Bucket> buckets, int targetNumBuckets, ReduceContext reduceContext) {
@@ -567,7 +567,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     /**
      * When two adjacent buckets A, B overlap (A.max &gt; B.min) then their boundary is set to
      * the midpoint: (A.max + B.min) / 2.
-     *
+     * <p>
      * After this adjustment, A will contain more values than indicated and B will have less.
      */
     private void adjustBoundsForOverlappingBuckets(List<Bucket> buckets, ReduceContext reduceContext) {

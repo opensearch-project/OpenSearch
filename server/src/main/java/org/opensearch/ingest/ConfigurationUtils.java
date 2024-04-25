@@ -32,23 +32,24 @@
 
 package org.opensearch.ingest;
 
-import java.io.IOException;
-import java.io.InputStream;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
 import org.opensearch.script.TemplateScript;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -67,12 +68,13 @@ public final class ConfigurationUtils {
 
     public static final String TAG_KEY = "tag";
     public static final String DESCRIPTION_KEY = "description";
+    public static final String IGNORE_FAILURE_KEY = "ignore_failure";
 
     private ConfigurationUtils() {}
 
     /**
      * Returns and removes the specified optional property from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type string a {@link OpenSearchParseException} is thrown.
      */
     public static String readOptionalStringProperty(
@@ -87,7 +89,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type string an {@link OpenSearchParseException} is thrown.
      * If the property is missing an {@link OpenSearchParseException} is thrown
      */
@@ -102,7 +104,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type string a {@link OpenSearchParseException} is thrown.
      * If the property is missing and no default value has been specified a {@link OpenSearchParseException} is thrown
      */
@@ -139,7 +141,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type string or int a {@link OpenSearchParseException} is thrown.
      * If the property is missing and no default value has been specified a {@link OpenSearchParseException} is thrown
      */
@@ -178,7 +180,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type string or int a {@link OpenSearchParseException} is thrown.
      */
     public static String readOptionalStringOrIntProperty(
@@ -194,7 +196,7 @@ public final class ConfigurationUtils {
         return readStringOrInt(processorType, processorTag, propertyName, value);
     }
 
-    public static Boolean readBooleanProperty(
+    public static boolean readBooleanProperty(
         String processorType,
         String processorTag,
         Map<String, Object> configuration,
@@ -214,7 +216,7 @@ public final class ConfigurationUtils {
             return null;
         }
         if (value instanceof Boolean) {
-            return (Boolean) value;
+            return (boolean) value;
         }
         throw newConfigurationException(
             processorType,
@@ -226,7 +228,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type int a {@link OpenSearchParseException} is thrown.
      * If the property is missing an {@link OpenSearchParseException} is thrown
      */
@@ -255,7 +257,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type int a {@link OpenSearchParseException} is thrown.
      * If the property is missing an {@link OpenSearchParseException} is thrown
      */
@@ -283,7 +285,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property of type list from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type list an {@link OpenSearchParseException} is thrown.
      */
     public static <T> List<T> readOptionalList(
@@ -301,7 +303,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property of type list from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type list an {@link OpenSearchParseException} is thrown.
      * If the property is missing an {@link OpenSearchParseException} is thrown
      */
@@ -331,7 +333,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property of type map from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type map an {@link OpenSearchParseException} is thrown.
      * If the property is missing an {@link OpenSearchParseException} is thrown
      */
@@ -351,7 +353,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property of type map from the specified configuration map.
-     *
+     * <p>
      * If the property value isn't of type map an {@link OpenSearchParseException} is thrown.
      */
     public static <T> Map<String, T> readOptionalMap(
@@ -385,6 +387,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property as an {@link Object} from the specified configuration map.
+     * If the property is missing an {@link OpenSearchParseException} is thrown
      */
     public static Object readObject(String processorType, String processorTag, Map<String, Object> configuration, String propertyName) {
         Object value = configuration.remove(propertyName);
@@ -392,6 +395,13 @@ public final class ConfigurationUtils {
             throw newConfigurationException(processorType, processorTag, propertyName, "required property is missing");
         }
         return value;
+    }
+
+    /**
+     * Returns and removes the specified property as an {@link Object} from the specified configuration map.
+     */
+    public static Object readOptionalObject(Map<String, Object> configuration, String propertyName) {
+        return configuration.remove(propertyName);
     }
 
     public static OpenSearchException newConfigurationException(
@@ -509,9 +519,11 @@ public final class ConfigurationUtils {
         Map<String, Processor.Factory> processorFactories,
         ScriptService scriptService,
         String type,
-        Object config
+        @Nullable Object config
     ) throws Exception {
-        if (config instanceof Map) {
+        if (config == null) {
+            throw newConfigurationException(type, null, null, "the config of processor [" + type + "] cannot be null");
+        } else if (config instanceof Map) {
             return readProcessor(processorFactories, scriptService, type, (Map<String, Object>) config);
         } else if (config instanceof String && "script".equals(type)) {
             Map<String, Object> normalizedScript = new HashMap<>(1);
@@ -526,14 +538,18 @@ public final class ConfigurationUtils {
         Map<String, Processor.Factory> processorFactories,
         ScriptService scriptService,
         String type,
-        Map<String, Object> config
+        @Nullable Map<String, Object> config
     ) throws Exception {
+        if (config == null) {
+            throw newConfigurationException(type, null, null, "expect the config of processor [" + type + "] to be map, but is null");
+        }
         String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
         String description = ConfigurationUtils.readOptionalStringProperty(null, tag, config, DESCRIPTION_KEY);
+        boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, IGNORE_FAILURE_KEY, false);
         Script conditionalScript = extractConditional(config);
         Processor.Factory factory = processorFactories.get(type);
+
         if (factory != null) {
-            boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, "ignore_failure", false);
             List<Map<String, Object>> onFailureProcessorConfigs = ConfigurationUtils.readOptionalList(
                 null,
                 null,
@@ -576,7 +592,7 @@ public final class ConfigurationUtils {
             try (
                 XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(normalizeScript(scriptSource));
                 InputStream stream = BytesReference.bytes(builder).streamInput();
-                XContentParser parser = XContentType.JSON.xContent()
+                XContentParser parser = MediaTypeRegistry.JSON.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
             ) {
                 return Script.parse(parser);

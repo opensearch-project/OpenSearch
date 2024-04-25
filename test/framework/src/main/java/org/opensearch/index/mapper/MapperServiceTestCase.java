@@ -35,20 +35,20 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -185,11 +185,11 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse("test", "1", BytesReference.bytes(builder), XContentType.JSON);
+        return new SourceToParse("test", "1", BytesReference.bytes(builder), MediaTypeRegistry.JSON);
     }
 
     protected final SourceToParse source(String source) {
-        return new SourceToParse("test", "1", new BytesArray(source), XContentType.JSON);
+        return new SourceToParse("test", "1", new BytesArray(source), MediaTypeRegistry.JSON);
     }
 
     /**
@@ -225,13 +225,32 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         return builder.endObject().endObject().endObject();
     }
 
+    protected final XContentBuilder derivedMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("derived");
+        buildFields.accept(builder);
+        return builder.endObject().endObject().endObject();
+    }
+
     protected final XContentBuilder dynamicMapping(Mapping dynamicMapping) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         dynamicMapping.toXContent(builder, ToXContent.EMPTY_PARAMS);
         return builder.endObject();
     }
 
-    protected final XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
+    protected XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
+        return fieldMapping(buildField, false);
+    }
+
+    protected final XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField, Boolean isDerived)
+        throws IOException {
+        if (isDerived) {
+            return derivedMapping(b -> {
+                b.startObject("field");
+                buildField.accept(b);
+                b.endObject();
+            });
+        }
+
         return mapping(b -> {
             b.startObject("field");
             buildField.accept(b);
@@ -239,7 +258,7 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         });
     }
 
-    QueryShardContext createQueryShardContext(MapperService mapperService) {
+    protected QueryShardContext createQueryShardContext(MapperService mapperService) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.getMapperService()).thenReturn(mapperService);
         when(queryShardContext.fieldMapper(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
@@ -247,13 +266,18 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         when(queryShardContext.getSearchQuoteAnalyzer(any())).thenCallRealMethod();
         when(queryShardContext.getSearchAnalyzer(any())).thenCallRealMethod();
         when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
+        when(queryShardContext.getObjectMapper(anyString())).thenAnswer(
+            inv -> mapperService.getObjectMapper(inv.getArguments()[0].toString())
+        );
         when(queryShardContext.simpleMatchToIndexNames(any())).thenAnswer(
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );
         when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
         when(queryShardContext.lookup()).thenReturn(new SearchLookup(mapperService, (ft, s) -> {
             throw new UnsupportedOperationException("search lookup not available");
-        }));
+        }, SearchLookup.UNKNOWN_SHARD_ID));
+        when(queryShardContext.getFieldType(any())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
+        when(queryShardContext.documentMapper(anyString())).thenReturn(mapperService.documentMapper());
         return queryShardContext;
     }
 }

@@ -32,13 +32,16 @@
 
 package org.opensearch.common.metrics;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.concurrent.atomic.LongAdder;
 
 /**
  * An average metric for tracking.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class MeanMetric implements Metric {
 
     private final LongAdder counter = new LongAdder();
@@ -47,6 +50,11 @@ public class MeanMetric implements Metric {
     public void inc(long n) {
         counter.increment();
         sum.add(n);
+    }
+
+    public void add(MeanMetric other) {
+        counter.add(other.counter.sum());
+        sum.add(other.sum.sum());
     }
 
     public void dec(long n) {
@@ -74,4 +82,5 @@ public class MeanMetric implements Metric {
         counter.reset();
         sum.reset();
     }
+
 }

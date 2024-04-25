@@ -37,14 +37,16 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,23 +56,27 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
+import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
-import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Restore snapshot request
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestoreSnapshotRequest.class);
 
     /**
      * Enumeration of possible storage types
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum StorageType {
         LOCAL("local"),
         REMOTE_SNAPSHOT("remote_snapshot");
@@ -113,6 +119,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
     private StorageType storageType = StorageType.LOCAL;
+    @Nullable
+    private String sourceRemoteStoreRepository = null;
 
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
@@ -148,6 +156,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
             storageType = in.readEnum(StorageType.class);
         }
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
+            sourceRemoteStoreRepository = in.readOptionalString();
+        }
     }
 
     @Override
@@ -168,6 +179,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         out.writeOptionalString(snapshotUuid);
         if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeEnum(storageType);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
+            out.writeOptionalString(sourceRemoteStoreRepository);
         }
     }
 
@@ -488,7 +502,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
      * this is the snapshot that this request restores. If the client can only identify a snapshot by its name then there is a risk that the
      * desired snapshot may be deleted and replaced by a new snapshot with the same name which is inconsistent with the original one. This
      * method lets us fail the restore if the precise snapshot we want is not available.
-     *
+     * <p>
      * This is for internal use only and is not exposed in the REST layer.
      */
     public RestoreSnapshotRequest snapshotUuid(String snapshotUuid) {
@@ -508,7 +522,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
     /**
      * Sets the storage type for this request.
      */
-    RestoreSnapshotRequest storageType(StorageType storageType) {
+    public RestoreSnapshotRequest storageType(StorageType storageType) {
         this.storageType = storageType;
         return this;
     }
@@ -519,6 +533,25 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
      */
     public StorageType storageType() {
         return storageType;
+    }
+
+    /**
+     * Sets Source Remote Store Repository for all the restored indices
+     *
+     * @param sourceRemoteStoreRepository name of the remote store repository that should be used for all restored indices.
+     */
+    public RestoreSnapshotRequest setSourceRemoteStoreRepository(String sourceRemoteStoreRepository) {
+        this.sourceRemoteStoreRepository = sourceRemoteStoreRepository;
+        return this;
+    }
+
+    /**
+     * Returns Source Remote Store Repository for all the restored indices
+     *
+     * @return source Remote Store Repository
+     */
+    public String getSourceRemoteStoreRepository() {
+        return sourceRemoteStoreRepository;
     }
 
     /**
@@ -586,6 +619,12 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
                     throw new IllegalArgumentException("malformed storage_type");
                 }
 
+            } else if (name.equals("source_remote_store_repository")) {
+                if (entry.getValue() instanceof String) {
+                    setSourceRemoteStoreRepository((String) entry.getValue());
+                } else {
+                    throw new IllegalArgumentException("malformed source_remote_store_repository");
+                }
             } else {
                 if (IndicesOptions.isIndicesOptions(name) == false) {
                     throw new IllegalArgumentException("Unknown parameter " + name);
@@ -631,6 +670,9 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (storageType != null) {
             storageType.toXContent(builder);
         }
+        if (sourceRemoteStoreRepository != null) {
+            builder.field("source_remote_store_repository", sourceRemoteStoreRepository);
+        }
         builder.endObject();
         return builder;
     }
@@ -645,7 +687,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RestoreSnapshotRequest that = (RestoreSnapshotRequest) o;
-        return waitForCompletion == that.waitForCompletion
+        boolean equals = waitForCompletion == that.waitForCompletion
             && includeGlobalState == that.includeGlobalState
             && partial == that.partial
             && includeAliases == that.includeAliases
@@ -658,12 +700,15 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             && Objects.equals(indexSettings, that.indexSettings)
             && Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings)
             && Objects.equals(snapshotUuid, that.snapshotUuid)
-            && Objects.equals(storageType, that.storageType);
+            && Objects.equals(storageType, that.storageType)
+            && Objects.equals(sourceRemoteStoreRepository, that.sourceRemoteStoreRepository);
+        return equals;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(
+        int result;
+        result = Objects.hash(
             snapshot,
             repository,
             indicesOptions,
@@ -675,7 +720,8 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             includeAliases,
             indexSettings,
             snapshotUuid,
-            storageType
+            storageType,
+            sourceRemoteStoreRepository
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
@@ -684,6 +730,6 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 }

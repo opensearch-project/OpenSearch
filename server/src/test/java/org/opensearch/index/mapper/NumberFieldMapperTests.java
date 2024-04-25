@@ -34,10 +34,9 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.opensearch.index.termvectors.TermVectorsService;
@@ -55,12 +54,12 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected Set<String> types() {
-        return Set.of("byte", "short", "integer", "long", "float", "double", "half_float");
+        return Set.of("byte", "short", "integer", "long", "float", "double", "half_float", "unsigned_long");
     }
 
     @Override
     protected Set<String> wholeTypes() {
-        return Set.of("byte", "short", "integer", "long");
+        return Set.of("byte", "short", "integer", "long", "unsigned_long");
     }
 
     @Override
@@ -95,7 +94,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     public void doTestDefaults(String type) throws Exception {
         XContentBuilder mapping = fieldMapping(b -> b.field("type", type));
         DocumentMapper mapper = createDocumentMapper(mapping);
-        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
+        assertEquals(mapping.toString(), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
 
@@ -147,7 +146,12 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         IndexableField storedField = fields[2];
         assertTrue(storedField.fieldType().stored());
-        assertEquals(123, storedField.numericValue().doubleValue(), 0d);
+        // The 'unsigned_long' is stored as a string
+        if (type.equalsIgnoreCase("unsigned_long")) {
+            assertEquals(123, new BigInteger(storedField.stringValue()).longValue());
+        } else {
+            assertEquals(123, storedField.numericValue().doubleValue(), 0d);
+        }
     }
 
     @Override
@@ -244,22 +248,26 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             OutOfRangeSpec.of(NumberType.INTEGER, "2147483648", "is out of range for an integer"),
             OutOfRangeSpec.of(NumberType.LONG, "9223372036854775808", "out of range for a long"),
             OutOfRangeSpec.of(NumberType.LONG, "1e999999999", "out of range for a long"),
+            OutOfRangeSpec.of(NumberType.UNSIGNED_LONG, "18446744073709551616", "out of range for an unsigned long"),
 
             OutOfRangeSpec.of(NumberType.BYTE, "-129", "is out of range for a byte"),
             OutOfRangeSpec.of(NumberType.SHORT, "-32769", "is out of range for a short"),
             OutOfRangeSpec.of(NumberType.INTEGER, "-2147483649", "is out of range for an integer"),
             OutOfRangeSpec.of(NumberType.LONG, "-9223372036854775809", "out of range for a long"),
             OutOfRangeSpec.of(NumberType.LONG, "-1e999999999", "out of range for a long"),
+            OutOfRangeSpec.of(NumberType.UNSIGNED_LONG, "-1", "out of range for an unsigned long"),
 
             OutOfRangeSpec.of(NumberType.BYTE, 128, "is out of range for a byte"),
             OutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of Java short"),
             OutOfRangeSpec.of(NumberType.INTEGER, 2147483648L, " out of range of int"),
             OutOfRangeSpec.of(NumberType.LONG, new BigInteger("9223372036854775808"), "out of range of long"),
+            OutOfRangeSpec.of(NumberType.UNSIGNED_LONG, new BigInteger("18446744073709551616"), "out of range for an unsigned long"),
 
             OutOfRangeSpec.of(NumberType.BYTE, -129, "is out of range for a byte"),
             OutOfRangeSpec.of(NumberType.SHORT, -32769, "out of range of Java short"),
             OutOfRangeSpec.of(NumberType.INTEGER, -2147483649L, " out of range of int"),
             OutOfRangeSpec.of(NumberType.LONG, new BigInteger("-9223372036854775809"), "out of range of long"),
+            OutOfRangeSpec.of(NumberType.UNSIGNED_LONG, new BigInteger("-1"), "out of range for an unsigned long"),
 
             OutOfRangeSpec.of(NumberType.HALF_FLOAT, "65520", "[half_float] supports only finite values"),
             OutOfRangeSpec.of(NumberType.FLOAT, "3.4028235E39", "[float] supports only finite values"),
@@ -307,7 +315,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     public void testLongIndexingOutOfRange() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "long").field("ignore_malformed", true)));
         ParsedDocument doc = mapper.parse(
-            source(b -> b.rawField("field", new BytesArray("9223372036854775808").streamInput(), XContentType.JSON))
+            source(b -> b.rawField("field", new BytesArray("9223372036854775808").streamInput(), MediaTypeRegistry.JSON))
         );
         assertEquals(0, doc.rootDoc().getFields("field").length);
     }

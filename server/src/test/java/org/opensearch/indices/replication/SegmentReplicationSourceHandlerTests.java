@@ -8,18 +8,14 @@
 
 package org.opensearch.indices.replication;
 
-import org.hamcrest.MatcherAssert;
-import org.hamcrest.Matchers;
-import org.junit.Assert;
-import org.mockito.Mockito;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -27,6 +23,9 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.CopyState;
+import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -34,9 +33,11 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import org.mockito.Mockito;
+
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
 
@@ -67,18 +68,16 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
         chunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> listener.onResponse(null);
 
         final ReplicationCheckpoint latestReplicationCheckpoint = primary.getLatestReplicationCheckpoint();
-        final CopyState copyState = new CopyState(latestReplicationCheckpoint, primary);
         SegmentReplicationSourceHandler handler = new SegmentReplicationSourceHandler(
             localNode,
             chunkWriter,
-            threadPool,
-            copyState,
+            primary,
             replica.routingEntry().allocationId().getId(),
             5000,
             1
         );
 
-        final List<StoreFileMetadata> expectedFiles = List.copyOf(copyState.getMetadataMap().values());
+        final List<StoreFileMetadata> expectedFiles = List.copyOf(handler.getCheckpoint().getMetadataMap().values());
 
         final GetSegmentFilesRequest getSegmentFilesRequest = new GetSegmentFilesRequest(
             1L,
@@ -105,12 +104,10 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
         chunkWriter = mock(FileChunkWriter.class);
 
         final ReplicationCheckpoint latestReplicationCheckpoint = primary.getLatestReplicationCheckpoint();
-        final CopyState copyState = new CopyState(latestReplicationCheckpoint, primary);
         SegmentReplicationSourceHandler handler = new SegmentReplicationSourceHandler(
             localNode,
             chunkWriter,
-            threadPool,
-            copyState,
+            primary,
             replica.routingEntry().allocationId().getId(),
             5000,
             1
@@ -140,19 +137,18 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
 
     public void testSendFileFails() throws IOException {
         // index some docs on the primary so a segment is created.
-        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
+        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", MediaTypeRegistry.JSON, "foobar");
         primary.refresh("Test");
         chunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> listener.onFailure(
             new OpenSearchException("Test")
         );
 
         final ReplicationCheckpoint latestReplicationCheckpoint = primary.getLatestReplicationCheckpoint();
-        final CopyState copyState = new CopyState(latestReplicationCheckpoint, primary);
+        final CopyState copyState = new CopyState(primary);
         SegmentReplicationSourceHandler handler = new SegmentReplicationSourceHandler(
             localNode,
             chunkWriter,
-            threadPool,
-            copyState,
+            primary,
             primary.routingEntry().allocationId().getId(),
             5000,
             1
@@ -179,28 +175,30 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
                 assertEquals(e.getClass(), OpenSearchException.class);
             }
         });
+        copyState.close();
     }
 
     public void testReplicationAlreadyRunning() throws IOException {
         chunkWriter = mock(FileChunkWriter.class);
 
         final ReplicationCheckpoint latestReplicationCheckpoint = primary.getLatestReplicationCheckpoint();
-        final CopyState copyState = new CopyState(latestReplicationCheckpoint, primary);
+        final CopyState copyState = new CopyState(primary);
         SegmentReplicationSourceHandler handler = new SegmentReplicationSourceHandler(
             localNode,
             chunkWriter,
-            threadPool,
-            copyState,
+            primary,
             replica.routingEntry().allocationId().getId(),
             5000,
             1
         );
 
+        final List<StoreFileMetadata> expectedFiles = List.of(new StoreFileMetadata("_0.si", 20, "test", Version.CURRENT.luceneVersion));
+
         final GetSegmentFilesRequest getSegmentFilesRequest = new GetSegmentFilesRequest(
             1L,
             replica.routingEntry().allocationId().getId(),
             replicaDiscoveryNode,
-            Collections.emptyList(),
+            expectedFiles,
             latestReplicationCheckpoint
         );
 
@@ -213,22 +211,21 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
         chunkWriter = mock(FileChunkWriter.class);
 
         final ReplicationCheckpoint latestReplicationCheckpoint = primary.getLatestReplicationCheckpoint();
-        final CopyState copyState = new CopyState(latestReplicationCheckpoint, primary);
         SegmentReplicationSourceHandler handler = new SegmentReplicationSourceHandler(
             localNode,
             chunkWriter,
-            threadPool,
-            copyState,
+            primary,
             primary.routingEntry().allocationId().getId(),
             5000,
             1
         );
 
+        final List<StoreFileMetadata> expectedFiles = List.of(new StoreFileMetadata("_0.si", 20, "test", Version.CURRENT.luceneVersion));
         final GetSegmentFilesRequest getSegmentFilesRequest = new GetSegmentFilesRequest(
             1L,
             replica.routingEntry().allocationId().getId(),
             replicaDiscoveryNode,
-            Collections.emptyList(),
+            expectedFiles,
             latestReplicationCheckpoint
         );
 

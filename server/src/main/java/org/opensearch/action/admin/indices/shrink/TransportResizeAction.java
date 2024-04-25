@@ -33,7 +33,6 @@
 package org.opensearch.action.admin.indices.shrink;
 
 import org.apache.lucene.index.IndexWriter;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
@@ -49,22 +48,30 @@ import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.DocsStats;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.StoreStats;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
+import org.opensearch.node.remotestore.RemoteStoreNodeService.Direction;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
-import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.index.store.StoreStats;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.IntFunction;
+
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 
 /**
  * Main class to initiate resizing (shrink / split) an index into a new index
@@ -138,25 +145,80 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         // there is no need to fetch docs stats for split but we keep it simple and do it anyway for simplicity of the code
         final String sourceIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getSourceIndex());
         final String targetIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getTargetIndexRequest().index());
-        client.admin()
-            .indices()
-            .prepareStats(sourceIndex)
-            .clear()
-            .setDocs(true)
-            .setStore(true)
-            .execute(ActionListener.delegateFailure(listener, (delegatedListener, indicesStatsResponse) -> {
-                CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(resizeRequest, state, i -> {
-                    IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
-                    return shard == null ? null : shard.getPrimary().getDocs();
-                }, indicesStatsResponse.getPrimaries().store, sourceIndex, targetIndex);
-                createIndexService.createIndex(
-                    updateRequest,
-                    ActionListener.map(
-                        delegatedListener,
-                        response -> new ResizeResponse(response.isAcknowledged(), response.isShardsAcknowledged(), updateRequest.index())
-                    )
-                );
-            }));
+        IndexMetadata indexMetadata = state.metadata().index(sourceIndex);
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        if (resizeRequest.getResizeType().equals(ResizeType.SHRINK)
+            && state.metadata().isSegmentReplicationEnabled(sourceIndex)
+            && indexMetadata != null
+            && Integer.valueOf(indexMetadata.getSettings().get(SETTING_NUMBER_OF_REPLICAS)) > 0) {
+            client.admin()
+                .indices()
+                .prepareRefresh(sourceIndex)
+                .execute(ActionListener.delegateFailure(listener, (delegatedRefreshListener, refreshResponse) -> {
+                    client.admin()
+                        .indices()
+                        .prepareStats(sourceIndex)
+                        .clear()
+                        .setDocs(true)
+                        .setStore(true)
+                        .setSegments(true)
+                        .execute(ActionListener.delegateFailure(listener, (delegatedIndicesStatsListener, indicesStatsResponse) -> {
+                            CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(resizeRequest, state, i -> {
+                                IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
+                                return shard == null ? null : shard.getPrimary().getDocs();
+                            }, indicesStatsResponse.getPrimaries().store, clusterSettings, sourceIndex, targetIndex);
+
+                            if (indicesStatsResponse.getIndex(sourceIndex)
+                                .getTotal()
+                                .getSegments()
+                                .getReplicationStats().maxBytesBehind != 0) {
+                                throw new IllegalStateException(
+                                    "Replication still in progress for index ["
+                                        + sourceIndex
+                                        + "]. Please wait for replication to complete and retry. Use the _cat/segment_replication/"
+                                        + sourceIndex
+                                        + " api to check if the index is up to date (e.g. bytes_behind == 0)."
+                                );
+                            }
+
+                            createIndexService.createIndex(
+                                updateRequest,
+                                ActionListener.map(
+                                    delegatedIndicesStatsListener,
+                                    response -> new ResizeResponse(
+                                        response.isAcknowledged(),
+                                        response.isShardsAcknowledged(),
+                                        updateRequest.index()
+                                    )
+                                )
+                            );
+                        }));
+                }));
+        } else {
+            client.admin()
+                .indices()
+                .prepareStats(sourceIndex)
+                .clear()
+                .setDocs(true)
+                .setStore(true)
+                .execute(ActionListener.delegateFailure(listener, (delegatedListener, indicesStatsResponse) -> {
+                    CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(resizeRequest, state, i -> {
+                        IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
+                        return shard == null ? null : shard.getPrimary().getDocs();
+                    }, indicesStatsResponse.getPrimaries().store, clusterSettings, sourceIndex, targetIndex);
+                    createIndexService.createIndex(
+                        updateRequest,
+                        ActionListener.map(
+                            delegatedListener,
+                            response -> new ResizeResponse(
+                                response.isAcknowledged(),
+                                response.isShardsAcknowledged(),
+                                updateRequest.index()
+                            )
+                        )
+                    );
+                }));
+        }
 
     }
 
@@ -166,6 +228,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         final ClusterState state,
         final IntFunction<DocsStats> perShardDocStats,
         final StoreStats primaryShardsStoreStats,
+        final ClusterSettings clusterSettings,
         String sourceIndexName,
         String targetIndexName
     ) {
@@ -174,12 +237,28 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         if (metadata == null) {
             throw new IndexNotFoundException(sourceIndexName);
         }
+        validateRemoteMigrationModeSettings(resizeRequest.getResizeType(), metadata, clusterSettings);
         final Settings.Builder targetIndexSettingsBuilder = Settings.builder()
             .put(targetIndex.settings())
             .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
         targetIndexSettingsBuilder.remove(IndexMetadata.SETTING_HISTORY_UUID);
         final Settings targetIndexSettings = targetIndexSettingsBuilder.build();
         final int numShards;
+
+        // We should check the source index's setting `index.blocks.read_only`, because the setting will be copied to target index,
+        // it will block target index's metadata writes and then cause the new shards to be unassigned,
+        // but if user overwrites the setting to `false` or `null`, everything is fine.
+        // We don't need to check the setting `index.blocks.metadata`, because it was checked when fetching index stats
+        if (IndexMetadata.INDEX_READ_ONLY_SETTING.get(metadata.getSettings()) == true
+            && IndexMetadata.INDEX_READ_ONLY_SETTING.exists(targetIndexSettings) == false) {
+            throw new IllegalArgumentException(
+                "target index ["
+                    + targetIndexName
+                    + "] will be blocked by [index.blocks.read_only=true] which is copied from the source index ["
+                    + sourceIndexName
+                    + "], this will disable metadata writes and cause the shards to be unassigned"
+            );
+        }
 
         if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
             numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);
@@ -295,5 +374,40 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
     @Override
     protected String getClusterManagerActionName(DiscoveryNode node) {
         return super.getClusterManagerActionName(node);
+    }
+
+    /**
+     * Reject resize request if cluster mode is [Mixed] and migration direction is [RemoteStore] and index is not on
+     * REMOTE_STORE_ENABLED node or [DocRep] and index is on REMOTE_STORE_ENABLED node.
+     * @param type resize type
+     * @param sourceIndexMetadata source index's metadata
+     * @param clusterSettings cluster settings
+     * @throws IllegalStateException if cluster mode is [Mixed] and migration direction is [RemoteStore] or [DocRep] and
+     *                               index's SETTING_REMOTE_STORE_ENABLED is not equal to the migration direction's value.
+     *                               For example, if migration direction is [RemoteStore] and index's SETTING_REMOTE_STORE_ENABLED
+     *                               is false, then throw IllegalStateException. If migration direction is [DocRep] and
+     *                               index's SETTING_REMOTE_STORE_ENABLED is true, then throw IllegalStateException.
+     */
+    private static void validateRemoteMigrationModeSettings(
+        final ResizeType type,
+        IndexMetadata sourceIndexMetadata,
+        ClusterSettings clusterSettings
+    ) {
+        CompatibilityMode compatibilityMode = clusterSettings.get(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING);
+        if (compatibilityMode == CompatibilityMode.MIXED) {
+            boolean isRemoteStoreEnabled = sourceIndexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false);
+            Direction migrationDirection = clusterSettings.get(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING);
+            boolean invalidConfiguration = (migrationDirection == Direction.REMOTE_STORE && isRemoteStoreEnabled == false)
+                || (migrationDirection == Direction.DOCREP && isRemoteStoreEnabled);
+            if (invalidConfiguration) {
+                throw new IllegalStateException(
+                    "Index "
+                        + type
+                        + " is not allowed as remote migration mode is mixed"
+                        + " and index is remote store "
+                        + (isRemoteStoreEnabled ? "enabled" : "disabled")
+                );
+            }
+        }
     }
 }

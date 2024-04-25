@@ -32,7 +32,6 @@
 
 package org.opensearch.index.seqno;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
@@ -42,13 +41,15 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.index.Index;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
@@ -59,6 +60,7 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
+import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
@@ -84,7 +86,8 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> clusterService.localNode(),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -123,7 +126,8 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
             new IndexingPressureService(Settings.EMPTY, clusterService),
-            new SystemIndices(emptyMap())
+            new SystemIndices(emptyMap()),
+            NoopTracer.INSTANCE
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
@@ -160,7 +164,8 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
             new IndexingPressureService(Settings.EMPTY, clusterService),
-            new SystemIndices(emptyMap())
+            new SystemIndices(emptyMap()),
+            NoopTracer.INSTANCE
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
@@ -201,7 +206,8 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
             new IndexingPressureService(Settings.EMPTY, clusterService),
-            new SystemIndices(emptyMap())
+            new SystemIndices(emptyMap()),
+            NoopTracer.INSTANCE
         );
 
         assertNull(action.indexBlockLevel());
@@ -210,15 +216,15 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
     public void testGetReplicationModeWithRemoteTranslog() {
         final RetentionLeaseSyncAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(true));
         assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     public void testGetReplicationModeWithLocalTranslog() {
         final RetentionLeaseSyncAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
-        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
+        when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 
     private RetentionLeaseSyncAction createAction() {
@@ -231,7 +237,8 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
             new IndexingPressureService(Settings.EMPTY, clusterService),
-            new SystemIndices(emptyMap())
+            new SystemIndices(emptyMap()),
+            NoopTracer.INSTANCE
         );
     }
 

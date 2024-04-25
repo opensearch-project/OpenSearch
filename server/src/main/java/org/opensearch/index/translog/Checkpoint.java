@@ -44,6 +44,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.OutputStreamIndexOutput;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.Channels;
 import org.opensearch.index.seqno.SequenceNumbers;
 
@@ -57,9 +58,10 @@ import java.nio.file.Path;
 /**
  * A checkpoint for OpenSearch operations
  *
- * @opensearch.internal
+ * @opensearch.api
  */
-final public class Checkpoint {
+@PublicApi(since = "1.0.0")
+public final class Checkpoint {
 
     final long offset;
     final int numOps;
@@ -223,15 +225,17 @@ final public class Checkpoint {
         }
     }
 
-    public static void write(FileChannel fileChannel, Path checkpointFile, Checkpoint checkpoint) throws IOException {
+    public static void write(FileChannel fileChannel, Path checkpointFile, Checkpoint checkpoint, boolean fsync) throws IOException {
         byte[] bytes = createCheckpointBytes(checkpointFile, checkpoint);
         Channels.writeToChannel(bytes, fileChannel, 0);
-        // no need to force metadata, file size stays the same and we did the full fsync
-        // when we first created the file, so the directory entry doesn't change as well
-        fileChannel.force(false);
+        if (fsync == true) {
+            // no need to force metadata, file size stays the same and we did the full fsync
+            // when we first created the file, so the directory entry doesn't change as well
+            fileChannel.force(false);
+        }
     }
 
-    private static byte[] createCheckpointBytes(Path checkpointFile, Checkpoint checkpoint) throws IOException {
+    public static byte[] createCheckpointBytes(Path checkpointFile, Checkpoint checkpoint) throws IOException {
         final ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream(V4_FILE_SIZE) {
             @Override
             public synchronized byte[] toByteArray() {

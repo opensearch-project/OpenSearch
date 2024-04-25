@@ -31,22 +31,18 @@
 
 package org.opensearch.repositories.gcs;
 
+import com.sun.net.httpserver.HttpHandler;
+
 import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
-import com.sun.net.httpserver.HttpHandler;
-import fixture.gcs.FakeOAuth2HttpHandler;
-
 import org.apache.hc.core5.http.HttpStatus;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
@@ -54,14 +50,16 @@ import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.RestUtils;
-import org.threeten.bp.Duration;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -77,10 +75,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeEnd;
-import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeLimit;
-import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeStart;
-import static fixture.gcs.GoogleCloudStorageHttpHandler.parseMultipartRequestBody;
+import fixture.gcs.FakeOAuth2HttpHandler;
+import org.threeten.bp.Duration;
+
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
@@ -95,6 +92,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeEnd;
+import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeLimit;
+import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeStart;
+import static fixture.gcs.GoogleCloudStorageHttpHandler.parseMultipartRequestBody;
 
 @SuppressForbidden(reason = "use a http server")
 public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase {

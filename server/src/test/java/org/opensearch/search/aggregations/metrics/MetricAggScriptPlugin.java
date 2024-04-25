@@ -32,6 +32,10 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.opensearch.script.MockScriptPlugin;
+import org.opensearch.search.lookup.LeafDocLookup;
+import org.opensearch.test.OpenSearchTestCase;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -39,13 +43,9 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import org.opensearch.script.MockScriptPlugin;
-import org.opensearch.search.lookup.LeafDocLookup;
-import org.opensearch.test.OpenSearchTestCase;
-
 /**
  * Provides a number of dummy scripts for tests.
- *
+ * <p>
  * Each script provided allows for an {@code inc} parameter which will
  * be added to each value read from a document.
  */

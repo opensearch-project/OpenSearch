@@ -32,17 +32,17 @@
 
 package org.opensearch.ingest.common;
 
+import org.opensearch.ingest.IngestDocument;
+import org.opensearch.ingest.Processor;
+import org.opensearch.ingest.RandomDocumentPicks;
+import org.opensearch.test.OpenSearchTestCase;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-
-import org.opensearch.ingest.IngestDocument;
-import org.opensearch.ingest.Processor;
-import org.opensearch.ingest.RandomDocumentPicks;
-import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.opensearch.ingest.common.ConvertProcessor.Type;
@@ -549,5 +549,30 @@ public class ConvertProcessorTests extends OpenSearchTestCase {
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(String.valueOf(randomInt)));
         assertThat(ingestDocument.getFieldValue(targetField, Integer.class), equalTo(randomInt));
+    }
+
+    public void testConvertIP() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        String validIPString;
+        if (randomBoolean()) {
+            validIPString = "1.2.3.4";
+        } else {
+            validIPString = "::1";
+        }
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, validIPString);
+
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, fieldName, Type.IP, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(validIPString));
+
+        String invalidIPString = randomAlphaOfLength(10);
+        fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, invalidIPString);
+        Processor processorWithInvalidIP = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, fieldName, Type.IP, false);
+        try {
+            processorWithInvalidIP.execute(ingestDocument);
+            fail("processor execute should have failed");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("[" + invalidIPString + "] is not a valid ipv4/ipv6 address"));
+        }
     }
 }

@@ -45,6 +45,7 @@ import org.opensearch.cli.UserException;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.hash.MessageDigests;
+import org.opensearch.core.common.settings.SecureString;
 
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
@@ -55,6 +56,7 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -86,7 +88,7 @@ import java.util.regex.Pattern;
 
 /**
  * A disk based container for sensitive settings in OpenSearch.
- *
+ * <p>
  * Loading a keystore has 2 phases. First, call {@link #load(Path)}. Then call
  * {@link #decrypt(char[])} with the keystore password, or an empty char array if
  * {@link #hasPassword()} is {@code false}.  Loading and decrypting should happen
@@ -145,7 +147,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /**
      * The number of bits for the cipher key.
-     *
+     * <p>
      * Note: The Oracle JDK 8 ships with a limited JCE policy that restricts key length for AES to 128 bits.
      * This can be increased to 256 bits once minimum java 9 is the minimum java version.
      * See http://www.oracle.com/technetwork/java/javase/terms/readme/jdk9-readme-3852447.html#jce
@@ -232,7 +234,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /**
      * Loads information about the OpenSearch keystore from the provided config directory.
-     *
+     * <p>
      * {@link #decrypt(char[])} must be called before reading or writing any entries.
      * Returns {@code null} if no keystore exists.
      */
@@ -356,7 +358,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /**
      * Decrypts the underlying keystore data.
-     *
+     * <p>
      * This may only be called once.
      */
     public void decrypt(char[] password) throws GeneralSecurityException, IOException {

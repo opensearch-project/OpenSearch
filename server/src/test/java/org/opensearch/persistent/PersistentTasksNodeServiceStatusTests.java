@@ -31,9 +31,9 @@
 
 package org.opensearch.persistent;
 
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.persistent.PersistentTasksNodeService.Status;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 

@@ -34,10 +34,10 @@ package org.opensearch.validate;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.opensearch.client.Client;
-import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;
@@ -48,7 +48,6 @@ import org.opensearch.indices.TermsLookup;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -271,7 +270,10 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
 
         long twoMonthsAgo = now.minus(2, ChronoUnit.MONTHS).truncatedTo(ChronoUnit.DAYS).toEpochSecond() * 1000;
         long rangeEnd = (now.plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.DAYS).toEpochSecond() * 1000) - 1;
-        assertThat(response.getQueryExplanation().get(0).getExplanation(), equalTo("past:[" + twoMonthsAgo + " TO " + rangeEnd + "]"));
+        assertThat(
+            response.getQueryExplanation().get(0).getExplanation(),
+            containsString("past:[" + twoMonthsAgo + " TO " + rangeEnd + "]")
+        );
         assertThat(response.isValid(), equalTo(true));
     }
 

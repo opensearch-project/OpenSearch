@@ -32,17 +32,17 @@
 
 package org.opensearch.index.seqno;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.WriteStateException;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
@@ -84,7 +84,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             value -> {},
             () -> 0L,
             (leases, listener) -> {},
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
         replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
@@ -132,7 +133,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             value -> {},
             () -> 0L,
             (leases, listener) -> {},
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
         replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
@@ -164,7 +166,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             value -> {},
             () -> 0L,
             (leases, listener) -> {},
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
         replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
@@ -202,7 +205,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                     equalTo(retainingSequenceNumbers)
                 );
             },
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
         reference.set(replicationTracker);
         replicationTracker.updateFromClusterManager(
@@ -241,7 +245,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             value -> {},
             () -> 0L,
             (leases, listener) -> {},
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
         replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
@@ -305,7 +310,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 assertTrue(synced.compareAndSet(false, true));
                 listener.onResponse(new ReplicationResponse());
             },
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
         replicationTrackerRef.set(replicationTracker);
         replicationTracker.updateFromClusterManager(
@@ -351,7 +357,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             value -> {},
             () -> 0L,
             (leases, listener) -> {},
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
         replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
@@ -380,7 +387,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             value -> {},
             () -> 0L,
             (leases, listener) -> {},
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
         replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
@@ -413,7 +421,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             value -> {},
             () -> 0L,
             (leases, listener) -> {},
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
         replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
@@ -451,7 +460,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                     equalTo(retainingSequenceNumbers)
                 );
             },
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
         reference.set(replicationTracker);
         replicationTracker.updateFromClusterManager(
@@ -504,7 +514,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             value -> {},
             currentTimeMillis::get,
             (leases, listener) -> {},
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
         replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
@@ -583,7 +594,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             value -> {},
             () -> 0L,
             (leases, listener) -> {},
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
         replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
@@ -636,7 +648,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             value -> {},
             () -> 0L,
             (leases, listener) -> {},
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
         replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
@@ -671,7 +684,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             value -> {},
             () -> 0L,
             (leases, listener) -> {},
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
         replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
@@ -724,7 +738,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             value -> {},
             () -> 0L,
             (leases, listener) -> {},
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
         replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),
@@ -788,7 +803,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             value -> {},
             () -> 0L,
             (leases, listener) -> {},
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
         replicationTracker.updateFromClusterManager(
             randomNonNegativeLong(),

@@ -33,8 +33,9 @@
 package org.opensearch.action.admin.cluster.node.info;
 
 import org.opensearch.action.support.nodes.BaseNodesRequest;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,11 +48,12 @@ import java.util.stream.Collectors;
 /**
  * A request to get node (cluster) level information.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
 
-    private Set<String> requestedMetrics = Metric.allMetrics();
+    private Set<String> requestedMetrics = Metric.defaultMetrics();
 
     /**
      * Create a new NodeInfoRequest from a {@link StreamInput} object.
@@ -71,7 +73,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      */
     public NodesInfoRequest(String... nodesIds) {
         super(nodesIds);
-        all();
+        defaultMetrics();
     }
 
     /**
@@ -83,10 +85,21 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     }
 
     /**
-     * Sets to return all the data.
+     * Sets to return data for all the metrics.
+     * See {@link Metric}
      */
     public NodesInfoRequest all() {
         requestedMetrics.addAll(Metric.allMetrics());
+        return this;
+    }
+
+    /**
+     * Sets to return data for default metrics only.
+     * See {@link Metric}
+     * See {@link Metric#defaultMetrics()}.
+     */
+    public NodesInfoRequest defaultMetrics() {
+        requestedMetrics.addAll(Metric.defaultMetrics());
         return this;
     }
 
@@ -154,7 +167,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
 
     /**
      * An enumeration of the "core" sections of metrics that may be requested
-     * from the nodes information endpoint. Eventually this list list will be
+     * from the nodes information endpoint. Eventually this list will be
      * pluggable.
      */
     public enum Metric {
@@ -185,8 +198,25 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
             return metricNames.contains(this.metricName());
         }
 
+        /**
+         * Return all available metrics.
+         * See {@link Metric}
+         */
         public static Set<String> allMetrics() {
             return Arrays.stream(values()).map(Metric::metricName).collect(Collectors.toSet());
+        }
+
+        /**
+         * Return "the default" set of metrics.
+         * Similar to {@link #allMetrics()} except {@link Metric#SEARCH_PIPELINES} metric is not included.
+         * <br>
+         * The motivation to define the default set of metrics was to keep the default response
+         * size at bay. Metrics that are NOT included in the default set were typically introduced later
+         * and are considered to contain specific type of information that is not usually useful unless you
+         * know that you really need it.
+         */
+        public static Set<String> defaultMetrics() {
+            return allMetrics().stream().filter(metric -> !(metric.equals(SEARCH_PIPELINES.metricName()))).collect(Collectors.toSet());
         }
     }
 }

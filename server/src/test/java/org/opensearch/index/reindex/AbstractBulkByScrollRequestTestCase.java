@@ -34,8 +34,8 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.test.AbstractXContentTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 

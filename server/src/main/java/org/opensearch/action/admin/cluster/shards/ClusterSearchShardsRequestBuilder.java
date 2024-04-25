@@ -35,12 +35,14 @@ package org.opensearch.action.admin.cluster.shards;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Transport request builder for searching shards
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterSearchShardsRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     ClusterSearchShardsRequest,
     ClusterSearchShardsResponse,
@@ -76,7 +78,8 @@ public class ClusterSearchShardsRequestBuilder extends ClusterManagerNodeReadOpe
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
+     * {@code _local} to prefer local shards, {@code _primary} to execute only on primary shards,
+     * or a custom value, which guarantees that the same order
      * will be used across different requests.
      */
     public ClusterSearchShardsRequestBuilder setPreference(String preference) {

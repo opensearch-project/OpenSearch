@@ -43,9 +43,10 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
@@ -100,7 +101,7 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
             nodeSelectors.add(randomFrom(NodeSelector.values()).selector);
         }
         int numNodeIds = randomIntBetween(0, 3);
-        String[] nodeIds = clusterService.state().nodes().getNodes().keys().toArray(String.class);
+        String[] nodeIds = clusterService.state().nodes().getNodes().keySet().toArray(new String[0]);
         for (int i = 0; i < numNodeIds; i++) {
             String nodeId = randomFrom(nodeIds);
             nodeSelectors.add(nodeId);
@@ -209,7 +210,8 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> clusterService.localNode(),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -340,7 +342,7 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
 
         @Override
         protected void resolveRequest(TestNodesRequest request, ClusterState clusterState) {
-            request.setConcreteNodes(clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode.class));
+            request.setConcreteNodes(clusterState.nodes().getDataNodes().values().toArray(new DiscoveryNode[0]));
         }
     }
 

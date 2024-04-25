@@ -33,8 +33,8 @@ package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.transport.TransportRequest;
@@ -44,8 +44,9 @@ import java.util.List;
 /**
  * An listener for search, fetch and context events.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface SearchOperationListener {
 
     /**
@@ -143,6 +144,11 @@ public interface SearchOperationListener {
      * @param readerContext the freed search context
      */
     default void onFreePitContext(ReaderContext readerContext) {}
+
+    /**
+     * Executed when a shard goes from idle to non-idle state
+     */
+    default void onSearchIdleReactivation() {}
 
     /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
@@ -306,6 +312,17 @@ public interface SearchOperationListener {
                     listener.onFreePitContext(readerContext);
                 } catch (Exception e) {
                     logger.warn("onFreePitContext listener failed", e);
+                }
+            }
+        }
+
+        @Override
+        public void onSearchIdleReactivation() {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onSearchIdleReactivation();
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onNewSearchIdleReactivation listener [{}] failed", listener), e);
                 }
             }
         }

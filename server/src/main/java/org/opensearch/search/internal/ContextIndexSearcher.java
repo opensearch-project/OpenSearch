@@ -32,6 +32,8 @@
 
 package org.opensearch.search.internal;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -62,16 +64,21 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.search.profile.query.ProfileWeight;
 import org.opensearch.search.profile.query.QueryProfiler;
 import org.opensearch.search.profile.query.QueryTimingType;
+import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.MinAndMax;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,18 +92,23 @@ import java.util.concurrent.Executor;
 /**
  * Context-aware extension of {@link IndexSearcher}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
+
+    private static final Logger logger = LogManager.getLogger(ContextIndexSearcher.class);
     /**
      * The interval at which we check for search cancellation when we cannot use
      * a {@link CancellableBulkScorer}. See {@link #intersectScorerAndBitSet}.
      */
-    private static int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
+
+    private static final int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
     private MutableQueryTimeout cancellable;
+    private SearchContext searchContext;
 
     public ContextIndexSearcher(
         IndexReader reader,
@@ -104,9 +116,19 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
         boolean wrapWithExitableDirectoryReader,
-        Executor executor
+        Executor executor,
+        SearchContext searchContext
     ) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader, executor);
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            new MutableQueryTimeout(),
+            wrapWithExitableDirectoryReader,
+            executor,
+            searchContext
+        );
     }
 
     private ContextIndexSearcher(
@@ -116,13 +138,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCachingPolicy queryCachingPolicy,
         MutableQueryTimeout cancellable,
         boolean wrapWithExitableDirectoryReader,
-        Executor executor
+        Executor executor,
+        SearchContext searchContext
     ) throws IOException {
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
+        this.searchContext = searchContext;
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -246,30 +270,54 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        for (LeafReaderContext ctx : leaves) { // search each subreader
-            searchLeaf(ctx, weight, collector);
+        // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
+        // This is actually beneficial for search queries to start search on latest segments first for time series workload.
+        // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
+        // reader order here.
+        if (searchContext.shouldUseTimeSeriesDescSortOptimization()) {
+            for (int i = leaves.size() - 1; i >= 0; i--) {
+                searchLeaf(leaves.get(i), weight, collector);
+            }
+        } else {
+            for (int i = 0; i < leaves.size(); i++) {
+                searchLeaf(leaves.get(i), weight, collector);
+            }
         }
+        searchContext.bucketCollectorProcessor().processPostCollection(collector);
     }
 
     /**
      * Lower-level search API.
-     *
+     * <p>
      * {@link LeafCollector#collect(int)} is called for every matching document in
      * the provided <code>ctx</code>.
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
-        cancellable.checkCancelled();
-        weight = wrapWeight(weight);
-        // See please https://github.com/apache/lucene/pull/964
-        collector.setWeight(weight);
+
+        // Check if at all we need to call this leaf for collecting results.
+        if (canMatch(ctx) == false) {
+            return;
+        }
+
         final LeafCollector leafCollector;
         try {
+            cancellable.checkCancelled();
+            if (weight instanceof ProfileWeight) {
+                ((ProfileWeight) weight).associateCollectorToLeaves(ctx, collector);
+            }
+            weight = wrapWeight(weight);
+            // See please https://github.com/apache/lucene/pull/964
+            collector.setWeight(weight);
             leafCollector = collector.getLeafCollector(ctx);
         } catch (CollectionTerminatedException e) {
             // there is no doc of interest in this reader context
             // continue with the following leaf
             return;
+        } catch (QueryPhase.TimeExceededException e) {
+            searchContext.setSearchTimedOut(true);
+            return;
         }
+        // catch early terminated exception and rethrow?
         Bits liveDocs = ctx.reader().getLiveDocs();
         BitSet liveDocsBitSet = getSparseBitSetOrNull(liveDocs);
         if (liveDocsBitSet == null) {
@@ -280,6 +328,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
+                } catch (QueryPhase.TimeExceededException e) {
+                    searchContext.setSearchTimedOut(true);
+                    return;
                 }
             }
         } else {
@@ -296,9 +347,16 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
+                } catch (QueryPhase.TimeExceededException e) {
+                    searchContext.setSearchTimedOut(true);
+                    return;
                 }
             }
         }
+
+        // Note: this is called if collection ran successfully, including the above special cases of
+        // CollectionTerminatedException and TimeExceededException, but no other exception.
+        leafCollector.finish();
     }
 
     private Weight wrapWeight(Weight weight) {
@@ -328,6 +386,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     } else {
                         return null;
                     }
+                }
+
+                @Override
+                public int count(LeafReaderContext context) throws IOException {
+                    return weight.count(context);
                 }
             };
         } else {
@@ -395,6 +458,16 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return collectionStatistics;
     }
 
+    /**
+     * Compute the leaf slices that will be used by concurrent segment search to spread work across threads
+     * @param leaves all the segments
+     * @return leafSlice group to be executed by different threads
+     */
+    @Override
+    protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
+        return slicesInternal(leaves, searchContext.getTargetMaxSliceCount());
+    }
+
     public DirectoryReader getDirectoryReader() {
         final IndexReader reader = getIndexReader();
         assert reader instanceof DirectoryReader : "expected an instance of DirectoryReader, got " + reader.getClass();
@@ -432,5 +505,47 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         public void clear() {
             runnables.clear();
         }
+    }
+
+    private boolean canMatch(LeafReaderContext ctx) throws IOException {
+        // skip segments for search after if min/max of them doesn't qualify competitive
+        return canMatchSearchAfter(ctx);
+    }
+
+    private boolean canMatchSearchAfter(LeafReaderContext ctx) throws IOException {
+        if (searchContext.searchAfter() != null && searchContext.request() != null && searchContext.request().source() != null) {
+            // Only applied on primary sort field and primary search_after.
+            FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
+            if (primarySortField != null) {
+                MinAndMax<?> minMax = FieldSortBuilder.getMinMaxOrNullForSegment(
+                    this.searchContext.getQueryShardContext(),
+                    ctx,
+                    primarySortField,
+                    searchContext.sort()
+                );
+                return SearchService.canMatchSearchAfter(
+                    searchContext.searchAfter(),
+                    minMax,
+                    primarySortField,
+                    searchContext.trackTotalHitsUpTo()
+                );
+            }
+        }
+        return true;
+    }
+
+    // package-private for testing
+    LeafSlice[] slicesInternal(List<LeafReaderContext> leaves, int targetMaxSlice) {
+        LeafSlice[] leafSlices;
+        if (targetMaxSlice == 0) {
+            // use the default lucene slice calculation
+            leafSlices = super.slices(leaves);
+            logger.debug("Slice count using lucene default [{}]", leafSlices.length);
+        } else {
+            // use the custom slice calculation based on targetMaxSlice
+            leafSlices = MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
+            logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
+        }
+        return leafSlices;
     }
 }

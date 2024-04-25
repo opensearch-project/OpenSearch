@@ -32,18 +32,20 @@
 
 package org.opensearch.http;
 
-import org.opensearch.common.component.LifecycleComponent;
-import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.node.ReportingService;
+import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.core.service.ReportingService;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 
 /**
  * HTTP Transport server
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface HttpServerTransport extends LifecycleComponent, ReportingService<HttpInfo> {
 
     String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";

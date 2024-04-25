@@ -34,12 +34,13 @@ package org.opensearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.compress.CompressorFactory;
-import org.opensearch.common.io.stream.InputStreamStreamInput;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.InputStreamStreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.compress.CompressorRegistry;
+import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
 
 import java.io.IOException;
 
@@ -64,7 +65,7 @@ public final class TransportLogger {
         }
     }
 
-    static void logInboundMessage(TcpChannel channel, InboundMessage message) {
+    static void logInboundMessage(TcpChannel channel, NativeInboundMessage message) {
         if (logger.isTraceEnabled()) {
             try {
                 String logMessage = format(channel, message, "READ");
@@ -136,7 +137,7 @@ public final class TransportLogger {
         return sb.toString();
     }
 
-    private static String format(TcpChannel channel, InboundMessage message, String event) throws IOException {
+    private static String format(TcpChannel channel, NativeInboundMessage message, String event) throws IOException {
         final StringBuilder sb = new StringBuilder();
         sb.append(channel);
 
@@ -179,7 +180,7 @@ public final class TransportLogger {
     private static StreamInput decompressingStream(byte status, StreamInput streamInput) throws IOException {
         if (TransportStatus.isCompress(status) && streamInput.available() > 0) {
             try {
-                return new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(streamInput));
+                return new InputStreamStreamInput(CompressorRegistry.defaultCompressor().threadLocalInputStream(streamInput));
             } catch (IllegalArgumentException e) {
                 throw new IllegalStateException("stream marked as compressed, but is missing deflate header");
             }

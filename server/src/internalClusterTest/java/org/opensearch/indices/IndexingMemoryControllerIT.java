@@ -89,7 +89,7 @@ public class IndexingMemoryControllerIT extends OpenSearchSingleNodeTestCase {
                 .mergePolicy(config.getMergePolicy())
                 .analyzer(config.getAnalyzer())
                 .similarity(config.getSimilarity())
-                .codecService(new CodecService(null, LogManager.getLogger(IndexingMemoryControllerIT.class)))
+                .codecService(new CodecService(null, indexSettings, LogManager.getLogger(IndexingMemoryControllerIT.class)))
                 .eventListener(config.getEventListener())
                 .queryCache(config.getQueryCache())
                 .queryCachingPolicy(config.getQueryCachingPolicy())

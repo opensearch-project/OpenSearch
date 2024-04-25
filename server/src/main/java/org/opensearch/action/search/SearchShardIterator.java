@@ -36,10 +36,11 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.cluster.routing.PlainShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.Countable;
 import org.opensearch.common.util.PlainIterator;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
 
@@ -54,8 +55,9 @@ import java.util.stream.Collectors;
  * the cluster alias.
  * @see OriginalIndices
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class SearchShardIterator implements Comparable<SearchShardIterator>, Countable {
 
     private final OriginalIndices originalIndices;

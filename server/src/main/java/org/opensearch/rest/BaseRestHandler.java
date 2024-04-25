@@ -40,10 +40,12 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.rest.action.admin.cluster.RestNodesUsageAction;
@@ -72,6 +74,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class BaseRestHandler implements RestHandler {
 
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX = Setting.boolSetting(
@@ -117,10 +120,6 @@ public abstract class BaseRestHandler implements RestHandler {
             candidateParams.addAll(request.consumedParams());
             candidateParams.addAll(responseParams());
             throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
-        }
-
-        if (request.hasContent() && request.isContentConsumed() == false) {
-            throw new IllegalArgumentException("request [" + request.method() + " " + request.path() + "] does not support having a body");
         }
 
         usageCount.increment();
@@ -194,8 +193,11 @@ public abstract class BaseRestHandler implements RestHandler {
     /**
      * REST requests are handled by preparing a channel consumer that represents the execution of
      * the request against a channel.
+     *
+     * @opensearch.api
      */
     @FunctionalInterface
+    @PublicApi(since = "1.0.0")
     protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {}
 
     /**

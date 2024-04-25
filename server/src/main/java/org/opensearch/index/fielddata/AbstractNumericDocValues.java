@@ -43,6 +43,9 @@ import java.io.IOException;
  * aggregations, which only use {@link #advanceExact(int)} and
  * {@link #longValue()}.
  *
+ * In case when optimizations based on point values are used, the {@link #advance(int)}
+ * and, optionally, {@link #cost()} have to be implemented as well.
+ *
  * @opensearch.internal
  */
 public abstract class AbstractNumericDocValues extends NumericDocValues {

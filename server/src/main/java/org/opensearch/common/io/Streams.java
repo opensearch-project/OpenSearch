@@ -32,10 +32,10 @@
 
 package org.opensearch.common.io;
 
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.BytesStream;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.BytesStream;
+import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.BufferedReader;
 import java.io.FilterInputStream;
@@ -162,36 +162,9 @@ public abstract class Streams {
         return out.toString();
     }
 
-    public static int readFully(Reader reader, char[] dest) throws IOException {
-        return readFully(reader, dest, 0, dest.length);
-    }
-
-    public static int readFully(Reader reader, char[] dest, int offset, int len) throws IOException {
-        int read = 0;
-        while (read < len) {
-            final int r = reader.read(dest, offset + read, len - read);
-            if (r == -1) {
-                break;
-            }
-            read += r;
-        }
-        return read;
-    }
-
+    @Deprecated
     public static int readFully(InputStream reader, byte[] dest) throws IOException {
-        return readFully(reader, dest, 0, dest.length);
-    }
-
-    public static int readFully(InputStream reader, byte[] dest, int offset, int len) throws IOException {
-        int read = 0;
-        while (read < len) {
-            final int r = reader.read(dest, offset + read, len - read);
-            if (r == -1) {
-                break;
-            }
-            read += r;
-        }
-        return read;
+        return reader.readNBytes(dest, 0, dest.length);
     }
 
     /**

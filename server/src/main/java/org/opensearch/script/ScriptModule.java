@@ -68,6 +68,7 @@ public class ScriptModule {
             SignificantTermsHeuristicScoreScript.CONTEXT,
             IngestScript.CONTEXT,
             IngestConditionalScript.CONTEXT,
+            SearchScript.CONTEXT,
             FilterScript.CONTEXT,
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,
@@ -77,7 +78,8 @@ public class ScriptModule {
             ScriptedMetricAggContexts.MapScript.CONTEXT,
             ScriptedMetricAggContexts.CombineScript.CONTEXT,
             ScriptedMetricAggContexts.ReduceScript.CONTEXT,
-            IntervalFilterScript.CONTEXT
+            IntervalFilterScript.CONTEXT,
+            DerivedFieldScript.CONTEXT
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 

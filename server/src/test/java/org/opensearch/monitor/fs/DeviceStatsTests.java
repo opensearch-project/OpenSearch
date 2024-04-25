@@ -46,7 +46,12 @@ public class DeviceStatsTests extends OpenSearchTestCase {
         final int sectorsRead = randomIntBetween(8 * readsCompleted, 16 * readsCompleted);
         final int writesCompleted = randomIntBetween(1, 1 << 16);
         final int sectorsWritten = randomIntBetween(8 * writesCompleted, 16 * writesCompleted);
-
+        final int readTime = randomIntBetween(1, 1 << 16);
+        ;
+        final int writeTime = randomIntBetween(1, 1 << 16);
+        ;
+        final int queueSize = randomIntBetween(1, 1 << 16);
+        final int ioTime = randomIntBetween(1, 1 << 16);
         FsInfo.DeviceStats previous = new FsInfo.DeviceStats(
             majorDeviceNumber,
             minorDeviceNumber,
@@ -55,6 +60,10 @@ public class DeviceStatsTests extends OpenSearchTestCase {
             sectorsRead,
             writesCompleted,
             sectorsWritten,
+            readTime,
+            writeTime,
+            queueSize,
+            ioTime,
             null
         );
         FsInfo.DeviceStats current = new FsInfo.DeviceStats(
@@ -65,6 +74,10 @@ public class DeviceStatsTests extends OpenSearchTestCase {
             sectorsRead + 16384,
             writesCompleted + 2048,
             sectorsWritten + 32768,
+            readTime + 500,
+            writeTime + 100,
+            queueSize + 20,
+            ioTime + 8192,
             previous
         );
         assertThat(current.operations(), equalTo(1024L + 2048L));
@@ -72,6 +85,10 @@ public class DeviceStatsTests extends OpenSearchTestCase {
         assertThat(current.writeOperations(), equalTo(2048L));
         assertThat(current.readKilobytes(), equalTo(16384L / 2));
         assertThat(current.writeKilobytes(), equalTo(32768L / 2));
+        assertEquals(500, current.readTime());
+        assertEquals(100, current.writeTime());
+        assertEquals(20, current.queueSize());
+        assertEquals(8192, current.ioTimeInMillis());
     }
 
 }

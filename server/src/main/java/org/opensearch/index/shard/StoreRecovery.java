@@ -43,7 +43,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
@@ -51,26 +50,34 @@ import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.index.Index;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
+import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.translog.RemoteFsTranslog;
+import org.opensearch.index.translog.Checkpoint;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.transfer.FileTransferTracker;
-import org.opensearch.index.translog.transfer.TranslogTransferManager;
+import org.opensearch.index.translog.TranslogHeader;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.repositories.IndexId;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
-import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -80,6 +87,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
+import static org.opensearch.index.translog.Translog.CHECKPOINT_FILE_NAME;
 
 /**
  * This package private utility class encapsulates the logic to recover an index shard from either an existing index on
@@ -118,13 +126,13 @@ final class StoreRecovery {
         }
     }
 
-    void recoverFromRemoteStore(final IndexShard indexShard, Repository repository, ActionListener<Boolean> listener) {
+    void recoverFromRemoteStore(final IndexShard indexShard, ActionListener<Boolean> listener) {
         if (canRecover(indexShard)) {
             RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
             assert recoveryType == RecoverySource.Type.REMOTE_STORE : "expected remote store recovery type but was: " + recoveryType;
             ActionListener.completeWith(recoveryListener(indexShard, listener), () -> {
                 logger.debug("starting recovery from remote store ...");
-                recoverFromRemoteStore(indexShard, repository);
+                recoverFromRemoteStore(indexShard);
                 return true;
             });
         } else {
@@ -183,6 +191,9 @@ final class StoreRecovery {
                     // just trigger a merge to do housekeeping on the
                     // copied segments - we will also see them in stats etc.
                     indexShard.getEngine().forceMerge(false, -1, false, false, false, UUIDs.randomBase64UUID());
+                    if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
+                        indexShard.waitForRemoteStoreSync();
+                    }
                     return true;
                 } catch (IOException ex) {
                     throw new IndexShardRecoveryException(indexShard.shardId(), "failed to recover from local shards", ex);
@@ -351,6 +362,85 @@ final class StoreRecovery {
         }
     }
 
+    void recoverFromSnapshotAndRemoteStore(
+        final IndexShard indexShard,
+        Repository repository,
+        RepositoriesService repositoriesService,
+        ActionListener<Boolean> listener,
+        ThreadPool threadPool
+    ) {
+        try {
+            if (canRecover(indexShard)) {
+                indexShard.preRecovery();
+                RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
+                assert recoveryType == RecoverySource.Type.SNAPSHOT : "expected snapshot recovery type: " + recoveryType;
+                SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) indexShard.recoveryState().getRecoverySource();
+                final RecoveryState.Translog translogState = indexShard.recoveryState().getTranslog();
+                translogState.totalOperations(0);
+                translogState.totalOperationsOnStart(0);
+                indexShard.prepareForIndexRecovery();
+
+                RemoteStoreShardShallowCopySnapshot shallowCopyShardMetadata = repository.getRemoteStoreShallowCopyShardMetadata(
+                    recoverySource.snapshot().getSnapshotId(),
+                    recoverySource.index(),
+                    shardId
+                );
+
+                long primaryTerm = shallowCopyShardMetadata.getPrimaryTerm();
+                long commitGeneration = shallowCopyShardMetadata.getCommitGeneration();
+                String indexUUID = shallowCopyShardMetadata.getIndexUUID();
+                String remoteStoreRepository = ((SnapshotRecoverySource) indexShard.recoveryState().getRecoverySource())
+                    .sourceRemoteStoreRepository();
+                if (remoteStoreRepository == null) {
+                    remoteStoreRepository = shallowCopyShardMetadata.getRemoteStoreRepository();
+                }
+
+                RemoteSegmentStoreDirectoryFactory directoryFactory = new RemoteSegmentStoreDirectoryFactory(
+                    () -> repositoriesService,
+                    threadPool
+                );
+                RemoteSegmentStoreDirectory sourceRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
+                    remoteStoreRepository,
+                    indexUUID,
+                    shardId,
+                    shallowCopyShardMetadata.getRemoteStorePathStrategy()
+                );
+                sourceRemoteDirectory.initializeToSpecificCommit(
+                    primaryTerm,
+                    commitGeneration,
+                    recoverySource.snapshot().getSnapshotId().getUUID()
+                );
+                indexShard.syncSegmentsFromGivenRemoteSegmentStore(true, sourceRemoteDirectory, primaryTerm, commitGeneration);
+                final Store store = indexShard.store();
+                if (indexShard.indexSettings.isRemoteTranslogStoreEnabled() == false) {
+                    bootstrap(indexShard, store);
+                } else {
+                    bootstrapForSnapshot(indexShard, store);
+                }
+                assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+                writeEmptyRetentionLeasesFile(indexShard);
+                indexShard.recoveryState().getIndex().setFileDetailsComplete();
+                if (indexShard.indexSettings.isRemoteStoreEnabled()) {
+                    indexShard.openEngineAndSkipTranslogRecoveryFromSnapshot();
+                } else {
+                    indexShard.openEngineAndRecoverFromTranslog();
+                }
+                indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+                indexShard.finalizeRecovery();
+                if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
+                    indexShard.waitForRemoteStoreSync();
+                }
+                indexShard.postRecovery("restore done");
+
+                listener.onResponse(true);
+            } else {
+                listener.onResponse(false);
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
     private boolean canRecover(IndexShard indexShard) {
         if (indexShard.state() == IndexShardState.CLOSED) {
             // got closed on us, just ignore this recovery
@@ -441,7 +531,7 @@ final class StoreRecovery {
         });
     }
 
-    private void recoverFromRemoteStore(IndexShard indexShard, Repository repository) throws IndexShardRecoveryException {
+    private void recoverFromRemoteStore(IndexShard indexShard) throws IndexShardRecoveryException {
         final Store remoteStore = indexShard.remoteStore();
         if (remoteStore == null) {
             throw new IndexShardRecoveryException(
@@ -458,14 +548,18 @@ final class StoreRecovery {
         try {
             // Download segments from remote segment store
             indexShard.syncSegmentsFromRemoteSegmentStore(true);
+            indexShard.syncTranslogFilesFromRemoteTranslog();
 
-            if (store.directory().listAll().length == 0) {
-                store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
-            }
-            if (repository != null) {
-                syncTranslogFilesFromRemoteTranslog(indexShard, repository);
-            } else {
-                bootstrap(indexShard, store);
+            // On index creation, the only segment file that is created is segments_N. We can safely discard this file
+            // as there is no data associated with this shard as part of segments.
+            if (store.directory().listAll().length <= 1) {
+                Path location = indexShard.shardPath().resolveTranslog();
+                Checkpoint checkpoint = Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
+                final Path translogFile = location.resolve(Translog.getFilename(checkpoint.getGeneration()));
+                try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
+                    TranslogHeader translogHeader = TranslogHeader.read(translogFile, channel);
+                    store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion, translogHeader.getTranslogUUID());
+                }
             }
 
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
@@ -480,19 +574,6 @@ final class StoreRecovery {
             store.decRef();
             remoteStore.decRef();
         }
-    }
-
-    private void syncTranslogFilesFromRemoteTranslog(IndexShard indexShard, Repository repository) throws IOException {
-        assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
-        BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
-        TranslogTransferManager translogTransferManager = RemoteFsTranslog.buildTranslogTransferManager(
-            blobStoreRepository,
-            indexShard.getThreadPool(),
-            shardId,
-            fileTransferTracker
-        );
-        RemoteFsTranslog.download(translogTransferManager, indexShard.shardPath().resolveTranslog());
     }
 
     /**
@@ -569,6 +650,14 @@ final class StoreRecovery {
                 indexShard.recoveryState().getIndex().setFileDetailsComplete();
             }
             indexShard.openEngineAndRecoverFromTranslog();
+            if (indexShard.shouldSeedRemoteStore()) {
+                indexShard.getThreadPool().executor(ThreadPool.Names.GENERIC).execute(() -> {
+                    logger.info("Attempting to seed Remote Store via local recovery for {}", indexShard.shardId());
+                    indexShard.refresh("remote store migration");
+                });
+                indexShard.waitForRemoteStoreSync();
+                logger.info("Remote Store is now seeded via local recovery for {}", indexShard.shardId());
+            }
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from shard_store");
@@ -614,12 +703,23 @@ final class StoreRecovery {
         }
         final ActionListener<Void> restoreListener = ActionListener.wrap(v -> {
             final Store store = indexShard.store();
-            bootstrap(indexShard, store);
+            if (indexShard.indexSettings.isRemoteTranslogStoreEnabled() == false) {
+                bootstrap(indexShard, store);
+            } else {
+                bootstrapForSnapshot(indexShard, store);
+            }
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
             writeEmptyRetentionLeasesFile(indexShard);
-            indexShard.openEngineAndRecoverFromTranslog();
+            if (indexShard.indexSettings.isRemoteStoreEnabled()) {
+                indexShard.openEngineAndSkipTranslogRecoveryFromSnapshot();
+            } else {
+                indexShard.openEngineAndRecoverFromTranslog();
+            }
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
+            if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
+                indexShard.waitForRemoteStoreSync();
+            }
             indexShard.postRecovery("restore done");
             listener.onResponse(true);
         }, e -> listener.onFailure(new IndexShardRestoreFailedException(shardId, "restore failed", e)));
@@ -659,6 +759,21 @@ final class StoreRecovery {
         } catch (Exception e) {
             restoreListener.onFailure(e);
         }
+    }
+
+    private void bootstrapForSnapshot(final IndexShard indexShard, final Store store) throws IOException {
+        store.bootstrapNewHistory();
+        final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+        final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        Translog.createEmptyTranslog(
+            indexShard.shardPath().resolveTranslog(),
+            shardId,
+            localCheckpoint,
+            indexShard.getPendingPrimaryTerm(),
+            translogUUID,
+            FileChannel::open
+        );
     }
 
     private void bootstrap(final IndexShard indexShard, final Store store) throws IOException {

@@ -16,7 +16,7 @@ import org.opensearch.cluster.OpenSearchAllocationWithConstraintsTestCase;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.VersionUtils;
 
 import java.util.HashMap;
@@ -30,7 +30,7 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
     /**
      * High watermark breach blocks new shard allocations to affected nodes. If shard count on such
      * nodes is low, this will cause IndexShardPerNodeConstraint to breach.
-     *
+     * <p>
      * This test verifies that this doesn't lead to unassigned shards, and there are no hot spots in eligible
      * nodes.
      */
@@ -176,7 +176,7 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
             final Map<String, Long> shardSizes,
             final Map<NodeAndPath, ReservedSpace> reservedSpace
         ) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, reservedSpace);
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, reservedSpace, Map.of());
         }
 
         @Override

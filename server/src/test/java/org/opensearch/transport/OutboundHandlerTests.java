@@ -34,24 +34,26 @@ package org.opensearch.transport;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.breaker.NoopCircuitBreaker;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.Streams;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
 import org.junit.After;
 import org.junit.Before;
 
@@ -96,8 +98,9 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, (c, m) -> {
             try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
-                Streams.copy(m.openOrGetStreamInput(), streamOutput);
-                message.set(new Tuple<>(m.getHeader(), streamOutput.bytes()));
+                NativeInboundMessage m1 = (NativeInboundMessage) m;
+                Streams.copy(m1.openOrGetStreamInput(), streamOutput);
+                message.set(new Tuple<>(m1.getHeader(), streamOutput.bytes()));
             } catch (IOException e) {
                 throw new AssertionError(e);
             }

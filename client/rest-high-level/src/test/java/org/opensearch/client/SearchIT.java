@@ -32,6 +32,8 @@
 
 package org.opensearch.client;
 
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.classic.methods.HttpPut;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.explain.ExplainRequest;
@@ -52,20 +54,23 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.client.core.CountRequest;
 import org.opensearch.client.core.CountResponse;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.geometry.Rectangle;
+import org.opensearch.index.query.GeoShapeQueryBuilder;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.ScriptQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.join.aggregations.Children;
 import org.opensearch.join.aggregations.ChildrenAggregationBuilder;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.script.mustache.MultiSearchTemplateRequest;
@@ -81,6 +86,7 @@ import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSource
 import org.opensearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.opensearch.search.aggregations.bucket.range.Range;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.RareTerms;
 import org.opensearch.search.aggregations.bucket.terms.RareTermsAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
@@ -89,6 +95,7 @@ import org.opensearch.search.aggregations.matrix.stats.MatrixStats;
 import org.opensearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.WeightedAvg;
 import org.opensearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
+import org.opensearch.search.aggregations.support.MultiTermsValuesSourceConfig;
 import org.opensearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.builder.PointInTimeBuilder;
@@ -99,12 +106,13 @@ import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.search.suggest.phrase.PhraseSuggestionBuilder;
-import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -114,6 +122,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.both;
@@ -295,6 +304,67 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         Terms.Bucket type2 = termsAgg.getBucketByKey("type2");
         assertEquals(2, type2.getDocCount());
         assertEquals(0, type2.getAggregations().asList().size());
+    }
+
+    public void testSearchWithMultiTermsAgg() throws IOException {
+        final String indexName = "multi_aggs";
+        Request createIndex = new Request(HttpPut.METHOD_NAME, "/" + indexName);
+        createIndex.setJsonEntity(
+            "{\n"
+                + "    \"mappings\": {\n"
+                + "        \"properties\" : {\n"
+                + "            \"username\" : {\n"
+                + "                \"type\" : \"keyword\"\n"
+                + "            },\n"
+                + "            \"rating\" : {\n"
+                + "                \"type\" : \"unsigned_long\"\n"
+                + "            }\n"
+                + "        }\n"
+                + "    }"
+                + "}"
+        );
+        client().performRequest(createIndex);
+
+        {
+            Request doc1 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/1");
+            doc1.setJsonEntity("{\"username\":\"bob\", \"rating\": 18446744073709551615}");
+            client().performRequest(doc1);
+            Request doc2 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/2");
+            doc2.setJsonEntity("{\"username\":\"tom\", \"rating\": 10223372036854775807}");
+            client().performRequest(doc2);
+            Request doc3 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/3");
+            doc3.setJsonEntity("{\"username\":\"john\"}");
+            client().performRequest(doc3);
+        }
+        client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
+
+        SearchRequest searchRequest = new SearchRequest().indices(indexName);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.aggregation(
+            new MultiTermsAggregationBuilder("agg1").terms(
+                Arrays.asList(
+                    new MultiTermsValuesSourceConfig.Builder().setFieldName("username").build(),
+                    new MultiTermsValuesSourceConfig.Builder().setFieldName("rating").build()
+                )
+            )
+        );
+        searchSourceBuilder.size(0);
+        searchRequest.source(searchSourceBuilder);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        assertSearchHeader(searchResponse);
+        assertNull(searchResponse.getSuggest());
+        assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
+        assertEquals(0, searchResponse.getHits().getHits().length);
+        assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
+        Terms termsAgg = searchResponse.getAggregations().get("agg1");
+        assertEquals("agg1", termsAgg.getName());
+        assertEquals(2, termsAgg.getBuckets().size());
+        Terms.Bucket bucket1 = termsAgg.getBucketByKey("bob|18446744073709551615");
+        assertEquals(1, bucket1.getDocCount());
+        assertEquals(0, bucket1.getAggregations().asList().size());
+        Terms.Bucket bucket2 = termsAgg.getBucketByKey("tom|10223372036854775807");
+        assertEquals(1, bucket2.getDocCount());
+        assertEquals(0, bucket2.getAggregations().asList().size());
     }
 
     public void testSearchWithRareTermsAgg() throws IOException {
@@ -701,11 +771,233 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         }
     }
 
+    public void testSearchWithDerivedFields() throws Exception {
+        // Just testing DerivedField definition from SearchSourceBuilder derivedField()
+        // We are not testing the full functionality here
+        Request doc = new Request("PUT", "test/_doc/1");
+        doc.setJsonEntity("{\"field\":\"value\"}");
+        client().performRequest(doc);
+        client().performRequest(new Request("POST", "/test/_refresh"));
+        // Keyword field
+        {
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "keyword", new Script("emit(params._source[\"field\"])"))
+                    .fetchField("result")
+                    .query(new TermsQueryBuilder("result", "value"))
+            );
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            List<Object> values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(1, values.size());
+            assertEquals("value", values.get(0));
+
+            // multi valued
+            searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField(
+                        "result",
+                        "keyword",
+                        new Script("emit(params._source[\"field\"]);emit(params._source[\"field\"] + \"_2\")")
+                    )
+                    .query(new TermsQueryBuilder("result", "value_2"))
+                    .fetchField("result")
+            );
+            searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            searchHit = searchResponse.getHits().getAt(0);
+            values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(2, values.size());
+            assertEquals("value", values.get(0));
+            assertEquals("value_2", values.get(1));
+        }
+        // Boolean field
+        {
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "boolean", new Script("emit(((String)params._source[\"field\"]).equals(\"value\"))"))
+                    .query(new TermsQueryBuilder("result", "true"))
+                    .fetchField("result")
+            );
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            List<Object> values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(1, values.size());
+            assertEquals(true, values.get(0));
+        }
+        // Long field
+        {
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "long", new Script("emit(Long.MAX_VALUE)"))
+                    .query(new RangeQueryBuilder("result").from(Long.MAX_VALUE - 1).to(Long.MAX_VALUE))
+                    .fetchField("result")
+            );
+
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            List<Object> values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(1, values.size());
+            assertEquals(Long.MAX_VALUE, values.get(0));
+
+            // multi-valued
+            searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "long", new Script("emit(Long.MAX_VALUE); emit(Long.MIN_VALUE);"))
+                    .query(new RangeQueryBuilder("result").from(Long.MIN_VALUE).to(Long.MIN_VALUE + 1))
+                    .fetchField("result")
+            );
+
+            searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            searchHit = searchResponse.getHits().getAt(0);
+            values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(2, values.size());
+            assertEquals(Long.MAX_VALUE, values.get(0));
+            assertEquals(Long.MIN_VALUE, values.get(1));
+        }
+        // Double field
+        {
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "double", new Script("emit(Double.MAX_VALUE)"))
+                    .query(new RangeQueryBuilder("result").from(Double.MAX_VALUE - 1).to(Double.MAX_VALUE))
+                    .fetchField("result")
+            );
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            List<Object> values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(1, values.size());
+            assertEquals(Double.MAX_VALUE, values.get(0));
+
+            // multi-valued
+            searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "double", new Script("emit(Double.MAX_VALUE); emit(Double.MIN_VALUE);"))
+                    .query(new RangeQueryBuilder("result").from(Double.MIN_VALUE).to(Double.MIN_VALUE + 1))
+                    .fetchField("result")
+            );
+
+            searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            searchHit = searchResponse.getHits().getAt(0);
+            values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(2, values.size());
+            assertEquals(Double.MAX_VALUE, values.get(0));
+            assertEquals(Double.MIN_VALUE, values.get(1));
+        }
+        // Date field
+        {
+            DateTime date1 = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
+            DateTime date2 = new DateTime(1990, 12, 30, 0, 0, DateTimeZone.UTC);
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "date", new Script("emit(" + date1.getMillis() + "L)"))
+                    .query(new RangeQueryBuilder("result").from(date1.toString()).to(date2.toString()))
+                    .fetchField("result")
+            );
+
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            List<Object> values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(1, values.size());
+            assertEquals(date1.toString(), values.get(0));
+
+            // multi-valued
+            searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "date", new Script("emit(" + date1.getMillis() + "L); " + "emit(" + date2.getMillis() + "L)"))
+                    .query(new RangeQueryBuilder("result").from(date1.toString()).to(date2.toString()))
+                    .fetchField("result")
+            );
+
+            searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            searchHit = searchResponse.getHits().getAt(0);
+            values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(2, values.size());
+            assertEquals(date1.toString(), values.get(0));
+            assertEquals(date2.toString(), values.get(1));
+        }
+        // Geo field
+        {
+            GeoShapeQueryBuilder qb = geoShapeQuery("result", new Rectangle(-35, 35, 35, -35));
+            qb.relation(ShapeRelation.INTERSECTS);
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "geo_point", new Script("emit(10.0, 20.0)"))
+                    .query(qb)
+                    .fetchField("result")
+            );
+
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            List<Object> values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(1, values.size());
+            assertEquals(10.0, ((HashMap) values.get(0)).get("lat"));
+            assertEquals(20.0, ((HashMap) values.get(0)).get("lon"));
+
+            // multi-valued
+            searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "geo_point", new Script("emit(10.0, 20.0); emit(20.0, 30.0);"))
+                    .query(qb)
+                    .fetchField("result")
+            );
+
+            searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            searchHit = searchResponse.getHits().getAt(0);
+            values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(2, values.size());
+            assertEquals(10.0, ((HashMap) values.get(0)).get("lat"));
+            assertEquals(20.0, ((HashMap) values.get(0)).get("lon"));
+            assertEquals(20.0, ((HashMap) values.get(1)).get("lat"));
+            assertEquals(30.0, ((HashMap) values.get(1)).get("lon"));
+        }
+        // IP field
+        {
+            SearchRequest searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource().derivedField("result", "ip", new Script("emit(\"10.0.0.1\")")).fetchField("result")
+            );
+
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            List<Object> values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(1, values.size());
+            assertEquals("10.0.0.1", values.get(0));
+
+            // multi-valued
+            searchRequest = new SearchRequest("test").source(
+                SearchSourceBuilder.searchSource()
+                    .derivedField("result", "ip", new Script("emit(\"10.0.0.1\"); emit(\"10.0.0.2\");"))
+                    .fetchField("result")
+            );
+
+            searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            searchHit = searchResponse.getHits().getAt(0);
+            values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(2, values.size());
+            assertEquals("10.0.0.1", values.get(0));
+            assertEquals("10.0.0.2", values.get(1));
+
+        }
+
+    }
+
     public void testSearchScroll() throws Exception {
         for (int i = 0; i < 100; i++) {
             XContentBuilder builder = jsonBuilder().startObject().field("field", i).endObject();
             Request doc = new Request(HttpPut.METHOD_NAME, "/test/_doc/" + Integer.toString(i));
-            doc.setJsonEntity(Strings.toString(builder));
+            doc.setJsonEntity(builder.toString());
             client().performRequest(doc);
         }
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/test/_refresh"));
@@ -773,7 +1065,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         for (int i = 0; i < 100; i++) {
             XContentBuilder builder = jsonBuilder().startObject().field("field", i).endObject();
             Request doc = new Request(HttpPut.METHOD_NAME, "/test/_doc/" + Integer.toString(i));
-            doc.setJsonEntity(Strings.toString(builder));
+            doc.setJsonEntity(builder.toString());
             client().performRequest(doc);
         }
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/test/_refresh"));
@@ -845,6 +1137,56 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getTotalHits().value, Matchers.equalTo(2L));
         assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("5"));
         assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getAt(1).getId(), Matchers.equalTo("6"));
+    }
+
+    public void testSearchWithSort() throws Exception {
+        final String indexName = "search_sort";
+        Request createIndex = new Request(HttpPut.METHOD_NAME, "/" + indexName);
+        createIndex.setJsonEntity(
+            "{\n"
+                + "    \"mappings\": {\n"
+                + "        \"properties\" : {\n"
+                + "            \"username\" : {\n"
+                + "                \"type\" : \"keyword\"\n"
+                + "            },\n"
+                + "            \"rating\" : {\n"
+                + "                \"type\" : \"unsigned_long\"\n"
+                + "            }\n"
+                + "        }\n"
+                + "    }"
+                + "}"
+        );
+        client().performRequest(createIndex);
+
+        {
+            Request doc1 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/1");
+            doc1.setJsonEntity("{\"username\":\"bob\", \"rating\": 18446744073709551610}");
+            client().performRequest(doc1);
+            Request doc2 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/2");
+            doc2.setJsonEntity("{\"username\":\"tom\", \"rating\": 10223372036854775807}");
+            client().performRequest(doc2);
+            Request doc3 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/3");
+            doc3.setJsonEntity("{\"username\":\"john\"}");
+            client().performRequest(doc3);
+        }
+        client().performRequest(new Request(HttpPost.METHOD_NAME, "/search_sort/_refresh"));
+
+        SearchRequest searchRequest = new SearchRequest("search_sort");
+        searchRequest.source().sort("rating", SortOrder.ASC);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+
+        assertThat(searchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo(3L));
+        assertThat(searchResponse.getHits().getAt(0).getId(), Matchers.equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(1).getId(), Matchers.equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(2).getId(), Matchers.equalTo("3"));
+
+        assertThat(searchResponse.getHits().getAt(0).getSortValues().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(new BigInteger("10223372036854775807")));
+        assertThat(searchResponse.getHits().getAt(1).getSortValues().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(new BigInteger("18446744073709551610")));
+        assertThat(searchResponse.getHits().getAt(2).getSortValues().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(2).getSortValues()[0], equalTo(new BigInteger("18446744073709551615")));
     }
 
     public void testMultiSearch_withAgg() throws Exception {
@@ -1087,7 +1429,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         BytesReference actualSource = searchTemplateResponse.getSource();
         assertNotNull(actualSource);
 
-        assertToXContentEquivalent(expectedSource, actualSource, XContentType.JSON);
+        assertToXContentEquivalent(expectedSource, actualSource, MediaTypeRegistry.JSON);
     }
 
     public void testMultiSearchTemplate() throws Exception {

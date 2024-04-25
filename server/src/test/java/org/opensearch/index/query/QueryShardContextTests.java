@@ -31,11 +31,11 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
@@ -46,13 +46,14 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.TriFunction;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
@@ -63,10 +64,17 @@ import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.LeafFieldData;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.opensearch.index.mapper.ContentPath;
+import org.opensearch.index.mapper.DerivedField;
+import org.opensearch.index.mapper.DerivedFieldMapper;
+import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MappingLookup;
 import org.opensearch.index.mapper.TextFieldMapper;
+import org.opensearch.script.Script;
 import org.opensearch.search.lookup.LeafDocLookup;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
@@ -77,6 +85,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -90,6 +99,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class QueryShardContextTests extends OpenSearchTestCase {
+
+    private static final int SHARD_ID = 0;
 
     public void testFailIfFieldMappingNotFound() {
         QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
@@ -114,6 +125,28 @@ public class QueryShardContextTests extends OpenSearchTestCase {
         assertThat(result, notNullValue());
         assertThat(result, instanceOf(TextFieldMapper.TextFieldType.class));
         assertThat(result.name(), equalTo("name"));
+    }
+
+    public void testDerivedFieldMapping() {
+        QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
+        assertNull(context.failIfFieldMappingNotFound("test_derived", null));
+        context.setDerivedFieldTypes(null);
+        assertNull(context.failIfFieldMappingNotFound("test_derived", null));
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0));
+        DerivedFieldMapper derivedFieldMapper = new DerivedFieldMapper.Builder(new DerivedField("test_derived", "keyword", new Script("")))
+            .build(builderContext);
+        MappingLookup mappingLookup = new MappingLookup(
+            Collections.singletonList(derivedFieldMapper),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            0,
+            new StandardAnalyzer()
+        );
+        when(documentMapper.mappers()).thenReturn(mappingLookup);
+        context.setDerivedFieldTypes(Map.of("test_derived", derivedFieldMapper.fieldType()));
+        context.setAllowUnmappedFields(false);
+        assertEquals(derivedFieldMapper.fieldType(), context.failIfFieldMappingNotFound("test_derived", null));
     }
 
     public void testToQueryFails() {
@@ -307,6 +340,11 @@ public class QueryShardContextTests extends OpenSearchTestCase {
         assertEquals(Arrays.asList(expectedFirstDoc.toString(), expectedSecondDoc.toString()), collect("field", queryShardContext));
     }
 
+    public void testSearchLookupShardId() {
+        SearchLookup searchLookup = createQueryShardContext("uuid", null, null).lookup();
+        assertEquals(SHARD_ID, searchLookup.shardId());
+    }
+
     public static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias) {
         return createQueryShardContext(indexUuid, clusterAlias, null);
     }
@@ -343,7 +381,7 @@ public class QueryShardContextTests extends OpenSearchTestCase {
         }
         final long nowInMillis = randomNonNegativeLong();
         return new QueryShardContext(
-            0,
+            SHARD_ID,
             indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE,
             null,

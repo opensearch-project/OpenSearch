@@ -34,11 +34,12 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.queries.spans.SpanFirstQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Query;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
@@ -185,5 +186,11 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
+        visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(matchBuilder);
     }
 }

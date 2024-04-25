@@ -35,8 +35,8 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.EmptyClusterInfoService;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -135,7 +135,7 @@ public class EnableAllocationShortCircuitTests extends OpenSearchAllocationTestC
 
     public void testRebalancingSkippedIfDisabledIncludingOnSpecificIndices() {
         ClusterState clusterState = createClusterStateWithAllShardsAssigned();
-        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(IndexMetadata.class));
+        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(new IndexMetadata[0]));
         clusterState = ClusterState.builder(clusterState)
             .metadata(
                 Metadata.builder(clusterState.metadata())
@@ -162,7 +162,7 @@ public class EnableAllocationShortCircuitTests extends OpenSearchAllocationTestC
 
     public void testRebalancingAttemptedIfDisabledButOverridenOnSpecificIndices() {
         ClusterState clusterState = createClusterStateWithAllShardsAssigned();
-        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(IndexMetadata.class));
+        final IndexMetadata indexMetadata = randomFrom(clusterState.metadata().indices().values().toArray(new IndexMetadata[0]));
         clusterState = ClusterState.builder(clusterState)
             .metadata(
                 Metadata.builder(clusterState.metadata())

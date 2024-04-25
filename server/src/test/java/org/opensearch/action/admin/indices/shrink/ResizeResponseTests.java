@@ -32,9 +32,9 @@
 
 package org.opensearch.action.admin.indices.shrink;
 
-import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
 
@@ -42,7 +42,7 @@ public class ResizeResponseTests extends AbstractSerializingTestCase<ResizeRespo
 
     public void testToXContent() {
         ResizeResponse response = new ResizeResponse(true, false, "index_name");
-        String output = Strings.toString(XContentType.JSON, response);
+        String output = Strings.toString(MediaTypeRegistry.JSON, response);
         assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":false,\"index\":\"index_name\"}", output);
     }
 

@@ -33,7 +33,7 @@ package org.opensearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.common.document.DocumentField;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.script.FieldScript;
 import org.opensearch.search.fetch.FetchContext;
 import org.opensearch.search.fetch.FetchSubPhase;
@@ -54,7 +54,7 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
 
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {
-        if (context.scriptFields() == null) {
+        if (context.hasScriptFields() == false) {
             return null;
         }
         List<ScriptFieldsContext.ScriptField> scriptFields = context.scriptFields().fields();

@@ -8,9 +8,9 @@
 
 package org.opensearch.search.pipeline;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -18,7 +18,7 @@ import java.io.IOException;
 
 /**
  * Information about a search pipeline  processor
- *
+ * <p>
  * TODO: This is copy/pasted from the ingest ProcessorInfo.
  * Can/should we share implementation or is this just boilerplate?
  *

@@ -32,6 +32,23 @@
 
 package org.opensearch.http.netty4;
 
+import org.opensearch.common.TriFunction;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.tasks.Task;
+import org.opensearch.transport.NettyAllocator;
+
+import java.io.Closeable;
+import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -69,24 +86,11 @@ import io.netty.handler.codec.http2.HttpConversionUtil;
 import io.netty.handler.codec.http2.HttpToHttp2ConnectionHandler;
 import io.netty.handler.codec.http2.HttpToHttp2ConnectionHandlerBuilder;
 import io.netty.handler.codec.http2.InboundHttp2ToHttpAdapterBuilder;
+import io.netty.handler.ssl.ClientAuth;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SslHandler;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.util.AttributeKey;
-
-import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.tasks.Task;
-import org.opensearch.transport.NettyAllocator;
-
-import java.io.Closeable;
-import java.net.SocketAddress;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.function.BiFunction;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
@@ -95,7 +99,7 @@ import static org.junit.Assert.fail;
 /**
  * Tiny helper to send http requests over netty.
  */
-class Netty4HttpClient implements Closeable {
+public class Netty4HttpClient implements Closeable {
 
     static Collection<String> returnHttpResponseBodies(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
@@ -114,31 +118,46 @@ class Netty4HttpClient implements Closeable {
     }
 
     private final Bootstrap clientBootstrap;
-    private final BiFunction<CountDownLatch, Collection<FullHttpResponse>, AwaitableChannelInitializer> handlerFactory;
+    private final TriFunction<CountDownLatch, Collection<FullHttpResponse>, Boolean, AwaitableChannelInitializer> handlerFactory;
+    private final boolean secure;
 
     Netty4HttpClient(
         Bootstrap clientBootstrap,
-        BiFunction<CountDownLatch, Collection<FullHttpResponse>, AwaitableChannelInitializer> handlerFactory
+        TriFunction<CountDownLatch, Collection<FullHttpResponse>, Boolean, AwaitableChannelInitializer> handlerFactory,
+        boolean secure
     ) {
         this.clientBootstrap = clientBootstrap;
         this.handlerFactory = handlerFactory;
+        this.secure = secure;
     }
 
-    static Netty4HttpClient http() {
+    public static Netty4HttpClient https() {
         return new Netty4HttpClient(
             new Bootstrap().channel(NettyAllocator.getChannelType())
                 .option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
                 .group(new NioEventLoopGroup(1)),
-            CountDownLatchHandlerHttp::new
+            CountDownLatchHandlerHttp::new,
+            true
         );
     }
 
-    static Netty4HttpClient http2() {
+    public static Netty4HttpClient http() {
         return new Netty4HttpClient(
             new Bootstrap().channel(NettyAllocator.getChannelType())
                 .option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
                 .group(new NioEventLoopGroup(1)),
-            CountDownLatchHandlerHttp2::new
+            CountDownLatchHandlerHttp::new,
+            false
+        );
+    }
+
+    public static Netty4HttpClient http2() {
+        return new Netty4HttpClient(
+            new Bootstrap().channel(NettyAllocator.getChannelType())
+                .option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
+                .group(new NioEventLoopGroup(1)),
+            CountDownLatchHandlerHttp2::new,
+            false
         );
     }
 
@@ -148,7 +167,7 @@ class Netty4HttpClient implements Closeable {
             final HttpRequest httpRequest = new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uris[i]);
             httpRequest.headers().add(HOST, "localhost");
             httpRequest.headers().add("X-Opaque-ID", String.valueOf(i));
-            httpRequest.headers().add(HttpConversionUtil.ExtensionHeaderNames.SCHEME.text(), "http");
+            httpRequest.headers().add(HttpConversionUtil.ExtensionHeaderNames.SCHEME.text(), secure ? "http" : "https");
             requests.add(httpRequest);
         }
         return sendRequests(remoteAddress, requests);
@@ -195,7 +214,7 @@ class Netty4HttpClient implements Closeable {
         final CountDownLatch latch = new CountDownLatch(requests.size());
         final List<FullHttpResponse> content = Collections.synchronizedList(new ArrayList<>(requests.size()));
 
-        final AwaitableChannelInitializer handler = handlerFactory.apply(latch, content);
+        final AwaitableChannelInitializer handler = handlerFactory.apply(latch, content, secure);
         clientBootstrap.handler(handler);
 
         ChannelFuture channelFuture = null;
@@ -232,19 +251,32 @@ class Netty4HttpClient implements Closeable {
 
         private final CountDownLatch latch;
         private final Collection<FullHttpResponse> content;
+        private final boolean secure;
 
-        CountDownLatchHandlerHttp(final CountDownLatch latch, final Collection<FullHttpResponse> content) {
+        CountDownLatchHandlerHttp(final CountDownLatch latch, final Collection<FullHttpResponse> content, final boolean secure) {
             this.latch = latch;
             this.content = content;
+            this.secure = secure;
         }
 
         @Override
-        protected void initChannel(SocketChannel ch) {
+        protected void initChannel(SocketChannel ch) throws Exception {
             final int maxContentLength = new ByteSizeValue(100, ByteSizeUnit.MB).bytesAsInt();
             ch.pipeline().addLast(new HttpResponseDecoder());
             ch.pipeline().addLast(new HttpRequestEncoder());
             ch.pipeline().addLast(new HttpContentDecompressor());
             ch.pipeline().addLast(new HttpObjectAggregator(maxContentLength));
+            if (secure) {
+                final SslHandler sslHandler = new SslHandler(
+                    SslContextBuilder.forClient()
+                        .clientAuth(ClientAuth.NONE)
+                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                        .build()
+                        .newEngine(ch.alloc())
+                );
+                ch.pipeline().addFirst("client_ssl_handler", sslHandler);
+            }
+
             ch.pipeline().addLast(new SimpleChannelInboundHandler<HttpObject>() {
                 @Override
                 protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) {
@@ -283,11 +315,13 @@ class Netty4HttpClient implements Closeable {
 
         private final CountDownLatch latch;
         private final Collection<FullHttpResponse> content;
+        private final boolean secure;
         private Http2SettingsHandler settingsHandler;
 
-        CountDownLatchHandlerHttp2(final CountDownLatch latch, final Collection<FullHttpResponse> content) {
+        CountDownLatchHandlerHttp2(final CountDownLatch latch, final Collection<FullHttpResponse> content, final boolean secure) {
             this.latch = latch;
             this.content = content;
+            this.secure = secure;
         }
 
         @Override

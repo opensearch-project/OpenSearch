@@ -33,9 +33,10 @@
 package org.opensearch.rest;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -44,15 +45,16 @@ import java.io.IOException;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface RestChannel {
 
     XContentBuilder newBuilder() throws IOException;
 
     XContentBuilder newErrorBuilder() throws IOException;
 
-    XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException;
+    XContentBuilder newBuilder(@Nullable MediaType mediaType, boolean useFiltering) throws IOException;
 
-    XContentBuilder newBuilder(@Nullable XContentType xContentType, @Nullable XContentType responseContentType, boolean useFiltering)
+    XContentBuilder newBuilder(@Nullable MediaType mediaType, @Nullable MediaType responseContentType, boolean useFiltering)
         throws IOException;
 
     BytesStreamOutput bytesOutput();

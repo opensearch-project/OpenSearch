@@ -40,11 +40,14 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
     private final long primaryTerm;
     private long minTranslogGeneration;
 
-    TranslogCheckpointTransferSnapshot(long primaryTerm, long generation, int size) {
+    private String nodeId;
+
+    TranslogCheckpointTransferSnapshot(long primaryTerm, long generation, int size, String nodeId) {
         translogCheckpointFileInfoTupleSet = new HashSet<>(size);
         this.size = size;
         this.generation = generation;
         this.primaryTerm = primaryTerm;
+        this.nodeId = nodeId;
     }
 
     private void add(TranslogFileSnapshot translogFileSnapshot, CheckpointFileSnapshot checkPointFileSnapshot) {
@@ -63,7 +66,13 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
 
     @Override
     public TranslogTransferMetadata getTranslogTransferMetadata() {
-        return new TranslogTransferMetadata(primaryTerm, generation, minTranslogGeneration, translogCheckpointFileInfoTupleSet.size() * 2);
+        return new TranslogTransferMetadata(
+            primaryTerm,
+            generation,
+            minTranslogGeneration,
+            translogCheckpointFileInfoTupleSet.size() * 2,
+            nodeId
+        );
     }
 
     @Override
@@ -110,19 +119,22 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
         private final List<TranslogReader> readers;
         private final Function<Long, String> checkpointGenFileNameMapper;
         private final Path location;
+        private final String nodeId;
 
         public Builder(
             long primaryTerm,
             long generation,
             Path location,
             List<TranslogReader> readers,
-            Function<Long, String> checkpointGenFileNameMapper
+            Function<Long, String> checkpointGenFileNameMapper,
+            String nodeId
         ) {
             this.primaryTerm = primaryTerm;
             this.generation = generation;
             this.readers = readers;
             this.checkpointGenFileNameMapper = checkpointGenFileNameMapper;
             this.location = location;
+            this.nodeId = nodeId;
         }
 
         public TranslogCheckpointTransferSnapshot build() throws IOException {
@@ -134,7 +146,8 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
             TranslogCheckpointTransferSnapshot translogTransferSnapshot = new TranslogCheckpointTransferSnapshot(
                 primaryTerm,
                 generation,
-                readers.size()
+                readers.size(),
+                nodeId
             );
             for (TranslogReader reader : readers) {
                 final long readerGeneration = reader.getGeneration();
@@ -145,8 +158,14 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
                 Path checkpointPath = location.resolve(checkpointGenFileNameMapper.apply(readerGeneration));
                 generations.add(readerGeneration);
                 translogTransferSnapshot.add(
-                    new TranslogFileSnapshot(readerPrimaryTerm, readerGeneration, translogPath),
-                    new CheckpointFileSnapshot(readerPrimaryTerm, checkpointGeneration, minTranslogGeneration, checkpointPath)
+                    new TranslogFileSnapshot(readerPrimaryTerm, readerGeneration, translogPath, reader.getTranslogChecksum()),
+                    new CheckpointFileSnapshot(
+                        readerPrimaryTerm,
+                        checkpointGeneration,
+                        minTranslogGeneration,
+                        checkpointPath,
+                        reader.getCheckpointChecksum()
+                    )
                 );
                 if (readerGeneration > highestGeneration) {
                     highestGeneration = readerGeneration;

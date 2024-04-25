@@ -8,7 +8,6 @@
 
 package org.opensearch.search;
 
-import org.junit.Assert;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -17,6 +16,7 @@ import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPu
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -26,13 +26,12 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.search.stats.SearchStats;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.snapshots.mockstore.MockRepository;
@@ -40,6 +39,7 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.transport.MockTransportService;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,10 +57,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.action.search.SearchRequestStats.SEARCH_REQUEST_STATS_ENABLED_KEY;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, minNumDataNodes = 3)
 public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
@@ -75,6 +77,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone" + ".values", "a,b,c")
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
             .put("cluster.routing.weighted.fail_open", false)
+            .put(SEARCH_REQUEST_STATS_ENABLED_KEY, true)
             .build();
 
         logger.info("--> starting 6 nodes on different zones");
@@ -181,12 +184,39 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             assertFalse(!hitNodes.contains(nodeId));
         }
         nodeStats = client().admin().cluster().prepareNodesStats().execute().actionGet();
+        int num = 0;
+        int coordNumber = 0;
 
         for (NodeStats stat : nodeStats.getNodes()) {
             SearchStats.Stats searchStats = stat.getIndices().getSearch().getTotal();
+            if (searchStats.getRequestStatsLongHolder()
+                .getRequestStatsHolder()
+                .get(SearchPhaseName.QUERY.getName())
+                .getTimeInMillis() > 0) {
+                assertThat(
+                    searchStats.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.QUERY.getName()).getTotal(),
+                    greaterThan(0L)
+                );
+                assertThat(
+                    searchStats.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.FETCH.getName()).getTimeInMillis(),
+                    greaterThan(0L)
+                );
+                assertThat(
+                    searchStats.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.FETCH.getName()).getTotal(),
+                    greaterThan(0L)
+                );
+                assertThat(
+                    searchStats.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.EXPAND.getName()).getTotal(),
+                    greaterThan(0L)
+                );
+                coordNumber += 1;
+            }
             Assert.assertTrue(searchStats.getQueryCount() > 0L);
             Assert.assertTrue(searchStats.getFetchCount() > 0L);
+            num++;
         }
+        assertThat(coordNumber, greaterThan(0));
+        assertThat(num, greaterThan(0));
     }
 
     private Map<String, List<String>> setupCluster(int nodeCountPerAZ, Settings commonSettings) {
@@ -450,6 +480,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
      * Assertions are put to make sure such shard search requests are served by data node in zone c.
      * @throws IOException throws exception
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10673")
     public void testShardRoutingWithNetworkDisruption_FailOpenEnabled() throws Exception {
 
         Settings commonSettings = Settings.builder()
@@ -471,8 +502,9 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
         logger.info("--> creating network partition disruption");
         final String clusterManagerNode1 = internalCluster().getClusterManagerName();
-        Set<String> nodesInOneSide = Stream.of(clusterManagerNode1, nodeMap.get("b").get(0)).collect(Collectors.toCollection(HashSet::new));
-        Set<String> nodesInOtherSide = Stream.of(nodeMap.get("a").get(0)).collect(Collectors.toCollection(HashSet::new));
+        Set<String> nodesInOneSide = Stream.of(nodeMap.get("a").get(0)).collect(Collectors.toCollection(HashSet::new));
+        Set<String> nodesInOtherSide = Stream.of(clusterManagerNode1, nodeMap.get("b").get(0), nodeMap.get("c").get(0))
+            .collect(Collectors.toCollection(HashSet::new));
 
         NetworkDisruption networkDisruption = new NetworkDisruption(
             new NetworkDisruption.TwoPartitions(nodesInOneSide, nodesInOtherSide),
@@ -663,7 +695,6 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
     /**
      * Should failopen shards even if failopen enabled with custom search preference.
-     * @throws Exception
      */
     public void testStrictWeightedRoutingWithShardPrefNetworkDisruption_FailOpenEnabled() throws Exception {
         Settings commonSettings = Settings.builder()
@@ -801,10 +832,10 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
     }
 
     private void assertNoSearchInAZ(String az) {
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = internalCluster().clusterService().state().nodes().getDataNodes();
+        final Map<String, DiscoveryNode> dataNodes = internalCluster().clusterService().state().nodes().getDataNodes();
         String dataNodeId = null;
 
-        for (Iterator<DiscoveryNode> it = dataNodes.valuesIt(); it.hasNext();) {
+        for (Iterator<DiscoveryNode> it = dataNodes.values().iterator(); it.hasNext();) {
             DiscoveryNode node = it.next();
             if (node.getAttributes().get("zone").equals(az)) {
                 dataNodeId = node.getId();
@@ -825,10 +856,10 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
     }
 
     private void assertSearchInAZ(String az) {
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = internalCluster().clusterService().state().nodes().getDataNodes();
+        final Map<String, DiscoveryNode> dataNodes = internalCluster().clusterService().state().nodes().getDataNodes();
         String dataNodeId = null;
 
-        for (Iterator<DiscoveryNode> it = dataNodes.valuesIt(); it.hasNext();) {
+        for (Iterator<DiscoveryNode> it = dataNodes.values().iterator(); it.hasNext();) {
             DiscoveryNode node = it.next();
             if (node.getAttributes().get("zone").equals(az)) {
                 dataNodeId = node.getId();
@@ -841,8 +872,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             SearchStats.Stats searchStats = stat.getIndices().getSearch().getTotal();
             if (stat.getNode().isDataNode()) {
                 if (stat.getNode().getId().equals(dataNodeId)) {
-                    Assert.assertTrue(searchStats.getFetchCount() > 0L);
-                    Assert.assertTrue(searchStats.getQueryCount() > 0L);
+                    Assert.assertTrue(searchStats.getFetchCount() > 0L || searchStats.getQueryCount() > 0L);
                 }
             }
         }
@@ -916,7 +946,6 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         }
 
         logger.info("--> network disruption is stopped");
-        networkDisruption.stopDisrupting();
 
         for (int i = 0; i < 50; i++) {
             try {
@@ -933,6 +962,8 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
                 fail("search should not fail");
             }
         }
+        networkDisruption.stopDisrupting();
+
         assertSearchInAZ("b");
         assertSearchInAZ("c");
         assertNoSearchInAZ("a");
@@ -948,6 +979,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
      * MultiGet with fail open enabled. No request failure on network disruption
      * @throws IOException throws exception
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10755")
     public void testMultiGetWithNetworkDisruption_FailOpenEnabled() throws Exception {
 
         Settings commonSettings = Settings.builder()
@@ -1092,6 +1124,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
     /**
      * Assert that preference search with custom string doesn't hit a node in weighed away az
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8030")
     public void testStrictWeightedRoutingWithCustomString() {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")

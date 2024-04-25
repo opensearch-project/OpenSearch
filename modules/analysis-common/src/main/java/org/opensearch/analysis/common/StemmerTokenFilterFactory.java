@@ -67,11 +67,14 @@ import org.apache.lucene.analysis.pt.PortugueseStemFilter;
 import org.apache.lucene.analysis.ru.RussianLightStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.sv.SwedishLightStemFilter;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AbstractTokenFilterFactory;
+
+import java.io.IOException;
+
 import org.tartarus.snowball.ext.ArmenianStemmer;
 import org.tartarus.snowball.ext.BasqueStemmer;
 import org.tartarus.snowball.ext.CatalanStemmer;
@@ -96,8 +99,6 @@ import org.tartarus.snowball.ext.RussianStemmer;
 import org.tartarus.snowball.ext.SpanishStemmer;
 import org.tartarus.snowball.ext.SwedishStemmer;
 import org.tartarus.snowball.ext.TurkishStemmer;
-
-import java.io.IOException;
 
 public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 

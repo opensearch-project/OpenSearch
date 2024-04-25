@@ -44,6 +44,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.internal.SearchContext;
@@ -59,8 +60,9 @@ import java.util.Objects;
 /**
  * Context used for inner hits retrieval
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class InnerHitsContext {
     private final Map<String, InnerHitSubContext> innerHits;
 
@@ -91,7 +93,10 @@ public final class InnerHitsContext {
     /**
      * A {@link SubSearchContext} that associates {@link TopDocs} to each {@link SearchHit}
      * in the parent search context
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public abstract static class InnerHitSubContext extends SubSearchContext {
 
         private final String name;
@@ -112,6 +117,11 @@ public final class InnerHitsContext {
 
         public String getName() {
             return name;
+        }
+
+        @Override
+        public boolean hasInnerHits() {
+            return childInnerHits != null;
         }
 
         @Override
@@ -138,7 +148,7 @@ public final class InnerHitsContext {
 
         /**
          * The _id of the root document.
-         *
+         * <p>
          * Since this ID is available on the context, inner hits can avoid re-loading the root _id.
          */
         public String getId() {
@@ -151,7 +161,7 @@ public final class InnerHitsContext {
 
         /**
          * A source lookup for the root document.
-         *
+         * <p>
          * This shared lookup allows inner hits to avoid re-loading the root _source.
          */
         public SourceLookup getRootLookup() {

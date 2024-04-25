@@ -33,9 +33,8 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.Strings;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -78,16 +77,15 @@ public class CopyToMapperIntegrationIT extends OpenSearchIntegTestCase {
     }
 
     public void testDynamicObjectCopyTo() throws Exception {
-        String mapping = Strings.toString(
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("foo")
-                .field("type", "text")
-                .field("copy_to", "root.top.child")
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        String mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "text")
+            .field("copy_to", "root.top.child")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
         assertAcked(client().admin().indices().prepareCreate("test-idx").setMapping(mapping));
         client().prepareIndex("test-idx").setId("1").setSource("foo", "bar").get();
         client().admin().indices().prepareRefresh("test-idx").execute().actionGet();

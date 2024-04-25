@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import com.carrotsearch.hppc.BitMixer;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -46,6 +45,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.BitArray;
+import org.opensearch.common.util.BitMixer;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.common.util.ObjectArray;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
@@ -111,7 +111,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         if (valuesSource instanceof ValuesSource.Numeric) {
             ValuesSource.Numeric source = (ValuesSource.Numeric) valuesSource;
-            MurmurHash3Values hashValues = source.isFloatingPoint()
+            MurmurHash3Values hashValues = (source.isFloatingPoint() || source.isBigInteger())
                 ? MurmurHash3Values.hash(source.doubleValues(ctx))
                 : MurmurHash3Values.hash(source.longValues(ctx));
             numericCollectorsUsed++;

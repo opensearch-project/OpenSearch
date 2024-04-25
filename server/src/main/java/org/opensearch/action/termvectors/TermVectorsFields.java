@@ -32,8 +32,6 @@
 
 package org.opensearch.action.termvectors;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.ImpactsEnum;
@@ -46,12 +44,15 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 
 import static org.apache.lucene.util.ArrayUtil.grow;
 
@@ -135,7 +136,7 @@ import static org.apache.lucene.util.ArrayUtil.grow;
  */
 public final class TermVectorsFields extends Fields {
 
-    private final ObjectLongHashMap<String> fieldMap;
+    private final Map<String, Long> fieldMap;
     private final BytesReference termVectors;
     final boolean hasTermStatistic;
     final boolean hasFieldStatistic;
@@ -157,10 +158,11 @@ public final class TermVectorsFields extends Fields {
             hasFieldStatistic = header.readBoolean();
             hasScores = header.readBoolean();
             final int numFields = header.readVInt();
-            fieldMap = new ObjectLongHashMap<>(numFields);
+            final Map<String, Long> fieldMap = new HashMap<>(numFields);
             for (int i = 0; i < numFields; i++) {
                 fieldMap.put((header.readString()), header.readVLong());
             }
+            this.fieldMap = Collections.unmodifiableMap(fieldMap);
         }
         // reference to the term vector data
         this.termVectors = termVectors;
@@ -168,8 +170,8 @@ public final class TermVectorsFields extends Fields {
 
     @Override
     public Iterator<String> iterator() {
-        final Iterator<ObjectLongCursor<String>> iterator = fieldMap.iterator();
-        return new Iterator<String>() {
+        final Iterator<Map.Entry<String, Long>> iterator = fieldMap.entrySet().iterator();
+        return new Iterator<>() {
             @Override
             public boolean hasNext() {
                 return iterator.hasNext();
@@ -177,7 +179,7 @@ public final class TermVectorsFields extends Fields {
 
             @Override
             public String next() {
-                return iterator.next().key;
+                return iterator.next().getKey();
             }
 
             @Override
@@ -191,12 +193,11 @@ public final class TermVectorsFields extends Fields {
     public Terms terms(String field) throws IOException {
         // first, find where in the termVectors bytes the actual term vector for
         // this field is stored
-        final int keySlot = fieldMap.indexOf(field);
-        if (keySlot < 0) {
+        final Long keySlot = fieldMap.get(field);
+        if (keySlot == null) {
             return null; // we don't have it.
         }
-        long readOffset = fieldMap.indexGet(keySlot);
-        return new TermVector(termVectors, readOffset);
+        return new TermVector(termVectors, keySlot);
     }
 
     @Override

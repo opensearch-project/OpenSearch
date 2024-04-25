@@ -31,17 +31,20 @@
 
 package org.opensearch.search.aggregations.bucket;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.script.MockScriptPlugin;
@@ -61,6 +64,7 @@ import org.opensearch.search.aggregations.bucket.terms.heuristic.MutualInformati
 import org.opensearch.search.aggregations.bucket.terms.heuristic.ScriptHeuristic;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.search.aggregations.bucket.SharedSignificantTermsTestMethods;
 
 import java.io.IOException;
@@ -77,6 +81,7 @@ import java.util.function.Function;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.filter;
 import static org.opensearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.opensearch.search.aggregations.AggregationBuilders.significantText;
@@ -89,11 +94,23 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
-public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase {
+public class SignificantTermsSignificanceScoreIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     static final String INDEX_NAME = "testidx";
     static final String TEXT_FIELD = "text";
     static final String CLASS_FIELD = "class";
+
+    public SignificantTermsSignificanceScoreIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -206,14 +223,42 @@ public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase
             + "\"score\":0.75,"
             + "\"bg_count\":4"
             + "}]}}]}}";
-        assertThat(Strings.toString(responseBuilder), equalTo(result));
+        assertThat(responseBuilder.toString(), equalTo(result));
 
+    }
+
+    public void testConsistencyWithDifferentShardCounts() throws Exception {
+        // The purpose of this test is to validate that the aggregation results do not change with shard count.
+        // bg_count for significant term agg is summed up across shards, so in this test we compare a 1 shard and 2 shard search request
+        String type = randomBoolean() ? "text" : "long";
+        String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
+        SharedSignificantTermsTestMethods.index01Docs(type, settings, this);
+
+        SearchRequestBuilder request = client().prepareSearch(INDEX_NAME)
+            .setQuery(new TermQueryBuilder(CLASS_FIELD, "0"))
+            .addAggregation((significantTerms("sig_terms").field(TEXT_FIELD)));
+
+        SearchResponse response1 = request.get();
+
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest("*")).get());
+
+        settings = "{\"index.number_of_shards\": 2, \"index.number_of_replicas\": 0}";
+        // We use a custom routing strategy here to ensure that each shard will have at least 1 bucket.
+        // If there are no buckets collected for a shard, then that will affect the scoring and bg_count and our assertion will not be
+        // valid.
+        SharedSignificantTermsTestMethods.index01DocsWithRouting(type, settings, this);
+        SearchResponse response2 = request.get();
+
+        assertEquals(
+            response1.getAggregations().asMap().get("sig_terms").toString(),
+            response2.getAggregations().asMap().get("sig_terms").toString()
+        );
     }
 
     public void testPopularTermManyDeletedDocs() throws Exception {
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         assertAcked(
-            prepareCreate(INDEX_NAME).setSettings(settings, XContentType.JSON)
+            prepareCreate(INDEX_NAME).setSettings(settings, MediaTypeRegistry.JSON)
                 .setMapping("text", "type=keyword", CLASS_FIELD, "type=keyword")
         );
         String[] cat1v1 = { "constant", "one" };

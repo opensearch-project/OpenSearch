@@ -34,19 +34,19 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.ParseField;
-import org.opensearch.common.Strings;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -59,8 +59,9 @@ import java.util.Objects;
  * it is entirely independent from an index. It's a building block forming part of a regular index
  * template and a {@link ComponentTemplate}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Template extends AbstractDiffable<Template> implements ToXContentObject {
     private static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField MAPPINGS = new ParseField("mappings");
@@ -77,7 +78,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered()))),
+            (p, c) -> new CompressedXContent(MediaTypeRegistry.JSON.contentBuilder().map(p.mapOrdered()).toString()),
             MAPPINGS
         );
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
@@ -176,7 +177,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 
     @Override
@@ -188,8 +189,11 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
             builder.endObject();
         }
         if (this.mappings != null) {
-            Map<String, Object> uncompressedMapping = XContentHelper.convertToMap(this.mappings.uncompressed(), true, XContentType.JSON)
-                .v2();
+            Map<String, Object> uncompressedMapping = XContentHelper.convertToMap(
+                this.mappings.uncompressed(),
+                true,
+                MediaTypeRegistry.JSON
+            ).v2();
             if (uncompressedMapping.size() > 0) {
                 builder.field(MAPPINGS.getPreferredName());
                 builder.map(reduceMapping(uncompressedMapping));

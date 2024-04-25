@@ -94,7 +94,7 @@ public class RecoveryStatusTests extends OpenSearchSingleNodeTestCase {
             }
         }
         assertNotNull(expectedFile);
-        indexShard.close("foo", false);// we have to close it here otherwise rename fails since the write.lock is held by the engine
+        indexShard.close("foo", false, false);// we have to close it here otherwise rename fails since the write.lock is held by the engine
         multiFileWriter.renameAllTempFiles();
         strings = Sets.newHashSet(indexShard.store().directory().listAll());
         assertTrue(strings.toString(), strings.contains("foo.bar"));

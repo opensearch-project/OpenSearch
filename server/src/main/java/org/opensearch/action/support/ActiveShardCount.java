@@ -32,15 +32,14 @@
 
 package org.opensearch.action.support;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 
@@ -50,8 +49,9 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACT
  * A class whose instances represent a value for counting the number
  * of active shard copies for a given shard in an index.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class ActiveShardCount implements Writeable {
 
     private static final int ACTIVE_SHARD_COUNT_DEFAULT = -2;
@@ -186,8 +186,8 @@ public final class ActiveShardCount implements Writeable {
             if (waitForActiveShards == ActiveShardCount.DEFAULT) {
                 waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(indexMetadata.getSettings());
             }
-            for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards()) {
-                if (waitForActiveShards.enoughShardsActive(shardRouting.value) == false) {
+            for (final IndexShardRoutingTable shardRouting : indexRoutingTable.getShards().values()) {
+                if (waitForActiveShards.enoughShardsActive(shardRouting) == false) {
                     // not enough active shard copies yet
                     return false;
                 }

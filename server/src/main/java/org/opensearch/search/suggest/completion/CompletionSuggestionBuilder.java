@@ -32,20 +32,20 @@
 package org.opensearch.search.suggest.completion;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.core.ParseField;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -72,7 +72,7 @@ import java.util.Objects;
  */
 public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSuggestionBuilder> {
 
-    private static final XContentType CONTEXT_BYTES_XCONTENT_TYPE = XContentType.JSON;
+    private static final MediaType CONTEXT_BYTES_XCONTENT_TYPE = MediaTypeRegistry.JSON;
 
     static final ParseField CONTEXTS_FIELD = new ParseField("contexts", "context");
     static final ParseField SKIP_DUPLICATES_FIELD = new ParseField("skip_duplicates");
@@ -111,7 +111,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::shardSize, SHARDSIZE_FIELD);
         PARSER.declareField((p, v, c) -> {
             // Copy the current structure. We will parse, once the mapping is provided
-            XContentBuilder builder = XContentFactory.contentBuilder(CONTEXT_BYTES_XCONTENT_TYPE);
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(CONTEXT_BYTES_XCONTENT_TYPE);
             builder.copyCurrentStructure(p);
             v.contextBytes = BytesReference.bytes(builder);
             p.skipChildren();
@@ -216,7 +216,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     public CompletionSuggestionBuilder contexts(Map<String, List<? extends ToXContent>> queryContexts) {
         Objects.requireNonNull(queryContexts, "contexts must not be null");
         try {
-            XContentBuilder contentBuilder = XContentFactory.contentBuilder(CONTEXT_BYTES_XCONTENT_TYPE);
+            XContentBuilder contentBuilder = MediaTypeRegistry.contentBuilder(CONTEXT_BYTES_XCONTENT_TYPE);
             contentBuilder.startObject();
             for (Map.Entry<String, List<? extends ToXContent>> contextEntry : queryContexts.entrySet()) {
                 contentBuilder.startArray(contextEntry.getKey());

@@ -8,8 +8,6 @@
 
 package org.opensearch.index.store.remote.file;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -17,6 +15,8 @@ import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.TransferManager;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * This is an implementation of {@link OnDemandBlockIndexInput} where this class provides the main IndexInput using shard snapshot files.
@@ -26,8 +26,6 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
-    private static final Logger logger = LogManager.getLogger(OnDemandBlockSnapshotIndexInput.class);
-
     /**
      * Where this class fetches IndexInput parts from
      */
@@ -48,7 +46,7 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
     protected final String fileName;
 
     /**
-     * part size  in bytes
+     * Maximum size in bytes of snapshot file parts.
      */
     protected final long partSize;
 
@@ -104,7 +102,15 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
         super(builder);
         this.transferManager = transferManager;
         this.fileInfo = fileInfo;
-        this.partSize = fileInfo.partSize().getBytes();
+        if (fileInfo.partSize() != null) {
+            this.partSize = fileInfo.partSize().getBytes();
+        } else {
+            // Repository implementations can define a size at which to split files
+            // into multiple objects in the repository. If partSize() is null, then
+            // no splitting happens, so default to Long.MAX_VALUE here to have the
+            // same effect. See {@code BlobStoreRepository#chunkSize()}.
+            this.partSize = Long.MAX_VALUE;
+        }
         this.fileName = fileInfo.physicalName();
         this.directory = directory;
         this.originalFileSize = fileInfo.length();
@@ -131,20 +137,44 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
 
         final long blockStart = getBlockStart(blockId);
         final long blockEnd = blockStart + getActualBlockSize(blockId);
-        final int part = (int) (blockStart / partSize);
-        final long partStart = part * partSize;
 
-        final long position = blockStart - partStart;
-        final long length = blockEnd - blockStart;
-
+        // Block may be present on multiple chunks of a file, so we need
+        // to fetch each chunk/blob part separately to fetch an entire block.
         BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder()
-            .position(position)
-            .length(length)
-            .blobName(fileInfo.partName(part))
+            .blobParts(getBlobParts(blockStart, blockEnd))
             .directory(directory)
             .fileName(blockFileName)
             .build();
         return transferManager.fetchBlob(blobFetchRequest);
+    }
+
+    /**
+     * Returns list of blob parts/chunks in a file for a given block.
+     */
+    protected List<BlobFetchRequest.BlobPart> getBlobParts(long blockStart, long blockEnd) {
+        // If the snapshot file is chunked, we must account for this by
+        // choosing the appropriate file part and updating the position
+        // accordingly.
+        int partNum = (int) (blockStart / partSize);
+        long pos = blockStart;
+        long diff = (blockEnd - blockStart);
+
+        List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
+        while (diff > 0) {
+            long partStart = pos % partSize;
+            long partEnd;
+            if ((partStart + diff) > partSize) {
+                partEnd = partSize;
+            } else {
+                partEnd = (partStart + diff);
+            }
+            long fetchBytes = partEnd - partStart;
+            blobParts.add(new BlobFetchRequest.BlobPart(fileInfo.partName(partNum), partStart, fetchBytes));
+            partNum++;
+            pos = pos + fetchBytes;
+            diff = (blockEnd - pos);
+        }
+        return blobParts;
     }
 
     @Override

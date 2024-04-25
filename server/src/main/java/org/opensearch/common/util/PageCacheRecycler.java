@@ -38,8 +38,9 @@ import org.opensearch.common.recycler.Recycler;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.core.common.bytes.PagedBytesReference;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.util.Arrays;
 import java.util.Locale;
@@ -94,7 +95,7 @@ public class PageCacheRecycler {
     );
 
     /** Page size in bytes: 16KB */
-    public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
+    public static final int PAGE_SIZE_IN_BYTES = PagedBytesReference.PAGE_SIZE_IN_BYTES;
     public static final int OBJECT_PAGE_SIZE = PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     public static final int LONG_PAGE_SIZE = PAGE_SIZE_IN_BYTES / Long.BYTES;
     public static final int INT_PAGE_SIZE = PAGE_SIZE_IN_BYTES / Integer.BYTES;

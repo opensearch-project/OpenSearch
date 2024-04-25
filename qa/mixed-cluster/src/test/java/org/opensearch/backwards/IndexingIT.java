@@ -32,6 +32,8 @@
 package org.opensearch.backwards;
 
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.client.Request;
@@ -40,12 +42,13 @@ import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.client.RestClient;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.seqno.SeqNoStats;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 
@@ -63,11 +66,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IndexingIT extends OpenSearchRestTestCase {
 
+    protected static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
+    private static final String TEST_MAPPING = createTestMapping();
+
+
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
             final int id = idStart + i;
             Request request = new Request("PUT", index + "/_doc/" + id);
-            request.setJsonEntity("{\"test\": \"test_" + randomAlphaOfLength(2) + "\"}");
+            request.setJsonEntity("{\"test\": \"test_" + randomAlphaOfLength(2) + "\", \"sortfield\": \""+ randomIntBetween(0, numDocs) + "\"}");
             assertOK(client().performRequest(request));
         }
         return numDocs;
@@ -98,6 +105,109 @@ public class IndexingIT extends OpenSearchRestTestCase {
         return nUpdates + 1;
     }
 
+    private void printClusterRouting() throws IOException, ParseException {
+        Request clusterStateRequest = new Request("GET", "_cluster/state/routing_nodes?pretty");
+        String clusterState = EntityUtils.toString(client().performRequest(clusterStateRequest).getEntity()).trim();
+        logger.info("cluster nodes: {}", clusterState);
+    }
+
+    /**
+     * This test verifies that segment replication does not break when primary shards are on lower OS version. It does this
+     * by verifying replica shards contains same number of documents as primary's.
+     */
+    public void testIndexingWithPrimaryOnBwcNodes() throws Exception {
+        if (UPGRADE_FROM_VERSION.before(Version.V_2_4_0)) {
+            logger.info("--> Skip test for version {} where segment replication feature is not available", UPGRADE_FROM_VERSION);
+            return;
+        }
+        Nodes nodes = buildNodeAndVersions();
+        assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
+        logger.info("cluster discovered:\n {}", nodes.toString());
+        final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.toList());
+        final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
+        // Update allocation settings so that primaries gets allocated only on nodes running on older version
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .putList("index.sort.field", "sortfield")
+            .put("index.routing.allocation.include._name", bwcNames);
+        final String index = "test-index";
+        createIndex(index, settings.build(), TEST_MAPPING);
+        ensureNoInitializingShards(); // wait for all other shard activity to finish
+
+        int docCount = 200;
+        try (RestClient nodeClient = buildClient(restClientSettings(),
+            nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+
+            logger.info("Remove allocation include settings so that shards can be allocated on current version nodes");
+            updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.include._name"));
+            // Add replicas so that it can be assigned on higher OS version nodes.
+            updateIndexSettings(index, Settings.builder().put("index.number_of_replicas", 2));
+
+            printClusterRouting();
+            ensureGreen(index);
+
+            // Index docs
+            indexDocs(index, 0, docCount);
+
+            // perform a refresh
+            assertOK(client().performRequest(new Request("POST", index + "/_flush")));
+
+            // verify replica catch up with primary
+            assertSeqNoOnShards(index, nodes, docCount, nodeClient);
+        }
+    }
+
+
+    /**
+     * This test creates a cluster with primary on higher version but due to {@link org.opensearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider};
+     * replica shard allocation on lower OpenSearch version is prevented. Thus, this test though cover the use case where
+     * primary shard containing nodes are running on higher OS version while replicas are unassigned.
+     */
+    public void testIndexingWithReplicaOnBwcNodes() throws Exception {
+        if (UPGRADE_FROM_VERSION.before(Version.V_2_4_0)) {
+            logger.info("--> Skip test for version {} where segment replication feature is not available", UPGRADE_FROM_VERSION);
+            return;
+        }
+        Nodes nodes = buildNodeAndVersions();
+        assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
+        logger.info("cluster discovered:\n {}", nodes.toString());
+        final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.toList());
+        final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
+        // Exclude bwc nodes from allocation so that primaries gets allocated on current/higher version
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .putList("index.sort.field", "sortfield")
+            .put("index.routing.allocation.exclude._name", bwcNames);
+        final String index = "test-index";
+        createIndex(index, settings.build(), TEST_MAPPING);
+        ensureNoInitializingShards(); // wait for all other shard activity to finish
+        printClusterRouting();
+
+        int docCount = 200;
+        try (RestClient nodeClient = buildClient(restClientSettings(),
+            nodes.values().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+
+            logger.info("allowing replica shards assignment on bwc nodes");
+            updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.exclude._name"));
+            // Add replicas so that it can be assigned on lower OS version nodes, but it doesn't work as called out in test overview
+            updateIndexSettings(index, Settings.builder().put("index.number_of_replicas", 2));
+            printClusterRouting();
+
+            // Index docs
+            indexDocs(index, 0, docCount);
+
+            // perform a refresh
+            assertOK(client().performRequest(new Request("POST", index + "/_flush")));
+
+            // verify replica catch up with primary
+            assertSeqNoOnShards(index, nodes, docCount, nodeClient);
+        }
+    }
+
     public void testIndexVersionPropagation() throws Exception {
         Nodes nodes = buildNodeAndVersions();
         assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
@@ -107,11 +217,12 @@ public class IndexingIT extends OpenSearchRestTestCase {
         Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+                .putList("index.sort.field", "sortfield")
                 .put("index.routing.allocation.include._name", bwcNames);
         final String index = "indexversionprop";
         final int minUpdates = 5;
         final int maxUpdates = 10;
-        createIndex(index, settings.build());
+        createIndex(index, settings.build(), TEST_MAPPING);
         try (RestClient newNodeClient = buildClient(restClientSettings(),
                 nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
 
@@ -193,10 +304,11 @@ public class IndexingIT extends OpenSearchRestTestCase {
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+            .putList("index.sort.field", "sortfield")
             .put("index.routing.allocation.include._name", bwcNames);
 
         final String index = "test";
-        createIndex(index, settings.build());
+        createIndex(index, settings.build(), TEST_MAPPING);
         try (RestClient newNodeClient = buildClient(restClientSettings(),
             nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
             int numDocs = 0;
@@ -258,15 +370,14 @@ public class IndexingIT extends OpenSearchRestTestCase {
 
         // Create the repository before taking the snapshot.
         Request request = new Request("PUT", "/_snapshot/repo");
-        request.setJsonEntity(Strings
-            .toString(JsonXContent.contentBuilder()
+        request.setJsonEntity(JsonXContent.contentBuilder()
                 .startObject()
                     .field("type", "fs")
                     .startObject("settings")
                         .field("compress", randomBoolean())
                         .field("location", System.getProperty("tests.path.repo"))
                     .endObject()
-                .endObject()));
+                .endObject().toString());
 
         assertOK(client().performRequest(request));
 
@@ -276,10 +387,11 @@ public class IndexingIT extends OpenSearchRestTestCase {
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(5, 10))
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+            .putList("index.sort.field", "sortfield")
             .put("index.routing.allocation.include._name", bwcNames);
 
         final String index = "test-snapshot-index";
-        createIndex(index, settings.build());
+        createIndex(index, settings.build(), TEST_MAPPING);
         indexDocs(index, 0, between(50, 100));
         ensureGreen(index);
         assertOK(client().performRequest(new Request("POST", index + "/_refresh")));
@@ -313,7 +425,8 @@ public class IndexingIT extends OpenSearchRestTestCase {
         createIndex(index, Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-            .put("index.routing.allocation.include._name", newNodes).build());
+            .putList("index.sort.field", "sortfield")
+            .put("index.routing.allocation.include._name", newNodes).build(), TEST_MAPPING);
         ensureGreen(index);
         indexDocs(index, randomIntBetween(0, 100), between(1, 100));
         try (RestClient oldNodeClient = buildClient(restClientSettings(),
@@ -557,5 +670,16 @@ public class IndexingIT extends OpenSearchRestTestCase {
                 ", seqNoStats=" + seqNoStats +
                 '}';
         }
+    }
+
+    private static String createTestMapping() {
+        return "  \"properties\": {\n"
+            + "    \"test\": {\n"
+            + "      \"type\": \"text\"\n"
+            + "    },\n"
+            + "    \"sortfield\": {\n"
+            + "      \"type\": \"integer\"\n"
+            + "    }\n"
+            + "  }";
     }
 }

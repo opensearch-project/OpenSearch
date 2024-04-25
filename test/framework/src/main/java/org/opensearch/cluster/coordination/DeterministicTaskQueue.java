@@ -33,6 +33,7 @@
 package org.opensearch.cluster.coordination;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.Settings;

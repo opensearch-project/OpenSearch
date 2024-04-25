@@ -32,15 +32,18 @@
 
 package org.opensearch.index.shard;
 
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
 
 /**
  * Exception thrown when trying to operate on an Index Shard that hasn't been started
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndexShardNotStartedException extends IllegalIndexShardStateException {
 
     public IndexShardNotStartedException(ShardId shardId, IndexShardState currentState) {

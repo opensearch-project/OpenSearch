@@ -34,17 +34,18 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
-import org.apache.lucene.search.SortedNumericSelector;
+import org.apache.lucene.search.SortedSetSortField;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.util.Map;
@@ -53,8 +54,9 @@ import java.util.Objects;
 /**
  * A segment in the engine
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Segment implements Writeable {
 
     private String name;

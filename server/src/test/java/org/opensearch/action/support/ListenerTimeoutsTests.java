@@ -33,10 +33,10 @@
 package org.opensearch.action.support;
 
 import org.opensearch.OpenSearchTimeoutException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.Before;

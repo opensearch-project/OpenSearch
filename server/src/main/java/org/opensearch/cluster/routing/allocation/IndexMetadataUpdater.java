@@ -43,8 +43,8 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.index.Index;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -59,9 +59,9 @@ import java.util.stream.Collectors;
 /**
  * Observer that tracks changes made to RoutingNodes in order to update the primary terms and in-sync allocation ids in
  * {@link IndexMetadata} once the allocation round has completed.
- *
+ * <p>
  * Primary terms are updated on primary initialization or when an active primary fails.
- *
+ * <p>
  * Allocation ids are added for shards that become active and removed for shards that stop being active.
  *
  * @opensearch.internal

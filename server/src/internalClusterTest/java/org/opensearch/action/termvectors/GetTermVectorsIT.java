@@ -39,13 +39,13 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.common.Strings;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.engine.VersionConflictEngineException;
@@ -73,6 +73,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
+
+    public GetTermVectorsIT(Settings staticSettings) {
+        super(staticSettings);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

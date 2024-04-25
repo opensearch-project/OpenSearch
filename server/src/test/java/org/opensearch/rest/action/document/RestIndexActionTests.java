@@ -40,8 +40,8 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.document.RestIndexAction.AutoIdHandler;
 import org.opensearch.rest.action.document.RestIndexAction.CreateHandler;
@@ -104,7 +104,7 @@ public class RestIndexActionTests extends RestActionTestCase {
         });
         RestRequest autoIdRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/some_index/_doc")
-            .withContent(new BytesArray("{}"), XContentType.JSON)
+            .withContent(new BytesArray("{}"), MediaTypeRegistry.JSON)
             .build();
         clusterStateSupplier.set(
             ClusterState.builder(ClusterName.DEFAULT)

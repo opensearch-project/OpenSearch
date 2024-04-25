@@ -107,15 +107,21 @@ public class FileSnapshot implements Closeable {
     public static class TransferFileSnapshot extends FileSnapshot {
 
         private final long primaryTerm;
+        private Long checksum;
 
-        public TransferFileSnapshot(Path path, long primaryTerm) throws IOException {
+        public TransferFileSnapshot(Path path, long primaryTerm, Long checksum) throws IOException {
             super(path);
             this.primaryTerm = primaryTerm;
+            this.checksum = checksum;
         }
 
         public TransferFileSnapshot(String name, byte[] content, long primaryTerm) throws IOException {
             super(name, content);
             this.primaryTerm = primaryTerm;
+        }
+
+        public Long getChecksum() {
+            return checksum;
         }
 
         public long getPrimaryTerm() {
@@ -148,8 +154,8 @@ public class FileSnapshot implements Closeable {
 
         private final long generation;
 
-        public TranslogFileSnapshot(long primaryTerm, long generation, Path path) throws IOException {
-            super(path, primaryTerm);
+        public TranslogFileSnapshot(long primaryTerm, long generation, Path path, Long checksum) throws IOException {
+            super(path, primaryTerm, checksum);
             this.generation = generation;
         }
 
@@ -185,8 +191,9 @@ public class FileSnapshot implements Closeable {
 
         private final long minTranslogGeneration;
 
-        public CheckpointFileSnapshot(long primaryTerm, long generation, long minTranslogGeneration, Path path) throws IOException {
-            super(path, primaryTerm);
+        public CheckpointFileSnapshot(long primaryTerm, long generation, long minTranslogGeneration, Path path, Long checksum)
+            throws IOException {
+            super(path, primaryTerm, checksum);
             this.minTranslogGeneration = minTranslogGeneration;
             this.generation = generation;
         }

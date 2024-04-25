@@ -32,11 +32,14 @@
 
 package org.opensearch.watcher;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Handle to a watcher
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class WatcherHandle<W extends ResourceWatcher> {
 
     private final ResourceWatcherService.ResourceMonitor monitor;

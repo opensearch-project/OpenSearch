@@ -32,13 +32,14 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.SuggestingErrorOnUnknown;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -48,6 +49,7 @@ import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.Rewriteable;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.global.GlobalAggregatorFactory;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
@@ -59,6 +61,7 @@ import org.opensearch.search.profile.aggregation.ProfilingAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -70,6 +73,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -79,8 +83,9 @@ import static java.util.stream.Collectors.toMap;
 /**
  * An immutable collection of {@link AggregatorFactories}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class AggregatorFactories {
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
 
@@ -232,10 +237,17 @@ public class AggregatorFactories {
             }
         }
 
-        return factories;
+        return factories.count() > 0 ? factories : null;
     }
 
     public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory[0]);
+
+    private static final Predicate<AggregatorFactory> GLOBAL_AGGREGATOR_FACTORY_PREDICATE = new Predicate<>() {
+        @Override
+        public boolean test(AggregatorFactory o) {
+            return o instanceof GlobalAggregatorFactory;
+        }
+    };
 
     private AggregatorFactory[] factories;
 
@@ -245,6 +257,15 @@ public class AggregatorFactories {
 
     private AggregatorFactories(AggregatorFactory[] factories) {
         this.factories = factories;
+    }
+
+    public boolean allFactoriesSupportConcurrentSearch() {
+        for (AggregatorFactory factory : factories) {
+            if (factory.supportsConcurrentSegmentSearch() == false || factory.evaluateChildFactories() == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -268,22 +289,46 @@ public class AggregatorFactories {
         return aggregators;
     }
 
-    public Aggregator[] createTopLevelAggregators(SearchContext searchContext) throws IOException {
+    public List<Aggregator> createTopLevelAggregators(SearchContext searchContext) throws IOException {
+        return createTopLevelAggregators(searchContext, (aggregatorFactory) -> true);
+    }
+
+    public List<Aggregator> createTopLevelGlobalAggregators(SearchContext searchContext) throws IOException {
+        return createTopLevelAggregators(searchContext, GLOBAL_AGGREGATOR_FACTORY_PREDICATE);
+    }
+
+    public List<Aggregator> createTopLevelNonGlobalAggregators(SearchContext searchContext) throws IOException {
+        return createTopLevelAggregators(searchContext, GLOBAL_AGGREGATOR_FACTORY_PREDICATE.negate());
+    }
+
+    private List<Aggregator> createTopLevelAggregators(SearchContext searchContext, Predicate<AggregatorFactory> factoryFilter)
+        throws IOException {
         // These aggregators are going to be used with a single bucket ordinal, no need to wrap the PER_BUCKET ones
-        Aggregator[] aggregators = new Aggregator[factories.length];
+        List<Aggregator> aggregators = new ArrayList<>();
         for (int i = 0; i < factories.length; i++) {
             /*
              * Top level aggs only collect from owningBucketOrd 0 which is
              * *exactly* what CardinalityUpperBound.ONE *means*.
              */
-            Aggregator factory = factories[i].create(searchContext, null, CardinalityUpperBound.ONE);
-            Profilers profilers = factory.context().getProfilers();
-            if (profilers != null) {
-                factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
+            Aggregator factory;
+            if (factoryFilter.test(factories[i])) {
+                factory = factories[i].create(searchContext, null, CardinalityUpperBound.ONE);
+                Profilers profilers = factory.context().getProfilers();
+                if (profilers != null) {
+                    factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
+                }
+                aggregators.add(factory);
             }
-            aggregators[i] = factory;
         }
         return aggregators;
+    }
+
+    public boolean hasNonGlobalAggregator() {
+        return Arrays.stream(factories).anyMatch(GLOBAL_AGGREGATOR_FACTORY_PREDICATE.negate());
+    }
+
+    public boolean hasGlobalAggregator() {
+        return Arrays.stream(factories).anyMatch(GLOBAL_AGGREGATOR_FACTORY_PREDICATE);
     }
 
     /**
@@ -297,8 +342,9 @@ public class AggregatorFactories {
      * A mutable collection of {@link AggregationBuilder}s and
      * {@link PipelineAggregationBuilder}s.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
 
@@ -557,7 +603,7 @@ public class AggregatorFactories {
 
         @Override
         public String toString() {
-            return Strings.toString(XContentType.JSON, this, true, true);
+            return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
         }
 
         @Override

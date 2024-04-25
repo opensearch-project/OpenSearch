@@ -40,11 +40,11 @@ import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesResp
 import org.opensearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
-import org.opensearch.test.InternalTestCluster;
 
 import java.util.ArrayList;
 import java.util.List;

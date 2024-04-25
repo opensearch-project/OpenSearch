@@ -32,19 +32,20 @@
 
 package org.opensearch.index.replication;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeaseSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseUtils;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.shard.IndexShardTestUtils;
 import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
@@ -182,7 +183,8 @@ public class RetentionLeasesReplicationTests extends OpenSearchIndexLevelReplica
                     null,
                     1L,
                     group.getPrimary().getReplicationGroup().getInSyncAllocationIds(),
-                    group.getPrimary().getReplicationGroup().getRoutingTable()
+                    group.getPrimary().getReplicationGroup().getRoutingTable(),
+                    IndexShardTestUtils.getFakeDiscoveryNodes(shard.routingEntry())
                 );
             }
             group.syncGlobalCheckpoint();

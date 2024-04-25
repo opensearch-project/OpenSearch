@@ -31,6 +31,8 @@
 
 package org.opensearch.search.aggregations.bucket;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
@@ -48,9 +50,11 @@ import org.opensearch.search.aggregations.bucket.range.Range.Bucket;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -60,6 +64,7 @@ import java.util.function.Function;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.range;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
@@ -73,12 +78,24 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class RangeIT extends OpenSearchIntegTestCase {
+public class RangeIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
     private static final String MULTI_VALUED_FIELD_NAME = "l_values";
 
     static int numDocs;
+
+    public RangeIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -161,6 +178,7 @@ public class RangeIT extends OpenSearchIntegTestCase {
         builders.add(client().prepareIndex("new_index").setSource(Collections.emptyMap()));
 
         indexRandom(true, builders);
+        indexRandomForMultipleSlices("idx", "old_index", "new_index");
         ensureSearchable();
     }
 
@@ -894,6 +912,7 @@ public class RangeIT extends OpenSearchIntegTestCase {
     }
 
     public void testEmptyAggregation() throws Exception {
+        indexRandomForConcurrentSearch("empty_bucket_idx");
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
             .setQuery(matchAllQuery())
             .addAggregation(
@@ -1061,6 +1080,7 @@ public class RangeIT extends OpenSearchIntegTestCase {
                 .getMissCount(),
             equalTo(2L)
         );
+        internalCluster().wipeIndices("cache_test_idx");
     }
 
     public void testFieldAlias() {

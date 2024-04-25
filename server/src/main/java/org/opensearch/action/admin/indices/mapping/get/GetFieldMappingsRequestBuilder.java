@@ -35,13 +35,15 @@ package org.opensearch.action.admin.indices.mapping.get;
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.ArrayUtils;
 
 /**
  * A helper class to build {@link GetFieldMappingsRequest} objects
  *
- * @opensearch.internal
- **/
+ * @opensearch.api
+ */
+@PublicApi(since = "1.0.0")
 public class GetFieldMappingsRequestBuilder extends ActionRequestBuilder<GetFieldMappingsRequest, GetFieldMappingsResponse> {
 
     public GetFieldMappingsRequestBuilder(OpenSearchClient client, GetFieldMappingsAction action, String... indices) {

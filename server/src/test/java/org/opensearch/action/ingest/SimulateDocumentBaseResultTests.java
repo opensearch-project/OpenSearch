@@ -33,7 +33,7 @@
 package org.opensearch.action.ingest;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.ingest.IngestDocument;
 import org.opensearch.test.AbstractXContentTestCase;
@@ -43,11 +43,11 @@ import java.util.StringJoiner;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.opensearch.action.ingest.WriteableIngestDocumentTests.createRandomIngestDoc;
 import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.opensearch.action.ingest.WriteableIngestDocumentTests.createRandomIngestDoc;
 
 public class SimulateDocumentBaseResultTests extends AbstractXContentTestCase<SimulateDocumentBaseResult> {
 

@@ -38,12 +38,12 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.core.ParseField;
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
@@ -201,6 +201,11 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
         Collection<String> fields = context.simpleMatchToIndexNames(objField + ".*");
         for (String field : fields) {
+            int dotPos = field.lastIndexOf('.');
+            if (dotPos > 0 && field.charAt(dotPos + 1) == '_') {
+                // This is a subfield (e.g. prefix) of a complex field type. Skip it.
+                continue;
+            }
             Query existsQuery = context.getMapperService().fieldType(field).existsQuery(context);
             booleanQuery.add(existsQuery, Occur.SHOULD);
         }

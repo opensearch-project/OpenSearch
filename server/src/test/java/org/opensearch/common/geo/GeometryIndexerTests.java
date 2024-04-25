@@ -32,20 +32,9 @@
 
 package org.opensearch.common.geo;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
-
-import java.io.IOException;
-import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-
 import org.apache.lucene.index.IndexableField;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.geo.GeometryTestUtils;
 import org.opensearch.geometry.Circle;
@@ -61,7 +50,19 @@ import org.opensearch.geometry.Polygon;
 import org.opensearch.geometry.Rectangle;
 import org.opensearch.index.mapper.GeoShapeIndexer;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.io.IOException;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 import org.locationtech.spatial4j.exception.InvalidShapeException;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class GeometryIndexerTests extends OpenSearchTestCase {
 
@@ -224,7 +225,7 @@ public class GeometryIndexerTests extends OpenSearchTestCase {
     /**
      * A randomized test that generates a random lines crossing anti-merdian and checks that the decomposed segments of this line
      * have the same total length (measured using Euclidean distances between neighboring points) as the original line.
-     *
+     * <p>
      * It also extracts all points from these lines, performs normalization of these points and then compares that the resulting
      * points of line normalization match the points of points normalization with the exception of points that were created on the
      * antimeridian as the result of line decomposition.

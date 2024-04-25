@@ -32,9 +32,9 @@
 
 package org.opensearch.action.admin.cluster.storedscripts;
 
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.Script;
 import org.opensearch.script.StoredScriptSource;
 import org.opensearch.test.AbstractSerializingTestCase;
@@ -70,7 +70,7 @@ public class GetStoredScriptResponseTests extends AbstractSerializingTestCase<Ge
         final String lang = randomFrom("lang", "painless", "mustache");
         final String source = randomAlphaOfLengthBetween(1, 10);
         final Map<String, String> options = randomBoolean()
-            ? Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType())
+            ? Collections.singletonMap(Script.CONTENT_TYPE_OPTION, MediaTypeRegistry.JSON.mediaType())
             : Collections.emptyMap();
         return new StoredScriptSource(lang, source, options);
     }

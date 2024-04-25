@@ -203,6 +203,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         longFilter = includeExclude.convertToDoubleFilter();
                     }
                     resultStrategy = agg -> agg.new DoubleTermsResults(showTermDocCountError);
+                } else if (numericValuesSource.isBigInteger()) {
+                    if (includeExclude != null) {
+                        longFilter = includeExclude.convertToDoubleFilter();
+                    }
+                    resultStrategy = agg -> agg.new UnsignedLongTermsResults(showTermDocCountError);
                 } else {
                     if (includeExclude != null) {
                         longFilter = includeExclude.convertToLongFilter(format);
@@ -260,13 +265,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        final InternalAggregation aggregation = new UnmappedTerms(
-            name,
-            order,
-            bucketCountThresholds.getRequiredSize(),
-            bucketCountThresholds.getMinDocCount(),
-            metadata
-        );
+        final InternalAggregation aggregation = new UnmappedTerms(name, order, bucketCountThresholds, metadata);
         Aggregator agg = new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
@@ -559,4 +558,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
     }
 
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }

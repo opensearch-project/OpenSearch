@@ -34,6 +34,7 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.Query;
@@ -42,12 +43,11 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.indices.TermsLookup;
@@ -136,6 +136,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 either(instanceOf(TermInSetQuery.class)).or(instanceOf(PointInSetQuery.class))
                     .or(instanceOf(ConstantScoreQuery.class))
                     .or(instanceOf(MatchNoDocsQuery.class))
+                    .or(instanceOf(IndexOrDocValuesQuery.class))
             );
             if (query instanceof ConstantScoreQuery) {
                 assertThat(((ConstantScoreQuery) query).getQuery(), instanceOf(BooleanQuery.class));
@@ -234,7 +235,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             builder.startObject();
             builder.array(termsPath, randomTerms.toArray(new Object[0]));
             builder.endObject();
-            json = Strings.toString(builder);
+            json = builder.toString();
         } catch (IOException ex) {
             throw new OpenSearchException("boom", ex);
         }
@@ -269,9 +270,14 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     public void testTermsQueryWithMultipleFields() throws IOException {
-        String query = Strings.toString(
-            XContentFactory.jsonBuilder().startObject().startObject("terms").array("foo", 123).array("bar", 456).endObject().endObject()
-        );
+        String query = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("terms")
+            .array("foo", 123)
+            .array("bar", 456)
+            .endObject()
+            .endObject()
+            .toString();
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(query));
         assertEquals("[" + TermsQueryBuilder.NAME + "] query does not support multiple fields", e.getMessage());
     }

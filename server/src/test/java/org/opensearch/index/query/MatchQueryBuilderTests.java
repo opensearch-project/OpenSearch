@@ -34,8 +34,6 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.tests.analysis.CannedBinaryTokenStream;
-import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.queries.spans.SpanNearQuery;
@@ -52,14 +50,15 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.tests.analysis.CannedBinaryTokenStream;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.search.MatchQuery;
@@ -71,10 +70,10 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Iterator;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -411,9 +410,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         mapperService.merge(
             "_doc",
             new CompressedXContent(
-                Strings.toString(
-                    PutMappingRequest.simpleMapping("string_boost", "type=text", "string_no_pos", "type=text,index_options=docs")
-                )
+                PutMappingRequest.simpleMapping("string_boost", "type=text", "string_no_pos", "type=text,index_options=docs").toString()
             ),
             MapperService.MergeReason.MAPPING_UPDATE
         );

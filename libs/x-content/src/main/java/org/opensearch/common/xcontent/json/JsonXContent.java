@@ -36,6 +36,12 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.StreamReadConstraints;
+import com.fasterxml.jackson.core.StreamReadFeature;
+import com.fasterxml.jackson.core.StreamWriteConstraints;
+
+import org.opensearch.common.xcontent.XContentContraints;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -43,7 +49,6 @@ import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentGenerator;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -54,8 +59,7 @@ import java.util.Set;
 /**
  * A JSON based content implementation using Jackson.
  */
-public class JsonXContent implements XContent {
-
+public class JsonXContent implements XContent, XContentContraints {
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(jsonXContent);
     }
@@ -72,6 +76,15 @@ public class JsonXContent implements XContent {
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.core.json.UTF8JsonGenerator#close() method
         jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
+        jsonFactory.setStreamWriteConstraints(StreamWriteConstraints.builder().maxNestingDepth(DEFAULT_MAX_DEPTH).build());
+        jsonFactory.setStreamReadConstraints(
+            StreamReadConstraints.builder()
+                .maxStringLength(DEFAULT_MAX_STRING_LEN)
+                .maxNameLength(DEFAULT_MAX_NAME_LEN)
+                .maxNestingDepth(DEFAULT_MAX_DEPTH)
+                .build()
+        );
+        jsonFactory.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER.mappedFeature(), true);
         jsonXContent = new JsonXContent();
     }
 

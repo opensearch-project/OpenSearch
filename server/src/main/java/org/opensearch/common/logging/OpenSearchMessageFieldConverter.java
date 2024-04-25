@@ -39,7 +39,7 @@ import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.apache.logging.log4j.util.StringBuilders;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 /**
  * Pattern converter to populate OpenSearchMessageField in a pattern.

@@ -40,14 +40,15 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.common.Booleans;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.rest.yaml.ObjectPath;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.hamcrest.Matchers;
@@ -733,7 +734,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), softDeletesEnabled);
             }
             Request request = new Request("PUT", "/" + indexName);
-            request.setJsonEntity("{\"settings\": " + Strings.toString(XContentType.JSON, settings.build()) + "}");
+            request.setJsonEntity("{\"settings\": " + Strings.toString(MediaTypeRegistry.JSON, settings.build()) + "}");
             if (softDeletesEnabled == false) {
                 expectSoftDeletesWarning(request, indexName);
             }

@@ -44,7 +44,7 @@ public class TargetPoolAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "Routing pools are incompatible. Shard pool: [%s], Node Pool: [%s]",
+                "Routing pools are incompatible. Shard pool: [%s], node pool: [%s]",
                 shardPool,
                 targetNodePool
             );
@@ -56,21 +56,21 @@ public class TargetPoolAllocationDecider extends AllocationDecider {
                     shardRouting,
                     shardPool,
                     node.node(),
-                    DiscoveryNodeRole.DATA_ROLE
+                    DiscoveryNodeRole.DATA_ROLE.roleName()
                 );
                 return allocation.decision(
                     Decision.NO,
                     NAME,
-                    "Routing pools are incompatible. Shard pool: [{}], Node Pool: [{}] without [{}] role",
+                    "Routing pools are incompatible. Shard pool: [%s], node pool: [%s] without [%s] role",
                     shardPool,
                     targetNodePool,
-                    DiscoveryNodeRole.DATA_ROLE
+                    DiscoveryNodeRole.DATA_ROLE.roleName()
                 );
             }
         return allocation.decision(
             Decision.YES,
             NAME,
-            "Routing pools are compatible. Shard pool: [%s], Node Pool: [%s]",
+            "Routing pools are compatible. Shard pool: [%s], node pool: [%s]",
             shardPool,
             targetNodePool
         );
@@ -106,7 +106,7 @@ public class TargetPoolAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "Routing pools are incompatible. Index pool: [%s], Node Pool: [%s]",
+                "Routing pools are incompatible. Index pool: [%s], node pool: [%s]",
                 indexPool,
                 targetNodePool
             );
@@ -118,21 +118,21 @@ public class TargetPoolAllocationDecider extends AllocationDecider {
                     indexMetadata.getIndex().getName(),
                     indexPool,
                     node,
-                    DiscoveryNodeRole.DATA_ROLE
+                    DiscoveryNodeRole.DATA_ROLE.roleName()
                 );
                 return allocation.decision(
                     Decision.NO,
                     NAME,
-                    "Routing pools are incompatible. Index pool: [{}], Node Pool: [{}] without [{}] role",
+                    "Routing pools are incompatible. Index pool: [%s], node pool: [%s] without [%s] role",
                     indexPool,
                     targetNodePool,
-                    DiscoveryNodeRole.DATA_ROLE
+                    DiscoveryNodeRole.DATA_ROLE.roleName()
                 );
             }
         return allocation.decision(
             Decision.YES,
             NAME,
-            "Routing pools are compatible. Index pool: [%s], Node Pool: [%s]",
+            "Routing pools are compatible. Index pool: [%s], node pool: [%s]",
             indexPool,
             targetNodePool
         );

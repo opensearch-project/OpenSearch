@@ -32,7 +32,6 @@
 
 package org.opensearch.index.query;
 
-import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -42,8 +41,9 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.opensearch.common.ParsingException;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.index.search.MatchQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 

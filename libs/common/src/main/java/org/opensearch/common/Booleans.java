@@ -45,30 +45,72 @@ public final class Booleans {
     /**
      * Parses a char[] representation of a boolean value to <code>boolean</code>.
      *
-     * @return <code>true</code> iff the sequence of chars is "true", <code>false</code> iff the sequence of chars is "false" or the
-     * provided default value iff either text is <code>null</code> or length == 0.
+     * @return <code>true</code> iff the sequence of chars is "true", <code>false</code> iff the sequence of
+     * chars is "false" or the provided default value iff either text is <code>null</code> or length == 0.
      * @throws IllegalArgumentException if the string cannot be parsed to boolean.
      */
     public static boolean parseBoolean(char[] text, int offset, int length, boolean defaultValue) {
-        if (text == null || length == 0) {
+        if (text == null) {
             return defaultValue;
-        } else {
-            return parseBoolean(new String(text, offset, length));
         }
+
+        switch (length) {
+            case 0:
+                return defaultValue;
+            case 1:
+            case 2:
+            case 3:
+            default:
+                break;
+            case 4:
+                if (text[offset] == 't' && text[offset + 1] == 'r' && text[offset + 2] == 'u' && text[offset + 3] == 'e') {
+                    return true;
+                }
+                break;
+            case 5:
+                if (text[offset] == 'f'
+                    && text[offset + 1] == 'a'
+                    && text[offset + 2] == 'l'
+                    && text[offset + 3] == 's'
+                    && text[offset + 4] == 'e') {
+                    return false;
+                }
+                break;
+        }
+
+        throw new IllegalArgumentException(
+            "Failed to parse value [" + new String(text, offset, length) + "] as only [true] or [false] are allowed."
+        );
     }
 
     /**
-     * returns true iff the sequence of chars is one of "true","false".
+     * Returns true iff the sequence of chars is one of "true", "false".
      *
      * @param text   sequence to check
      * @param offset offset to start
      * @param length length to check
      */
     public static boolean isBoolean(char[] text, int offset, int length) {
-        if (text == null || length == 0) {
+        if (text == null) {
             return false;
         }
-        return isBoolean(new String(text, offset, length));
+
+        switch (length) {
+            case 0:
+            case 1:
+            case 2:
+            case 3:
+            default:
+                return false;
+            case 4:
+                return text[offset] == 't' && text[offset + 1] == 'r' && text[offset + 2] == 'u' && text[offset + 3] == 'e';
+            case 5:
+                return text[offset] == 'f'
+                    && text[offset + 1] == 'a'
+                    && text[offset + 2] == 'l'
+                    && text[offset + 3] == 's'
+                    && text[offset + 4] == 'e';
+        }
     }
 
     public static boolean isBoolean(String value) {
@@ -91,63 +133,45 @@ public final class Booleans {
         throw new IllegalArgumentException("Failed to parse value [" + value + "] as only [true] or [false] are allowed.");
     }
 
-    private static boolean hasText(CharSequence str) {
-        if (str == null || str.length() == 0) {
-            return false;
-        }
-        int strLen = str.length();
-        for (int i = 0; i < strLen; i++) {
-            if (!Character.isWhitespace(str.charAt(i))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /**
+     * Parses a string representation of a boolean value to <code>boolean</code>.
+     * Note the subtle difference between this and {@link #parseBoolean(char[], int, int, boolean)}; this returns the
+     * default value even when the value is non-zero length containing all whitespaces (possibly overlooked, but
+     * preserving this behavior for compatibility reasons). Use {@link #parseBooleanStrict(String, boolean)} instead.
      *
      * @param value text to parse.
-     * @param defaultValue The default value to return if the provided value is <code>null</code>.
+     * @param defaultValue The default value to return if the provided value is <code>null</code> or blank.
      * @return see {@link #parseBoolean(String)}
      */
+    @Deprecated
     public static boolean parseBoolean(String value, boolean defaultValue) {
-        if (hasText(value)) {
-            return parseBoolean(value);
+        if (value == null || value.isBlank()) {
+            return defaultValue;
         }
-        return defaultValue;
+        return parseBoolean(value);
     }
 
+    @Deprecated
     public static Boolean parseBoolean(String value, Boolean defaultValue) {
-        if (hasText(value)) {
-            return parseBoolean(value);
+        if (value == null || value.isBlank()) {
+            return defaultValue;
         }
-        return defaultValue;
+        return parseBoolean(value);
     }
 
     /**
-     * Returns {@code false} if text is in "false", "0", "off", "no"; else, {@code true}.
+     * Parses a string representation of a boolean value to <code>boolean</code>.
+     * Analogous to {@link #parseBoolean(char[], int, int, boolean)}.
      *
-     * @deprecated Only kept to provide automatic upgrades for pre 6.0 indices. Use {@link #parseBoolean(String, Boolean)} instead.
+     * @return <code>true</code> iff the sequence of chars is "true", <code>false</code> iff the sequence of
+     * chars is "false", or the provided default value iff either text is <code>null</code> or length == 0.
+     * @throws IllegalArgumentException if the string cannot be parsed to boolean.
      */
-    @Deprecated
-    public static Boolean parseBooleanLenient(String value, Boolean defaultValue) {
-        if (value == null) { // only for the null case we do that here!
+    public static boolean parseBooleanStrict(String value, boolean defaultValue) {
+        if (value == null || value.length() == 0) {
             return defaultValue;
         }
-        return parseBooleanLenient(value, false);
-    }
-
-    /**
-     * Returns {@code false} if text is in "false", "0", "off", "no"; else, {@code true}.
-     *
-     * @deprecated Only kept to provide automatic upgrades for pre 6.0 indices. Use {@link #parseBoolean(String, boolean)} instead.
-     */
-    @Deprecated
-    public static boolean parseBooleanLenient(String value, boolean defaultValue) {
-        if (value == null) {
-            return defaultValue;
-        }
-        return !(value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
+        return parseBoolean(value);
     }
 
     /**
@@ -163,71 +187,4 @@ public final class Booleans {
     public static boolean isTrue(String value) {
         return "true".equals(value);
     }
-
-    /**
-     * Returns {@code false} if text is in "false", "0", "off", "no"; else, {@code true}.
-     *
-     * @deprecated Only kept to provide automatic upgrades for pre 6.0 indices. Use {@link #parseBoolean(char[], int, int, boolean)} instead
-     */
-    @Deprecated
-    public static boolean parseBooleanLenient(char[] text, int offset, int length, boolean defaultValue) {
-        if (text == null || length == 0) {
-            return defaultValue;
-        }
-        if (length == 1) {
-            return text[offset] != '0';
-        }
-        if (length == 2) {
-            return !(text[offset] == 'n' && text[offset + 1] == 'o');
-        }
-        if (length == 3) {
-            return !(text[offset] == 'o' && text[offset + 1] == 'f' && text[offset + 2] == 'f');
-        }
-        if (length == 5) {
-            return !(text[offset] == 'f'
-                && text[offset + 1] == 'a'
-                && text[offset + 2] == 'l'
-                && text[offset + 3] == 's'
-                && text[offset + 4] == 'e');
-        }
-        return true;
-    }
-
-    /**
-     * returns true if the a sequence of chars is one of "true","false","on","off","yes","no","0","1"
-     *
-     * @param text   sequence to check
-     * @param offset offset to start
-     * @param length length to check
-     *
-     * @deprecated Only kept to provide automatic upgrades for pre 6.0 indices. Use {@link #isBoolean(char[], int, int)} instead.
-     */
-    @Deprecated
-    public static boolean isBooleanLenient(char[] text, int offset, int length) {
-        if (text == null || length == 0) {
-            return false;
-        }
-        if (length == 1) {
-            return text[offset] == '0' || text[offset] == '1';
-        }
-        if (length == 2) {
-            return (text[offset] == 'n' && text[offset + 1] == 'o') || (text[offset] == 'o' && text[offset + 1] == 'n');
-        }
-        if (length == 3) {
-            return (text[offset] == 'o' && text[offset + 1] == 'f' && text[offset + 2] == 'f')
-                || (text[offset] == 'y' && text[offset + 1] == 'e' && text[offset + 2] == 's');
-        }
-        if (length == 4) {
-            return (text[offset] == 't' && text[offset + 1] == 'r' && text[offset + 2] == 'u' && text[offset + 3] == 'e');
-        }
-        if (length == 5) {
-            return (text[offset] == 'f'
-                && text[offset + 1] == 'a'
-                && text[offset + 2] == 'l'
-                && text[offset + 3] == 's'
-                && text[offset + 4] == 'e');
-        }
-        return false;
-    }
-
 }

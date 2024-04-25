@@ -43,9 +43,10 @@ public class SearchBackpressureSettings {
      * Defines the search backpressure mode. It can be either "disabled", "monitor_only" or "enforced".
      */
     private volatile SearchBackpressureMode mode;
-    public static final Setting<String> SETTING_MODE = Setting.simpleString(
+    public static final Setting<SearchBackpressureMode> SETTING_MODE = new Setting<>(
         "search_backpressure.mode",
         Defaults.MODE,
+        SearchBackpressureMode::fromName,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -53,8 +54,8 @@ public class SearchBackpressureSettings {
     /**
      * Defines the percentage of tasks to cancel relative to the number of successful task completions.
      * In other words, it is the number of tokens added to the bucket on each successful task completion.
-     *
-     * The setting below is deprecated.
+     * <p>
+     * The setting below is deprecated. The new setting is in {@link SearchShardTaskSettings}.
      * To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
      */
     public static final Setting<Double> SETTING_CANCELLATION_RATIO = Setting.doubleSetting(
@@ -70,8 +71,8 @@ public class SearchBackpressureSettings {
     /**
      * Defines the number of tasks to cancel per unit time (in millis).
      * In other words, it is the number of tokens added to the bucket each millisecond.
-     *
-     * The setting below is deprecated.
+     * <p>
+     * The setting below is deprecated. The new setting is in {@link SearchShardTaskSettings}.
      * To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
      */
     public static final Setting<Double> SETTING_CANCELLATION_RATE = Setting.doubleSetting(
@@ -85,8 +86,8 @@ public class SearchBackpressureSettings {
 
     /**
      * Defines the maximum number of tasks that can be cancelled before being rate-limited.
-     *
-     * The setting below is deprecated.
+     * <p>
+     * The setting below is deprecated. The new setting is in {@link SearchShardTaskSettings}.
      * To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
      */
     public static final Setting<Double> SETTING_CANCELLATION_BURST = Setting.doubleSetting(
@@ -113,8 +114,8 @@ public class SearchBackpressureSettings {
 
         interval = new TimeValue(SETTING_INTERVAL_MILLIS.get(settings));
 
-        mode = SearchBackpressureMode.fromName(SETTING_MODE.get(settings));
-        clusterSettings.addSettingsUpdateConsumer(SETTING_MODE, s -> this.setMode(SearchBackpressureMode.fromName(s)));
+        mode = SETTING_MODE.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_MODE, this::setMode);
         clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATIO, searchShardTaskSettings::setCancellationRatio);
         clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATE, searchShardTaskSettings::setCancellationRate);
         clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_BURST, searchShardTaskSettings::setCancellationBurst);

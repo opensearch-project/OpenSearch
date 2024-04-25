@@ -34,7 +34,6 @@ package org.opensearch.action.admin.indices.shards;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
@@ -53,24 +52,25 @@ import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenIntMap;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.gateway.AsyncShardFetch;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -195,7 +195,7 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
             } else {
                 for (Tuple<ShardId, String> shard : shards) {
                     InternalAsyncFetch fetch = new InternalAsyncFetch(logger, "shard_stores", shard.v1(), shard.v2(), listShardStoresInfo);
-                    fetch.fetchData(nodes, Collections.<String>emptySet());
+                    fetch.fetchData(nodes, Collections.emptyMap());
                 }
             }
         }
@@ -223,27 +223,24 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
                 List<FailedNodeException> failures,
                 long fetchingRound
             ) {
-                fetchResponses.add(new Response(shardId, responses, failures));
+                fetchResponses.add(new Response(shardAttributesMap.keySet().iterator().next(), responses, failures));
                 if (expectedOps.countDown()) {
                     finish();
                 }
             }
 
             void finish() {
-                ImmutableOpenMap.Builder<
-                    String,
-                    ImmutableOpenIntMap<java.util.List<IndicesShardStoresResponse.StoreStatus>>> indicesStoreStatusesBuilder =
-                        ImmutableOpenMap.builder();
+                final Map<String, Map<Integer, List<IndicesShardStoresResponse.StoreStatus>>> indicesStoreStatusesBuilder = new HashMap<>();
 
                 java.util.List<IndicesShardStoresResponse.Failure> failureBuilder = new ArrayList<>();
                 for (Response fetchResponse : fetchResponses) {
-                    ImmutableOpenIntMap<java.util.List<IndicesShardStoresResponse.StoreStatus>> indexStoreStatuses =
+                    final Map<Integer, java.util.List<IndicesShardStoresResponse.StoreStatus>> indexStoreStatuses =
                         indicesStoreStatusesBuilder.get(fetchResponse.shardId.getIndexName());
-                    final ImmutableOpenIntMap.Builder<java.util.List<IndicesShardStoresResponse.StoreStatus>> indexShardsBuilder;
+                    final Map<Integer, java.util.List<IndicesShardStoresResponse.StoreStatus>> indexShardsBuilder;
                     if (indexStoreStatuses == null) {
-                        indexShardsBuilder = ImmutableOpenIntMap.builder();
+                        indexShardsBuilder = new HashMap<>();
                     } else {
-                        indexShardsBuilder = ImmutableOpenIntMap.builder(indexStoreStatuses);
+                        indexShardsBuilder = new HashMap<>(indexStoreStatuses);
                     }
                     java.util.List<IndicesShardStoresResponse.StoreStatus> storeStatuses = indexShardsBuilder.get(
                         fetchResponse.shardId.id()
@@ -261,16 +258,16 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
                             storeStatuses.add(
                                 new IndicesShardStoresResponse.StoreStatus(
                                     response.getNode(),
-                                    response.allocationId(),
+                                    response.getGatewayShardStarted().allocationId(),
                                     allocationStatus,
-                                    response.storeException()
+                                    response.getGatewayShardStarted().storeException()
                                 )
                             );
                         }
                     }
                     CollectionUtil.timSort(storeStatuses);
                     indexShardsBuilder.put(fetchResponse.shardId.id(), storeStatuses);
-                    indicesStoreStatusesBuilder.put(fetchResponse.shardId.getIndexName(), indexShardsBuilder.build());
+                    indicesStoreStatusesBuilder.put(fetchResponse.shardId.getIndexName(), Collections.unmodifiableMap(indexShardsBuilder));
                     for (FailedNodeException failure : fetchResponse.failures) {
                         failureBuilder.add(
                             new IndicesShardStoresResponse.Failure(
@@ -283,7 +280,7 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
                     }
                 }
                 listener.onResponse(
-                    new IndicesShardStoresResponse(indicesStoreStatusesBuilder.build(), Collections.unmodifiableList(failureBuilder))
+                    new IndicesShardStoresResponse(indicesStoreStatusesBuilder, Collections.unmodifiableList(failureBuilder))
                 );
             }
 
@@ -311,11 +308,12 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
              * A shard exists/existed in a node only if shard state file exists in the node
              */
             private boolean shardExistsInNode(final NodeGatewayStartedShards response) {
-                return response.storeException() != null || response.allocationId() != null;
+                return response.getGatewayShardStarted().storeException() != null
+                    || response.getGatewayShardStarted().allocationId() != null;
             }
 
             @Override
-            protected void reroute(ShardId shardId, String reason) {
+            protected void reroute(String shardId, String reason) {
                 // no-op
             }
 

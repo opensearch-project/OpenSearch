@@ -32,8 +32,10 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.function.Function;
@@ -41,8 +43,9 @@ import java.util.function.Function;
 /**
  * Handles transport responses
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface TransportResponseHandler<T extends TransportResponse> extends Writeable.Reader<T> {
 
     void handleResponse(T response);
@@ -50,6 +53,13 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
     void handleException(TransportException exp);
 
     String executor();
+
+    /**
+     * This method should be handling the rejection/failure scenarios where connection to the node is rejected or failed.
+     * It should be used to clear up the resources held by the {@link TransportResponseHandler}.
+     * @param exp exception
+     */
+    default void handleRejection(Exception exp) {}
 
     default <Q extends TransportResponse> TransportResponseHandler<Q> wrap(Function<Q, T> converter, Writeable.Reader<Q> reader) {
         final TransportResponseHandler<T> self = this;

@@ -35,16 +35,18 @@ package org.opensearch.action.search;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.common.Strings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.ArrayUtils;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.geometry.LinearRing;
+import org.opensearch.index.query.GeoShapeQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
@@ -245,6 +247,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
         mutators.add(() -> mutation.setCcsMinimizeRoundtrips(searchRequest.isCcsMinimizeRoundtrips() == false));
         mutators.add(
+            () -> mutation.setPhaseTook(searchRequest.isPhaseTook() == null ? randomBoolean() : searchRequest.isPhaseTook() == false)
+        );
+        mutators.add(
             () -> mutation.setCancelAfterTimeInterval(
                 searchRequest.getCancelAfterTimeInterval() != null
                     ? null
@@ -263,6 +268,19 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertThat(
             toDescription(new SearchRequest().scroll(TimeValue.timeValueMinutes(5))),
             equalTo("indices[], search_type[QUERY_THEN_FETCH], scroll[5m], source[]")
+        );
+    }
+
+    public void testDescriptionOnSourceError() {
+        LinearRing linearRing = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
+        GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder("geo", linearRing);
+        SearchRequest request = new SearchRequest();
+        request.source(new SearchSourceBuilder().query(queryBuilder));
+        assertThat(
+            toDescription(request),
+            equalTo(
+                "indices[], search_type[QUERY_THEN_FETCH], source[<error: java.lang.UnsupportedOperationException: line ring cannot be serialized using GeoJson>]"
+            )
         );
     }
 

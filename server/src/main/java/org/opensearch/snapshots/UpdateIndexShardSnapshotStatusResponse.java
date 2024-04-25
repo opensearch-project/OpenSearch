@@ -31,8 +31,8 @@
 
 package org.opensearch.snapshots;
 
-import org.opensearch.action.ActionResponse;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 

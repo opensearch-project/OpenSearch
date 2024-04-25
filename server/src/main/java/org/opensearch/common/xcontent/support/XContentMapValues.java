@@ -39,9 +39,9 @@ import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Numbers;
-import org.opensearch.common.Strings;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -117,12 +117,11 @@ public class XContentMapValues {
 
     /**
      * For the provided path, return its value in the xContent map.
-     *
+     * <p>
      * Note that in contrast with {@link XContentMapValues#extractRawValues}, array and object values
      * can be returned.
      *
      * @param path the value's path in the map.
-     *
      * @return the value associated with the path in the map or 'null' if the path does not exist.
      */
     public static Object extractValue(String path, Map<?, ?> map) {
@@ -138,7 +137,7 @@ public class XContentMapValues {
 
     /**
      * For the provided path, return its value in the xContent map.
-     *
+     * <p>
      * Note that in contrast with {@link XContentMapValues#extractRawValues}, array and object values
      * can be returned.
      *
@@ -197,13 +196,13 @@ public class XContentMapValues {
      * Only keep properties in {@code map} that match the {@code includes} but
      * not the {@code excludes}. An empty list of includes is interpreted as a
      * wildcard while an empty list of excludes does not match anything.
-     *
+     * <p>
      * If a property matches both an include and an exclude, then the exclude
      * wins.
-     *
+     * <p>
      * If an object matches, then any of its sub properties are automatically
      * considered as matching as well, both for includes and excludes.
-     *
+     * <p>
      * Dots in field names are treated as sub objects. So for instance if a
      * document contains {@code a.b} as a property and {@code a} is an include,
      * then {@code a.b} will be kept in the filtered map.
@@ -555,7 +554,7 @@ public class XContentMapValues {
 
     /**
      * Returns an array of string value from a node value.
-     *
+     * <p>
      * If the node represents an array the corresponding array of strings is returned.
      * Otherwise the node is treated as a comma-separated string.
      */

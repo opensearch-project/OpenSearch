@@ -35,8 +35,8 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.TimedRequest;
 import org.opensearch.client.ValidationException;
-import org.opensearch.common.Strings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Optional;

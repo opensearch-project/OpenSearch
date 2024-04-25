@@ -33,19 +33,22 @@
 package org.opensearch.search;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.Arrays;
 
 /**
  * Doc value and formats to sort during search
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SearchSortValuesAndFormats implements Writeable {
     private final Object[] rawSortValues;
     private final Object[] formattedSortValues;
@@ -62,6 +65,8 @@ public class SearchSortValuesAndFormats implements Writeable {
                 this.formattedSortValues[i] = sortValueFormats[i].format((BytesRef) sortValue);
             } else if (sortValue instanceof Long) {
                 this.formattedSortValues[i] = sortValueFormats[i].format((long) sortValue);
+            } else if (sortValue instanceof BigInteger) {
+                this.formattedSortValues[i] = sortValueFormats[i].format((BigInteger) sortValue);
             } else if (sortValue instanceof Double) {
                 this.formattedSortValues[i] = sortValueFormats[i].format((double) sortValue);
             } else if (sortValue instanceof Float || sortValue instanceof Integer) {

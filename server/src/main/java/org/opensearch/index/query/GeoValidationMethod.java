@@ -32,17 +32,17 @@
 
 package org.opensearch.index.query;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.util.CollectionUtils;
 
 import java.io.IOException;
 
 /**
  * This enum is used to determine how to deal with invalid geo coordinates in geo related
  * queries:
- *
+ * <p>
  *  On STRICT validation invalid coordinates cause an exception to be thrown.
  *  On IGNORE_MALFORMED invalid coordinates are being accepted.
  *  On COERCE invalid coordinates are being corrected to the most likely valid coordinate.

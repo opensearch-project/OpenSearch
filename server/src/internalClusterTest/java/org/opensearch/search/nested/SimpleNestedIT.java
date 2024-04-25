@@ -32,6 +32,8 @@
 
 package org.opensearch.search.nested;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.action.DocWriteResponse;
@@ -45,15 +47,18 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.sort.NestedSortBuilder;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortMode;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+
+import java.util.Arrays;
+import java.util.Collection;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -61,17 +66,30 @@ import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.nestedQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class SimpleNestedIT extends OpenSearchIntegTestCase {
+public class SimpleNestedIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public SimpleNestedIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
     public void testSimpleNested() throws Exception {
         assertAcked(prepareCreate("test").setMapping("nested1", "type=nested"));
         ensureGreen();
@@ -102,6 +120,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             .get();
 
         waitForRelocation(ClusterHealthStatus.GREEN);
+        indexRandomForConcurrentSearch("test");
         GetResponse getResponse = client().prepareGet("test", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getSourceAsBytes(), notNullValue());
@@ -269,6 +288,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         refresh();
         // check the numDocs
         assertDocumentCount("test", 7);
+        indexRandomForConcurrentSearch("test");
 
         // do some multi nested queries
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -429,7 +449,13 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         assertDocumentCount("test", 6);
     }
 
-    public void testExplain() throws Exception {
+    /*
+    * Tests the explain output for single doc. Concurrent search with only slice 1 is tested
+    * here as call to indexRandomForMultipleSlices has implications on the range of child docs
+    * in the explain output. Separate test class is created to test explain for multiple slices
+    * case in concurrent search, refer {@link SimpleNestedExplainIT}
+    * */
+    public void testExplainWithSingleDoc() throws Exception {
         assertAcked(
             prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
@@ -543,6 +569,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(QueryBuilders.matchAllQuery())
@@ -651,6 +678,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test")
             .setQuery(QueryBuilders.matchAllQuery())
@@ -783,7 +811,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     + "    }\n"
                     + "  ]\n"
                     + "}",
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
             .get();
 
@@ -835,10 +863,11 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     + "    }\n"
                     + "  ]\n"
                     + "}",
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // access id = 1, read, max value, asc, should use grault and quxx
         SearchResponse searchResponse = client().prepareSearch()
@@ -987,7 +1016,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     + "    }\n"
                     + " ]\n"
                     + "}",
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
             .get();
 
@@ -1006,11 +1035,12 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
                     + "    } \n"
                     + "  ]\n"
                     + "}",
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
             .get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(termQuery("_id", 2))
@@ -1191,6 +1221,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // Without nested filter
         SearchResponse searchResponse = client().prepareSearch()
@@ -1571,6 +1602,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
             .get();
         assertTrue(indexResponse2.getShardInfo().getSuccessful() > 0);
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .addSort(SortBuilders.fieldSort("users.first").setNestedPath("users").order(SortOrder.ASC))
@@ -1603,6 +1635,7 @@ public class SimpleNestedIT extends OpenSearchIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field", "value").get();
         refresh();
         ensureSearchable("test");
+        indexRandomForConcurrentSearch("test");
 
         // No nested mapping yet, there shouldn't be anything in the fixed bit set cache
         ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();

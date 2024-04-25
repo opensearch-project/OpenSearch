@@ -31,19 +31,19 @@
 
 package org.opensearch.search.aggregations;
 
-import org.opensearch.action.ActionListener;
-import org.opensearch.common.ParsingException;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
@@ -239,7 +239,7 @@ public class AggregatorFactoriesTests extends OpenSearchTestCase {
     public void testRewriteAggregation() throws Exception {
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference bytesReference;
-        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
+        try (XContentBuilder builder = MediaTypeRegistry.contentBuilder(xContentType)) {
             builder.startObject();
             {
                 builder.startObject("terms");

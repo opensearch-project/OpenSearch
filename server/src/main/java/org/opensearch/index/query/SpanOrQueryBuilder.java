@@ -34,11 +34,12 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Query;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
@@ -187,5 +188,16 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
+        if (clauses.isEmpty() == false) {
+            QueryBuilderVisitor subVisitor = visitor.getChildVisitor(BooleanClause.Occur.SHOULD);
+            for (QueryBuilder subQb : this.clauses) {
+                subVisitor.accept(subQb);
+            }
+        }
     }
 }

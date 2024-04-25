@@ -45,10 +45,10 @@ import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata.State;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.index.Index;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.IndexClosedException;
@@ -351,6 +351,25 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         results = indexNameExpressionResolver.concreteIndexNames(context, ".hidd*");
         assertEquals(1, results.length);
         assertThat(results, arrayContainingInAnyOrder(".hidden-closed"));
+
+        options = IndicesOptions.fromOptions(false, true, false, true, false, false, false, false);
+        context = new IndexNameExpressionResolver.Context(state, options, false);
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "foo*");
+        assertEquals(1, results.length);
+        assertEquals("foo", results[0]);
+
+        try {
+            options = IndicesOptions.fromOptions(false, true, false, true, false, true, false, false);
+            context = new IndexNameExpressionResolver.Context(state, options, false);
+
+            results = indexNameExpressionResolver.concreteIndexNames(context, "foo*");
+            assertEquals(1, results.length);
+            assertEquals("foo", results[0]);
+        } catch (IllegalArgumentException iae) {
+            String expectedMessage = "To expand [CLOSE] wildcard, please set forbid_closed_indices to `false`";
+            assertEquals(expectedMessage, iae.getMessage());
+        }
 
         // Only open
         options = IndicesOptions.fromOptions(false, true, true, false, false);

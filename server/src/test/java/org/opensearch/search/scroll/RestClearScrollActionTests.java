@@ -32,13 +32,13 @@
 
 package org.opensearch.search.scroll;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.search.RestClearScrollAction;
 import org.opensearch.test.OpenSearchTestCase;
@@ -57,7 +57,7 @@ public class RestClearScrollActionTests extends OpenSearchTestCase {
         RestClearScrollAction action = new RestClearScrollAction();
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray("{invalid_json}"),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         ).build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
         assertThat(e.getMessage(), equalTo("Failed to parse request body"));
@@ -76,7 +76,7 @@ public class RestClearScrollActionTests extends OpenSearchTestCase {
             RestClearScrollAction action = new RestClearScrollAction();
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(
                 Collections.singletonMap("scroll_id", "QUERY_STRING")
-            ).withContent(new BytesArray("{\"scroll_id\": [\"BODY\"]}"), XContentType.JSON).build();
+            ).withContent(new BytesArray("{\"scroll_id\": [\"BODY\"]}"), MediaTypeRegistry.JSON).build();
             FakeRestChannel channel = new FakeRestChannel(request, false, 0);
             action.handleRequest(request, channel, nodeClient);
 

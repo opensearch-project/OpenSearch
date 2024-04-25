@@ -31,10 +31,9 @@
 
 package org.opensearch.test.rest.yaml;
 
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -56,7 +55,7 @@ public class ObjectPathTests extends OpenSearchTestCase {
 
     private static XContentBuilder randomXContentBuilder() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
-        return XContentBuilder.builder(XContentFactory.xContent(xContentType));
+        return XContentBuilder.builder(xContentType.xContent());
     }
 
     public void testEvaluateObjectPathEscape() throws Exception {
@@ -342,7 +341,7 @@ public class ObjectPathTests extends OpenSearchTestCase {
         xContentBuilder.endObject();
         xContentBuilder.endArray();
         ObjectPath objectPath = ObjectPath.createFromXContent(
-            XContentFactory.xContent(xContentBuilder.contentType()),
+            xContentBuilder.contentType().xContent(),
             BytesReference.bytes(xContentBuilder)
         );
         Object object = objectPath.evaluate("");

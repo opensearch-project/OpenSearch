@@ -48,6 +48,7 @@ import java.util.Map;
 public class DocFieldsPhaseTests extends ScriptTestCase {
     PainlessLookup lookup = PainlessLookupBuilder.buildFromAllowlists(Allowlist.BASE_ALLOWLISTS);
 
+    @SuppressWarnings("removal")
     ScriptScope compile(String script) {
         Compiler compiler = new Compiler(
             MockDocTestScript.CONTEXT.instanceClazz,

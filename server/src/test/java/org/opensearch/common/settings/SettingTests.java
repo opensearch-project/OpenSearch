@@ -36,9 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.BytesStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.opensearch.common.settings.Setting.ByteSizeValueParser;
@@ -51,13 +49,15 @@ import org.opensearch.common.settings.Setting.MinMaxTimeValueParser;
 import org.opensearch.common.settings.Setting.MinTimeValueParser;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Setting.RegexValidator;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.BytesStreamInput;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.monitor.jvm.JvmInfo;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
@@ -201,7 +201,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(new ByteSizeValue(12), value.get());
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "20%").build(), Settings.EMPTY));
-        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2)), value.get());
+        assertEquals(new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2)), value.get());
     }
 
     public void testMemorySizeWithFallbackValue() {
@@ -219,10 +219,12 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(memorySizeValue.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2, 1.0);
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "30%").build(), Settings.EMPTY));
-        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.3)), value.get());
+        // If value=getHeapMax()*0.3 is bigger than 2gb, and is bigger than Integer.MAX_VALUE,
+        // then (long)((int) value) will lose precision.
+        assertEquals(new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.3)), value.get());
 
         assertTrue(settingUpdater.apply(Settings.builder().put("b.byte.size", "40%").build(), Settings.EMPTY));
-        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.4)), value.get());
+        assertEquals(new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.4)), value.get());
     }
 
     public void testSimpleUpdate() {
@@ -907,6 +909,18 @@ public class SettingTests extends OpenSearchTestCase {
         } catch (IllegalArgumentException ex) {
             assertEquals("key [foo] must match [foo.] but didn't.", ex.getMessage());
         }
+    }
+
+    public void testAffixKeySettingWithDynamicPrefix() {
+        Setting.AffixSetting<Boolean> setting = Setting.suffixKeySetting(
+            "enable",
+            (key) -> Setting.boolSetting(key, false, Property.NodeScope)
+        );
+        Setting<Boolean> concreteSetting = setting.getConcreteSettingForNamespace("foo.bar");
+        assertEquals("foo.bar.enable", concreteSetting.getKey());
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> setting.getConcreteSettingForNamespace("foo."));
+        assertEquals("key [foo..enable] must match [*.enable] but didn't.", ex.getMessage());
     }
 
     public void testAffixKeySetting() {

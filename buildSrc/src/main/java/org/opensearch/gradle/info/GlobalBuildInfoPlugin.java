@@ -49,6 +49,7 @@ import org.gradle.jvm.toolchain.internal.InstallationLocation;
 import org.gradle.util.GradleVersion;
 
 import javax.inject.Inject;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -74,8 +75,8 @@ import java.util.stream.Stream;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
-    private static final String DEFAULT_LEGACY_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/opensearch/LegacyESVersion.java";
-    private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/opensearch/Version.java";
+    private static final String DEFAULT_LEGACY_VERSION_JAVA_FILE_PATH = "libs/core/src/main/java/org/opensearch/LegacyESVersion.java";
+    private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "libs/core/src/main/java/org/opensearch/Version.java";
     private static Integer _defaultParallel = null;
 
     private final JvmMetadataDetector jvmMetadataDetector;
@@ -152,7 +153,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             versionLines.addAll(IOUtils.readLines(fis2, "UTF-8"));
             return new BwcVersions(versionLines);
         } catch (IOException e) {
-            throw new IllegalStateException("Unable to resolve to resolve bwc versions from versionsFile.", e);
+            throw new IllegalStateException("Unable to resolve bwc versions from versionsFile.", e);
         }
     }
 

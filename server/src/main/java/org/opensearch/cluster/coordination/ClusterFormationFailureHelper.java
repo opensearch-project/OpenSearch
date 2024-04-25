@@ -40,9 +40,9 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.ThreadPool;
@@ -187,7 +187,7 @@ public class ClusterFormationFailureHelper {
             final List<String> clusterStateNodes = StreamSupport.stream(
                 clusterState.nodes().getClusterManagerNodes().values().spliterator(),
                 false
-            ).map(n -> n.value.toString()).collect(Collectors.toList());
+            ).map(n -> n.toString()).collect(Collectors.toList());
 
             final String discoveryWillContinueDescription = String.format(
                 Locale.ROOT,

@@ -43,9 +43,9 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.metrics.MetricsAggregator;
+import org.opensearch.search.aggregations.support.ArrayValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.aggregations.support.ArrayValuesSource;
 
 import java.io.IOException;
 import java.util.Map;

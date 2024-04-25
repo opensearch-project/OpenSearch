@@ -37,10 +37,13 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.geo.GeoPoint;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -74,6 +77,10 @@ public enum FieldData {
                 throw new UnsupportedOperationException();
             }
 
+            @Override
+            public int advance(int target) throws IOException {
+                return DocIdSetIterator.NO_MORE_DOCS;
+            }
         };
     }
 
@@ -238,6 +245,30 @@ public enum FieldData {
     }
 
     /**
+     * Given a {@link SortedNumericDocValues}, return a {@link SortedNumericDoubleValues}
+     * instance that will translate unsigned long values to doubles using
+     * {@link Numbers#toUnsignedBigInteger(long)}.
+     */
+    public static SortedNumericDoubleValues unsignedLongToDoubles(SortedNumericDocValues values) {
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        if (singleton != null) {
+            final NumericDoubleValues doubles;
+            if (singleton instanceof SortableLongBitsNumericDocValues) {
+                doubles = ((SortableLongBitsNumericDocValues) singleton).getDoubleValues();
+            } else {
+                doubles = new UnsignedLongToNumericDoubleValues(singleton);
+            }
+            return singleton(doubles);
+        } else {
+            if (values instanceof SortableLongBitsSortedNumericDocValues) {
+                return ((SortableLongBitsSortedNumericDocValues) values).getDoubleValues();
+            } else {
+                return new UnsignedLongToSortedNumericDoubleValues(values);
+            }
+        }
+    }
+
+    /**
      * Wrap the provided {@link SortedNumericDocValues} instance to cast all values to doubles.
      */
     public static SortedNumericDoubleValues castToDouble(final SortedNumericDocValues values) {
@@ -342,6 +373,27 @@ public enum FieldData {
             public void get(List<CharSequence> list) throws IOException {
                 for (int i = 0, count = values.docValueCount(); i < count; ++i) {
                     list.add(Long.toString(values.nextValue()));
+                }
+            }
+        });
+    }
+
+    /**
+     * Return a {@link String} representation of the provided values treating them as unsigned. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is very slow!
+     */
+    public static SortedBinaryDocValues toUnsignedString(final SortedNumericDocValues values) {
+        return toString(new ToStringValues() {
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
+
+            @Override
+            public void get(List<CharSequence> list) throws IOException {
+                for (int i = 0, count = values.docValueCount(); i < count; ++i) {
+                    list.add(Long.toUnsignedString(values.nextValue()));
                 }
             }
         });
@@ -514,6 +566,10 @@ public enum FieldData {
             return values.advanceExact(doc);
         }
 
+        @Override
+        public int advance(int target) throws IOException {
+            return values.advance(target);
+        }
     }
 
     /**
@@ -544,6 +600,10 @@ public enum FieldData {
             return values.docValueCount();
         }
 
+        @Override
+        public int advance(int target) throws IOException {
+            return values.advance(target);
+        }
     }
 
     /**
@@ -573,6 +633,12 @@ public enum FieldData {
 
         @Override
         public int docID() {
+            return docID;
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            docID = values.advance(target);
             return docID;
         }
     }
@@ -636,6 +702,48 @@ public enum FieldData {
             public long longValue() throws IOException {
                 return value;
             }
+
+            @Override
+            public int advance(int target) throws IOException {
+                return values.advance(target);
+            }
+        };
+    }
+
+    /**
+     * Return a {@link NumericDocValues} instance that has a value for every
+     * document, returns the same value as {@code values} if there is a value
+     * for the current document and {@code missing} otherwise.
+     */
+    public static NumericDocValues replaceMissing(NumericDocValues values, BigInteger missing) {
+        return new AbstractNumericDocValues() {
+
+            private BigInteger value;
+
+            @Override
+            public int docID() {
+                return values.docID();
+            }
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                if (values.advanceExact(target)) {
+                    value = Numbers.toUnsignedBigInteger(values.longValue());
+                } else {
+                    value = missing;
+                }
+                return true;
+            }
+
+            @Override
+            public long longValue() throws IOException {
+                return value.longValue();
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                return values.advance(target);
+            }
         };
     }
 
@@ -662,6 +770,11 @@ public enum FieldData {
             @Override
             public double doubleValue() throws IOException {
                 return value;
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                return values.advance(target);
             }
         };
     }

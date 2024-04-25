@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -40,8 +41,9 @@ import java.util.Map;
 /**
  * An aggregation. Extends {@link ToXContent} as it makes it easier to print out its content.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface Aggregation extends ToXContentFragment {
 
     /**

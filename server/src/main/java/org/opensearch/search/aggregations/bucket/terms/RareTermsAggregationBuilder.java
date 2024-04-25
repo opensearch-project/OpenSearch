@@ -33,8 +33,8 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.Version;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
@@ -196,7 +196,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
      * Set's the false-positive rate for individual cuckoo filters.  Does not dictate the overall fpp rate
      * since we use a "scaling" cuckoo filter which adds more filters as required, and the overall
      * error rate grows differently than individual filters
-     *
+     * <p>
      * This value does, however, affect the overall space usage of the filter.  Coarser precisions provide
      * more compact filters.  The default is 0.01
      */

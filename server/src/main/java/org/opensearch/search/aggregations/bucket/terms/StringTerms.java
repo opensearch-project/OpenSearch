@@ -32,8 +32,8 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.BucketOrder;
@@ -134,29 +134,27 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
         String name,
         BucketOrder reduceOrder,
         BucketOrder order,
-        int requiredSize,
-        long minDocCount,
         Map<String, Object> metadata,
         DocValueFormat format,
         int shardSize,
         boolean showTermDocCountError,
         long otherDocCount,
         List<Bucket> buckets,
-        long docCountError
+        long docCountError,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds
     ) {
         super(
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             metadata,
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError
+            docCountError,
+            bucketCountThresholds
         );
     }
 
@@ -178,15 +176,14 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             metadata,
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError
+            docCountError,
+            bucketCountThresholds
         );
     }
 
@@ -213,15 +210,14 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             getMetadata(),
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError
+            docCountError,
+            bucketCountThresholds
         );
     }
 

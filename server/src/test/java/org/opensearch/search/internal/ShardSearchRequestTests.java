@@ -38,20 +38,21 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.RandomQueryBuilder;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.InvalidAliasNameException;
 import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.search.SearchSortValuesAndFormatsTests;
@@ -205,7 +206,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.close();
-        return new CompressedXContent(Strings.toString(builder));
+        return new CompressedXContent(builder.toString());
     }
 
     private IndexMetadata remove(IndexMetadata indexMetadata, String alias) {
@@ -220,7 +221,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         return ShardSearchRequest.parseAliasFilter(bytes -> {
             try (
                 InputStream inputStream = bytes.streamInput();
-                XContentParser parser = XContentFactory.xContentType(inputStream)
+                XContentParser parser = MediaTypeRegistry.xContentType(inputStream)
                     .xContent()
                     .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inputStream)
             ) {

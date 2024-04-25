@@ -32,10 +32,10 @@
 
 package org.opensearch.example.painlessallowlist;
 
-import org.opensearch.painless.spi.PainlessExtension;
 import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.painless.spi.AllowlistInstanceBinding;
 import org.opensearch.painless.spi.AllowlistLoader;
+import org.opensearch.painless.spi.PainlessExtension;
 import org.opensearch.painless.spi.annotation.AllowlistAnnotationParser;
 import org.opensearch.script.FieldScript;
 import org.opensearch.script.ScriptContext;

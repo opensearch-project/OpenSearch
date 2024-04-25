@@ -31,9 +31,9 @@
 
 package org.opensearch.repositories.url;
 
-import org.opensearch.test.fixture.AbstractHttpFixture;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.test.fixture.AbstractHttpFixture;
 
 import java.io.IOException;
 import java.nio.file.Files;

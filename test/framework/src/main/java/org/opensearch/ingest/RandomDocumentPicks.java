@@ -35,6 +35,7 @@ package org.opensearch.ingest;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.opensearch.index.VersionType;
 
 import java.util.ArrayList;
@@ -68,6 +69,17 @@ public final class RandomDocumentPicks {
         }
         fieldName.append(randomLeafFieldName(random));
         return fieldName.toString();
+    }
+
+    /**
+     * Returns a random field name that doesn't exist in the document.
+     */
+    public static String randomNonExistingFieldName(Random random, IngestDocument ingestDocument) {
+        String fieldName;
+        do {
+            fieldName = randomFieldName(random);
+        } while (canAddField(fieldName, ingestDocument) == false);
+        return fieldName;
     }
 
     /**

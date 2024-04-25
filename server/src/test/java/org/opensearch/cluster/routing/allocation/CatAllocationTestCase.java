@@ -66,7 +66,7 @@ import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
  * A base testcase that allows to run tests based on the output of the CAT API
  * The input is a line based cat/shards output like:
  *   kibana-int           0 p STARTED       2  24.8kb 10.202.245.2 r5-9-35
- *
+ * <p>
  * the test builds up a clusterstate from the cat input and optionally runs a full balance on it.
  * This can be used to debug cluster allocation decisions.
  */

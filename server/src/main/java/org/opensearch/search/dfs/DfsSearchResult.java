@@ -32,34 +32,36 @@
 
 package org.opensearch.search.dfs;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.collect.HppcMaps;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Result from a Distributed Frequency Search phase
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DfsSearchResult extends SearchPhaseResult {
 
     private static final Term[] EMPTY_TERMS = new Term[0];
     private static final TermStatistics[] EMPTY_TERM_STATS = new TermStatistics[0];
     private Term[] terms;
     private TermStatistics[] termStatistics;
-    private ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
+    private Map<String, CollectionStatistics> fieldStatistics;
     private int maxDoc;
 
     public DfsSearchResult(StreamInput in) throws IOException {
@@ -75,7 +77,7 @@ public class DfsSearchResult extends SearchPhaseResult {
             }
         }
         this.termStatistics = readTermStats(in, terms);
-        fieldStatistics = readFieldStats(in);
+        this.fieldStatistics = readFieldStats(in);
 
         maxDoc = in.readVInt();
         setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
@@ -102,8 +104,8 @@ public class DfsSearchResult extends SearchPhaseResult {
         return this;
     }
 
-    public DfsSearchResult fieldStatistics(ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) {
-        this.fieldStatistics = fieldStatistics;
+    public DfsSearchResult fieldStatistics(final Map<String, CollectionStatistics> fieldStatistics) {
+        this.fieldStatistics = Collections.unmodifiableMap(fieldStatistics);
         return this;
     }
 
@@ -115,7 +117,7 @@ public class DfsSearchResult extends SearchPhaseResult {
         return termStatistics;
     }
 
-    public ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics() {
+    public Map<String, CollectionStatistics> fieldStatistics() {
         return fieldStatistics;
     }
 
@@ -133,13 +135,12 @@ public class DfsSearchResult extends SearchPhaseResult {
         out.writeOptionalWriteable(getShardSearchRequest());
     }
 
-    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics)
-        throws IOException {
+    public static void writeFieldStats(StreamOutput out, final Map<String, CollectionStatistics> fieldStatistics) throws IOException {
         out.writeVInt(fieldStatistics.size());
 
-        for (ObjectObjectCursor<String, CollectionStatistics> c : fieldStatistics) {
-            out.writeString(c.key);
-            CollectionStatistics statistics = c.value;
+        for (final Map.Entry<String, CollectionStatistics> c : fieldStatistics.entrySet()) {
+            out.writeString(c.getKey());
+            CollectionStatistics statistics = c.getValue();
             assert statistics.maxDoc() >= 0;
             out.writeVLong(statistics.maxDoc());
             // stats are always positive numbers
@@ -167,9 +168,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
-    static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
+    static Map<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
         final int numFieldStatistics = in.readVInt();
-        ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap(numFieldStatistics);
+        final Map<String, CollectionStatistics> fieldStatistics = new HashMap<>(numFieldStatistics);
         for (int i = 0; i < numFieldStatistics; i++) {
             final String field = in.readString();
             assert field != null;
@@ -184,7 +185,7 @@ public class DfsSearchResult extends SearchPhaseResult {
             CollectionStatistics stats = new CollectionStatistics(field, maxDoc, docCount, sumTotalTermFreq, sumDocFreq);
             fieldStatistics.put(field, stats);
         }
-        return fieldStatistics;
+        return Collections.unmodifiableMap(fieldStatistics);
     }
 
     static TermStatistics[] readTermStats(StreamInput in, Term[] terms) throws IOException {

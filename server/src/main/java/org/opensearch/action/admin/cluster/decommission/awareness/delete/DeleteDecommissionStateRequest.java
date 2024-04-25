@@ -10,16 +10,18 @@ package org.opensearch.action.admin.cluster.decommission.awareness.delete;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
 /**
  * Request for deleting decommission request.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.4.0")
 public class DeleteDecommissionStateRequest extends ClusterManagerNodeRequest<DeleteDecommissionStateRequest> {
 
     public DeleteDecommissionStateRequest() {}

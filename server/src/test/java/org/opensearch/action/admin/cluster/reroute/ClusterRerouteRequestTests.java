@@ -32,25 +32,25 @@
 
 package org.opensearch.action.admin.cluster.reroute;
 
-import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.network.NetworkModule;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.admin.cluster.RestClusterRerouteAction;
 import org.opensearch.test.OpenSearchTestCase;
@@ -212,7 +212,7 @@ public class ClusterRerouteRequestTests extends OpenSearchTestCase {
 
     private RestRequest toRestRequest(ClusterRerouteRequest original) throws IOException {
         Map<String, String> params = new HashMap<>();
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         boolean hasBody = false;
         if (randomBoolean()) {
             builder.prettyPrint();
@@ -244,7 +244,7 @@ public class ClusterRerouteRequestTests extends OpenSearchTestCase {
         FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
         requestBuilder.withParams(params);
         if (hasBody) {
-            requestBuilder.withContent(BytesReference.bytes(builder), XContentType.fromMediaType(builder.contentType()));
+            requestBuilder.withContent(BytesReference.bytes(builder), builder.contentType());
         }
         return requestBuilder.build();
     }

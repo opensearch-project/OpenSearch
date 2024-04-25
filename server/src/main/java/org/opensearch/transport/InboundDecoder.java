@@ -33,12 +33,12 @@
 package org.opensearch.transport;
 
 import org.opensearch.Version;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.bytes.ReleasableBytesReference;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -50,8 +50,8 @@ import java.util.function.Consumer;
  */
 public class InboundDecoder implements Releasable {
 
-    static final Object PING = new Object();
-    static final Object END_CONTENT = new Object();
+    public static final Object PING = new Object();
+    public static final Object END_CONTENT = new Object();
 
     private final Version version;
     private final PageCacheRecycler recycler;

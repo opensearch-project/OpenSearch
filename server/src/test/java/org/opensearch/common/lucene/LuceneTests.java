@@ -31,29 +31,28 @@
 
 package org.opensearch.common.lucene;
 
-import org.apache.lucene.document.LatLonPoint;
-import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.index.StandardDirectoryReader;
-import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -74,6 +73,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
@@ -81,8 +82,8 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
@@ -339,7 +340,7 @@ public class LuceneTests extends OpenSearchTestCase {
         try (MockDirectoryWrapper dir = newMockFSDirectory(tmp)) {
             // The standard API will throw an exception
             expectThrows(IndexFormatTooOldException.class, () -> Lucene.readSegmentInfos(dir));
-            SegmentInfos si = Lucene.readSegmentInfosExtendedCompatibility(dir, minVersion);
+            SegmentInfos si = Lucene.readSegmentInfos(dir, minVersion);
             assertEquals(1, Lucene.getNumDocs(si));
             IndexCommit indexCommit = Lucene.getIndexCommit(si, dir);
             // uses the "expert" Lucene API
@@ -356,59 +357,6 @@ public class LuceneTests extends OpenSearchTestCase {
                 assertTrue(Lucene.exists(searcher, LatLonPoint.newDistanceQuery("testLocation", 48.57532, -112.87695, 20000)));
             }
         }
-    }
-
-    /**
-     * Since the implementation in {@link Lucene#readSegmentInfosExtendedCompatibility(Directory, Version)}
-     * is a workaround, this test verifies that the response from this method is equivalent to
-     * {@link Lucene#readSegmentInfos(Directory)} if the version is N-1
-     */
-    public void testReadSegmentInfosExtendedCompatibilityBaseCase() throws IOException {
-        MockDirectoryWrapper dir = newMockDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig();
-        IndexWriter writer = new IndexWriter(dir, iwc);
-        Document doc = new Document();
-        doc.add(new TextField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-        writer.addDocument(doc);
-        writer.commit();
-        SegmentInfos expectedSI = Lucene.readSegmentInfos(dir);
-        SegmentInfos actualSI = Lucene.readSegmentInfosExtendedCompatibility(dir, Version.CURRENT);
-        assertEquals(Lucene.getNumDocs(expectedSI), Lucene.getNumDocs(actualSI));
-        assertEquals(expectedSI.getGeneration(), actualSI.getGeneration());
-        assertEquals(expectedSI.getSegmentsFileName(), actualSI.getSegmentsFileName());
-        assertEquals(expectedSI.getVersion(), actualSI.getVersion());
-        assertEquals(expectedSI.getCommitLuceneVersion(), actualSI.getCommitLuceneVersion());
-        assertEquals(expectedSI.getMinSegmentLuceneVersion(), actualSI.getMinSegmentLuceneVersion());
-        assertEquals(expectedSI.getIndexCreatedVersionMajor(), actualSI.getIndexCreatedVersionMajor());
-        assertEquals(expectedSI.getUserData(), actualSI.getUserData());
-
-        int numDocsToIndex = randomIntBetween(10, 50);
-        List<Term> deleteTerms = new ArrayList<>();
-        for (int i = 0; i < numDocsToIndex; i++) {
-            doc = new Document();
-            doc.add(new TextField("id", "doc_" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-            deleteTerms.add(new Term("id", "doc_" + i));
-            writer.addDocument(doc);
-        }
-        int numDocsToDelete = randomIntBetween(0, numDocsToIndex);
-        Collections.shuffle(deleteTerms, random());
-        for (int i = 0; i < numDocsToDelete; i++) {
-            Term remove = deleteTerms.remove(0);
-            writer.deleteDocuments(remove);
-        }
-        writer.commit();
-        expectedSI = Lucene.readSegmentInfos(dir);
-        actualSI = Lucene.readSegmentInfosExtendedCompatibility(dir, Version.CURRENT);
-        assertEquals(Lucene.getNumDocs(expectedSI), Lucene.getNumDocs(actualSI));
-        assertEquals(expectedSI.getGeneration(), actualSI.getGeneration());
-        assertEquals(expectedSI.getSegmentsFileName(), actualSI.getSegmentsFileName());
-        assertEquals(expectedSI.getVersion(), actualSI.getVersion());
-        assertEquals(expectedSI.getCommitLuceneVersion(), actualSI.getCommitLuceneVersion());
-        assertEquals(expectedSI.getMinSegmentLuceneVersion(), actualSI.getMinSegmentLuceneVersion());
-        assertEquals(expectedSI.getIndexCreatedVersionMajor(), actualSI.getIndexCreatedVersionMajor());
-        assertEquals(expectedSI.getUserData(), actualSI.getUserData());
-        writer.close();
-        dir.close();
     }
 
     public void testCount() throws Exception {
@@ -618,12 +566,13 @@ public class LuceneTests extends OpenSearchTestCase {
         }
         try (DirectoryReader unwrapped = DirectoryReader.open(writer)) {
             DirectoryReader reader = Lucene.wrapAllDocsLive(unwrapped);
+            StoredFields storedFields = reader.storedFields();
             assertThat(reader.numDocs(), equalTo(liveDocs.size()));
             IndexSearcher searcher = new IndexSearcher(reader);
             Set<String> actualDocs = new HashSet<>();
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-                actualDocs.add(reader.document(scoreDoc.doc).get("id"));
+                actualDocs.add(storedFields.document(scoreDoc.doc).get("id"));
             }
             assertThat(actualDocs, equalTo(liveDocs));
         }
@@ -662,13 +611,14 @@ public class LuceneTests extends OpenSearchTestCase {
         }
         try (DirectoryReader unwrapped = DirectoryReader.open(writer)) {
             DirectoryReader reader = Lucene.wrapAllDocsLive(unwrapped);
+            StoredFields storedFields = reader.storedFields();
             assertThat(reader.maxDoc(), equalTo(numDocs + abortedDocs));
             assertThat(reader.numDocs(), equalTo(liveDocs.size()));
             IndexSearcher searcher = new IndexSearcher(reader);
             List<String> actualDocs = new ArrayList<>();
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-                actualDocs.add(reader.document(scoreDoc.doc).get("id"));
+                actualDocs.add(storedFields.document(scoreDoc.doc).get("id"));
             }
             assertThat(actualDocs, equalTo(liveDocs));
         }

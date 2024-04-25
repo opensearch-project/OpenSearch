@@ -33,11 +33,11 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.test.AbstractXContentTestCase;
 import org.opensearch.index.reindex.BulkByScrollTask.StatusOrException;
+import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.function.Supplier;

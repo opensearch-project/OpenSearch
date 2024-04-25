@@ -81,7 +81,6 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private int nodeIndex = 0;
-
     private int zoneCount = 1;
 
     public OpenSearchCluster(
@@ -100,7 +99,6 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         this.archiveOperations = archiveOperations;
         this.workingDirBase = workingDirBase;
         this.nodes = project.container(OpenSearchNode.class);
-
         // Always add the first node
         String zone = hasZoneProperty() ? "zone-1" : "";
         addNode(clusterName + "-0", zone);
@@ -206,6 +204,11 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    public void extension(boolean extensionsEnabled) {
+        nodes.all(each -> each.extension(extensionsEnabled));
+    }
+
+    @Override
     public void plugin(Provider<RegularFile> plugin) {
         nodes.all(each -> each.plugin(plugin));
     }
@@ -258,6 +261,11 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     @Override
     public void keystorePassword(String password) {
         nodes.all(each -> each.keystorePassword(password));
+    }
+
+    @Override
+    public void setSecure(boolean secure) {
+        nodes.all(each -> each.setSecure(secure));
     }
 
     @Override
@@ -362,6 +370,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         } else {
             nodeNames = nodes.stream().map(OpenSearchNode::getName).map(this::safeName).collect(Collectors.joining(","));
         }
+
         OpenSearchNode firstNode = null;
         for (OpenSearchNode node : nodes) {
             // Can only configure master nodes if we have node names defined
@@ -549,12 +558,25 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     private void addWaitForClusterHealth() {
         waitConditions.put("cluster health yellow", (node) -> {
             try {
-                WaitForHttpResource wait = new WaitForHttpResource("http", getFirstNode().getHttpSocketURI(), nodes.size());
-
-                List<Map<String, String>> credentials = getFirstNode().getCredentials();
-                if (getFirstNode().getCredentials().isEmpty() == false) {
-                    wait.setUsername(credentials.get(0).get("useradd"));
-                    wait.setPassword(credentials.get(0).get("-p"));
+                WaitForHttpResource wait;
+                if (!getFirstNode().isSecure()) {
+                    wait = new WaitForHttpResource("http", getFirstNode().getHttpSocketURI(), nodes.size());
+                    List<Map<String, String>> credentials = getFirstNode().getCredentials();
+                    if (getFirstNode().getCredentials().isEmpty() == false) {
+                        wait.setUsername(credentials.get(0).get("useradd"));
+                        wait.setPassword(credentials.get(0).get("-p"));
+                    }
+                } else {
+                    wait = new WaitForHttpResource(
+                        "https",
+                        getFirstNode().getHttpSocketURI(),
+                        getFirstNode().getCredentials().get(0).get("username"),
+                        getFirstNode().getCredentials().get(0).get("password"),
+                        nodes.size()
+                    );
+                    wait.setUsername(getFirstNode().getCredentials().get(0).get("username"));
+                    wait.setPassword(getFirstNode().getCredentials().get(0).get("password"));
+                    wait.setCertificateAuthorities(getFirstNode().getExtraConfigFilesMap().get("root-ca.pem"));
                 }
                 return wait.wait(500);
             } catch (IOException e) {

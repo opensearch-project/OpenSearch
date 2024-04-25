@@ -32,10 +32,11 @@
 
 package org.opensearch.search.aggregations.support;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.search.DocValueFormat;
 
@@ -47,8 +48,9 @@ import java.util.List;
 /**
  * Enum to signal what kind of value type is used in the aggregator
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public enum ValueType implements Writeable {
 
     STRING((byte) 1, "string", "string", CoreValuesSourceType.BYTES, DocValueFormat.RAW),
@@ -61,14 +63,15 @@ public enum ValueType implements Writeable {
         "date",
         "date",
         CoreValuesSourceType.DATE,
-        new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ZoneOffset.UTC, DateFieldMapper.Resolution.MILLISECONDS)
+        new DocValueFormat.DateTime(DateFieldMapper.getDefaultDateTimeFormatter(), ZoneOffset.UTC, DateFieldMapper.Resolution.MILLISECONDS)
     ),
     IP((byte) 6, "ip", "ip", CoreValuesSourceType.IP, DocValueFormat.IP),
     // TODO: what is the difference between "number" and "numeric"?
     NUMERIC((byte) 7, "numeric", "numeric", CoreValuesSourceType.NUMERIC, DocValueFormat.RAW),
     GEOPOINT((byte) 8, "geo_point", "geo_point", CoreValuesSourceType.GEOPOINT, DocValueFormat.GEOHASH),
     BOOLEAN((byte) 9, "boolean", "boolean", CoreValuesSourceType.BOOLEAN, DocValueFormat.BOOLEAN),
-    RANGE((byte) 10, "range", "range", CoreValuesSourceType.RANGE, DocValueFormat.RAW);
+    RANGE((byte) 10, "range", "range", CoreValuesSourceType.RANGE, DocValueFormat.RAW),
+    UNSIGNED_LONG((byte) 11, "unsigned_long", "unsigned_long", CoreValuesSourceType.NUMERIC, DocValueFormat.UNSIGNED_LONG),;
 
     final String description;
     final ValuesSourceType valuesSourceType;
@@ -98,6 +101,7 @@ public enum ValueType implements Writeable {
         ValueType.DOUBLE,
         ValueType.DATE,
         ValueType.LONG,
+        ValueType.UNSIGNED_LONG,
         ValueType.NUMBER,
         ValueType.NUMERIC,
         ValueType.BOOLEAN
@@ -144,6 +148,8 @@ public enum ValueType implements Writeable {
             case "short":
             case "byte":
                 return LONG;
+            case "unsigned_long":
+                return UNSIGNED_LONG;
             case "date":
                 return DATE;
             case "ip":

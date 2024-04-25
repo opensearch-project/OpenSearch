@@ -32,10 +32,11 @@
 
 package org.opensearch.search.sort;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -50,8 +51,9 @@ import static org.opensearch.search.sort.SortBuilder.parseNestedFilter;
 /**
  * Builds a sort on nested objects
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class NestedSortBuilder implements Writeable, ToXContentObject {
     public static final ParseField NESTED_FIELD = new ParseField("nested");
     public static final ParseField PATH_FIELD = new ParseField("path");

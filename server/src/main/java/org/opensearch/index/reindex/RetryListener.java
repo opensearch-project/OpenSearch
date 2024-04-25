@@ -34,9 +34,9 @@ package org.opensearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Iterator;
@@ -47,7 +47,7 @@ import java.util.function.Consumer;
  *
  * @opensearch.internal
  */
-class RetryListener implements RejectAwareActionListener<ScrollableHitSource.Response> {
+public class RetryListener implements RejectAwareActionListener<ScrollableHitSource.Response> {
     private final Logger logger;
     private final Iterator<TimeValue> retries;
     private final ThreadPool threadPool;
@@ -55,7 +55,7 @@ class RetryListener implements RejectAwareActionListener<ScrollableHitSource.Res
     private final ActionListener<ScrollableHitSource.Response> delegate;
     private int retryCount = 0;
 
-    RetryListener(
+    public RetryListener(
         Logger logger,
         ThreadPool threadPool,
         BackoffPolicy backoffPolicy,

@@ -31,21 +31,22 @@
 
 package org.opensearch.discovery.ec2;
 
-import com.amazonaws.util.DateUtils;
+import software.amazon.awssdk.utils.DateUtils;
+
 import org.apache.http.NameValuePair;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.utils.URLEncodedUtils;
-
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.fixture.AbstractHttpFixture;
 
 import javax.xml.XMLConstants;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamWriter;
+
 import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.file.Files;
@@ -138,7 +139,7 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
                 + "ec2_integration_test_access_key"
                 + "\","
                 + "\"Expiration\": \""
-                + DateUtils.formatISO8601Date(expiration)
+                + DateUtils.formatIso8601Date(expiration.toInstant())
                 + "\","
                 + "\"RoleArn\": \""
                 + "test"

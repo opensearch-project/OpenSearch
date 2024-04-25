@@ -37,16 +37,18 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
@@ -100,8 +102,6 @@ public class AzureRepository extends MeteredBlobStoreRepository {
             MAX_CHUNK_SIZE,
             Property.NodeScope
         );
-        public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Property.NodeScope);
-        public static final Setting<Boolean> READONLY_SETTING = Setting.boolSetting("readonly", false, Property.NodeScope);
     }
 
     private final BlobPath basePath;
@@ -116,14 +116,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         final ClusterService clusterService,
         final RecoverySettings recoverySettings
     ) {
-        super(
-            metadata,
-            Repository.COMPRESS_SETTING.get(metadata.settings()),
-            namedXContentRegistry,
-            clusterService,
-            recoverySettings,
-            buildLocation(metadata)
-        );
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.storageService = storageService;
 
@@ -142,8 +135,8 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         // If the user explicitly did not define a readonly value, we set it by ourselves depending on the location mode setting.
         // For secondary_only setting, the repository should be read only
         final LocationMode locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
-        if (Repository.READONLY_SETTING.exists(metadata.settings())) {
-            this.readonly = Repository.READONLY_SETTING.get(metadata.settings());
+        if (READONLY_SETTING.exists(metadata.settings())) {
+            this.readonly = READONLY_SETTING.get(metadata.settings());
         } else {
             this.readonly = locationMode == LocationMode.SECONDARY_ONLY;
         }
@@ -193,5 +186,14 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     @Override
     public boolean isReadOnly() {
         return readonly;
+    }
+
+    @Override
+    public List<Setting<?>> getRestrictedSystemRepositorySettings() {
+        List<Setting<?>> restrictedSettings = new ArrayList<>();
+        restrictedSettings.addAll(super.getRestrictedSystemRepositorySettings());
+        restrictedSettings.add(Repository.BASE_PATH_SETTING);
+        restrictedSettings.add(Repository.LOCATION_MODE_SETTING);
+        return restrictedSettings;
     }
 }

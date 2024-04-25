@@ -34,19 +34,21 @@ package org.opensearch.search.searchafter;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.text.Text;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.text.Text;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
@@ -190,7 +192,7 @@ public class SearchAfterBuilderTests extends OpenSearchTestCase {
     public void testFromXContent() throws Exception {
         for (int runs = 0; runs < 20; runs++) {
             SearchAfterBuilder searchAfterBuilder = randomJsonSearchFromBuilder();
-            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
                 builder.prettyPrint();
             }
@@ -213,10 +215,10 @@ public class SearchAfterBuilderTests extends OpenSearchTestCase {
         for (XContentType type : XContentType.values()) {
             // BIG_DECIMAL
             // ignore json and yaml, they parse floating point numbers as floats/doubles
-            if (type == XContentType.JSON || type == XContentType.YAML) {
+            if (type == MediaTypeRegistry.JSON || type == XContentType.YAML) {
                 continue;
             }
-            XContentBuilder xContent = XContentFactory.contentBuilder(type);
+            XContentBuilder xContent = MediaTypeRegistry.contentBuilder(type);
             xContent.startObject().startArray("search_after").value(new BigDecimal("9223372036854776003.3")).endArray().endObject();
             try (XContentParser parser = createParser(xContent)) {
                 parser.nextToken();
@@ -278,7 +280,7 @@ public class SearchAfterBuilderTests extends OpenSearchTestCase {
             }
 
             @Override
-            public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
+            public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning pruning, boolean reversed) {
                 return null;
             }
 

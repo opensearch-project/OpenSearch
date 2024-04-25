@@ -35,26 +35,27 @@ package org.opensearch.search.aggregations.metrics;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.ParsedAggregation;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.NotEqualMessageBuilder;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -356,7 +357,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         FieldComparator[] comparators = new FieldComparator[sortFields.length];
         for (int i = 0; i < sortFields.length; i++) {
             // Values passed to getComparator shouldn't matter
-            comparators[i] = sortFields[i].getComparator(0, false);
+            comparators[i] = sortFields[i].getComparator(0, Pruning.NONE);
         }
         return (lhs, rhs) -> {
             FieldDoc l = (FieldDoc) lhs;

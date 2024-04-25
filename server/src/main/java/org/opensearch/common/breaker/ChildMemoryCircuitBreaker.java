@@ -34,7 +34,9 @@ package org.opensearch.common.breaker;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.indices.breaker.BreakerSettings;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 
@@ -202,7 +204,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     /**
      * Add an <b>exact</b> number of bytes, not checking for tripping the
      * circuit breaker. This bypasses the overheadConstant multiplication.
-     *
+     * <p>
      * Also does not check with the parent breaker to see if the parent limit
      * has been exceeded.
      *

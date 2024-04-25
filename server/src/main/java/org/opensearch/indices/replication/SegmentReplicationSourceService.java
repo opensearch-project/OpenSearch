@@ -19,16 +19,16 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
-import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -49,24 +49,6 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class SegmentReplicationSourceService extends AbstractLifecycleComponent implements ClusterStateListener, IndexEventListener {
 
-    // Empty Implementation, only required while Segment Replication is under feature flag.
-    public static final SegmentReplicationSourceService NO_OP = new SegmentReplicationSourceService() {
-        @Override
-        public void clusterChanged(ClusterChangedEvent event) {
-            // NoOp;
-        }
-
-        @Override
-        public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
-            // NoOp;
-        }
-
-        @Override
-        public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
-            // NoOp;
-        }
-    };
-
     private static final Logger logger = LogManager.getLogger(SegmentReplicationSourceService.class);
     private final RecoverySettings recoverySettings;
     private final TransportService transportService;
@@ -81,26 +63,21 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
 
         public static final String GET_CHECKPOINT_INFO = "internal:index/shard/replication/get_checkpoint_info";
         public static final String GET_SEGMENT_FILES = "internal:index/shard/replication/get_segment_files";
+        public static final String UPDATE_VISIBLE_CHECKPOINT = "internal:index/shard/replication/update_visible_checkpoint";
     }
 
     private final OngoingSegmentReplications ongoingSegmentReplications;
 
-    // Used only for empty implementation.
-    private SegmentReplicationSourceService() {
-        recoverySettings = null;
-        ongoingSegmentReplications = null;
-        transportService = null;
-        indicesService = null;
-    }
-
-    public SegmentReplicationSourceService(
+    protected SegmentReplicationSourceService(
         IndicesService indicesService,
         TransportService transportService,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        OngoingSegmentReplications ongoingSegmentReplications
     ) {
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
+        this.ongoingSegmentReplications = ongoingSegmentReplications;
         transportService.registerRequestHandler(
             Actions.GET_CHECKPOINT_INFO,
             ThreadPool.Names.GENERIC,
@@ -113,7 +90,20 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
             GetSegmentFilesRequest::new,
             new GetSegmentFilesRequestHandler()
         );
-        this.ongoingSegmentReplications = new OngoingSegmentReplications(indicesService, recoverySettings);
+        transportService.registerRequestHandler(
+            Actions.UPDATE_VISIBLE_CHECKPOINT,
+            ThreadPool.Names.GENERIC,
+            UpdateVisibleCheckpointRequest::new,
+            new UpdateVisibleCheckpointRequestHandler()
+        );
+    }
+
+    public SegmentReplicationSourceService(
+        IndicesService indicesService,
+        TransportService transportService,
+        RecoverySettings recoverySettings
+    ) {
+        this(indicesService, transportService, recoverySettings, new OngoingSegmentReplications(indicesService, recoverySettings));
     }
 
     private class CheckpointInfoRequestHandler implements TransportRequestHandler<CheckpointInfoRequest> {
@@ -133,18 +123,20 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
                 request.getCheckpoint().getShardId(),
                 SegmentReplicationTargetService.Actions.FILE_CHUNK,
                 new AtomicLong(0),
-                (throttleTime) -> {}
+                (throttleTime) -> {},
+                recoverySettings::replicationRateLimiter
             );
-            final CopyState copyState = ongoingSegmentReplications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-            channel.sendResponse(
-                new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
+            final SegmentReplicationSourceHandler handler = ongoingSegmentReplications.prepareForReplication(
+                request,
+                segmentSegmentFileChunkWriter
             );
+            channel.sendResponse(new CheckpointInfoResponse(handler.getCheckpoint(), handler.getInfosBytes()));
             timer.stop();
             logger.trace(
                 new ParameterizedMessage(
                     "[replication id {}] Source node sent checkpoint info [{}] to target node [{}], timing: {}",
                     request.getReplicationId(),
-                    copyState.getCheckpoint(),
+                    handler.getCheckpoint(),
                     request.getTargetNode().getId(),
                     timer.time()
                 )
@@ -159,6 +151,20 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
         }
     }
 
+    private class UpdateVisibleCheckpointRequestHandler implements TransportRequestHandler<UpdateVisibleCheckpointRequest> {
+        @Override
+        public void messageReceived(UpdateVisibleCheckpointRequest request, TransportChannel channel, Task task) throws Exception {
+            try {
+                IndexService indexService = indicesService.indexServiceSafe(request.getPrimaryShardId().getIndex());
+                IndexShard indexShard = indexService.getShard(request.getPrimaryShardId().id());
+                indexShard.updateVisibleCheckpointForShard(request.getTargetAllocationId(), request.getCheckpoint());
+                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            } catch (Exception e) {
+                channel.sendResponse(e);
+            }
+        }
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.nodesRemoved()) {
@@ -170,15 +176,19 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
         // we need to ensure its state has cleared up in ongoing replications.
         if (event.routingTableChanged()) {
             for (IndexService indexService : indicesService) {
-                for (IndexShard indexShard : indexService) {
-                    if (indexShard.routingEntry().primary()) {
-                        final IndexMetadata indexMetadata = indexService.getIndexSettings().getIndexMetadata();
-                        final Set<String> inSyncAllocationIds = new HashSet<>(indexMetadata.inSyncAllocationIds(indexShard.shardId().id()));
-                        if (indexShard.isPrimaryMode()) {
-                            final Set<String> shardTrackerInSyncIds = indexShard.getReplicationGroup().getInSyncAllocationIds();
-                            inSyncAllocationIds.addAll(shardTrackerInSyncIds);
+                if (indexService.getIndexSettings().isSegRepEnabledOrRemoteNode()) {
+                    for (IndexShard indexShard : indexService) {
+                        if (indexShard.routingEntry().primary()) {
+                            final IndexMetadata indexMetadata = indexService.getIndexSettings().getIndexMetadata();
+                            final Set<String> inSyncAllocationIds = new HashSet<>(
+                                indexMetadata.inSyncAllocationIds(indexShard.shardId().id())
+                            );
+                            if (indexShard.isPrimaryMode()) {
+                                final Set<String> shardTrackerInSyncIds = indexShard.getReplicationGroup().getInSyncAllocationIds();
+                                inSyncAllocationIds.addAll(shardTrackerInSyncIds);
+                            }
+                            ongoingSegmentReplications.clearOutOfSyncIds(indexShard.shardId(), inSyncAllocationIds);
                         }
-                        ongoingSegmentReplications.clearOutOfSyncIds(indexShard.shardId(), inSyncAllocationIds);
                     }
                 }
             }
@@ -208,11 +218,11 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
 
     /**
      *
-     * Cancels any replications on this node to a replica shard that is about to be closed.
+     * Before a primary shard is closed, cancel any ongoing replications to release incref'd segments.
      */
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
-        if (indexShard != null) {
+        if (indexShard != null && indexShard.indexSettings().isSegRepEnabledOrRemoteNode()) {
             ongoingSegmentReplications.cancel(indexShard, "shard is closed");
         }
     }
@@ -222,7 +232,10 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
      */
     @Override
     public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
-        if (indexShard != null && oldRouting.primary() == false && newRouting.primary()) {
+        if (indexShard != null
+            && indexShard.indexSettings().isSegRepEnabledOrRemoteNode()
+            && oldRouting.primary() == false
+            && newRouting.primary()) {
             ongoingSegmentReplications.cancel(indexShard.routingEntry().allocationId().getId(), "Relocating primary shard.");
         }
     }

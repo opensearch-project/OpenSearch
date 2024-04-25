@@ -9,18 +9,18 @@
 package org.opensearch.rest.action.cat;
 
 import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
-import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.Table;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.index.Index;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationShardStats;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTimer;
@@ -84,6 +84,7 @@ public class RestCatSegmentReplicationActionTests extends OpenSearchTestCase {
                 0L,
                 0L,
                 0L,
+                0L,
                 0L
             );
             segmentReplicationShardStats.setCurrentReplicationState(state);
@@ -141,7 +142,7 @@ public class RestCatSegmentReplicationActionTests extends OpenSearchTestCase {
                 currentReplicationState.getTargetNode().getHostName(),
                 shardStats.getCheckpointsBehindCount(),
                 new ByteSizeValue(shardStats.getBytesBehindCount()),
-                new TimeValue(shardStats.getCurrentReplicationTimeMillis()),
+                new TimeValue(shardStats.getCurrentReplicationLagMillis()),
                 new TimeValue(shardStats.getLastCompletedReplicationTimeMillis()),
                 rejectedRequestCount
             );

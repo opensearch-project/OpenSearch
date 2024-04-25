@@ -61,15 +61,16 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
@@ -416,7 +417,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         // randomly delete indices
         Set<String> indicesToDelete = new HashSet<>();
         int numberOfIndicesToDelete = randomInt(Math.min(2, state.metadata().indices().size()));
-        for (String index : randomSubsetOf(numberOfIndicesToDelete, state.metadata().indices().keys().toArray(String.class))) {
+        for (String index : randomSubsetOf(numberOfIndicesToDelete, state.metadata().indices().keySet().toArray(new String[0]))) {
             indicesToDelete.add(state.metadata().index(index).getIndex().getName());
         }
         if (indicesToDelete.isEmpty() == false) {
@@ -429,14 +430,14 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         // randomly close indices
         int numberOfIndicesToClose = randomInt(Math.min(1, state.metadata().indices().size()));
-        for (String index : randomSubsetOf(numberOfIndicesToClose, state.metadata().indices().keys().toArray(String.class))) {
+        for (String index : randomSubsetOf(numberOfIndicesToClose, state.metadata().indices().keySet().toArray(new String[0]))) {
             CloseIndexRequest closeIndexRequest = new CloseIndexRequest(state.metadata().index(index).getIndex().getName());
             state = cluster.closeIndices(state, closeIndexRequest);
         }
 
         // randomly open indices
         int numberOfIndicesToOpen = randomInt(Math.min(1, state.metadata().indices().size()));
-        for (String index : randomSubsetOf(numberOfIndicesToOpen, state.metadata().indices().keys().toArray(String.class))) {
+        for (String index : randomSubsetOf(numberOfIndicesToOpen, state.metadata().indices().keySet().toArray(new String[0]))) {
             OpenIndexRequest openIndexRequest = new OpenIndexRequest(state.metadata().index(index).getIndex().getName());
             state = cluster.openIndices(state, openIndexRequest);
         }
@@ -445,7 +446,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         Set<String> indicesToUpdate = new HashSet<>();
         boolean containsClosedIndex = false;
         int numberOfIndicesToUpdate = randomInt(Math.min(2, state.metadata().indices().size()));
-        for (String index : randomSubsetOf(numberOfIndicesToUpdate, state.metadata().indices().keys().toArray(String.class))) {
+        for (String index : randomSubsetOf(numberOfIndicesToUpdate, state.metadata().indices().keySet().toArray(new String[0]))) {
             indicesToUpdate.add(state.metadata().index(index).getIndex().getName());
             if (state.metadata().index(index).getState() == IndexMetadata.State.CLOSE) {
                 containsClosedIndex = true;
@@ -498,7 +499,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             } else {
                 // remove node
                 if (state.nodes().getDataNodes().size() > 3) {
-                    DiscoveryNode discoveryNode = randomFrom(state.nodes().getNodes().values().toArray(DiscoveryNode.class));
+                    DiscoveryNode discoveryNode = randomFrom(state.nodes().getNodes().values().toArray(new DiscoveryNode[0]));
                     if (discoveryNode.equals(state.nodes().getClusterManagerNode()) == false) {
                         state = cluster.removeNodes(state, Collections.singletonList(discoveryNode));
                         updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
@@ -545,7 +546,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(
@@ -570,8 +572,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             clusterService,
             threadPool,
             SegmentReplicationCheckpointPublisher.EMPTY,
-            SegmentReplicationTargetService.NO_OP,
-            SegmentReplicationSourceService.NO_OP,
+            mock(SegmentReplicationTargetService.class),
+            mock(SegmentReplicationSourceService.class),
             recoveryTargetService,
             shardStateAction,
             null,
@@ -581,7 +583,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             null,
             primaryReplicaSyncer,
             s -> {},
-            RetentionLeaseSyncer.EMPTY
+            RetentionLeaseSyncer.EMPTY,
+            null
         );
     }
 

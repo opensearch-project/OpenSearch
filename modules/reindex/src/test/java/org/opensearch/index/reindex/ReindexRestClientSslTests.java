@@ -36,15 +36,16 @@ import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsExchange;
 import com.sun.net.httpserver.HttpsParameters;
 import com.sun.net.httpserver.HttpsServer;
+
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.RestClient;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.ssl.PemKeyConfig;
 import org.opensearch.common.ssl.PemTrustConfig;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.test.OpenSearchTestCase;
@@ -60,6 +61,7 @@ import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;

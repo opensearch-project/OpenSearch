@@ -32,12 +32,9 @@
 
 package org.opensearch.index.seqno;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -45,11 +42,14 @@ import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.WriteStateException;
 import org.opensearch.index.IndexSettings;
@@ -58,9 +58,10 @@ import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.shard.AbstractIndexShardComponent;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ReplicationGroup;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
-import org.opensearch.indices.replication.common.ReplicationTimer;
+import org.opensearch.indices.replication.common.SegmentReplicationLagTimer;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -71,6 +72,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -88,7 +90,7 @@ import java.util.stream.StreamSupport;
 
 /**
  * This class is responsible for tracking the replication group with its progress and safety markers (local and global checkpoints).
- *
+ * <p>
  * The global checkpoint is the highest sequence number for which all lower (or equal) sequence number have been processed
  * on all shards that are currently active. Since shards count as "active" when the cluster-manager starts
  * them, and before this primary shard has been notified of this fact, we also include shards that have completed recovery. These shards
@@ -112,10 +114,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      *            checkpoint based on the local checkpoints of all in-sync shard copies.
      * - replica: this shard receives global checkpoint information from the primary (see
      *   {@link #updateGlobalCheckpointOnReplica(long, String)}).
-     *
+     * <p>
      * When a shard is initialized (be it a primary or replica), it initially operates in replica mode. The global checkpoint tracker is
      * then switched to primary mode in the following three scenarios:
-     *
+     * <p>
      * - An initializing primary shard that is not a relocation target is moved to primary mode (using {@link #activatePrimaryMode}) once
      *   the shard becomes active.
      * - An active replica shard is moved to primary mode (using {@link #activatePrimaryMode}) once it is promoted to primary.
@@ -140,7 +142,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * in-sync shard copies cannot grow, otherwise the relocation target might miss this information and increase the global checkpoint
      * to eagerly. As consequence, some of the methods in this class are not allowed to be called while a handoff is in progress,
      * in particular {@link #markAllocationIdAsInSync}.
-     *
+     * <p>
      * A notable exception to this is the method {@link #updateFromClusterManager}, which is still allowed to be called during a relocation handoff.
      * The reason for this is that the handoff might fail and can be aborted (using {@link #abortRelocationHandoff}), in which case
      * it is important that the global checkpoint tracker does not miss any state updates that might happened during the handoff attempt.
@@ -249,7 +251,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
     private final Consumer<ReplicationGroup> onReplicationGroupUpdated;
 
-    private volatile ReplicationCheckpoint lastPublishedReplicationCheckpoint;
+    private volatile ReplicationCheckpoint latestReplicationCheckpoint;
+
+    private final Function<String, Boolean> isShardOnRemoteEnabledNode;
+
+    /**
+     * Flag to indicate whether {@link ReplicationTracker#createMissingPeerRecoveryRetentionLeases(ActionListener)}
+     * has been run successfully
+     */
+    private boolean createdMissingRetentionLeases;
 
     /**
      * Get all retention leases tracked on this shard.
@@ -675,8 +685,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     /**
     * The state of the lucene checkpoint
     *
-    * @opensearch.internal
+    * @opensearch.api
     */
+    @PublicApi(since = "1.0.0")
     public static class CheckpointState implements Writeable {
 
         /**
@@ -716,7 +727,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
          * Map of ReplicationCheckpoints to ReplicationTimers.  Timers are added as new checkpoints are published, and removed when
          * the replica is caught up.
          */
-        Map<ReplicationCheckpoint, ReplicationTimer> checkpointTimers;
+        Map<ReplicationCheckpoint, SegmentReplicationLagTimer> checkpointTimers;
 
         /**
          * The time it took to complete the most recent replication event.
@@ -816,10 +827,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      *
      * @return a map from allocation ID to the local knowledge of the persisted global checkpoint for that allocation ID
      */
-    public synchronized ObjectLongMap<String> getInSyncGlobalCheckpoints() {
+    public synchronized Map<String, Long> getInSyncGlobalCheckpoints() {
         assert primaryMode;
         assert handoffInProgress == false;
-        final ObjectLongMap<String> globalCheckpoints = new ObjectLongHashMap<>(checkpoints.size()); // upper bound on the size
+        final Map<String, Long> globalCheckpoints = new HashMap<>(checkpoints.size()); // upper bound on the size
         checkpoints.entrySet()
             .stream()
             .filter(e -> e.getValue().inSync && e.getValue().replicated)
@@ -950,7 +961,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             assert checkpoints.get(aId) != null : "aId [" + aId + "] is pending in sync but isn't tracked";
         }
 
-        if (primaryMode && indexSettings.isSoftDeleteEnabled() && hasAllPeerRecoveryRetentionLeases) {
+        if (primaryMode && indexSettings.isSoftDeleteEnabled() && hasAllPeerRecoveryRetentionLeases
+        // Skip assertion if createMissingPeerRecoveryRetentionLeases has not yet run after activating primary context
+        // This is required since during an ongoing remote store migration,
+        // remote enabled primary taking over primary context from another remote enabled shard
+        // might not have retention leases for docrep shard copies
+        // (since all RetentionLease sync actions are blocked on remote shard copies)
+            && createdMissingRetentionLeases) {
             // all tracked shard copies have a corresponding peer-recovery retention lease
             for (final ShardRouting shardRouting : routingTable.assignedShards()) {
                 final CheckpointState cps = checkpoints.get(shardRouting.allocationId().getId());
@@ -996,7 +1013,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final LongConsumer onGlobalCheckpointUpdated,
         final LongSupplier currentTimeMillisSupplier,
         final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
-        final Supplier<SafeCommitInfo> safeCommitInfoSupplier
+        final Supplier<SafeCommitInfo> safeCommitInfoSupplier,
+        final Function<String, Boolean> isShardOnRemoteEnabledNode
     ) {
         this(
             shardId,
@@ -1008,7 +1026,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             currentTimeMillisSupplier,
             onSyncRetentionLeases,
             safeCommitInfoSupplier,
-            x -> {}
+            x -> {},
+            isShardOnRemoteEnabledNode
         );
     }
 
@@ -1034,7 +1053,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final LongSupplier currentTimeMillisSupplier,
         final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
         final Supplier<SafeCommitInfo> safeCommitInfoSupplier,
-        final Consumer<ReplicationGroup> onReplicationGroupUpdated
+        final Consumer<ReplicationGroup> onReplicationGroupUpdated,
+        final Function<String, Boolean> isShardOnRemoteEnabledNode
     ) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
@@ -1056,6 +1076,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;
         this.onReplicationGroupUpdated = onReplicationGroupUpdated;
+        this.latestReplicationCheckpoint = indexSettings.isSegRepEnabledOrRemoteNode() ? ReplicationCheckpoint.empty(shardId) : null;
+        this.isShardOnRemoteEnabledNode = isShardOnRemoteEnabledNode;
         assert Version.V_EMPTY.equals(indexSettings.getIndexVersionCreated()) == false;
         assert invariant();
     }
@@ -1084,8 +1106,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         } else {
             newVersion = replicationGroup.getVersion() + 1;
         }
-
-        assert indexSettings().isRemoteTranslogStoreEnabled()
+        assert newVersion == 0 || indexSettings.isRemoteTranslogStoreEnabled()
+        // Handle migration cases. Ignore assertion if any of the shard copies in the replication group is assigned to a remote node
+            || replicationGroup.getReplicationTargets()
+                .stream()
+                .anyMatch(shardRouting -> isShardOnRemoteEnabledNode.apply(shardRouting.currentNodeId()))
             || checkpoints.entrySet().stream().filter(e -> e.getValue().tracked).allMatch(e -> e.getValue().replicated)
             : "In absence of remote translog store, all tracked shards must have replication mode as LOGICAL_REPLICATION";
 
@@ -1162,29 +1187,34 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
     /**
      * Update the local knowledge of the visible checkpoint for the specified allocation ID.
-     *
+     * <p>
      * This method will also stop timers for each shard and compute replication lag metrics.
      *
      * @param allocationId     the allocation ID to update the global checkpoint for
      * @param visibleCheckpoint the visible checkpoint
      */
     public synchronized void updateVisibleCheckpointForShard(final String allocationId, final ReplicationCheckpoint visibleCheckpoint) {
-        assert indexSettings.isSegRepEnabled();
+        assert indexSettings.isSegRepEnabledOrRemoteNode();
         assert primaryMode;
         assert handoffInProgress == false;
         assert invariant();
         final CheckpointState cps = checkpoints.get(allocationId);
-        assert !this.shardAllocationId.equals(allocationId) && cps != null;
+        assert !this.shardAllocationId.equals(allocationId);
+        // Ignore if the cps is null (i.e. replica shard not in active state).
+        if (cps == null) {
+            logger.warn("Ignoring the checkpoint update for allocation ID {} as its not being tracked by primary", allocationId);
+            return;
+        }
         if (cps.checkpointTimers.isEmpty() == false) {
             // stop any timers for checkpoints up to the received cp and remove from cps.checkpointTimers.
             // Compute the max lag from the set of completed timers.
             final AtomicLong lastFinished = new AtomicLong(0L);
             cps.checkpointTimers.entrySet().removeIf((entry) -> {
-                boolean result = visibleCheckpoint.equals(entry.getKey()) || visibleCheckpoint.isAheadOf(entry.getKey());
+                boolean result = entry.getKey().isAheadOf(visibleCheckpoint) == false;
                 if (result) {
-                    final ReplicationTimer timer = entry.getValue();
+                    final SegmentReplicationLagTimer timer = entry.getValue();
                     timer.stop();
-                    lastFinished.set(Math.max(lastFinished.get(), timer.time()));
+                    lastFinished.set(Math.max(lastFinished.get(), timer.totalElapsedTime()));
                 }
                 return result;
             });
@@ -1204,33 +1234,80 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
-     * After a new checkpoint is published, start a timer for each replica to the checkpoint.
+     * After a new checkpoint is published, create a timer for each replica to the checkpoint.
      * @param checkpoint {@link ReplicationCheckpoint}
      */
     public synchronized void setLatestReplicationCheckpoint(ReplicationCheckpoint checkpoint) {
-        assert indexSettings.isSegRepEnabled();
-        assert handoffInProgress == false;
-        if (checkpoint.equals(lastPublishedReplicationCheckpoint) == false) {
-            this.lastPublishedReplicationCheckpoint = checkpoint;
-            for (Map.Entry<String, CheckpointState> entry : checkpoints.entrySet()) {
-                if (entry.getKey().equals(this.shardAllocationId) == false) {
-                    final CheckpointState cps = entry.getValue();
-                    if (cps.inSync) {
-                        cps.checkpointTimers.computeIfAbsent(checkpoint, ignored -> {
-                            final ReplicationTimer replicationTimer = new ReplicationTimer();
-                            replicationTimer.start();
-                            return replicationTimer;
-                        });
-                        logger.trace(
-                            () -> new ParameterizedMessage(
-                                "updated last published checkpoint to {} - timers [{}]",
-                                checkpoint,
-                                cps.checkpointTimers.keySet()
-                            )
-                        );
-                    }
+        assert indexSettings.isSegRepEnabledOrRemoteNode();
+        if (checkpoint.equals(latestReplicationCheckpoint) == false) {
+            this.latestReplicationCheckpoint = checkpoint;
+        }
+        if (primaryMode) {
+            createReplicationLagTimers();
+        }
+    }
+
+    public ReplicationCheckpoint getLatestReplicationCheckpoint() {
+        return this.latestReplicationCheckpoint;
+    }
+
+    private boolean isPrimaryRelocation(String allocationId) {
+        Optional<ShardRouting> shardRouting = routingTable.shards()
+            .stream()
+            .filter(routing -> routing.allocationId().getId().equals(allocationId))
+            .findAny();
+        return shardRouting.isPresent() && shardRouting.get().primary();
+    }
+
+    private void createReplicationLagTimers() {
+        for (Map.Entry<String, CheckpointState> entry : checkpoints.entrySet()) {
+            final String allocationId = entry.getKey();
+            if (allocationId.equals(this.shardAllocationId) == false) {
+                final CheckpointState cps = entry.getValue();
+                // if the shard is in checkpoints but is unavailable or out of sync we will not track its replication state.
+                // it is possible for a shard to be in-sync but not yet removed from the checkpoints collection after a failover event.
+                if (cps.inSync
+                    && replicationGroup.getUnavailableInSyncShards().contains(allocationId) == false
+                    && isPrimaryRelocation(allocationId) == false
+                    && latestReplicationCheckpoint.isAheadOf(cps.visibleReplicationCheckpoint)
+                    && (indexSettings.isSegRepLocalEnabled() == true
+                        || isShardOnRemoteEnabledNode.apply(routingTable.getByAllocationId(allocationId).currentNodeId()))) {
+                    cps.checkpointTimers.computeIfAbsent(latestReplicationCheckpoint, ignored -> new SegmentReplicationLagTimer());
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "updated last published checkpoint for {} at visible cp {} to {} - timers [{}]",
+                            allocationId,
+                            cps.visibleReplicationCheckpoint,
+                            latestReplicationCheckpoint,
+                            cps.checkpointTimers.keySet()
+                        )
+                    );
                 }
             }
+        }
+    }
+
+    /**
+     * After a new checkpoint is published, start a timer per replica for the checkpoint.
+     * @param checkpoint {@link ReplicationCheckpoint}
+     */
+    public synchronized void startReplicationLagTimers(ReplicationCheckpoint checkpoint) {
+        assert indexSettings.isSegRepEnabledOrRemoteNode();
+        if (checkpoint.equals(latestReplicationCheckpoint) == false) {
+            this.latestReplicationCheckpoint = checkpoint;
+        }
+        if (primaryMode) {
+            checkpoints.entrySet().stream().filter(e -> !e.getKey().equals(this.shardAllocationId)).forEach(e -> {
+                String allocationId = e.getKey();
+                final CheckpointState cps = e.getValue();
+                if (cps.inSync
+                    && replicationGroup.getUnavailableInSyncShards().contains(allocationId) == false
+                    && isPrimaryRelocation(e.getKey()) == false
+                    && latestReplicationCheckpoint.isAheadOf(cps.visibleReplicationCheckpoint)
+                    && cps.checkpointTimers.containsKey(latestReplicationCheckpoint)) {
+                    cps.checkpointTimers.get(latestReplicationCheckpoint).start();
+                }
+            });
         }
     }
 
@@ -1240,32 +1317,39 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * V2 - Set of {@link SegmentReplicationShardStats} per shard in this primary's replication group.
      */
     public synchronized Set<SegmentReplicationShardStats> getSegmentReplicationStats() {
-        assert indexSettings.isSegRepEnabled();
-        final ReplicationCheckpoint lastPublishedCheckpoint = this.lastPublishedReplicationCheckpoint;
-        if (primaryMode && lastPublishedCheckpoint != null) {
+        assert indexSettings.isSegRepEnabledOrRemoteNode();
+        if (primaryMode) {
             return this.checkpoints.entrySet()
                 .stream()
-                .filter(entry -> entry.getKey().equals(this.shardAllocationId) == false && entry.getValue().inSync)
-                .map(entry -> buildShardStats(lastPublishedCheckpoint.getLength(), entry.getKey(), entry.getValue()))
+                // filter out this shard's allocation id, any shards that are out of sync or unavailable (shard marked in-sync but has not
+                // been assigned to a node).
+                .filter(
+                    entry -> entry.getKey().equals(this.shardAllocationId) == false
+                        && entry.getValue().inSync
+                        && replicationGroup.getUnavailableInSyncShards().contains(entry.getKey()) == false
+                        && isPrimaryRelocation(entry.getKey()) == false
+                )
+                .map(entry -> buildShardStats(entry.getKey(), entry.getValue()))
                 .collect(Collectors.toUnmodifiableSet());
         }
         return Collections.emptySet();
     }
 
-    private SegmentReplicationShardStats buildShardStats(
-        final long latestCheckpointLength,
-        final String allocationId,
-        final CheckpointState checkpointState
-    ) {
-        final Map<ReplicationCheckpoint, ReplicationTimer> checkpointTimers = checkpointState.checkpointTimers;
+    private SegmentReplicationShardStats buildShardStats(final String allocationId, final CheckpointState cps) {
+        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(
+            latestReplicationCheckpoint.getMetadataMap(),
+            cps.visibleReplicationCheckpoint != null ? cps.visibleReplicationCheckpoint.getMetadataMap() : Collections.emptyMap()
+        );
+        final long bytesBehind = diff.missing.stream().mapToLong(StoreFileMetadata::length).sum();
         return new SegmentReplicationShardStats(
             allocationId,
-            checkpointTimers.size(),
-            checkpointState.visibleReplicationCheckpoint == null
-                ? latestCheckpointLength
-                : Math.max(latestCheckpointLength - checkpointState.visibleReplicationCheckpoint.getLength(), 0),
-            checkpointTimers.values().stream().mapToLong(ReplicationTimer::time).max().orElse(0),
-            checkpointState.lastCompletedReplicationLag
+            cps.checkpointTimers.size(),
+            bytesBehind,
+            bytesBehind > 0L ? cps.checkpointTimers.values().stream().mapToLong(SegmentReplicationLagTimer::time).max().orElse(0) : 0,
+            bytesBehind > 0L
+                ? cps.checkpointTimers.values().stream().mapToLong(SegmentReplicationLagTimer::totalElapsedTime).max().orElse(0)
+                : 0,
+            cps.lastCompletedReplicationLag
         );
     }
 
@@ -1306,7 +1390,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final String leaseId = getPeerRecoveryRetentionLeaseId(primaryShard);
         if (retentionLeases.get(leaseId) == null) {
             if (replicationGroup.getReplicationTargets().equals(Collections.singletonList(primaryShard))
-                || indexSettings().isRemoteTranslogStoreEnabled()) {
+                || indexSettings.isAssignedOnRemoteNode()) {
                 assert primaryShard.allocationId().getId().equals(shardAllocationId) : routingTable.assignedShards()
                     + " vs "
                     + shardAllocationId;
@@ -1392,7 +1476,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                                 globalCheckpoint,
                                 inSync,
                                 inSync,
-                                isReplicated(initializingId, primaryAllocationId, primaryTargetAllocationId)
+                                isReplicated(
+                                    initializingId,
+                                    primaryAllocationId,
+                                    primaryTargetAllocationId,
+                                    assignedToRemoteStoreNode(routingTable, initializingId)
+                                )
                             )
                         );
                     }
@@ -1411,7 +1500,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                             globalCheckpoint,
                             false,
                             false,
-                            isReplicated(initializingId, primaryAllocationId, primaryTargetAllocationId)
+                            isReplicated(
+                                initializingId,
+                                primaryAllocationId,
+                                primaryTargetAllocationId,
+                                assignedToRemoteStoreNode(routingTable, initializingId)
+                            )
                         )
                     );
                 }
@@ -1425,7 +1519,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                             globalCheckpoint,
                             true,
                             true,
-                            isReplicated(inSyncId, primaryAllocationId, primaryTargetAllocationId)
+                            isReplicated(
+                                inSyncId,
+                                primaryAllocationId,
+                                primaryTargetAllocationId,
+                                assignedToRemoteStoreNode(routingTable, inSyncId)
+                            )
                         )
                     );
                 }
@@ -1442,6 +1541,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert invariant();
     }
 
+    private boolean assignedToRemoteStoreNode(IndexShardRoutingTable routingTable, String allocationId) {
+        return indexSettings().isRemoteStoreEnabled()
+            || (routingTable.getByAllocationId(allocationId) != null
+                && isShardOnRemoteEnabledNode.apply(routingTable.getByAllocationId(allocationId).currentNodeId()));
+    }
+
     /**
      * Returns whether the requests are replicated considering the remote translog existence, current/primary/primary target allocation ids.
      *
@@ -1450,13 +1555,16 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @param primaryTargetAllocationId primary target allocation id
      * @return the replication mode.
      */
-    private boolean isReplicated(String allocationId, String primaryAllocationId, String primaryTargetAllocationId) {
-        // If remote translog is enabled, then returns replication mode checking current allocation id against the
+    private boolean isReplicated(
+        String allocationId,
+        String primaryAllocationId,
+        String primaryTargetAllocationId,
+        boolean assignedToRemoteStoreNode
+    ) {
+        // If assigned to a remote node, returns true if given allocation id matches the primary or it's relocation target allocation
         // primary and primary target allocation id.
-        // If remote translog is enabled, then returns true if given allocation id matches the primary or it's relocation target allocation
-        // id.
-        if (indexSettings().isRemoteTranslogStoreEnabled()) {
-            return (allocationId.equals(primaryAllocationId) || allocationId.equals(primaryTargetAllocationId));
+        if (assignedToRemoteStoreNode == true) {
+            return allocationId.equals(primaryAllocationId) || allocationId.equals(primaryTargetAllocationId);
         }
         // For other case which is local translog, return true as the requests are replicated to all shards in the replication group.
         return true;
@@ -1746,19 +1854,34 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert invariant();
     }
 
+    private synchronized void setCreatedMissingRetentionLeases() {
+        createdMissingRetentionLeases = true;
+        assert invariant();
+    }
+
     public synchronized boolean hasAllPeerRecoveryRetentionLeases() {
         return hasAllPeerRecoveryRetentionLeases;
     }
 
     /**
-     * Create any required peer-recovery retention leases that do not currently exist because we just did a rolling upgrade from a version
-     * prior to {@code LegacyESVersion#V_7_4_0} that does not create peer-recovery retention leases.
+     * Create any required peer-recovery retention leases that do not currently exist. This can happen if either:
+     * - We just did a rolling upgrade from a version prior to {@code LegacyESVersion#V_7_4_0} that does not create peer-recovery retention leases.
+     * - In a mixed mode cluster (during remote store migration), a remote enabled primary shard copy fails over to another remote enabled shard copy,
+     * but the replication group still has other shards in docrep nodes
      */
     public synchronized void createMissingPeerRecoveryRetentionLeases(ActionListener<Void> listener) {
-        if (hasAllPeerRecoveryRetentionLeases == false) {
+        // Create missing RetentionLeases if the primary is on a remote enabled
+        // and the replication group has at-least one shard copy in docrep enabled node
+        // No-Op if retention leases for the tracked shard copy already exists
+        boolean createMissingRetentionLeasesDuringMigration = indexSettings.isAssignedOnRemoteNode()
+            && replicationGroup.getReplicationTargets()
+                .stream()
+                .anyMatch(shardRouting -> isShardOnRemoteEnabledNode.apply(shardRouting.currentNodeId()) == false);
+        if (hasAllPeerRecoveryRetentionLeases == false || createMissingRetentionLeasesDuringMigration) {
             final List<ShardRouting> shardRoutings = routingTable.assignedShards();
             final GroupedActionListener<ReplicationResponse> groupedActionListener = new GroupedActionListener<>(ActionListener.wrap(vs -> {
                 setHasAllPeerRecoveryRetentionLeases();
+                setCreatedMissingRetentionLeases();
                 listener.onResponse(null);
             }, listener::onFailure), shardRoutings.size());
             for (ShardRouting shardRouting : shardRoutings) {
@@ -1840,8 +1963,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * Represents the sequence number component of the primary context. This is the knowledge on the primary of the in-sync and initializing
      * shards and their local checkpoints.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class PrimaryContext implements Writeable {
 
         private final long clusterStateVersion;

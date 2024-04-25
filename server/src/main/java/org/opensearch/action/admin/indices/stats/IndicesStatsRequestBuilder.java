@@ -34,6 +34,7 @@ package org.opensearch.action.admin.indices.stats;
 
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 
 /**
@@ -45,8 +46,9 @@ import org.opensearch.common.unit.TimeValue;
  * All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
  * stats can be enabled.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder<
     IndicesStatsRequest,
     IndicesStatsResponse,

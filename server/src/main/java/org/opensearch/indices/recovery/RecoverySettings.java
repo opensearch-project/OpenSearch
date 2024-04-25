@@ -36,19 +36,24 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * Settings for the recovery mechanism
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RecoverySettings {
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);
@@ -56,6 +61,16 @@ public class RecoverySettings {
     public static final Setting<ByteSizeValue> INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
         "indices.recovery.max_bytes_per_sec",
         new ByteSizeValue(40, ByteSizeUnit.MB),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * Individual speed setting for segment replication, default -1B to reuse the setting of recovery.
+     */
+    public static final Setting<ByteSizeValue> INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
+        "indices.replication.max_bytes_per_sec",
+        new ByteSizeValue(-1),
         Property.Dynamic,
         Property.NodeScope
     );
@@ -80,6 +95,17 @@ public class RecoverySettings {
         1,
         1,
         4,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * Controls the maximum number of streams that can be started concurrently per recovery when downloading from the remote store.
+     */
+    public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING = new Setting<>(
+        "indices.recovery.max_concurrent_remote_store_streams",
+        (s) -> Integer.toString(Math.max(1, OpenSearchExecutors.allocatedProcessors(s) / 2)),
+        (s) -> Setting.parseInt(s, 1, "indices.recovery.max_concurrent_remote_store_streams"),
         Property.Dynamic,
         Property.NodeScope
     );
@@ -143,13 +169,23 @@ public class RecoverySettings {
         Property.NodeScope
     );
 
+    public static final Setting<TimeValue> INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT = Setting.timeSetting(
+        "indices.recovery.internal_remote_upload_timeout",
+        new TimeValue(1, TimeUnit.HOURS),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     // choose 512KB-16B to ensure that the resulting byte[] is not a humongous allocation in G1.
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512 * 1024 - 16, ByteSizeUnit.BYTES);
 
-    private volatile ByteSizeValue maxBytesPerSec;
+    private volatile ByteSizeValue recoveryMaxBytesPerSec;
+    private volatile ByteSizeValue replicationMaxBytesPerSec;
     private volatile int maxConcurrentFileChunks;
     private volatile int maxConcurrentOperations;
-    private volatile SimpleRateLimiter rateLimiter;
+    private volatile int maxConcurrentRemoteStoreStreams;
+    private volatile SimpleRateLimiter recoveryRateLimiter;
+    private volatile SimpleRateLimiter replicationRateLimiter;
     private volatile TimeValue retryDelayStateSync;
     private volatile TimeValue retryDelayNetwork;
     private volatile TimeValue activityTimeout;
@@ -158,11 +194,13 @@ public class RecoverySettings {
     private volatile TimeValue internalActionLongTimeout;
 
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
+    private volatile TimeValue internalRemoteUploadTimeout;
 
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
         this.maxConcurrentFileChunks = INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.get(settings);
         this.maxConcurrentOperations = INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING.get(settings);
+        this.maxConcurrentRemoteStoreStreams = INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING.get(settings);
         // doesn't have to be fast as nodes are reconnected every 10s by default (see InternalClusterService.ReconnectToNodes)
         // and we want to give the cluster-manager time to remove a faulty node
         this.retryDelayNetwork = INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.get(settings);
@@ -172,18 +210,26 @@ public class RecoverySettings {
         this.internalActionLongTimeout = INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.get(settings);
 
         this.activityTimeout = INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings);
-        this.maxBytesPerSec = INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings);
-        if (maxBytesPerSec.getBytes() <= 0) {
-            rateLimiter = null;
+        this.recoveryMaxBytesPerSec = INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings);
+        if (recoveryMaxBytesPerSec.getBytes() <= 0) {
+            recoveryRateLimiter = null;
         } else {
-            rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
+            recoveryRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
         }
+        this.replicationMaxBytesPerSec = INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.get(settings);
+        updateReplicationRateLimiter();
 
-        logger.debug("using max_bytes_per_sec[{}]", maxBytesPerSec);
+        logger.debug("using recovery max_bytes_per_sec[{}]", recoveryMaxBytesPerSec);
+        this.internalRemoteUploadTimeout = INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.get(settings);
 
-        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setMaxBytesPerSec);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setRecoveryMaxBytesPerSec);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING, this::setReplicationMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING, this::setMaxConcurrentFileChunks);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING, this::setMaxConcurrentOperations);
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING,
+            this::setMaxConcurrentRemoteStoreStreams
+        );
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING, this::setRetryDelayStateSync);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING, this::setRetryDelayNetwork);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING, this::setInternalActionTimeout);
@@ -192,10 +238,16 @@ public class RecoverySettings {
             this::setInternalActionLongTimeout
         );
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT, this::setInternalRemoteUploadTimeout);
+
     }
 
-    public RateLimiter rateLimiter() {
-        return rateLimiter;
+    public RateLimiter recoveryRateLimiter() {
+        return recoveryRateLimiter;
+    }
+
+    public RateLimiter replicationRateLimiter() {
+        return replicationRateLimiter;
     }
 
     public TimeValue retryDelayNetwork() {
@@ -220,6 +272,10 @@ public class RecoverySettings {
 
     public TimeValue internalActionLongTimeout() {
         return internalActionLongTimeout;
+    }
+
+    public TimeValue internalRemoteUploadTimeout() {
+        return internalRemoteUploadTimeout;
     }
 
     public ByteSizeValue getChunkSize() {
@@ -253,14 +309,44 @@ public class RecoverySettings {
         this.internalActionLongTimeout = internalActionLongTimeout;
     }
 
-    private void setMaxBytesPerSec(ByteSizeValue maxBytesPerSec) {
-        this.maxBytesPerSec = maxBytesPerSec;
-        if (maxBytesPerSec.getBytes() <= 0) {
-            rateLimiter = null;
-        } else if (rateLimiter != null) {
-            rateLimiter.setMBPerSec(maxBytesPerSec.getMbFrac());
+    public void setInternalRemoteUploadTimeout(TimeValue internalRemoteUploadTimeout) {
+        this.internalRemoteUploadTimeout = internalRemoteUploadTimeout;
+    }
+
+    private void setRecoveryMaxBytesPerSec(ByteSizeValue recoveryMaxBytesPerSec) {
+        this.recoveryMaxBytesPerSec = recoveryMaxBytesPerSec;
+        if (recoveryMaxBytesPerSec.getBytes() <= 0) {
+            recoveryRateLimiter = null;
+        } else if (recoveryRateLimiter != null) {
+            recoveryRateLimiter.setMBPerSec(recoveryMaxBytesPerSec.getMbFrac());
         } else {
-            rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
+            recoveryRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
+        }
+        if (replicationMaxBytesPerSec.getBytes() < 0) updateReplicationRateLimiter();
+    }
+
+    private void setReplicationMaxBytesPerSec(ByteSizeValue replicationMaxBytesPerSec) {
+        this.replicationMaxBytesPerSec = replicationMaxBytesPerSec;
+        updateReplicationRateLimiter();
+    }
+
+    private void updateReplicationRateLimiter() {
+        if (replicationMaxBytesPerSec.getBytes() >= 0) {
+            if (replicationMaxBytesPerSec.getBytes() == 0) {
+                replicationRateLimiter = null;
+            } else if (replicationRateLimiter != null) {
+                replicationRateLimiter.setMBPerSec(replicationMaxBytesPerSec.getMbFrac());
+            } else {
+                replicationRateLimiter = new SimpleRateLimiter(replicationMaxBytesPerSec.getMbFrac());
+            }
+        } else { // when replicationMaxBytesPerSec = -1B, use setting of recovery
+            if (recoveryMaxBytesPerSec.getBytes() <= 0) {
+                replicationRateLimiter = null;
+            } else if (replicationRateLimiter != null) {
+                replicationRateLimiter.setMBPerSec(recoveryMaxBytesPerSec.getMbFrac());
+            } else {
+                replicationRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
+            }
         }
     }
 
@@ -279,4 +365,13 @@ public class RecoverySettings {
     private void setMaxConcurrentOperations(int maxConcurrentOperations) {
         this.maxConcurrentOperations = maxConcurrentOperations;
     }
+
+    public int getMaxConcurrentRemoteStoreStreams() {
+        return this.maxConcurrentRemoteStoreStreams;
+    }
+
+    private void setMaxConcurrentRemoteStoreStreams(int maxConcurrentRemoteStoreStreams) {
+        this.maxConcurrentRemoteStoreStreams = maxConcurrentRemoteStoreStreams;
+    }
+
 }

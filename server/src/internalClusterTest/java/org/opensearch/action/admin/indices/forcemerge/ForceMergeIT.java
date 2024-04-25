@@ -40,7 +40,7 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.Index;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
@@ -98,6 +98,24 @@ public class ForceMergeIT extends OpenSearchIntegTestCase {
         final String replicaForceMergeUUID = getForceMergeUUID(replica);
         assertThat(replicaForceMergeUUID, notNullValue());
         assertThat(primaryForceMergeUUID, is(replicaForceMergeUUID));
+    }
+
+    public void testForceMergeOnlyOnPrimaryShards() throws IOException {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        final String index = "test-index";
+        createIndex(
+            index,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
+        );
+        ensureGreen(index);
+        final ForceMergeResponse forceMergeResponse = client().admin()
+            .indices()
+            .prepareForceMerge(index)
+            .setMaxNumSegments(1)
+            .setPrimaryOnly(true)
+            .get();
+        assertThat(forceMergeResponse.getFailedShards(), is(0));
+        assertThat(forceMergeResponse.getSuccessfulShards(), is(1));
     }
 
     private static String getForceMergeUUID(IndexShard indexShard) throws IOException {

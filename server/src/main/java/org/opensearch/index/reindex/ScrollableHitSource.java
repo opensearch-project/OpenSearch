@@ -33,24 +33,25 @@
 package org.opensearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.search.SearchHit;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -296,7 +297,7 @@ public abstract class ScrollableHitSource {
          * The content type of the hit source. Returns null if the source didn't come back from the search.
          */
         @Nullable
-        XContentType getXContentType();
+        MediaType getMediaType();
 
         /**
          * The routing on the hit if there is any or null if there isn't.
@@ -316,7 +317,7 @@ public abstract class ScrollableHitSource {
         private final long version;
 
         private BytesReference source;
-        private XContentType xContentType;
+        private MediaType mediaType;
         private String routing;
         private long seqNo;
         private long primaryTerm;
@@ -358,13 +359,13 @@ public abstract class ScrollableHitSource {
         }
 
         @Override
-        public XContentType getXContentType() {
-            return xContentType;
+        public MediaType getMediaType() {
+            return mediaType;
         }
 
-        public BasicHit setSource(BytesReference source, XContentType xContentType) {
+        public BasicHit setSource(BytesReference source, MediaType mediaType) {
             this.source = source;
-            this.xContentType = xContentType;
+            this.mediaType = mediaType;
             return this;
         }
 
@@ -498,7 +499,7 @@ public abstract class ScrollableHitSource {
 
         @Override
         public String toString() {
-            return Strings.toString(XContentType.JSON, this);
+            return Strings.toString(MediaTypeRegistry.JSON, this);
         }
     }
 }

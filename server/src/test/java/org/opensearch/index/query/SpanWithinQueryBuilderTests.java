@@ -34,10 +34,12 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.queries.spans.SpanWithinQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.common.ParsingException;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -188,5 +190,11 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
             exception.getMessage(),
             equalTo("span_within [little] as a nested span clause can't have non-default boost value [2.0]")
         );
+    }
+
+    public void testVisit() {
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        doCreateTestQueryBuilder().visit(createTestVisitor(visitedQueries));
+        assertEquals(3, visitedQueries.size());
     }
 }

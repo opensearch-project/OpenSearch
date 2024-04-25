@@ -33,15 +33,17 @@
 package org.opensearch.transport;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
-import org.opensearch.common.component.LifecycleComponent;
-import org.opensearch.common.transport.BoundTransportAddress;
-import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.transport.TransportResponse;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -56,8 +58,9 @@ import java.util.function.Predicate;
 /**
  * OpenSearch Transport Interface
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface Transport extends LifecycleComponent {
 
     /**
@@ -110,7 +113,10 @@ public interface Transport extends LifecycleComponent {
 
     /**
      * A unidirectional connection to a {@link DiscoveryNode}
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     interface Connection extends Closeable {
         /**
          * The node this connection is associated with
@@ -161,7 +167,10 @@ public interface Transport extends LifecycleComponent {
     /**
      * This class represents a response context that encapsulates the actual response handler, the action and the connection it was
      * executed on.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     final class ResponseContext<T extends TransportResponse> {
 
         private final TransportResponseHandler<T> handler;
@@ -191,7 +200,10 @@ public interface Transport extends LifecycleComponent {
 
     /**
      * This class is a registry that allows
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     final class ResponseHandlers {
         private final ConcurrentMapLong<ResponseContext<? extends TransportResponse>> handlers = ConcurrentCollections
             .newConcurrentMapLongWithAggressiveConcurrency();
@@ -271,8 +283,9 @@ public interface Transport extends LifecycleComponent {
     /**
      * Request handler implementations
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     final class RequestHandlers {
 
         private volatile Map<String, RequestHandlerRegistry<? extends TransportRequest>> requestHandlers = Collections.emptyMap();

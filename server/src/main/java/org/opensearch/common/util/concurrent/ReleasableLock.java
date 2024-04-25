@@ -32,9 +32,9 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.opensearch.core.Assertions;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.Assertions;
 import org.opensearch.index.engine.EngineException;
 
 import java.util.concurrent.locks.Lock;

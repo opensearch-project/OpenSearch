@@ -36,7 +36,7 @@ import com.carrotsearch.randomizedtesting.ThreadFilter;
 
 /**
  * Filter out threads controlled by gradle that may be created during unit tests.
- *
+ * <p>
  * Currently this includes pooled threads for Exec as well as file system event watcher threads.
  */
 public class GradleThreadsFilter implements ThreadFilter {
@@ -45,6 +45,8 @@ public class GradleThreadsFilter implements ThreadFilter {
     public boolean reject(Thread t) {
         return t.getName().startsWith("Exec process")
             || t.getName().startsWith("Memory manager")
-            || t.getName().startsWith("File watcher consumer");
+            || t.getName().startsWith("File watcher consumer")
+            || t.getName().startsWith("sshd-SshClient") /* Started by SshClient (sshd-core), part of SftpFileSystemProvider */
+            || t.getName().startsWith("Thread-"); /* Started by AbstractFactoryManager (sshd-core), part of SftpFileSystemProvider */
     }
 }

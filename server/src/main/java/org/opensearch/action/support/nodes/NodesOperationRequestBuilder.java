@@ -32,8 +32,8 @@
 
 package org.opensearch.action.support.nodes;
 
-import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.action.ActionType;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 

@@ -38,9 +38,9 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.bucket.GeoTileUtils;
 import org.opensearch.search.aggregations.bucket.composite.LongValuesSource;
 import org.opensearch.search.aggregations.bucket.composite.SingleDimensionValuesSource;
-import org.opensearch.search.aggregations.bucket.GeoTileUtils;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 
 import java.io.IOException;
@@ -48,7 +48,7 @@ import java.util.function.LongUnaryOperator;
 
 /**
  * A {@link SingleDimensionValuesSource} for geotile values.
- *
+ * <p>
  * Since geotile values can be represented as long values, this class is almost the same as {@link LongValuesSource}
  * The main differences is {@link GeoTileValuesSource#setAfter(Comparable)} as it needs to accept geotile string values i.e. "zoom/x/y".
  *

@@ -39,16 +39,17 @@ import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.core.ParseField;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.PathUtils;
-import org.opensearch.common.text.Text;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.text.Text;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -62,12 +63,6 @@ import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.Instant;
-import org.joda.time.ReadableInstant;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -88,14 +83,15 @@ import java.time.Period;
 import java.time.Year;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -126,11 +122,11 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
     public void testStartEndObject() throws IOException {
         expectUnclosedException(() -> BytesReference.bytes(builder().startObject()));
         expectUnclosedException(() -> builder().startObject().close());
-        expectUnclosedException(() -> Strings.toString(builder().startObject()));
+        expectUnclosedException(() -> builder().startObject().toString());
 
         expectObjectException(() -> BytesReference.bytes(builder().endObject()));
         expectObjectException(() -> builder().endObject().close());
-        expectObjectException(() -> Strings.toString(builder().endObject()));
+        expectObjectException(() -> builder().endObject().toString());
 
         expectValueException(() -> builder().startObject("foo").endObject());
         expectNonNullFieldException(() -> builder().startObject().startObject(null));
@@ -147,11 +143,11 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
     public void testStartEndArray() throws IOException {
         expectUnclosedException(() -> BytesReference.bytes(builder().startArray()));
         expectUnclosedException(() -> builder().startArray().close());
-        expectUnclosedException(() -> Strings.toString(builder().startArray()));
+        expectUnclosedException(() -> builder().startArray().toString());
 
         expectArrayException(() -> BytesReference.bytes(builder().endArray()));
         expectArrayException(() -> builder().endArray().close());
-        expectArrayException(() -> Strings.toString(builder().endArray()));
+        expectArrayException(() -> builder().endArray().toString());
 
         expectValueException(() -> builder().startArray("foo").endObject());
         expectFieldException(() -> builder().startObject().startArray().endArray().endObject());
@@ -255,6 +251,10 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         assertResult("{'long':null}", () -> builder().startObject().field("long", (Long) null).endObject());
         assertResult("{'long':42}", () -> builder().startObject().field("long", Long.valueOf(42L)).endObject());
         assertResult("{'long':9223372036854775807}", () -> builder().startObject().field("long", 9_223_372_036_854_775_807L).endObject());
+        assertResult(
+            "{'unsigned_long':18446744073709551615}",
+            () -> builder().startObject().field("unsigned_long", new BigDecimal("18446744073709551615")).endObject()
+        );
         assertResult("{'long':[1,3,5,7,11]}", () -> builder().startObject().array("long", 1L, 3L, 5L, 7L, 11L).endObject());
         assertResult("{'long':null}", () -> builder().startObject().array("long", (long[]) null).endObject());
         assertResult("{'long':[]}", () -> builder().startObject().array("long", new long[] {}).endObject());
@@ -416,78 +416,21 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         }
     }
 
-    public void testReadableInstant() throws Exception {
-        assertResult("{'instant':null}", () -> builder().startObject().timeField("instant", (ReadableInstant) null).endObject());
-        assertResult("{'instant':null}", () -> builder().startObject().field("instant").timeValue((ReadableInstant) null).endObject());
-
-        final DateTime t1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC);
-
-        String expected = "{'t1':'2016-01-01T00:00:00.000Z'}";
-        assertResult(expected, () -> builder().startObject().timeField("t1", t1).endObject());
-        assertResult(expected, () -> builder().startObject().field("t1").timeValue(t1).endObject());
-
-        final DateTime t2 = new DateTime(2016, 12, 25, 7, 59, 42, 213, DateTimeZone.UTC);
-
-        expected = "{'t2':'2016-12-25T07:59:42.213Z'}";
-        assertResult(expected, () -> builder().startObject().timeField("t2", t2).endObject());
-        assertResult(expected, () -> builder().startObject().field("t2").timeValue(t2).endObject());
-
-        final DateTimeFormatter formatter = randomFrom(ISODateTimeFormat.basicDate(), ISODateTimeFormat.dateTimeNoMillis());
-        final DateTime t3 = DateTime.now();
-
-        expected = "{'t3':'" + formatter.print(t3) + "'}";
-        assertResult(expected, () -> builder().startObject().timeField("t3", formatter.print(t3)).endObject());
-        assertResult(expected, () -> builder().startObject().field("t3").value(formatter.print(t3)).endObject());
-
-        final DateTime t4 = new DateTime(randomDateTimeZone());
-
-        expected = "{'t4':'" + formatter.print(t4) + "'}";
-        assertResult(expected, () -> builder().startObject().timeField("t4", formatter.print(t4)).endObject());
-        assertResult(expected, () -> builder().startObject().field("t4").value(formatter.print(t4)).endObject());
-
-        long date = Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
-        final DateTime t5 = new DateTime(date, randomDateTimeZone());
-
-        expected = "{'t5':'" + XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(t5) + "'}";
-        assertResult(expected, () -> builder().startObject().timeField("t5", t5).endObject());
-        assertResult(expected, () -> builder().startObject().field("t5").timeValue(t5).endObject());
-
-        expected = "{'t5':'" + formatter.print(t5) + "'}";
-        assertResult(expected, () -> builder().startObject().timeField("t5", formatter.print(t5)).endObject());
-        assertResult(expected, () -> builder().startObject().field("t5").value(formatter.print(t5)).endObject());
-
-        Instant i1 = new Instant(1451606400000L); // 2016-01-01T00:00:00.000Z
-        expected = "{'i1':'2016-01-01T00:00:00.000Z'}";
-        assertResult(expected, () -> builder().startObject().timeField("i1", i1).endObject());
-        assertResult(expected, () -> builder().startObject().field("i1").timeValue(i1).endObject());
-
-        Instant i2 = new Instant(1482652782213L); // 2016-12-25T07:59:42.213Z
-        expected = "{'i2':'" + formatter.print(i2) + "'}";
-        assertResult(expected, () -> builder().startObject().timeField("i2", formatter.print(i2)).endObject());
-        assertResult(expected, () -> builder().startObject().field("i2").value(formatter.print(i2)).endObject());
-    }
-
     public void testDate() throws Exception {
         assertResult("{'date':null}", () -> builder().startObject().timeField("date", (Date) null).endObject());
         assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((Date) null).endObject());
 
-        final Date d1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
+        final Date d1 = Date.from(ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant());
         assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().timeField("d1", d1).endObject());
         assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1").timeValue(d1).endObject());
 
-        final Date d2 = new DateTime(2016, 12, 25, 7, 59, 42, 213, DateTimeZone.UTC).toDate();
+        final Date d2 = Date.from(ZonedDateTime.of(2016, 12, 25, 7, 59, 42, 213000000, ZoneOffset.UTC).toInstant());
         assertResult("{'d2':'2016-12-25T07:59:42.213Z'}", () -> builder().startObject().timeField("d2", d2).endObject());
         assertResult("{'d2':'2016-12-25T07:59:42.213Z'}", () -> builder().startObject().field("d2").timeValue(d2).endObject());
-
-        final DateTimeFormatter formatter = randomFrom(ISODateTimeFormat.basicDate(), ISODateTimeFormat.dateTimeNoMillis());
-        final Date d3 = DateTime.now().toDate();
-
-        String expected = "{'d3':'" + formatter.print(d3.getTime()) + "'}";
-        assertResult(expected, () -> builder().startObject().field("d3").value(formatter.print(d3.getTime())).endObject());
     }
 
     public void testDateField() throws Exception {
-        final Date d = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
+        final Date d = Date.from(ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant());
 
         assertResult(
             "{'date_in_millis':1451606400000}",
@@ -500,7 +443,7 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
     }
 
     public void testCalendar() throws Exception {
-        Calendar calendar = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toCalendar(Locale.ROOT);
+        Calendar calendar = GregorianCalendar.from(ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC));
         assertResult(
             "{'calendar':'2016-01-01T00:00:00.000Z'}",
             () -> builder().startObject().field("calendar").timeValue(calendar).endObject()
@@ -668,20 +611,13 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         final String paths = Constants.WINDOWS ? "{'objects':['a\\\\b\\\\c','d\\\\e']}" : "{'objects':['a/b/c','d/e']}";
         objects.put(paths, new Object[] { PathUtils.get("a", "b", "c"), PathUtils.get("d", "e") });
 
-        final DateTimeFormatter formatter = XContentOpenSearchExtension.DEFAULT_DATE_PRINTER;
-        final Date d1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
-        final Date d2 = new DateTime(2015, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
-        objects.put(
-            "{'objects':['" + formatter.print(d1.getTime()) + "','" + formatter.print(d2.getTime()) + "']}",
-            new Object[] { d1, d2 }
-        );
+        final DateTimeFormatter formatter = DateTimeFormatter.ISO_INSTANT;
+        final Date d1 = Date.from(ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant());
+        final Date d2 = Date.from(ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant());
+        objects.put("{'objects':['2016-01-01T00:00:00.000Z','2015-01-01T00:00:00.000Z']}", new Object[] { d1, d2 });
 
-        final DateTime dt1 = DateTime.now();
-        final DateTime dt2 = new DateTime(2016, 12, 25, 7, 59, 42, 213, DateTimeZone.UTC);
-        objects.put("{'objects':['" + formatter.print(dt1) + "','2016-12-25T07:59:42.213Z']}", new Object[] { dt1, dt2 });
-
-        final Calendar c1 = new DateTime(2012, 7, 7, 10, 23, DateTimeZone.UTC).toCalendar(Locale.ROOT);
-        final Calendar c2 = new DateTime(2014, 11, 16, 19, 36, DateTimeZone.UTC).toCalendar(Locale.ROOT);
+        final Calendar c1 = GregorianCalendar.from(ZonedDateTime.of(2012, 7, 7, 10, 23, 0, 0, ZoneOffset.UTC));
+        final Calendar c2 = GregorianCalendar.from(ZonedDateTime.of(2014, 11, 16, 19, 36, 0, 0, ZoneOffset.UTC));
         objects.put("{'objects':['2012-07-07T10:23:00.000Z','2014-11-16T19:36:00.000Z']}", new Object[] { c1, c2 });
 
         final ToXContent x1 = (builder, params) -> builder.startObject().field("f1", "v1").field("f2", 2).array("f3", 3, 4, 5).endObject();
@@ -722,14 +658,10 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         final String path = Constants.WINDOWS ? "{'object':'a\\\\b\\\\c'}" : "{'object':'a/b/c'}";
         object.put(path, PathUtils.get("a", "b", "c"));
 
-        final DateTimeFormatter formatter = XContentOpenSearchExtension.DEFAULT_DATE_PRINTER;
-        final Date d1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
-        object.put("{'object':'" + formatter.print(d1.getTime()) + "'}", d1);
+        final Date d1 = Date.from(ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant());
+        object.put("{'object':'" + "2016-01-01T00:00:00.000Z" + "'}", d1);
 
-        final DateTime d2 = DateTime.now();
-        object.put("{'object':'" + formatter.print(d2) + "'}", d2);
-
-        final Calendar c1 = new DateTime(2010, 1, 1, 0, 0, DateTimeZone.UTC).toCalendar(Locale.ROOT);
+        final Calendar c1 = GregorianCalendar.from(ZonedDateTime.of(2010, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC));
         object.put("{'object':'2010-01-01T00:00:00.000Z'}", c1);
 
         final ToXContent x1 = (builder, params) -> builder.startObject().field("f1", "v1").field("f2", 2).array("f3", 3, 4, 5).endObject();
@@ -861,7 +793,7 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
             generator.writeEndObject();
         }
         byte[] data = os.toByteArray();
-        assertEquals(xcontentType(), XContentFactory.xContentType(data));
+        assertEquals(xcontentType(), MediaTypeRegistry.xContent(data));
     }
 
     public void testMissingEndObject() throws IOException {

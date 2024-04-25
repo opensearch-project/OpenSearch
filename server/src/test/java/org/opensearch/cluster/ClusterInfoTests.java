@@ -35,7 +35,8 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
@@ -49,7 +50,8 @@ public class ClusterInfoTests extends OpenSearchTestCase {
             randomDiskUsage(),
             randomShardSizes(),
             randomRoutingToDataPath(),
-            randomReservedSpace()
+            randomReservedSpace(),
+            randomFileCacheStats()
         );
         BytesStreamOutput output = new BytesStreamOutput();
         clusterInfo.writeTo(output);
@@ -60,6 +62,7 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         assertEquals(clusterInfo.shardSizes, result.shardSizes);
         assertEquals(clusterInfo.routingToDataPath, result.routingToDataPath);
         assertEquals(clusterInfo.reservedSpace, result.reservedSpace);
+        assertEquals(clusterInfo.getNodeFileCacheStats().size(), result.getNodeFileCacheStats().size());
     }
 
     private static Map<String, DiskUsage> randomDiskUsage() {
@@ -75,6 +78,25 @@ public class ClusterInfoTests extends OpenSearchTestCase {
                 randomIntBetween(0, Integer.MAX_VALUE)
             );
             builder.put(key, diskUsage);
+        }
+        return builder;
+    }
+
+    private static Map<String, FileCacheStats> randomFileCacheStats() {
+        int numEntries = randomIntBetween(0, 16);
+        final Map<String, FileCacheStats> builder = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            String key = randomAlphaOfLength(16);
+            FileCacheStats fileCacheStats = new FileCacheStats(
+                randomLong(),
+                randomLong(),
+                randomLong(),
+                randomLong(),
+                randomLong(),
+                randomLong(),
+                randomLong()
+            );
+            builder.put(key, fileCacheStats);
         }
         return builder;
     }

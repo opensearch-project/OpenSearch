@@ -32,18 +32,19 @@
 package org.opensearch.common.xcontent;
 
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.Strings;
+import org.opensearch.core.xcontent.ContextParser;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedObjectNotFoundException;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.NamedObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
-import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.xcontent.ContextParser;
-import org.opensearch.core.xcontent.NamedObjectNotFoundException;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayOutputStream;
@@ -394,7 +395,7 @@ public class ObjectParserTests extends OpenSearchTestCase {
         double expectedNullableDouble;
         int expectedNullableInt;
 
-        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder();
         builder.startObject();
         builder.field("int_field", randomBoolean() ? "1" : 1);
         if (randomBoolean()) {
@@ -448,7 +449,7 @@ public class ObjectParserTests extends OpenSearchTestCase {
         }
         builder.field("string_or_null", nullValue ? null : "5");
         builder.endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder));
+        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.toString());
         class TestStruct {
             int int_field;
             int nullableIntField;
@@ -646,7 +647,7 @@ public class ObjectParserTests extends OpenSearchTestCase {
     }
 
     public void testIgnoreUnknownFields() throws IOException {
-        XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());
+        XContentBuilder b = MediaTypeRegistry.JSON.contentBuilder();
         b.startObject();
         {
             b.field("test", "foo");
@@ -668,7 +669,7 @@ public class ObjectParserTests extends OpenSearchTestCase {
     }
 
     public void testIgnoreUnknownObjects() throws IOException {
-        XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());
+        XContentBuilder b = MediaTypeRegistry.JSON.contentBuilder();
         b.startObject();
         {
             b.field("test", "foo");
@@ -694,7 +695,7 @@ public class ObjectParserTests extends OpenSearchTestCase {
     }
 
     public void testIgnoreUnknownArrays() throws IOException {
-        XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());
+        XContentBuilder b = MediaTypeRegistry.JSON.contentBuilder();
         b.startObject();
         {
             b.field("test", "foo");

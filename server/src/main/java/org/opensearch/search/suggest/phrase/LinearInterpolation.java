@@ -36,9 +36,9 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.ParsingException;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
@@ -70,7 +70,7 @@ public final class LinearInterpolation extends SmoothingModel {
 
     /**
      * Creates a linear interpolation smoothing model.
-     *
+     * <p>
      * Note: the lambdas must sum up to one.
      *
      * @param trigramLambda

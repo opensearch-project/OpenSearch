@@ -39,3 +39,151 @@ teardown:
         id: 1
   - match: { _source.goodbye: "everybody" }
   - match: { _source.hello: "world" }
+
+---
+"Test KV Processor with template snippets":
+  - skip:
+      version: " - 2.11.99"
+      reason: "KV Processor with template snippets is only supported since 2.12.0"
+
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "kv" : {
+                  "field" : "{{source}}",
+                  "target_field" : "{{target}}",
+                  "field_split": " ",
+                  "value_split": "="
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          source: "foo",
+          target: "zoo",
+          foo: "goodbye=everybody hello=world"
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.zoo.goodbye: "everybody" }
+  - match: { _source.zoo.hello: "world" }
+
+---
+"Test KV Processor with non-existing field and without ignore_missing":
+  - skip:
+      version: " - 2.11.99"
+      reason: "KV Processor with template snippets is only supported since 2.12.0"
+
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "kv" : {
+                  "field" : "{{source}}",
+                  "target_field" : "{{target}}",
+                  "field_split": " ",
+                  "value_split": "="
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /field path cannot be null nor empty/
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          target: "zoo",
+          foo: "goodbye=everybody hello=world"
+        }
+
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "kv" : {
+                  "field" : "{{source}}",
+                  "target_field" : "{{target}}",
+                  "field_split": " ",
+                  "value_split": "="
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /field \[unknown\] doesn\'t exist/
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          source: "unknown",
+          target: "zoo",
+          foo: "goodbye=everybody hello=world"
+        }
+
+---
+"Test KV Processor with non-existing field and ignore_missing":
+  - skip:
+      version: " - 2.11.99"
+      reason: "KV Processor with template snippets is only supported since 2.12.0"
+
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "kv" : {
+                  "field" : "{{source}}",
+                  "target_field" : "{{target}}",
+                  "field_split": " ",
+                  "value_split": "=",
+                  "ignore_missing": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          target: "zoo",
+          foo: "goodbye=everybody hello=world"
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match:   { _source: { target: "zoo", foo: "goodbye=everybody hello=world"}}

@@ -34,6 +34,7 @@ package org.opensearch.action.termvectors;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.VersionType;
 
@@ -46,8 +47,9 @@ import java.util.Map;
  * Note, the {@code index}, {@code type} and {@code id} are
  * required.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsRequest, TermVectorsResponse> {
 
     public TermVectorsRequestBuilder(OpenSearchClient client, TermVectorsAction action) {
@@ -96,7 +98,8 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
+     * {@code _local} to prefer local shards, {@code _primary} to execute only on primary shards,
+     * or a custom value, which guarantees that the same order
      * will be used across different requests.
      */
     public TermVectorsRequestBuilder setPreference(String preference) {

@@ -1,7 +1,7 @@
 {
   "snapshot.restore":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/snapshots/restore-snapshot/",
       "description":"Restores a snapshot."
     },
     "stability":"stable",
@@ -42,6 +42,10 @@
         "type":"boolean",
         "description":"Should this request wait until the operation has completed before returning",
         "default":false
+      },
+      "source_remote_store_repository": {
+        "type":"string",
+        "description":"Remote Store Repository of Remote Store Indices"
       }
     },
     "body":{

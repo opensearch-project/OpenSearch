@@ -33,8 +33,8 @@
 package org.opensearch.common.settings;
 
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
@@ -43,9 +43,9 @@ import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.test.OpenSearchTestCase;
 
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class MemorySizeSettingsTests extends OpenSearchTestCase {
 

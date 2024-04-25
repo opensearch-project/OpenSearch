@@ -45,7 +45,7 @@ import org.apache.lucene.analysis.tr.TurkishLowerCaseFilter;
 
 /** Filters {@link StandardTokenizer} with {@link
  * LowerCaseFilter}, {@link StopFilter} and {@link SnowballFilter}.
- *
+ * <p>
  * Available stemmers are listed in org.tartarus.snowball.ext.  The name of a
  * stemmer is the part of the class name before "Stemmer", e.g., the stemmer in
  * {@link org.tartarus.snowball.ext.EnglishStemmer} is named "English".

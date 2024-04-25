@@ -36,11 +36,10 @@ import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
-import org.opensearch.common.Strings;
-import org.opensearch.common.io.stream.InputStreamStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.InputStreamStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -79,7 +78,7 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
  * PercolatorFieldMapper#createQueryBuilderField(...) method). Using the query builders writable contract. This test
  * does best effort verifying that we don't break bwc for query builders between the first previous major version and
  * the latest current major release.
- *
+ * <p>
  * The queries to test are specified in json format, which turns out to work because we tend break here rarely. If the
  * json format of a query being tested here then feel free to change this.
  */
@@ -199,7 +198,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request request = new Request("PUT", "/" + index);
             request.setOptions(allowTypesRemovalWarnings());
-            request.setJsonEntity(Strings.toString(mappingsAndSettings));
+            request.setJsonEntity(mappingsAndSettings.toString());
             Response rsp = client().performRequest(request);
             assertEquals(200, rsp.getStatusLine().getStatusCode());
 

@@ -36,7 +36,6 @@ import org.opensearch.gradle.PropertyNormalization;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
-import org.slf4j.Logger;
 
 import java.io.File;
 import java.util.LinkedHashMap;
@@ -47,6 +46,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import org.slf4j.Logger;
+
 public interface TestClusterConfiguration {
 
     void setVersion(String version);
@@ -54,6 +55,8 @@ public interface TestClusterConfiguration {
     void setVersions(List<String> version);
 
     void setTestDistribution(TestDistribution distribution);
+
+    void extension(boolean extensionsEnabled);
 
     void plugin(Provider<RegularFile> plugin);
 
@@ -104,6 +107,8 @@ public interface TestClusterConfiguration {
     boolean isPreserveDataDir();
 
     void setPreserveDataDir(boolean preserveDataDir);
+
+    void setSecure(boolean secure);
 
     void freeze();
 

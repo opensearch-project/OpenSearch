@@ -32,10 +32,16 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.core.action.ActionListener;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -74,6 +80,20 @@ public interface BlobContainer {
     InputStream readBlob(String blobName) throws IOException;
 
     /**
+     * Creates a new {@link FetchBlobResult} for the given blob name.
+     *
+     * @param   blobName
+     *          The name of the blob to get an {@link InputStream} for.
+     * @return  The {@link FetchBlobResult} of the blob.
+     * @throws  NoSuchFileException if the blob does not exist
+     * @throws  IOException if the blob can not be read.
+     */
+    @ExperimentalApi
+    default FetchBlobResult readBlobWithMetadata(String blobName) throws IOException {
+        throw new UnsupportedOperationException("readBlobWithMetadata is not implemented yet");
+    };
+
+    /**
      * Creates a new {@link InputStream} that can be used to read the given blob starting from
      * a specific {@code position} in the blob. The {@code length} is an indication of the
      * number of bytes that are expected to be read from the {@link InputStream}.
@@ -89,10 +109,10 @@ public interface BlobContainer {
 
     /**
      * Provides a hint to clients for a suitable length to use with {@link BlobContainer#readBlob(String, long, long)}.
-     *
+     * <p>
      * Some blob containers have nontrivial costs attached to each readBlob call, so it is a good idea for consumers to speculatively
      * request more data than they need right now and to re-use this stream for future needs if possible.
-     *
+     * <p>
      * Also, some blob containers return streams that are expensive to close before the stream has been fully consumed, and the cost may
      * depend on the length of the data that was left unconsumed. For these containers it's best to bound the cost of a partial read by
      * bounding the length of the data requested.
@@ -125,9 +145,39 @@ public interface BlobContainer {
     void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
 
     /**
+     * Reads blob content from the input stream and writes it to the container in a new blob with the given name, and metadata.
+     * This method assumes the container does not already contain a blob of the same blobName. If a blob by the
+     * same name already exists, the operation will fail and an {@link IOException} will be thrown.
+     *
+     * @param   blobName
+     *          The name of the blob to write the contents of the input stream to.
+     * @param   inputStream
+     *          The input stream from which to retrieve the bytes to write to the blob.
+     * @param   metadata
+     *          The metadata to be associate with the blob upload.
+     * @param   blobSize
+     *          The size of the blob to be written, in bytes.  It is implementation dependent whether
+     *          this value is used in writing the blob to the repository.
+     * @param   failIfAlreadyExists
+     *          whether to throw a FileAlreadyExistsException if the given blob already exists
+     * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
+     * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
+     */
+    @ExperimentalApi
+    default void writeBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata
+    ) throws IOException {
+        throw new UnsupportedOperationException("writeBlobWithMetadata is not implemented yet");
+    };
+
+    /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
      * using an atomic write operation if the implementation supports it.
-     *
+     * <p>
      * This method assumes the container does not already contain a blob of the same blobName.  If a blob by the
      * same name already exists, the operation will fail and an {@link IOException} will be thrown.
      *
@@ -144,6 +194,38 @@ public interface BlobContainer {
      * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
     void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
+
+    /**
+     * Reads blob content from the input stream and writes it to the container in a new blob with the given name, and metadata
+     * using an atomic write operation if the implementation supports it.
+     * <p>
+     * This method assumes the container does not already contain a blob of the same blobName. If a blob by the
+     * same name already exists, the operation will fail and an {@link IOException} will be thrown.
+     *
+     * @param   blobName
+     *          The name of the blob to write the contents of the input stream to.
+     * @param   inputStream
+     *          The input stream from which to retrieve the bytes to write to the blob.
+     * @param   metadata
+     *          The metadata to be associate with the blob upload.
+     * @param   blobSize
+     *          The size of the blob to be written, in bytes.  It is implementation dependent whether
+     *          this value is used in writing the blob to the repository.
+     * @param   failIfAlreadyExists
+     *          whether to throw a FileAlreadyExistsException if the given blob already exists
+     * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
+     * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
+     */
+    @ExperimentalApi
+    default void writeBlobAtomicWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        @Nullable Map<String, String> metadata,
+        long blobSize,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        throw new UnsupportedOperationException("writeBlobAtomicWithMetadata is not implemented yet");
+    };
 
     /**
      * Deletes this container and all its contents from the repository.
@@ -191,4 +273,55 @@ public interface BlobContainer {
      * @throws  IOException if there were any failures in reading from the blob container.
      */
     Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException;
+
+    /**
+     * The type representing sort order of blob names
+     */
+    enum BlobNameSortOrder {
+
+        LEXICOGRAPHIC(Comparator.comparing(BlobMetadata::name));
+
+        final Comparator<BlobMetadata> comparator;
+
+        public Comparator<BlobMetadata> comparator() {
+            return comparator;
+        }
+
+        BlobNameSortOrder(final Comparator<BlobMetadata> comparator) {
+            this.comparator = comparator;
+        }
+    }
+
+    /**
+     * Lists all blobs in the container that match the specified prefix in lexicographic order
+     * @param blobNamePrefix The prefix to match against blob names in the container.
+     * @param limit Limits the result size to min(limit, number of keys)
+     * @param blobNameSortOrder Comparator to sort keys with
+     * @param listener the listener to be notified upon request completion
+     */
+    default void listBlobsByPrefixInSortedOrder(
+        String blobNamePrefix,
+        int limit,
+        BlobNameSortOrder blobNameSortOrder,
+        ActionListener<List<BlobMetadata>> listener
+    ) {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit should not be a negative value");
+        }
+        try {
+            listener.onResponse(listBlobsByPrefixInSortedOrder(blobNamePrefix, limit, blobNameSortOrder));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    default List<BlobMetadata> listBlobsByPrefixInSortedOrder(String blobNamePrefix, int limit, BlobNameSortOrder blobNameSortOrder)
+        throws IOException {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit should not be a negative value");
+        }
+        List<BlobMetadata> blobNames = new ArrayList<>(listBlobsByPrefix(blobNamePrefix).values());
+        blobNames.sort(blobNameSortOrder.comparator());
+        return blobNames.subList(0, Math.min(blobNames.size(), limit));
+    }
 }

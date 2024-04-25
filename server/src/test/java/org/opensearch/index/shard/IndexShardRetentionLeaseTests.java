@@ -32,12 +32,12 @@
 
 package org.opensearch.index.shard;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.seqno.ReplicationTracker;

@@ -33,7 +33,7 @@
 package org.opensearch.common.time;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 import java.time.DayOfWeek;
 import java.time.Instant;
@@ -51,7 +51,7 @@ import java.util.function.LongSupplier;
 
 /**
  * A parser for date/time formatted text with optional date math.
- *
+ * <p>
  * The format of the datetime is configurable, and unix timestamps can also be used. Datemath
  * is appended to a datetime with the following syntax:
  * <code>||[+-/](\d+)?[yMwdhHms]</code>.

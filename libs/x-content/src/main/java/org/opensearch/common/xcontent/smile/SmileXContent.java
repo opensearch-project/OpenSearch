@@ -35,16 +35,21 @@ package org.opensearch.common.xcontent.smile;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.StreamReadConstraints;
+import com.fasterxml.jackson.core.StreamReadFeature;
+import com.fasterxml.jackson.core.StreamWriteConstraints;
 import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
+
+import org.opensearch.common.xcontent.XContentContraints;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentGenerator;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -55,8 +60,7 @@ import java.util.Set;
 /**
  * A Smile based content implementation using Jackson.
  */
-public class SmileXContent implements XContent {
-
+public class SmileXContent implements XContent, XContentContraints {
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(smileXContent);
     }
@@ -72,6 +76,15 @@ public class SmileXContent implements XContent {
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.smile.SmileGenerator#close() method
         smileFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         smileFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
+        smileFactory.setStreamWriteConstraints(StreamWriteConstraints.builder().maxNestingDepth(DEFAULT_MAX_DEPTH).build());
+        smileFactory.setStreamReadConstraints(
+            StreamReadConstraints.builder()
+                .maxStringLength(DEFAULT_MAX_STRING_LEN)
+                .maxNameLength(DEFAULT_MAX_NAME_LEN)
+                .maxNestingDepth(DEFAULT_MAX_DEPTH)
+                .build()
+        );
+        smileFactory.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER.mappedFeature(), true);
         smileXContent = new SmileXContent();
     }
 

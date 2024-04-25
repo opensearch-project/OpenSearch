@@ -32,12 +32,12 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.plugins.Plugin;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-
-import org.opensearch.plugins.MapperPlugin;
-import org.opensearch.plugins.Plugin;
 
 public class ExternalMapperPlugin extends Plugin implements MapperPlugin {
 

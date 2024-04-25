@@ -38,24 +38,25 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.DoubleComparator;
 import org.apache.lucene.util.BitSet;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.core.ParseField;
-import org.opensearch.common.ParsingException;
 import org.opensearch.common.geo.GeoDistance;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
-import org.opensearch.core.xcontent.XContent;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -734,8 +735,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             }
 
             @Override
-            public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
-                return new DoubleComparator(numHits, null, null, reversed, enableSkipping) {
+            public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning pruning, boolean reversed) {
+                return new DoubleComparator(numHits, null, null, reversed, filterPruning(pruning)) {
                     @Override
                     public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                         return new DoubleLeafComparator(context) {

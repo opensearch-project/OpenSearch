@@ -32,6 +32,7 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -63,7 +64,7 @@ public interface ClusterPlugin {
 
     /**
      * Return {@link ShardsAllocator} implementations added by this plugin.
-     *
+     * <p>
      * The key of the returned {@link Map} is the name of the allocator, and the value
      * is a function to construct the allocator.
      *
@@ -86,7 +87,19 @@ public interface ClusterPlugin {
 
     /**
      * Called when the node is started
+     *
+     * @deprecated Use {@link #onNodeStarted(DiscoveryNode)} for newer implementations.
      */
+    @Deprecated
     default void onNodeStarted() {}
+
+    /**
+     * Called when node is started. DiscoveryNode argument is passed to allow referring localNode value inside plugin
+     *
+     * @param localNode local Node info
+     */
+    default void onNodeStarted(DiscoveryNode localNode) {
+        onNodeStarted();
+    }
 
 }

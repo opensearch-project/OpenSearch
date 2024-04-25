@@ -33,11 +33,11 @@
 package org.opensearch.geo.search.aggregations.bucket.geogrid;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.core.ParseField;
 import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;

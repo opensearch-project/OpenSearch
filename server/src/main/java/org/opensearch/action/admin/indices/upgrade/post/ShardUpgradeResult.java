@@ -33,10 +33,10 @@
 package org.opensearch.action.admin.indices.upgrade.post;
 
 import org.opensearch.Version;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -66,7 +66,7 @@ class ShardUpgradeResult implements Writeable {
     ShardUpgradeResult(StreamInput in) throws IOException {
         shardId = new ShardId(in);
         primary = in.readBoolean();
-        upgradeVersion = Version.readVersion(in);
+        upgradeVersion = in.readVersion();
         try {
             oldestLuceneSegment = org.apache.lucene.util.Version.parse(in.readString());
         } catch (ParseException ex) {
@@ -94,7 +94,7 @@ class ShardUpgradeResult implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         shardId.writeTo(out);
         out.writeBoolean(primary);
-        Version.writeVersion(upgradeVersion, out);
+        out.writeVersion(upgradeVersion);
         out.writeString(oldestLuceneSegment.toString());
     }
 }

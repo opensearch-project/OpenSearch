@@ -36,8 +36,10 @@ import org.opensearch.common.path.PathTrie.TrieMatchingMode;
 import org.opensearch.rest.RestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -285,5 +287,34 @@ public class PathTrieTests extends OpenSearchTestCase {
         assertThat(params.get("index"), equalTo("<logstash-{now/d}>"));
         assertThat(params.get("type"), equalTo("type"));
         assertThat(params.get("id"), equalTo("id"));
+    }
+
+    public void testRetrieveAllEmpty() {
+        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
+        Iterator<String> allPaths = trie.retrieveAll();
+        assertFalse(allPaths.hasNext());
+    }
+
+    public void testRetrieveAll() {
+        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
+        trie.insert("{testA}", "test1");
+        trie.insert("{testA}/{testB}", "test2");
+        trie.insert("a/{testB}", "test3");
+        trie.insert("{testA}/b", "test4");
+        trie.insert("{testA}/b/c", "test5");
+
+        Iterator<String> iterator = trie.retrieveAll();
+        assertTrue(iterator.hasNext());
+        List<String> paths = new ArrayList<>();
+        iterator.forEachRemaining(paths::add);
+        assertEquals(paths, List.of("test1", "test4", "test5", "test2", "test3"));
+        assertFalse(iterator.hasNext());
+    }
+
+    public void testRetrieveAllWithNllValue() {
+        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
+        trie.insert("{testA}", null);
+        Iterator<String> iterator = trie.retrieveAll();
+        assertFalse(iterator.hasNext());
     }
 }

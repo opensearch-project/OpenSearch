@@ -33,12 +33,13 @@
 package org.opensearch.common.ssl;
 
 import org.opensearch.common.settings.MockSecureSettings;
-import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.test.OpenSearchTestCase;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
+
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;

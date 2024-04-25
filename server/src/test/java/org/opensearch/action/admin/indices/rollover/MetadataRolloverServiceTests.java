@@ -60,7 +60,6 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -68,8 +67,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.index.Index;
 import org.opensearch.env.Environment;
-import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DateFieldMapper;
@@ -82,6 +81,7 @@ import org.opensearch.index.mapper.MappingLookup;
 import org.opensearch.index.mapper.MetadataFieldMapper;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.shard.IndexEventListener;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.ShardLimitValidator;
@@ -111,10 +111,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -426,7 +426,7 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
             equalTo("aliases, mappings, and index settings may not be specified when rolling over a data stream")
         );
 
-        String mapping = Strings.toString(JsonXContent.contentBuilder().startObject().startObject("_doc").endObject().endObject());
+        String mapping = JsonXContent.contentBuilder().startObject().startObject("_doc").endObject().endObject().toString();
         CreateIndexRequest mappingReq = new CreateIndexRequest().mapping(mapping);
         exception = expectThrows(
             IllegalArgumentException.class,
@@ -739,7 +739,8 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
                 null,
                 systemIndices,
                 false,
-                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                DefaultRemoteStoreSettings.INSTANCE
             );
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
                 clusterService,
@@ -877,7 +878,8 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
                 null,
                 systemIndices,
                 false,
-                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                DefaultRemoteStoreSettings.INSTANCE
             );
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
                 clusterService,
@@ -1055,7 +1057,8 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
             null,
             new SystemIndices(emptyMap()),
             false,
-            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+            DefaultRemoteStoreSettings.INSTANCE
         );
         MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
             clusterService,

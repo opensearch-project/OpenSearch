@@ -20,7 +20,9 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
+import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
@@ -28,6 +30,7 @@ import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocat
 import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -201,6 +204,41 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
         );
     }
 
+    public AllocationService createRejectRemoteAllocationService(boolean throttle) {
+        Settings settings = Settings.Builder.EMPTY_SETTINGS;
+        return new OpenSearchAllocationTestCase.MockAllocationService(
+            createRejectRemoteAllocationDeciders(throttle),
+            new TestGatewayAllocator(),
+            createShardAllocator(settings),
+            EmptyClusterInfoService.INSTANCE,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+        );
+    }
+
+    public AllocationDeciders createRejectRemoteAllocationDeciders(boolean throttle) {
+        Settings settings = Settings.Builder.EMPTY_SETTINGS;
+        List<AllocationDecider> deciders = new ArrayList<>(
+            ClusterModule.createAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, Collections.emptyList())
+        );
+        deciders.add(new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))) {
+                    return throttle ? Decision.THROTTLE : Decision.NO;
+                } else {
+                    return Decision.ALWAYS;
+                }
+            }
+
+            @Override
+            public Decision canAllocateAnyShardToNode(RoutingNode node, RoutingAllocation allocation) {
+                return throttle ? Decision.THROTTLE : Decision.YES;
+            }
+        });
+        Collections.shuffle(deciders, random());
+        return new AllocationDeciders(deciders);
+    }
+
     public AllocationDeciders createAllocationDeciders() {
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
         return randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random());
@@ -239,7 +277,7 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
             final Map<String, DiskUsage> mostAvailableSpaceUsage,
             final Map<String, Long> shardSizes
         ) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, Map.of());
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, Map.of(), Map.of());
         }
 
         @Override

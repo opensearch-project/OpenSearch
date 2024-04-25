@@ -32,7 +32,7 @@
 
 package org.opensearch.snapshots;
 
-import org.opensearch.common.collect.ImmutableOpenMap;
+import java.util.Map;
 
 /**
  * Service for getting information about empty snapshots
@@ -44,6 +44,6 @@ public class EmptySnapshotsInfoService implements SnapshotsInfoService {
 
     @Override
     public SnapshotShardSizeInfo snapshotShardSizes() {
-        return new SnapshotShardSizeInfo(ImmutableOpenMap.of());
+        return new SnapshotShardSizeInfo(Map.of());
     }
 }

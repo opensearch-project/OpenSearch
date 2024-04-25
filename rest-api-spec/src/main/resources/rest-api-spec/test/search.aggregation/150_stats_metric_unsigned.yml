@@ -1,0 +1,199 @@
+setup:
+  - skip:
+      version: " - 2.7.99"
+      reason: unsigned_long is not supported before 2.8.0
+
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                unsigned_field:
+                   type : unsigned_long
+                double_field:
+                   type : double
+                string_field:
+                   type: keyword
+
+  - do:
+       bulk:
+         refresh: true
+         body:
+           - index:
+               _index: test_1
+               _id:    1
+           - unsigned_field: 1
+             double_field: 1.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _id:    2
+           - unsigned_field: 51
+             double_field: 51.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _id:    3
+           - unsigned_field: 1101
+             double_field: 1101.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _id:    4
+           - unsigned_field: 10223372036854778000
+             double_field: 10223372036854778000.0
+             string_field: foo
+
+---
+"Basic test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_unsigned_stats:
+              stats:
+                field: unsigned_field
+            the_double_stats:
+              stats:
+                field: double_field
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.the_unsigned_stats.count: 4 }
+  - match: { aggregations.the_unsigned_stats.min: 1.0 }
+  - match: { aggregations.the_unsigned_stats.max: 10223372036854778000.0 }
+  - match: { aggregations.the_unsigned_stats.avg: 2555843009213695000.0 }
+  - match: { aggregations.the_unsigned_stats.sum: 10223372036854780000.0 }
+  - match: { aggregations.the_double_stats.count: 4 }
+  - match: { aggregations.the_double_stats.min: 1.0 }
+  - match: { aggregations.the_double_stats.max: 10223372036854778000.0 }
+  - match: { aggregations.the_double_stats.avg: 2555843009213695000.0 }
+  - match: { aggregations.the_double_stats.sum: 10223372036854780000.0 }
+
+---
+"Only aggs test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            the_unsigned_stats:
+              stats:
+                field: unsigned_field
+            the_double_stats:
+              stats:
+                field: double_field
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 0 }
+  - match: { aggregations.the_unsigned_stats.count: 4 }
+  - match: { aggregations.the_unsigned_stats.min: 1.0 }
+  - match: { aggregations.the_unsigned_stats.max: 10223372036854778000.0 }
+  - match: { aggregations.the_unsigned_stats.avg: 2555843009213695000.0 }
+  - match: { aggregations.the_unsigned_stats.sum: 10223372036854780000.0 }
+  - match: { aggregations.the_double_stats.count: 4 }
+  - match: { aggregations.the_double_stats.min: 1.0 }
+  - match: { aggregations.the_double_stats.max: 10223372036854778000.0 }
+  - match: { aggregations.the_double_stats.avg: 2555843009213695000.0 }
+  - match: { aggregations.the_double_stats.sum: 10223372036854780000.0 }
+
+---
+"Filtered test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            constant_score:
+              filter:
+                range:
+                  unsigned_field:
+                    gte: 50
+          aggs:
+            the_unsigned_stats:
+              stats:
+                field: unsigned_field
+            the_double_stats:
+              stats:
+                field: double_field
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+  - match: { aggregations.the_unsigned_stats.count: 3 }
+  - match: { aggregations.the_unsigned_stats.min: 51.0 }
+  - match: { aggregations.the_unsigned_stats.max: 10223372036854778000.0 }
+  - match: { aggregations.the_unsigned_stats.avg: 3407790678951593500.0 }
+  - match: { aggregations.the_unsigned_stats.sum: 10223372036854780000.0 }
+  - match: { aggregations.the_double_stats.count: 3 }
+  - match: { aggregations.the_double_stats.min: 51.0 }
+  - match: { aggregations.the_double_stats.max: 10223372036854778000.0 }
+  - match: { aggregations.the_double_stats.avg: 3407790678951593500.0 }
+  - match: { aggregations.the_double_stats.sum: 10223372036854780000.0 }
+
+
+---
+"Missing field with missing param":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_missing_stats:
+              stats:
+                field: foo
+                missing: 1
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.the_missing_stats.count: 4 }
+  - match: { aggregations.the_missing_stats.min: 1.0 }
+  - match: { aggregations.the_missing_stats.max: 1.0 }
+  - match: { aggregations.the_missing_stats.avg: 1.0 }
+  - match: { aggregations.the_missing_stats.sum: 4.0 }
+
+---
+"Missing field without missing param":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_missing_stats:
+              stats:
+                field: foo
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - is_false: aggregations.the_missing_stats.value
+
+---
+"Metadata test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_unsigned_stats:
+              meta:
+                foo: bar
+              stats:
+                field: unsigned_field
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.the_unsigned_stats.count: 4 }
+  - match: { aggregations.the_unsigned_stats.min: 1.0 }
+  - match: { aggregations.the_unsigned_stats.max: 10223372036854778000.0 }
+  - match: { aggregations.the_unsigned_stats.avg: 2555843009213695000.0 }
+  - match: { aggregations.the_unsigned_stats.sum: 10223372036854780000.0 }

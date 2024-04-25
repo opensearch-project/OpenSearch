@@ -33,7 +33,6 @@
 package org.opensearch.cluster;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
@@ -45,30 +44,31 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
-
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -192,6 +192,11 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
             logger.info("--> shard size: {}", size);
             assertThat("shard size is greater than 0", size, greaterThanOrEqualTo(0L));
         }
+
+        final Map<String, FileCacheStats> nodeFileCacheStats = info.nodeFileCacheStats;
+        assertNotNull(nodeFileCacheStats);
+        assertThat("file cache is empty on non search nodes", nodeFileCacheStats.size(), Matchers.equalTo(0));
+
         ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getClusterManagerName());
         ClusterState state = clusterService.state();
         for (ShardRouting shard : state.routingTable().allShards()) {
@@ -206,6 +211,28 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
             assertEquals(indexShard.shardPath().getRootDataPath().toString(), dataPath);
 
             assertTrue(info.getReservedSpace(nodeId, dataPath).containsShardId(shard.shardId()));
+        }
+    }
+
+    public void testClusterInfoServiceCollectsFileCacheInformation() {
+        internalCluster().startNodes(1);
+        internalCluster().ensureAtLeastNumSearchAndDataNodes(2);
+
+        InternalTestCluster internalTestCluster = internalCluster();
+        // Get the cluster info service on the cluster-manager node
+        final InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(
+            ClusterInfoService.class,
+            internalTestCluster.getClusterManagerName()
+        );
+        infoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
+        ClusterInfo info = infoService.refresh();
+        assertNotNull("info should not be null", info);
+        final Map<String, FileCacheStats> nodeFileCacheStats = info.nodeFileCacheStats;
+        assertNotNull(nodeFileCacheStats);
+        assertThat("file cache is enabled on both search nodes", nodeFileCacheStats.size(), Matchers.equalTo(2));
+
+        for (FileCacheStats fileCacheStats : nodeFileCacheStats.values()) {
+            assertThat("file cache is non empty", fileCacheStats.getTotal().getBytes(), greaterThan(0L));
         }
     }
 

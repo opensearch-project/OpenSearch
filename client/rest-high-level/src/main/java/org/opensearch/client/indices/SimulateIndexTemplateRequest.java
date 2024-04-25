@@ -34,7 +34,7 @@ package org.opensearch.client.indices;
 
 import org.opensearch.client.TimedRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 /**
  * A request to simulate matching a provided index name and an optional new index template against the existing index templates.

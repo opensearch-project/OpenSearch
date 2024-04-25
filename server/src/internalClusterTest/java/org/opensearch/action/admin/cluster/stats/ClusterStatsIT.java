@@ -37,6 +37,7 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -48,7 +49,6 @@ import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -152,11 +152,12 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
 
         Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 0, 0, 0);
 
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        Client client = client();
+        ClusterStatsResponse response = client.admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), total, expectedCounts);
 
         Set<String> expectedRoles = Set.of(DiscoveryNodeRole.MASTER_ROLE.roleName());
-        assertEquals(expectedRoles, getNodeRoles(0));
+        assertEquals(expectedRoles, getNodeRoles(client, 0));
     }
 
     private static void incrementCountForRole(String role, Map<String, Integer> counts) {
@@ -327,14 +328,15 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
 
         Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 1, 0, 0);
 
-        ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        Client client = client();
+        ClusterStatsResponse clusterStatsResponse = client.admin().cluster().prepareClusterStats().get();
         assertCounts(clusterStatsResponse.getNodesStats().getCounts(), total, expectedCounts);
 
         Set<String> expectedRoles = Set.of(
             DiscoveryNodeRole.MASTER_ROLE.roleName(),
             DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()
         );
-        assertEquals(expectedRoles, getNodeRoles(0));
+        assertEquals(expectedRoles, getNodeRoles(client, 0));
     }
 
     public void testNodeRolesWithClusterManagerRole() throws ExecutionException, InterruptedException {
@@ -356,14 +358,15 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
 
         Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 1, 0, 0);
 
-        ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        Client client = client();
+        ClusterStatsResponse clusterStatsResponse = client.admin().cluster().prepareClusterStats().get();
         assertCounts(clusterStatsResponse.getNodesStats().getCounts(), total, expectedCounts);
 
         Set<String> expectedRoles = Set.of(
             DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(),
             DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()
         );
-        assertEquals(expectedRoles, getNodeRoles(0));
+        assertEquals(expectedRoles, getNodeRoles(client, 0));
     }
 
     public void testNodeRolesWithSeedDataNodeLegacySettings() throws ExecutionException, InterruptedException {
@@ -379,7 +382,8 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
 
         Map<String, Integer> expectedRoleCounts = getExpectedCounts(1, 1, 1, 0, 1, 0, 0);
 
-        ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        Client client = client();
+        ClusterStatsResponse clusterStatsResponse = client.admin().cluster().prepareClusterStats().get();
         assertCounts(clusterStatsResponse.getNodesStats().getCounts(), total, expectedRoleCounts);
 
         Set<String> expectedRoles = Set.of(
@@ -387,7 +391,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(),
             DiscoveryNodeRole.DATA_ROLE.roleName()
         );
-        assertEquals(expectedRoles, getNodeRoles(0));
+        assertEquals(expectedRoles, getNodeRoles(client, 0));
     }
 
     public void testNodeRolesWithDataNodeLegacySettings() throws ExecutionException, InterruptedException {
@@ -405,14 +409,15 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
 
         Map<String, Integer> expectedRoleCounts = getExpectedCounts(1, 1, 1, 0, 1, 0, 0);
 
-        ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        Client client = client();
+        ClusterStatsResponse clusterStatsResponse = client.admin().cluster().prepareClusterStats().get();
         assertCounts(clusterStatsResponse.getNodesStats().getCounts(), total, expectedRoleCounts);
 
         Set<Set<String>> expectedNodesRoles = Set.of(
             Set.of(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName()),
             Set.of(DiscoveryNodeRole.DATA_ROLE.roleName(), DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName())
         );
-        assertEquals(expectedNodesRoles, Set.of(getNodeRoles(0), getNodeRoles(1)));
+        assertEquals(expectedNodesRoles, Set.of(getNodeRoles(client, 0), getNodeRoles(client, 1)));
     }
 
     private Map<String, Integer> getExpectedCounts(
@@ -435,8 +440,8 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         return expectedCounts;
     }
 
-    private Set<String> getNodeRoles(int nodeNumber) throws ExecutionException, InterruptedException {
-        NodesStatsResponse nodesStatsResponse = client().admin().cluster().nodesStats(new NodesStatsRequest()).get();
+    private Set<String> getNodeRoles(Client client, int nodeNumber) throws ExecutionException, InterruptedException {
+        NodesStatsResponse nodesStatsResponse = client.admin().cluster().nodesStats(new NodesStatsRequest()).get();
         return nodesStatsResponse.getNodes()
             .get(nodeNumber)
             .getNode()

@@ -69,8 +69,8 @@ import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.env.Environment;
 
 import java.io.BufferedReader;
@@ -87,6 +87,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -97,6 +98,9 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class Analysis {
     private static final Logger LOGGER = LogManager.getLogger(Analysis.class);
+
+    // Regular expression to support hashtag tokenization
+    private static final Pattern HASH_TAG_RULE_PATTERN = Pattern.compile("^\\s*#\\s*=>");
 
     public static CharArraySet parseStemExclusion(Settings settings, CharArraySet defaultStemExclusion) {
         String value = settings.get("stem_exclusion");
@@ -245,7 +249,7 @@ public class Analysis {
         int lineNum = 0;
         for (String word : words) {
             lineNum++;
-            if (word.startsWith("#") == false) {
+            if (word.startsWith("#") == false || HASH_TAG_RULE_PATTERN.matcher(word).find() == true) {
                 try {
                     rules.add(parser.apply(word));
                 } catch (RuntimeException ex) {
