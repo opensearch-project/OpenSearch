@@ -807,4 +807,8 @@ public class TranslogTransferManager {
             throw e;
         }
     }
+
+    public int getMaxRemoteTranslogReadersSettings() {
+        return this.remoteStoreSettings.getMaxRemoteTranslogReaders();
+    }
 }

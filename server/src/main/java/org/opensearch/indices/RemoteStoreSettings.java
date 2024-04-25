@@ -94,11 +94,23 @@ public class RemoteStoreSettings {
         Property.Dynamic
     );
 
+    /**
+     * Controls the maximum referenced remote translog files. If breached the shard will be flushed.
+     */
+    public static final Setting<Integer> CLUSTER_REMOTE_MAX_TRANSLOG_READERS = Setting.intSetting(
+        "cluster.remote_store.translog.max_readers",
+        1000,
+        100,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     private volatile TimeValue clusterRemoteTranslogBufferInterval;
     private volatile int minRemoteSegmentMetadataFiles;
     private volatile TimeValue clusterRemoteTranslogTransferTimeout;
     private volatile RemoteStoreEnums.PathType pathType;
     private volatile RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm;
+    private volatile int maxRemoteTranslogReaders;
 
     public RemoteStoreSettings(Settings settings, ClusterSettings clusterSettings) {
         clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
@@ -124,6 +136,9 @@ public class RemoteStoreSettings {
 
         pathHashAlgorithm = clusterSettings.get(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING, this::setPathHashAlgorithm);
+
+        maxRemoteTranslogReaders = CLUSTER_REMOTE_MAX_TRANSLOG_READERS.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_MAX_TRANSLOG_READERS, this::setMaxRemoteTranslogReaders);
     }
 
     public TimeValue getClusterRemoteTranslogBufferInterval() {
@@ -166,5 +181,13 @@ public class RemoteStoreSettings {
 
     private void setPathHashAlgorithm(RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm) {
         this.pathHashAlgorithm = pathHashAlgorithm;
+    }
+
+    public int getMaxRemoteTranslogReaders() {
+        return maxRemoteTranslogReaders;
+    }
+
+    private void setMaxRemoteTranslogReaders(int maxRemoteTranslogReaders) {
+        this.maxRemoteTranslogReaders = maxRemoteTranslogReaders;
     }
 }
