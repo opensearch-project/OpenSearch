@@ -11,6 +11,7 @@ package org.opensearch.remotemigration;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -145,6 +146,108 @@ public class RemoteStoreMigrationShardAllocationBaseTestCase extends MigrationBa
         return (isPrimary ? table.primaryShard() : table.replicaShards().get(0));
     }
 
+    // obtain decision for allocation/relocation of a shard to a given node
+    protected Decision getDecisionForTargetNode(
+        DiscoveryNode targetNode,
+        boolean isPrimary,
+        boolean includeYesDecisions,
+        boolean isRelocation
+    ) {
+        ClusterAllocationExplanation explanation = internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareAllocationExplain()
+            .setIndex(TEST_INDEX)
+            .setShard(0)
+            .setPrimary(isPrimary)
+            .setIncludeYesDecisions(includeYesDecisions)
+            .get()
+            .getExplanation();
+
+        Decision requiredDecision = null;
+        List<NodeAllocationResult> nodeAllocationResults;
+        if (isRelocation) {
+            MoveDecision moveDecision = explanation.getShardAllocationDecision().getMoveDecision();
+            nodeAllocationResults = moveDecision.getNodeDecisions();
+        } else {
+            AllocateUnassignedDecision allocateUnassignedDecision = explanation.getShardAllocationDecision().getAllocateDecision();
+            nodeAllocationResults = allocateUnassignedDecision.getNodeDecisions();
+        }
+
+        for (NodeAllocationResult nodeAllocationResult : nodeAllocationResults) {
+            if (nodeAllocationResult.getNode().equals(targetNode)) {
+                for (Decision decision : nodeAllocationResult.getCanAllocateDecision().getDecisions()) {
+                    if (decision.label().equals(NAME)) {
+                        requiredDecision = decision;
+                        break;
+                    }
+                }
+            }
+        }
+
+        assertNotNull(requiredDecision);
+        return requiredDecision;
+    }
+
+    // get allocation and relocation decisions for all nodes
+    protected void prepareDecisions() {
+        internalCluster().client()
+            .admin()
+            .indices()
+            .prepareUpdateSettings(TEST_INDEX)
+            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", allNodesExcept(null)))
+            .execute()
+            .actionGet();
+    }
+
+    protected void attemptAllocation(@Nullable String targetNodeName) {
+        Settings.Builder settingsBuilder;
+        if (targetNodeName != null) {
+            settingsBuilder = Settings.builder()
+                .put("index.routing.allocation.include._name", targetNodeName)
+                .put("index.routing.allocation.exclude._name", allNodesExcept(targetNodeName));
+        } else {
+            String clusterManagerNodeName = internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareState()
+                .execute()
+                .actionGet()
+                .getState()
+                .getNodes()
+                .getClusterManagerNode()
+                .getName();
+            // to allocate freely among all nodes other than cluster-manager node
+            settingsBuilder = Settings.builder()
+                .put("index.routing.allocation.include._name", allNodesExcept(clusterManagerNodeName))
+                .put("index.routing.allocation.exclude._name", clusterManagerNodeName);
+        }
+        internalCluster().client().admin().indices().prepareUpdateSettings(TEST_INDEX).setSettings(settingsBuilder).execute().actionGet();
+    }
+
+    // verify that shard does not exist at targetNode
+    protected void assertNonAllocation(boolean isPrimary) {
+        if (isPrimary) {
+            ensureRed(TEST_INDEX);
+        } else {
+            ensureYellowAndNoInitializingShards(TEST_INDEX);
+        }
+        ShardRouting shardRouting = getShardRouting(isPrimary);
+        assertFalse(shardRouting.active());
+        assertNull(shardRouting.currentNodeId());
+        assertEquals(ShardRoutingState.UNASSIGNED, shardRouting.state());
+    }
+
+    // verify that shard exists at targetNode
+    protected void assertAllocation(boolean isPrimary, @Nullable DiscoveryNode targetNode) {
+        ShardRouting shardRouting = getShardRouting(isPrimary);
+        assertTrue(shardRouting.active());
+        assertNotNull(shardRouting.currentNodeId());
+        if (targetNode != null) {
+            assertEquals(shardRouting.currentNodeId(), targetNode.getId());
+        }
+    }
+
     // create a snapshot
     public static SnapshotInfo createSnapshot(String snapshotRepoName, String snapshotName, String... indices) {
         SnapshotInfo snapshotInfo = internalCluster().client()
@@ -229,4 +332,5 @@ public class RemoteStoreMigrationShardAllocationBaseTestCase extends MigrationBa
             INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings)
         );
     }
+
 }
