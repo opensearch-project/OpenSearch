@@ -12,7 +12,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.index.translog.Checkpoint;
 
 import java.io.BufferedInputStream;
 import java.io.Closeable;
@@ -64,10 +63,6 @@ public class FileSnapshot implements Closeable {
         return name;
     }
 
-    public byte[] getContent() {
-        return content;
-    }
-
     public long getContentLength() throws IOException {
         return fileChannel == null ? content.length : fileChannel.size();
     }
@@ -116,23 +111,39 @@ public class FileSnapshot implements Closeable {
         private final long primaryTerm;
         private Long checksum;
         @Nullable
-        private String checkpointFileName;
+        private long generation;
+        @Nullable
+        private long minTranslogGeneration;
+        @Nullable
+        private Path ckpFilePath;
+        @Nullable
+        private Long ckpFileChecksum;
         @Nullable
         private Map<String, String> metadata;
-        @Nullable
-        private Checkpoint checkpoint;
 
-        public TransferFileSnapshot(Path path, long primaryTerm, Long checksum) throws IOException {
+        public TransferFileSnapshot(Path path, long primaryTerm, long generation, Long checksum) throws IOException {
             super(path);
             this.primaryTerm = primaryTerm;
             this.checksum = checksum;
+            this.generation = generation;
         }
 
-        public TransferFileSnapshot(Path path, long primaryTerm, Long checksum, Checkpoint checkpoint) throws IOException {
+        public TransferFileSnapshot(
+            long primaryTerm,
+            long generation,
+            long minTranslogGeneration,
+            Path path,
+            Long checksum,
+            Path ckpFilePath,
+            Long ckpFileChecksum
+        ) throws IOException {
             super(path);
             this.primaryTerm = primaryTerm;
             this.checksum = checksum;
-            this.checkpoint = checkpoint;
+            this.generation = generation;
+            this.minTranslogGeneration = minTranslogGeneration;
+            this.ckpFilePath = ckpFilePath;
+            this.ckpFileChecksum = ckpFileChecksum;
         }
 
         public TransferFileSnapshot(String name, byte[] content, long primaryTerm) throws IOException {
@@ -140,8 +151,8 @@ public class FileSnapshot implements Closeable {
             this.primaryTerm = primaryTerm;
         }
 
-        public void setCheckpointFileName(String name) {
-            this.checkpointFileName = name;
+        public CheckpointFileSnapshot provideCheckpointFileSnapshot() throws IOException {
+            return new CheckpointFileSnapshot(primaryTerm, generation, minTranslogGeneration, ckpFilePath, ckpFileChecksum);
         }
 
         public Long getChecksum() {
@@ -152,20 +163,39 @@ public class FileSnapshot implements Closeable {
             return primaryTerm;
         }
 
-        public void setTransferFileSnapshotMetadata(Map<String, String> metadata) {
-            this.metadata = metadata;
-        }
-
-        public String getCheckpointFileName() {
-            return checkpointFileName;
-        }
-
         public Map<String, String> getTransferFileSnapshotMetadata() {
             return metadata;
         }
 
-        public Checkpoint getCheckpoint() {
-            return checkpoint;
+        public long getGeneration() {
+            return generation;
+        }
+
+        public long getMinTranslogGeneration() {
+            return minTranslogGeneration;
+        }
+
+        public Path getCkpFilePath() {
+            return ckpFilePath;
+        }
+
+        public Long getCkpFileChecksum() {
+            return ckpFileChecksum;
+        }
+
+        public long getCkpFileContentLength() throws IOException {
+            FileChannel fileChannel = FileChannel.open(ckpFilePath, StandardOpenOption.READ);
+            long ckpFileSize = fileChannel.size();
+            fileChannel.close();
+            return ckpFileSize;
+        }
+
+        public String getCkpFileName() {
+            return ckpFilePath.getFileName().toString();
+        }
+
+        public void setTransferFileSnapshotMetadata(Map<String, String> metadata) {
+            this.metadata = metadata;
         }
 
         @Override
@@ -186,41 +216,6 @@ public class FileSnapshot implements Closeable {
     }
 
     /**
-     * Snapshot of a single .tlg file that gets transferred
-     *
-     * @opensearch.internal
-     */
-    public static final class TranslogFileSnapshot extends TransferFileSnapshot {
-
-        private final long generation;
-
-        public TranslogFileSnapshot(long primaryTerm, long generation, Path path, Long checksum) throws IOException {
-            super(path, primaryTerm, checksum);
-            this.generation = generation;
-        }
-
-        public long getGeneration() {
-            return generation;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(generation, super.hashCode());
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (super.equals(o)) {
-                if (this == o) return true;
-                if (getClass() != o.getClass()) return false;
-                TranslogFileSnapshot other = (TranslogFileSnapshot) o;
-                return Objects.equals(this.generation, other.generation);
-            }
-            return false;
-        }
-    }
-
-    /**
      * Snapshot of a single .ckp file that gets transferred
      *
      * @opensearch.internal
@@ -231,15 +226,9 @@ public class FileSnapshot implements Closeable {
 
         private final long minTranslogGeneration;
 
-        public CheckpointFileSnapshot(
-            long primaryTerm,
-            long generation,
-            long minTranslogGeneration,
-            Path path,
-            Long checksum,
-            Checkpoint checkpoint
-        ) throws IOException {
-            super(path, primaryTerm, checksum, checkpoint);
+        public CheckpointFileSnapshot(long primaryTerm, long generation, long minTranslogGeneration, Path path, Long checksum)
+            throws IOException {
+            super(path, primaryTerm, generation, checksum);
             this.minTranslogGeneration = minTranslogGeneration;
             this.generation = generation;
         }
@@ -269,4 +258,64 @@ public class FileSnapshot implements Closeable {
             return false;
         }
     }
+
+    /**
+     * Single snapshot of combined translog.tlog and translog.ckp files that gets transferred
+     *
+     * @opensearch.internal
+     */
+    public static final class TranslogAndCheckpointFileSnapshot extends TransferFileSnapshot {
+
+        private final long primaryTerm;
+        private final long generation;
+        private final long minTranslogGeneration;
+        private final long ckpGeneration;
+
+        public TranslogAndCheckpointFileSnapshot(
+            long primaryTerm,
+            long generation,
+            long minTranslogGeneration,
+            Path tlogFilePath,
+            Long tlogFilechecksum,
+            Path ckpFilePath,
+            Long ckpFileChecksum,
+            Long ckpGeneration
+        ) throws IOException {
+            super(primaryTerm, generation, minTranslogGeneration, tlogFilePath, tlogFilechecksum, ckpFilePath, ckpFileChecksum);
+            this.primaryTerm = primaryTerm;
+            this.generation = generation;
+            this.minTranslogGeneration = minTranslogGeneration;
+            this.ckpGeneration = ckpGeneration;
+        }
+
+        public long getGeneration() {
+            return generation;
+        }
+
+        public long getMinTranslogGeneration() {
+            return minTranslogGeneration;
+        }
+
+        public long getCkpGeneration() {
+            return ckpGeneration;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(primaryTerm, generation, super.hashCode());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (super.equals(o)) {
+                if (this == o) return true;
+                if (getClass() != o.getClass()) return false;
+                TranslogAndCheckpointFileSnapshot other = (TranslogAndCheckpointFileSnapshot) o;
+                return Objects.equals(this.primaryTerm, other.primaryTerm) && Objects.equals(this.generation, other.generation);
+            }
+            return false;
+        }
+
+    }
+
 }

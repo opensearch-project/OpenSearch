@@ -8,10 +8,7 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.opensearch.common.collect.Tuple;
-import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
-import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
 
 import java.util.Set;
 
@@ -24,27 +21,15 @@ import java.util.Set;
 public interface TransferSnapshot {
 
     /**
-     * The snapshot of the checkpoint generational files
-     * @return the set of {@link CheckpointFileSnapshot}
-     */
-    Set<TransferFileSnapshot> getCheckpointFileSnapshots();
-
-    /**
-     * The snapshot of the translog generational files
-     * @return the set of {@link TranslogFileSnapshot}
-     */
-    Set<TransferFileSnapshot> getTranslogFileSnapshots();
-
-    /**
      * The translog transfer metadata of this {@link TransferSnapshot}
      * @return the translog transfer metadata
      */
     TranslogTransferMetadata getTranslogTransferMetadata();
 
     /**
-     *
-     * The Set of tuple containing the TranslogFileSnapshot and CheckpointFileSnapshot
-     * @return the set of tuples {@link TranslogFileSnapshot} and {@link CheckpointFileSnapshot}
+     * The combined snapshot of the TranslogAndCheckpoint generational files
+     * @return the set of {@link TranslogCheckpointTransferSnapshot}
      */
-    Set<Tuple<TransferFileSnapshot, TransferFileSnapshot>> getTranslogAndCheckpointFileSnapshotTupleSet();
+    Set<TransferFileSnapshot> getTranslogAndCheckpointFileSnapshots();
+
 }

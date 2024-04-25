@@ -8,7 +8,6 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.index.translog.TranslogReader;
 
 import java.io.Closeable;
@@ -23,9 +22,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
-import static org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
 import static org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
-import static org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
+import static org.opensearch.index.translog.transfer.FileSnapshot.TranslogAndCheckpointFileSnapshot;
 
 /**
  * Implementation for a {@link TransferSnapshot} which builds the snapshot from the translog and checkpoint files present on the local-disk
@@ -34,7 +32,7 @@ import static org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSn
  */
 public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Closeable {
 
-    private final Set<Tuple<TranslogFileSnapshot, CheckpointFileSnapshot>> translogCheckpointFileInfoTupleSet;
+    private final Set<TranslogAndCheckpointFileSnapshot> translogAndCheckpointFileSnapshotSet;
     private final int size;
     private final long generation;
     private final long primaryTerm;
@@ -43,25 +41,20 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
     private String nodeId;
 
     TranslogCheckpointTransferSnapshot(long primaryTerm, long generation, int size, String nodeId) {
-        translogCheckpointFileInfoTupleSet = new HashSet<>(size);
+        translogAndCheckpointFileSnapshotSet = new HashSet<>(size);
         this.size = size;
         this.generation = generation;
         this.primaryTerm = primaryTerm;
         this.nodeId = nodeId;
     }
 
-    private void add(TranslogFileSnapshot translogFileSnapshot, CheckpointFileSnapshot checkPointFileSnapshot) {
-        translogCheckpointFileInfoTupleSet.add(Tuple.tuple(translogFileSnapshot, checkPointFileSnapshot));
-        assert translogFileSnapshot.getGeneration() == checkPointFileSnapshot.getGeneration();
+    private void add(TranslogAndCheckpointFileSnapshot translogAndCheckpointFileSnapshot) {
+        translogAndCheckpointFileSnapshotSet.add(translogAndCheckpointFileSnapshot);
+        assert translogAndCheckpointFileSnapshot.getGeneration() == translogAndCheckpointFileSnapshot.getCkpGeneration();
     }
 
     private void setMinTranslogGeneration(long minTranslogGeneration) {
         this.minTranslogGeneration = minTranslogGeneration;
-    }
-
-    @Override
-    public Set<TransferFileSnapshot> getTranslogFileSnapshots() {
-        return translogCheckpointFileInfoTupleSet.stream().map(Tuple::v1).collect(Collectors.toSet());
     }
 
     @Override
@@ -70,27 +63,19 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
             primaryTerm,
             generation,
             minTranslogGeneration,
-            translogCheckpointFileInfoTupleSet.size() * 2,
+            translogAndCheckpointFileSnapshotSet.size(),
             nodeId
         );
     }
 
     @Override
-    public Set<TransferFileSnapshot> getCheckpointFileSnapshots() {
-        return translogCheckpointFileInfoTupleSet.stream().map(Tuple::v2).collect(Collectors.toSet());
-    }
-
-    @Override
-    public Set<Tuple<TransferFileSnapshot, TransferFileSnapshot>> getTranslogAndCheckpointFileSnapshotTupleSet() {
-        return translogCheckpointFileInfoTupleSet.stream()
-            .map(tuple -> new Tuple<>((TransferFileSnapshot) tuple.v1(), (TransferFileSnapshot) tuple.v2()))
-            .collect(Collectors.toSet());
+    public Set<TransferFileSnapshot> getTranslogAndCheckpointFileSnapshots() {
+        return translogAndCheckpointFileSnapshotSet.stream().collect(Collectors.toSet());
     }
 
     public void close() throws IOException {
         List<Exception> exceptionList = new ArrayList<>();
-        Set<FileSnapshot.TransferFileSnapshot> fileSnapshots = getTranslogFileSnapshots();
-        fileSnapshots.addAll(getCheckpointFileSnapshots());
+        Set<FileSnapshot.TransferFileSnapshot> fileSnapshots = getTranslogAndCheckpointFileSnapshots();
 
         for (FileSnapshot fileSnapshot : fileSnapshots) {
             try {
@@ -165,14 +150,15 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
                 Path checkpointPath = location.resolve(checkpointGenFileNameMapper.apply(readerGeneration));
                 generations.add(readerGeneration);
                 translogTransferSnapshot.add(
-                    new TranslogFileSnapshot(readerPrimaryTerm, readerGeneration, translogPath, reader.getTranslogChecksum()),
-                    new CheckpointFileSnapshot(
+                    new TranslogAndCheckpointFileSnapshot(
                         readerPrimaryTerm,
-                        checkpointGeneration,
+                        readerGeneration,
                         minTranslogGeneration,
+                        translogPath,
+                        reader.getTranslogChecksum(),
                         checkpointPath,
                         reader.getCheckpointChecksum(),
-                        reader.getCheckpoint()
+                        checkpointGeneration
                     )
                 );
                 if (readerGeneration > highestGeneration) {

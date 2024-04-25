@@ -24,11 +24,8 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
-import org.opensearch.index.translog.Checkpoint;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
-import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -196,79 +193,11 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
                 translogTransferFailed.incrementAndGet();
             }
         }));
-        assertEquals(4, fileTransferSucceeded.get());
-        assertEquals(0, fileTransferFailed.get());
-        assertEquals(1, translogTransferSucceeded.get());
-        assertEquals(0, translogTransferFailed.get());
-        assertEquals(4, fileTransferTracker.allUploaded().size());
-    }
-
-    public void testTransferSnapshotWithCkpFileAsMetadataForTlogFile() throws Exception {
-        AtomicInteger fileTransferSucceeded = new AtomicInteger();
-        AtomicInteger fileTransferFailed = new AtomicInteger();
-        AtomicInteger translogTransferSucceeded = new AtomicInteger();
-        AtomicInteger translogTransferFailed = new AtomicInteger();
-
-        doNothing().when(transferService)
-            .uploadBlob(
-                any(TransferFileSnapshot.class),
-                Mockito.eq(remoteBaseTransferPath.add(String.valueOf(primaryTerm))),
-                any(WritePriority.class)
-            );
-
-        when(transferService.isBlobMetadataSupported()).thenReturn(true);
-
-        doAnswer(invocationOnMock -> {
-            ActionListener<TransferFileSnapshot> listener = (ActionListener<TransferFileSnapshot>) invocationOnMock.getArguments()[2];
-            Set<TransferFileSnapshot> transferFileSnapshots = (Set<TransferFileSnapshot>) invocationOnMock.getArguments()[0];
-            transferFileSnapshots.forEach(listener::onResponse);
-            return null;
-        }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
-
-        FileTransferTracker fileTransferTracker = new FileTransferTracker(
-            new ShardId("index", "indexUUid", 0),
-            remoteTranslogTransferTracker
-        ) {
-            @Override
-            public void onSuccess(TransferFileSnapshot fileSnapshot) {
-                fileTransferSucceeded.incrementAndGet();
-                super.onSuccess(fileSnapshot);
-            }
-
-            @Override
-            public void onFailure(TransferFileSnapshot fileSnapshot, Exception e) {
-                fileTransferFailed.incrementAndGet();
-                super.onFailure(fileSnapshot, e);
-            }
-
-        };
-
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
-            shardId,
-            transferService,
-            remoteBaseTransferPath.add(TRANSLOG.getName()),
-            remoteBaseTransferPath.add(METADATA.getName()),
-            fileTransferTracker,
-            remoteTranslogTransferTracker,
-            DefaultRemoteStoreSettings.INSTANCE
-        );
-
-        assertTrue(translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
-            @Override
-            public void onUploadComplete(TransferSnapshot transferSnapshot) {
-                translogTransferSucceeded.incrementAndGet();
-            }
-
-            @Override
-            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
-                translogTransferFailed.incrementAndGet();
-            }
-        }));
         assertEquals(2, fileTransferSucceeded.get());
         assertEquals(0, fileTransferFailed.get());
         assertEquals(1, translogTransferSucceeded.get());
         assertEquals(0, translogTransferFailed.get());
-        assertEquals(4, fileTransferTracker.allUploaded().size());
+        assertEquals(2, fileTransferTracker.allUploaded().size());
     }
 
     public void testTransferSnapshotOnUploadTimeout() throws Exception {
@@ -378,55 +307,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     }
 
     private TransferSnapshot createTransferSnapshot() throws IOException {
-        Checkpoint checkpoint = new Checkpoint(1, 2, 4, 4, 4, 4, 2, 1);
         return new TransferSnapshot() {
-            @Override
-            public Set<TransferFileSnapshot> getCheckpointFileSnapshots() {
-                try {
-                    return Set.of(
-                        new CheckpointFileSnapshot(
-                            primaryTerm,
-                            generation,
-                            minTranslogGeneration,
-                            createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.CHECKPOINT_SUFFIX),
-                            null,
-                            checkpoint
-                        ),
-                        new CheckpointFileSnapshot(
-                            primaryTerm,
-                            generation,
-                            minTranslogGeneration,
-                            createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.CHECKPOINT_SUFFIX),
-                            null,
-                            checkpoint
-                        )
-                    );
-                } catch (IOException e) {
-                    throw new AssertionError("Failed to create temp file", e);
-                }
-            }
-
-            @Override
-            public Set<TransferFileSnapshot> getTranslogFileSnapshots() {
-                try {
-                    return Set.of(
-                        new TranslogFileSnapshot(
-                            primaryTerm,
-                            generation,
-                            createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.TRANSLOG_FILE_SUFFIX),
-                            null
-                        ),
-                        new TranslogFileSnapshot(
-                            primaryTerm,
-                            generation - 1,
-                            createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.TRANSLOG_FILE_SUFFIX),
-                            null
-                        )
-                    );
-                } catch (IOException e) {
-                    throw new AssertionError("Failed to create temp file", e);
-                }
-            }
 
             @Override
             public TranslogTransferMetadata getTranslogTransferMetadata() {
@@ -434,40 +315,28 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public Set<Tuple<TransferFileSnapshot, TransferFileSnapshot>> getTranslogAndCheckpointFileSnapshotTupleSet() {
+            public Set<TransferFileSnapshot> getTranslogAndCheckpointFileSnapshots() {
                 try {
                     return Set.of(
-                        new Tuple<>(
-                            new TranslogFileSnapshot(
-                                primaryTerm,
-                                generation,
-                                createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.TRANSLOG_FILE_SUFFIX),
-                                null
-                            ),
-                            new CheckpointFileSnapshot(
-                                primaryTerm,
-                                generation,
-                                minTranslogGeneration,
-                                createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.CHECKPOINT_SUFFIX),
-                                null,
-                                checkpoint
-                            )
+                        new FileSnapshot.TranslogAndCheckpointFileSnapshot(
+                            primaryTerm,
+                            generation,
+                            minTranslogGeneration,
+                            createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.TRANSLOG_FILE_SUFFIX),
+                            null,
+                            createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.CHECKPOINT_SUFFIX),
+                            null,
+                            generation
                         ),
-                        new Tuple<>(
-                            new TranslogFileSnapshot(
-                                primaryTerm,
-                                generation - 1,
-                                createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.TRANSLOG_FILE_SUFFIX),
-                                null
-                            ),
-                            new CheckpointFileSnapshot(
-                                primaryTerm,
-                                generation - 1,
-                                minTranslogGeneration,
-                                createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.CHECKPOINT_SUFFIX),
-                                null,
-                                checkpoint
-                            )
+                        new FileSnapshot.TranslogAndCheckpointFileSnapshot(
+                            primaryTerm,
+                            generation - 1,
+                            minTranslogGeneration,
+                            createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.TRANSLOG_FILE_SUFFIX),
+                            null,
+                            createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.CHECKPOINT_SUFFIX),
+                            null,
+                            generation
                         )
                     );
                 } catch (IOException e) {
@@ -630,9 +499,10 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             DefaultRemoteStoreSettings.INSTANCE
         );
         String translogFile = "translog-19.tlog", checkpointFile = "translog-19.ckp";
+        tracker.addGeneration(19, true);
         tracker.add(translogFile, true);
         tracker.add(checkpointFile, true);
-        assertEquals(2, tracker.allUploaded().size());
+        assertEquals(1, tracker.allUploaded().size());
 
         List<String> files = List.of(checkpointFile, translogFile);
         translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
@@ -697,10 +567,11 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         String translogFile = "translog-19.tlog", checkpointFile = "translog-19.ckp";
         tracker.add(translogFile, true);
         tracker.add(checkpointFile, true);
-        assertEquals(2, tracker.allUploaded().size());
+        tracker.addGeneration(19, true);
+        assertEquals(1, tracker.allUploaded().size());
 
         translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
-        assertEquals(2, tracker.allUploaded().size());
+        assertEquals(1, tracker.allUploaded().size());
     }
 
     private void assertNoDownloadStats(boolean nonZeroUploadTime) {

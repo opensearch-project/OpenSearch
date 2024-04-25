@@ -53,6 +53,7 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
             testFile,
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
             null
         );
         TransferService transferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
@@ -75,6 +76,7 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         AtomicBoolean succeeded = new AtomicBoolean(false);
         FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
             testFile,
+            randomNonNegativeLong(),
             randomNonNegativeLong(),
             null
         );

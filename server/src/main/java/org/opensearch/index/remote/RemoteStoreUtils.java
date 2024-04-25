@@ -130,7 +130,7 @@ public class RemoteStoreUtils {
         return ByteBuffer.wrap(hashBytes).getLong();
     }
 
-    public static byte[] convertBase64StringToBytesArray(String base64String) {
+    public static byte[] getBytesArrayFromBase64String(String base64String) {
         if (base64String == null) {
             return null;
         }

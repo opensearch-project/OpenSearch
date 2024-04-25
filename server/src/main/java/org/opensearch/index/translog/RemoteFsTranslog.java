@@ -414,7 +414,7 @@ public class RemoteFsTranslog extends Translog {
     }
 
     // Visible for testing
-    public Set<String> allUploaded() {
+    public Set<Long> allUploaded() {
         return fileTransferTracker.allUploaded();
     }
 
