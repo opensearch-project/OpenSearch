@@ -25,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Streaming Indexing] Ensure support of the new transport by security plugin ([#13174](https://github.com/opensearch-project/OpenSearch/pull/13174))
 - Add cluster setting to dynamically configure the buckets for filter rewrite optimization. ([#13179](https://github.com/opensearch-project/OpenSearch/pull/13179))
 - [Tiered Caching] Expose a dynamic setting to disable/enable disk cache. ([#13373](https://github.com/opensearch-project/OpenSearch/pull/13373))
+- [Remote Store] Add capability of doing refresh as determined by the translog ([#12992](https://github.com/opensearch-project/OpenSearch/pull/12992))
 
 ### Dependencies
 - Bump `org.apache.commons:commons-configuration2` from 2.10.0 to 2.10.1 ([#12896](https://github.com/opensearch-project/OpenSearch/pull/12896))
@@ -44,6 +45,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.apis:google-api-services-compute` from v1-rev235-1.25.0 to v1-rev20240407-2.0.0 ([#13333](https://github.com/opensearch-project/OpenSearch/pull/13333))
 - Bump `commons-cli:commons-cli` from 1.6.0 to 1.7.0 ([#13331](https://github.com/opensearch-project/OpenSearch/pull/13331))
 - Bump `com.github.spullara.mustache.java:compiler` from 0.9.10 to 0.9.11 ([#13329](https://github.com/opensearch-project/OpenSearch/pull/13329))
+- Bump `jakarta.enterprise:jakarta.enterprise.cdi-api` from 4.0.1 to 4.1.0 ([#13328](https://github.com/opensearch-project/OpenSearch/pull/13328))
+- Bump `com.google.api.grpc:proto-google-iam-v1` from 0.12.0 to 1.33.0 ([#13332](https://github.com/opensearch-project/OpenSearch/pull/13332))
+- OpenJDK Update (April 2024 Patch releases), update to Eclipse Temurin 21.0.3+9 ([#13389](https://github.com/opensearch-project/OpenSearch/pull/13389))
 
 ### Changed
 - [BWC and API enforcement] Enforcing the presence of API annotations at build time ([#12872](https://github.com/opensearch-project/OpenSearch/pull/12872))
@@ -66,9 +70,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix from and size parameter can be negative when searching ([#13047](https://github.com/opensearch-project/OpenSearch/pull/13047))
 - Enabled mockTelemetryPlugin for IT and fixed OOM issues ([#13054](https://github.com/opensearch-project/OpenSearch/pull/13054))
 - Fix implement mark() and markSupported() in class FilterStreamInput ([#13098](https://github.com/opensearch-project/OpenSearch/pull/13098))
+- Fix IndicesRequestCache Stale calculation ([#13070](https://github.com/opensearch-project/OpenSearch/pull/13070)]
 - Fix snapshot _status API to return correct status for partial snapshots ([#12812](https://github.com/opensearch-project/OpenSearch/pull/12812))
 - Improve the error messages for _stats with closed indices ([#13012](https://github.com/opensearch-project/OpenSearch/pull/13012))
 - Ignore BaseRestHandler unconsumed content check as it's always consumed. ([#13290](https://github.com/opensearch-project/OpenSearch/pull/13290))
+- Fix mapper_parsing_exception when using flat_object fields with names longer than 11 characters ([#13259](https://github.com/opensearch-project/OpenSearch/pull/13259))
 
 ### Security
 
