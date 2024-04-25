@@ -159,10 +159,6 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     public static final String SHARD_ID_DIMENSION_NAME = "shards";
     public static final String INDEX_DIMENSION_NAME = "indices";
 
-    // These values determine the valid names for levels in the cache stats API
-    public static final String SHARD_ID_DIMENSION_NAME = "shards";
-    public static final String INDEX_DIMENSION_NAME = "indices";
-
     IndicesRequestCache(
         Settings settings,
         Function<ShardId, Optional<CacheEntity>> cacheEntityFunction,
