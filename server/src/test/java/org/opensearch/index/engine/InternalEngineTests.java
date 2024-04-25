@@ -4049,7 +4049,7 @@ public class InternalEngineTests extends EngineTestCase {
         final Path badTranslogLog = createTempDir();
         final String badUUID = Translog.createEmptyTranslog(badTranslogLog, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         Translog translog = new LocalTranslog(
-            new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
+            new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
             badUUID,
             createTranslogDeletionPolicy(INDEX_SETTINGS),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
@@ -4067,7 +4067,8 @@ public class InternalEngineTests extends EngineTestCase {
             translog.location(),
             config.getIndexSettings(),
             BigArrays.NON_RECYCLING_INSTANCE,
-            ""
+            "",
+            false
         );
 
         EngineConfig brokenConfig = new EngineConfig.Builder().shardId(shardId)
@@ -7780,7 +7781,8 @@ public class InternalEngineTests extends EngineTestCase {
                 createTempDir(),
                 config.getTranslogConfig().getIndexSettings(),
                 config.getTranslogConfig().getBigArrays(),
-                ""
+                "",
+                false
             );
             EngineConfig configWithWarmer = new EngineConfig.Builder().shardId(config.getShardId())
                 .threadPool(config.getThreadPool())
