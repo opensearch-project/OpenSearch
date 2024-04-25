@@ -144,17 +144,17 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
 
                 // create a fetch context to be used by HighlightPhase processor
                 FetchContext fetchContext = mock(FetchContext.class);
-                when(fetchContext.mapperService()).thenReturn(mockShardContext.getMapperService());
+                when(fetchContext.mapperService()).thenReturn(mapperService);
                 when(fetchContext.getQueryShardContext()).thenReturn(mockShardContext);
                 when(fetchContext.getIndexSettings()).thenReturn(indexService.getIndexSettings());
                 when(fetchContext.searcher()).thenReturn(
                     new ContextIndexSearcher(
-                        searcher.getIndexReader(),
-                        searcher.getSimilarity(),
-                        searcher.getQueryCache(),
-                        searcher.getQueryCachingPolicy(),
+                        reader,
+                        IndexSearcher.getDefaultSimilarity(),
+                        IndexSearcher.getDefaultQueryCache(),
+                        IndexSearcher.getDefaultQueryCachingPolicy(),
                         true,
-                        searcher.getExecutor(),
+                        null,
                         null
                     )
                 );
@@ -253,17 +253,17 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
 
                 // create a fetch context to be used by HighlightPhase processor
                 FetchContext fetchContext = mock(FetchContext.class);
-                when(fetchContext.mapperService()).thenReturn(mockShardContext.getMapperService());
+                when(fetchContext.mapperService()).thenReturn(mapperService);
                 when(fetchContext.getQueryShardContext()).thenReturn(mockShardContext);
                 when(fetchContext.getIndexSettings()).thenReturn(indexService.getIndexSettings());
                 when(fetchContext.searcher()).thenReturn(
                     new ContextIndexSearcher(
-                        searcher.getIndexReader(),
-                        searcher.getSimilarity(),
-                        searcher.getQueryCache(),
-                        searcher.getQueryCachingPolicy(),
+                        reader,
+                        IndexSearcher.getDefaultSimilarity(),
+                        IndexSearcher.getDefaultQueryCache(),
+                        IndexSearcher.getDefaultQueryCachingPolicy(),
                         true,
-                        searcher.getExecutor(),
+                        null,
                         null
                     )
                 );

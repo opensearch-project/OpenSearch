@@ -2163,7 +2163,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     namedXContentRegistry,
                     systemIndices,
                     false,
-                    new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+                    new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                    DefaultRemoteStoreSettings.INSTANCE
                 );
                 actions.put(
                     CreateIndexAction.INSTANCE,
