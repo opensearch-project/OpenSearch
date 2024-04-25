@@ -1106,8 +1106,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         } else {
             newVersion = replicationGroup.getVersion() + 1;
         }
-        assert indexSettings.isAssignedOnRemoteNode()
-            // Handle migration cases. Ignore assertion if any of the shard copies in the replication group is assigned to a remote node
+        assert newVersion == 0 || indexSettings.isRemoteTranslogStoreEnabled()
+        // Handle migration cases. Ignore assertion if any of the shard copies in the replication group is assigned to a remote node
             || (replicationGroup != null
                 && replicationGroup.getReplicationTargets()
                     .stream()
