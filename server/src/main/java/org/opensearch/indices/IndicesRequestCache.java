@@ -155,6 +155,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     private final Function<ShardId, Optional<CacheEntity>> cacheEntityLookup;
     // pkg-private for testing
     final IndicesRequestCacheCleanupManager cacheCleanupManager;
+
     // These values determine the valid names for levels in the cache stats API
     public static final String SHARD_ID_DIMENSION_NAME = "shards";
     public static final String INDEX_DIMENSION_NAME = "indices";
@@ -532,7 +533,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
          * @param cleanupKey the CleanupKey to be updated in the map
          */
         private void updateStaleCountOnCacheInsert(CleanupKey cleanupKey) {
-            if (stalenessThreshold == 0.0 || cleanupKey.entity == null) {
+            if (cleanupKey.entity == null) {
                 return;
             }
             IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
