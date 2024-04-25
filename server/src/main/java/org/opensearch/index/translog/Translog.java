@@ -2082,4 +2082,13 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     public long getMinUnreferencedSeqNoInSegments(long minUnrefCheckpointInLastCommit) {
         return minUnrefCheckpointInLastCommit;
     }
+
+    /**
+     * Checks whether or not the shard should be flushed based on translog files.
+     * each translog type can have it's own decider
+     * @return {@code true} if the shard should be flushed
+     */
+    protected boolean shouldFlush() {
+        return false;
+    }
 }
