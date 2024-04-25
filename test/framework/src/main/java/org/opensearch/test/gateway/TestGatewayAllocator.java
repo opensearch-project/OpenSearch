@@ -44,8 +44,6 @@ import org.opensearch.gateway.PrimaryShardAllocator;
 import org.opensearch.gateway.ReplicaShardAllocator;
 import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
-import org.opensearch.gateway.TransportNodesListGatewayStartedBatchShards;
-import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
 
