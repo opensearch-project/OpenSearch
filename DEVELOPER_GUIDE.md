@@ -57,6 +57,7 @@
       - [Developer API](#developer-api)
       - [User API](#user-api)
       - [Experimental Development](#experimental-development)
+      - [API Compatibility Checks](#api-compatibility-checks)
     - [Backports](#backports)
     - [LineLint](#linelint)
     - [Lucene Snapshots](#lucene-snapshots)
@@ -181,6 +182,12 @@ Run OpenSearch using `gradlew run`.
 
 ```
 ./gradlew run
+```
+
+[Plugins](plugins/) may be installed by passing a `-PinstalledPlugins` property:
+
+```bash
+./gradlew run -PinstalledPlugins="['plugin1', 'plugin2']"
 ```
 
 That will build OpenSearch and start it, writing its log above Gradle's status message. We log a lot of stuff on startup, specifically these lines tell you that OpenSearch is ready.
@@ -342,7 +349,7 @@ Please follow these formatting guidelines:
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail.
 * If *absolutely* necessary, you can disable formatting for regions of code with the `// tag::NAME` and `// end::NAME` directives, but note that these are intended for use in documentation, so please make it clear what you have done, and only do this where the benefit clearly outweighs the decrease in consistency.
 * Note that JavaDoc and block comments i.e. `/* ... */` are not formatted, but line comments i.e `// ...` are.
-* There is an implicit rule that negative boolean expressions should use the form `foo == false` instead of `!foo` for better readability of the code. While this isn't strictly enforced, if might get called out in PR reviews as something to change.
+* There is an implicit rule that negative boolean expressions should use the form `foo == false` instead of `!foo` for better readability of the code. While this isn't strictly enforced, it might get called out in PR reviews as something to change.
 
 ## Adding Dependencies
 
@@ -578,7 +585,7 @@ explicitly marked by an annotation should not be extended by external implementa
 any time. The `@DeprecatedApi` annotation could also be added to any classes annotated with `@PublicApi` (or documented as `@opensearch.api`) or their methods that
 are either changed (with replacement) or planned to be removed across major versions.
 
-The APIs which are designated to be public but have not been stabilized yet should be marked with `@ExperimentalApi` (or documented as `@opensearch.experimental`) 
+The APIs which are designated to be public but have not been stabilized yet should be marked with `@ExperimentalApi` (or documented as `@opensearch.experimental`)
 annotation. The presence of this annotation signals that API may change at any time (major, minor or even patch releases). In general, the classes annotated with
 `@PublicApi` may expose other classes or methods annotated with `@ExperimentalApi`, in such cases the backward compatibility guarantees would not apply to latter
 (see please [Experimental Development](#experimental-development) for more details).
@@ -600,6 +607,20 @@ uses an Experimental Development process leveraging [Feature Flags](https://feat
 a LTS feature but with additional guard rails and communication mechanisms to signal to the users and development community the feature is not yet stable, may change in a future
 release, or be removed altogether. Any Developer or User APIs implemented along with the experimental feature should be marked with `@ExperimentalApi` (or documented as
 `@opensearch.experimental`) annotation to signal the implementation is not subject to LTS and does not follow backwards compatibility guidelines.
+
+#### API Compatibility Checks
+
+The compatibility checks for public APIs are performed using [japicmp](https://siom79.github.io/japicmp/) and are available as separate Gradle tasks (those are run on demand at the moment):
+
+```
+./gradlew japicmp
+```
+
+By default, the API compatibility checks are run against the latest released version of the OpenSearch, however the target version to compare to could be provided using system property during the build, fe.:
+
+```
+./gradlew japicmp  -Djapicmp.compare.version=2.14.0-SNAPSHOT
+```
 
 ### Backports
 

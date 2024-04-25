@@ -259,16 +259,25 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
 
     @Override
     public String[] indices() {
+        if (request == null) {
+            return new String[0];
+        }
         return request.indices();
     }
 
     @Override
     public IndicesOptions indicesOptions() {
+        if (request == null) {
+            return SearchRequest.DEFAULT_INDICES_OPTIONS;
+        }
         return request.indicesOptions();
     }
 
     @Override
     public IndicesRequest indices(String... indices) {
+        if (request == null) {
+            return new SearchRequest(new String[0]).indices(indices);
+        }
         return request.indices(indices);
     }
 }

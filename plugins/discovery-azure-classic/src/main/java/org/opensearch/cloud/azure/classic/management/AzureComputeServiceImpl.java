@@ -112,6 +112,7 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent implemen
         return value;
     }
 
+    @SuppressWarnings("removal")
     @Override
     public HostedServiceGetDetailedResponse getServiceDetails() {
         SpecialPermission.check();

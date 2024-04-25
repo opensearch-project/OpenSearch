@@ -1,7 +1,7 @@
 {
   "cat.segments":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-segments.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/cat/cat-segments/",
       "description":"Provides low-level information about the segments in the shards of an index."
     },
     "stability":"stable",

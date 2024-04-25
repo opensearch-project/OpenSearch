@@ -38,6 +38,7 @@ import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 import org.hamcrest.core.CombinableMatcher;
 
+import java.util.Arrays;
 import java.util.function.Function;
 
 public class OpenSearchMatchers {
@@ -108,6 +109,35 @@ public class OpenSearchMatchers {
         @Override
         public void describeTo(final Description description) {
             description.appendText("searchHit score should be ").appendValue(score);
+        }
+    }
+
+    public static class SearchHitMatchedQueriesMatcher extends TypeSafeMatcher<SearchHit> {
+        private String[] matchedQueries;
+
+        public SearchHitMatchedQueriesMatcher(String[] matchedQueries) {
+            this.matchedQueries = matchedQueries;
+        }
+
+        @Override
+        protected boolean matchesSafely(SearchHit searchHit) {
+            String[] searchHitQueries = searchHit.getMatchedQueries();
+            if (matchedQueries == null) {
+                return false;
+            }
+            Arrays.sort(searchHitQueries);
+            Arrays.sort(matchedQueries);
+            return Arrays.equals(searchHitQueries, matchedQueries);
+        }
+
+        @Override
+        public void describeMismatchSafely(final SearchHit searchHit, final Description mismatchDescription) {
+            mismatchDescription.appendText(" matched queries were ").appendValue(Arrays.toString(searchHit.getMatchedQueries()));
+        }
+
+        @Override
+        public void describeTo(final Description description) {
+            description.appendText("searchHit matched queries should be ").appendValue(Arrays.toString(matchedQueries));
         }
     }
 

@@ -1116,9 +1116,15 @@ public class RestClient implements Closeable {
                 if (chunkedEnabled.get()) {
                     return -1L;
                 } else {
-                    long size;
+                    long size = 0;
+                    final byte[] buf = new byte[8192];
+                    int nread = 0;
+
                     try (InputStream is = getContent()) {
-                        size = is.readAllBytes().length;
+                        // read to EOF which may read more or less than buffer size
+                        while ((nread = is.read(buf)) > 0) {
+                            size += nread;
+                        }
                     } catch (IOException ex) {
                         size = -1L;
                     }

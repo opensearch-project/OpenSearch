@@ -9,48 +9,43 @@
 package org.opensearch.test;
 
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsModule;
-import org.junit.After;
-import org.junit.Before;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 
 /**
- * Base class for running the tests with parameterization of the dynamic settings
- * For any class that wants to use parameterization, use @ParametersFactory to generate
- * different params only for dynamic settings. Refer SearchCancellationIT for an example.
- * Note: this doesn't work for the parameterization of feature flag/static settings.
+ * Base class for running the tests with parameterization of the settings.
+ * For any class that wants to use parameterization, use {@link com.carrotsearch.randomizedtesting.annotations.ParametersFactory} to generate
+ * different parameters.
+ *
+ * There are two flavors of applying the parameterized settings to the cluster on the suite level:
+ *  - static: the cluster will be pre-created with the settings at startup, please subclass {@link ParameterizedStaticSettingsOpenSearchIntegTestCase}, the method
+ *    {@link #hasSameParametersAs(ParameterizedOpenSearchIntegTestCase)} is being used by the test scaffolding to detect when the test suite is instantiated with
+ *    the new parameters and the test cluster has to be recreated
+ *  - dynamic: the cluster will be created once before the test suite and the settings will be applied dynamically , please subclass {@link ParameterizedDynamicSettingsOpenSearchIntegTestCase},
+ *    please notice that not all settings could be changed dynamically
+ *
+ * If the test suites use per-test level, the cluster will be recreated per each test method (applying static or dynamic settings).
  */
-public abstract class ParameterizedOpenSearchIntegTestCase extends OpenSearchIntegTestCase {
+abstract class ParameterizedOpenSearchIntegTestCase extends OpenSearchIntegTestCase {
+    protected final Settings settings;
 
-    private final Settings dynamicSettings;
-
-    public ParameterizedOpenSearchIntegTestCase(Settings dynamicSettings) {
-        this.dynamicSettings = dynamicSettings;
-    }
-
-    @Before
-    public void beforeTests() {
-        SettingsModule settingsModule = new SettingsModule(dynamicSettings);
-        for (String key : dynamicSettings.keySet()) {
-            assertTrue(
-                settingsModule.getClusterSettings().isDynamicSetting(key) || settingsModule.getIndexScopedSettings().isDynamicSetting(key)
-            );
-        }
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(dynamicSettings).get();
-    }
-
-    @After
-    public void afterTests() {
-        final Settings.Builder settingsToUnset = Settings.builder();
-        dynamicSettings.keySet().forEach(settingsToUnset::putNull);
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settingsToUnset).get();
+    ParameterizedOpenSearchIntegTestCase(Settings settings) {
+        this.settings = settings;
     }
 
     // This method shouldn't be called in setupSuiteScopeCluster(). Only call this method inside single test.
     public void indexRandomForConcurrentSearch(String... indices) throws InterruptedException {
-        if (dynamicSettings.get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey()).equals("true")) {
+        if (CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.get(settings)) {
             indexRandomForMultipleSlices(indices);
         }
     }
+
+    /**
+     * Compares the parameters of the two {@link ParameterizedOpenSearchIntegTestCase} test suite instances.
+     * This method is being use by {@link OpenSearchTestClusterRule} to determine when the parameterized test suite is instantiated with
+     * another set of parameters and the test cluster has to be recreated to reflect that.
+     * @param obj instance of the {@link ParameterizedOpenSearchIntegTestCase} to compare with
+     * @return {@code true} of the parameters of the test suites are the same, {@code false} otherwise
+     */
+    abstract boolean hasSameParametersAs(ParameterizedOpenSearchIntegTestCase obj);
 }

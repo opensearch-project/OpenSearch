@@ -54,6 +54,7 @@ import org.opensearch.core.common.io.stream.Writeable.Writer;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.semver.SemverRange;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -784,6 +785,10 @@ public abstract class StreamOutput extends OutputStream {
             o.writeByte((byte) 26);
             o.writeString(v.toString());
         });
+        writers.put(SemverRange.class, (o, v) -> {
+            o.writeByte((byte) 27);
+            o.writeSemverRange((SemverRange) v);
+        });
         WRITERS = Collections.unmodifiableMap(writers);
     }
 
@@ -1099,6 +1104,10 @@ public abstract class StreamOutput extends OutputStream {
     /** Writes the OpenSearch {@link Version} to the output stream */
     public void writeVersion(final Version version) throws IOException {
         writeVInt(version.id);
+    }
+
+    public void writeSemverRange(final SemverRange range) throws IOException {
+        writeString(range.toString());
     }
 
     /** Writes the OpenSearch {@link Build} informn to the output stream */

@@ -55,6 +55,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskInfo;
+import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.TaskResult;
 import org.opensearch.tasks.TaskResultsService;
 import org.opensearch.threadpool.ThreadPool;
@@ -84,6 +85,8 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
 
+    private final TaskResourceTrackingService taskResourceTrackingService;
+
     @Inject
     public TransportGetTaskAction(
         ThreadPool threadPool,
@@ -91,7 +94,8 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         ActionFilters actionFilters,
         ClusterService clusterService,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        TaskResourceTrackingService taskResourceTrackingService
     ) {
         super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new);
         this.threadPool = threadPool;
@@ -99,6 +103,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         this.transportService = transportService;
         this.client = new OriginSettingClient(client, GetTaskAction.TASKS_ORIGIN);
         this.xContentRegistry = xContentRegistry;
+        this.taskResourceTrackingService = taskResourceTrackingService;
     }
 
     @Override
@@ -173,6 +178,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     }
                 });
             } else {
+                taskResourceTrackingService.refreshResourceStats(runningTask);
                 TaskInfo info = runningTask.taskInfo(clusterService.localNode().getId(), true);
                 listener.onResponse(new GetTaskResponse(new TaskResult(false, info)));
             }

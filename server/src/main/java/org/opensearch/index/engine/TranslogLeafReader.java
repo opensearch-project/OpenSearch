@@ -90,6 +90,7 @@ public final class TranslogLeafReader extends LeafReader {
         0,
         VectorEncoding.FLOAT32,
         VectorSimilarityFunction.EUCLIDEAN,
+        false,
         false
     );
     private static final FieldInfo FAKE_ROUTING_FIELD = new FieldInfo(
@@ -108,6 +109,7 @@ public final class TranslogLeafReader extends LeafReader {
         0,
         VectorEncoding.FLOAT32,
         VectorSimilarityFunction.EUCLIDEAN,
+        false,
         false
     );
     private static final FieldInfo FAKE_ID_FIELD = new FieldInfo(
@@ -126,6 +128,7 @@ public final class TranslogLeafReader extends LeafReader {
         0,
         VectorEncoding.FLOAT32,
         VectorSimilarityFunction.EUCLIDEAN,
+        false,
         false
     );
     public static Set<String> ALL_FIELD_NAMES = Sets.newHashSet(FAKE_SOURCE_FIELD.name, FAKE_ROUTING_FIELD.name, FAKE_ID_FIELD.name);

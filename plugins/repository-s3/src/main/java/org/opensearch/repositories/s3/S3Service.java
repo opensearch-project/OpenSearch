@@ -279,6 +279,8 @@ class S3Service implements Closeable {
         }
 
         clientBuilder.socketTimeout(Duration.ofMillis(clientSettings.readTimeoutMillis));
+        clientBuilder.maxConnections(clientSettings.maxSyncConnections);
+        clientBuilder.connectionAcquisitionTimeout(Duration.ofMillis(clientSettings.connectionAcquisitionTimeoutMillis));
 
         return clientBuilder;
     }

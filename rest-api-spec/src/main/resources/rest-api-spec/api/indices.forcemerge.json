@@ -1,7 +1,7 @@
 {
   "indices.forcemerge":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-forcemerge.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/index-apis/force-merge/",
       "description":"Performs the force merge operation on one or more indices."
     },
     "stability":"stable",
@@ -63,6 +63,10 @@
       "wait_for_completion": {
         "type" : "boolean",
         "description" : "If false, the request will return a task immediately and the operation will run in background. Defaults to true."
+      },
+      "primary_only": {
+        "type" : "boolean",
+        "description" : "Specify whether the operation should only perform on primary shards. Defaults to false."
       }
     }
   }

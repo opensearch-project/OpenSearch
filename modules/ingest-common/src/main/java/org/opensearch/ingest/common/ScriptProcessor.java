@@ -102,8 +102,11 @@ public final class ScriptProcessor extends AbstractProcessor {
         } else {
             ingestScript = precompiledIngestScript;
         }
-        ingestScript.execute(document.getSourceAndMetadata());
-        CollectionUtils.ensureNoSelfReferences(document.getSourceAndMetadata(), "ingest script");
+        IngestDocument mutableDocument = new IngestDocument(document);
+        ingestScript.execute(mutableDocument.getSourceAndMetadata());
+        CollectionUtils.ensureNoSelfReferences(mutableDocument.getSourceAndMetadata(), "ingest script");
+        document.getSourceAndMetadata().clear();
+        document.getSourceAndMetadata().putAll(mutableDocument.getSourceAndMetadata());
         return document;
     }
 

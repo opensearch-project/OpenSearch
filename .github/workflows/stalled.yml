@@ -17,7 +17,7 @@ jobs:
           private_key: ${{ secrets.APP_PRIVATE_KEY }}
           installation_id: 22958780
       - name: Stale PRs
-        uses: actions/stale@v8
+        uses: actions/stale@v9
         with:
           repo-token: ${{ steps.github_app_token.outputs.token }}
           stale-pr-label: 'stalled'

@@ -513,6 +513,7 @@ public final class AllowlistLoader {
             }
         }
 
+        @SuppressWarnings("removal")
         ClassLoader loader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>) resource::getClassLoader);
 
         return new Allowlist(loader, allowlistClasses, allowlistStatics, allowlistClassBindings, Collections.emptyList());

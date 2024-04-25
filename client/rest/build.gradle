@@ -34,8 +34,8 @@ apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 
 java {
-  targetCompatibility = JavaVersion.VERSION_11
-  sourceCompatibility = JavaVersion.VERSION_11
+  targetCompatibility = JavaVersion.VERSION_1_8
+  sourceCompatibility = JavaVersion.VERSION_1_8
 }
 
 base {
@@ -109,3 +109,10 @@ thirdPartyAudit.ignoreMissingClasses(
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener'
 )
+
+tasks.withType(JavaCompile) {
+  // Suppressing '[options] target value 8 is obsolete and will be removed in a future release'
+  configure(options) {
+    options.compilerArgs << '-Xlint:-options'
+  }
+}

@@ -201,6 +201,12 @@ final class S3ClientSettings {
         key -> Setting.intSetting(key, 500, Property.NodeScope)
     );
 
+    static final Setting.AffixSetting<Integer> MAX_SYNC_CONNECTIONS_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "max_sync_connections",
+        key -> Setting.intSetting(key, 500, Property.NodeScope)
+    );
+
     /** Connection acquisition timeout for new connections to S3. */
     static final Setting.AffixSetting<TimeValue> CONNECTION_ACQUISITION_TIMEOUT = Setting.affixKeySetting(
         PREFIX,
@@ -284,10 +290,13 @@ final class S3ClientSettings {
     /** The connection TTL for the s3 client */
     final int connectionTTLMillis;
 
-    /** The max number of connections for the s3 client */
+    /** The max number of connections for the s3 async client */
     final int maxConnections;
 
-    /** The connnection acquisition timeout for the s3 async client */
+    /** The max number of connections for the s3 sync client */
+    final int maxSyncConnections;
+
+    /** The connnection acquisition timeout for the s3 sync and async client */
     final int connectionAcquisitionTimeoutMillis;
 
     /** The number of retries to use for the s3 client. */
@@ -318,6 +327,7 @@ final class S3ClientSettings {
         int connectionTimeoutMillis,
         int connectionTTLMillis,
         int maxConnections,
+        int maxSyncConnections,
         int connectionAcquisitionTimeoutMillis,
         int maxRetries,
         boolean throttleRetries,
@@ -336,6 +346,7 @@ final class S3ClientSettings {
         this.connectionTimeoutMillis = connectionTimeoutMillis;
         this.connectionTTLMillis = connectionTTLMillis;
         this.maxConnections = maxConnections;
+        this.maxSyncConnections = maxSyncConnections;
         this.connectionAcquisitionTimeoutMillis = connectionAcquisitionTimeoutMillis;
         this.maxRetries = maxRetries;
         this.throttleRetries = throttleRetries;
@@ -386,6 +397,9 @@ final class S3ClientSettings {
             ).millis()
         );
         final int newMaxConnections = Math.toIntExact(getRepoSettingOrDefault(MAX_CONNECTIONS_SETTING, normalizedSettings, maxConnections));
+        final int newMaxSyncConnections = Math.toIntExact(
+            getRepoSettingOrDefault(MAX_SYNC_CONNECTIONS_SETTING, normalizedSettings, maxConnections)
+        );
         final int newMaxRetries = getRepoSettingOrDefault(MAX_RETRIES_SETTING, normalizedSettings, maxRetries);
         final boolean newThrottleRetries = getRepoSettingOrDefault(USE_THROTTLE_RETRIES_SETTING, normalizedSettings, throttleRetries);
         final boolean newPathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
@@ -433,6 +447,7 @@ final class S3ClientSettings {
             newConnectionTimeoutMillis,
             newConnectionTTLMillis,
             newMaxConnections,
+            newMaxSyncConnections,
             newConnectionAcquisitionTimeoutMillis,
             newMaxRetries,
             newThrottleRetries,
@@ -563,6 +578,7 @@ final class S3ClientSettings {
             Math.toIntExact(getConfigValue(settings, clientName, CONNECTION_TIMEOUT_SETTING).millis()),
             Math.toIntExact(getConfigValue(settings, clientName, CONNECTION_TTL_SETTING).millis()),
             Math.toIntExact(getConfigValue(settings, clientName, MAX_CONNECTIONS_SETTING)),
+            Math.toIntExact(getConfigValue(settings, clientName, MAX_SYNC_CONNECTIONS_SETTING)),
             Math.toIntExact(getConfigValue(settings, clientName, CONNECTION_ACQUISITION_TIMEOUT).millis()),
             getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
             getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING),

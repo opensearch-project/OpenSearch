@@ -128,6 +128,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
             this.params = params;
         }
 
+        @SuppressWarnings("removal")
         @Override
         public String execute() {
             final StringWriter writer = new StringWriter();

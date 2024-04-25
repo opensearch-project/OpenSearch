@@ -868,19 +868,10 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         final TransportResponseHandler<T> handler
     ) {
-        if (connection == localNodeConnection) {
-            // See please https://github.com/opensearch-project/OpenSearch/issues/10291
-            sendRequestAsync(connection, action, request, options, handler);
-        } else {
-            final Span span = tracer.startSpan(SpanBuilder.from(action, connection));
-            try (SpanScope spanScope = tracer.withSpanInScope(span)) {
-                TransportResponseHandler<T> traceableTransportResponseHandler = TraceableTransportResponseHandler.create(
-                    handler,
-                    span,
-                    tracer
-                );
-                sendRequestAsync(connection, action, request, options, traceableTransportResponseHandler);
-            }
+        final Span span = tracer.startSpan(SpanBuilder.from(action, connection));
+        try (SpanScope spanScope = tracer.withSpanInScope(span)) {
+            TransportResponseHandler<T> traceableTransportResponseHandler = TraceableTransportResponseHandler.create(handler, span, tracer);
+            sendRequestAsync(connection, action, request, options, traceableTransportResponseHandler);
         }
     }
 
@@ -1114,7 +1105,8 @@ public class TransportService extends AbstractLifecycleComponent
                 "cluster:admin",
                 "cluster:monitor",
                 "cluster:internal",
-                "internal:"
+                "internal:",
+                "views:"
             )
         )
     );
@@ -1222,7 +1214,11 @@ public class TransportService extends AbstractLifecycleComponent
         TransportRequestHandler<Request> handler
     ) {
         validateActionName(action);
-        handler = interceptor.interceptHandler(action, executor, forceExecution, handler, admissionControlActionType);
+        if (admissionControlActionType != null) {
+            handler = interceptor.interceptHandler(action, executor, forceExecution, handler, admissionControlActionType);
+        } else {
+            handler = interceptor.interceptHandler(action, executor, forceExecution, handler);
+        }
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
             action,
             requestReader,

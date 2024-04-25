@@ -381,7 +381,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             if (indexShard.routingEntry().primary() == false) {
                 throw new IndexShardSnapshotFailedException(shardId, "snapshot should be performed only on primary");
             }
-            if (indexShard.indexSettings().isSegRepEnabled() && indexShard.isPrimaryMode() == false) {
+            if (indexShard.indexSettings().isSegRepEnabledOrRemoteNode() && indexShard.isPrimaryMode() == false) {
                 throw new IndexShardSnapshotFailedException(
                     shardId,
                     "snapshot triggered on a new primary following failover and cannot proceed until promotion is complete"

@@ -23,9 +23,10 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
 import org.opensearch.script.SearchScript;
 import org.opensearch.search.pipeline.AbstractProcessor;
+import org.opensearch.search.pipeline.PipelineProcessingContext;
 import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
-import org.opensearch.search.pipeline.common.helpers.SearchRequestMap;
+import org.opensearch.search.pipeline.StatefulSearchRequestProcessor;
 
 import java.io.InputStream;
 import java.util.HashMap;
@@ -38,7 +39,7 @@ import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException
  * Processor that evaluates a script with a search request in its context
  * and then returns the modified search request.
  */
-public final class ScriptRequestProcessor extends AbstractProcessor implements SearchRequestProcessor {
+public final class ScriptRequestProcessor extends AbstractProcessor implements StatefulSearchRequestProcessor {
     /**
      * Key to reference this processor type from a search pipeline.
      */
@@ -72,15 +73,8 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
         this.scriptService = scriptService;
     }
 
-    /**
-     * Executes the script with the search request in context.
-     *
-     * @param request The search request passed into the script context.
-     * @return The modified search request.
-     * @throws Exception if an error occurs while processing the request.
-     */
     @Override
-    public SearchRequest processRequest(SearchRequest request) throws Exception {
+    public SearchRequest processRequest(SearchRequest request, PipelineProcessingContext requestContext) throws Exception {
         // assert request is not null and source is not null
         if (request == null || request.source() == null) {
             throw new IllegalArgumentException("search request must not be null");
@@ -93,8 +87,31 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
             searchScript = precompiledSearchScript;
         }
         // execute the script with the search request in context
-        searchScript.execute(Map.of("_source", new SearchRequestMap(request)));
+        searchScript.execute(Map.of("_source", new SearchRequestMap(request), "request_context", new RequestContextMap(requestContext)));
         return request;
+    }
+
+    private static class RequestContextMap extends BasicMap {
+        private final PipelineProcessingContext pipelinedRequestContext;
+
+        private RequestContextMap(PipelineProcessingContext pipelinedRequestContext) {
+            this.pipelinedRequestContext = pipelinedRequestContext;
+        }
+
+        @Override
+        public Object get(Object key) {
+            if (key instanceof String) {
+                return pipelinedRequestContext.getAttribute(key.toString());
+            }
+            return null;
+        }
+
+        @Override
+        public Object put(String key, Object value) {
+            Object originalValue = get(key);
+            pipelinedRequestContext.setAttribute(key, value);
+            return originalValue;
+        }
     }
 
     /**

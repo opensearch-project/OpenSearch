@@ -8,6 +8,8 @@
 
 package org.opensearch.index.translog.transfer;
 
+import org.apache.logging.log4j.Logger;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
@@ -33,11 +35,13 @@ public class FileTransferTracker implements FileTransferListener {
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
     private Map<String, Long> bytesForTlogCkpFileToUpload;
     private long fileTransferStartTime = -1;
+    private final Logger logger;
 
     public FileTransferTracker(ShardId shardId, RemoteTranslogTransferTracker remoteTranslogTransferTracker) {
         this.shardId = shardId;
         this.fileTransferTracker = new ConcurrentHashMap<>();
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
+        this.logger = Loggers.getLogger(getClass(), shardId);
     }
 
     void recordFileTransferStartTime(long uploadStartTime) {
@@ -64,9 +68,14 @@ public class FileTransferTracker implements FileTransferListener {
 
     @Override
     public void onSuccess(TransferFileSnapshot fileSnapshot) {
-        long durationInMillis = (System.nanoTime() - fileTransferStartTime) / 1_000_000L;
-        remoteTranslogTransferTracker.addUploadTimeInMillis(durationInMillis);
-        remoteTranslogTransferTracker.addUploadBytesSucceeded(bytesForTlogCkpFileToUpload.get(fileSnapshot.getName()));
+        try {
+            long durationInMillis = (System.nanoTime() - fileTransferStartTime) / 1_000_000L;
+            remoteTranslogTransferTracker.addUploadTimeInMillis(durationInMillis);
+            remoteTranslogTransferTracker.addUploadBytesSucceeded(bytesForTlogCkpFileToUpload.get(fileSnapshot.getName()));
+        } catch (Exception ex) {
+            logger.error("Failure to update translog upload success stats", ex);
+        }
+
         add(fileSnapshot.getName(), TransferState.SUCCESS);
     }
 

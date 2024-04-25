@@ -41,7 +41,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -50,7 +49,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -63,10 +62,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class LegacyGeoShapeIntegrationIT extends ParameterizedOpenSearchIntegTestCase {
+public class LegacyGeoShapeIntegrationIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public LegacyGeoShapeIntegrationIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public LegacyGeoShapeIntegrationIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -75,11 +74,6 @@ public class LegacyGeoShapeIntegrationIT extends ParameterizedOpenSearchIntegTes
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     /**

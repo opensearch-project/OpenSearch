@@ -67,6 +67,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.isMigratingToRemoteStore;
+
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
  * It can be either initialized as mutable or immutable (see {@link #RoutingNodes(ClusterState, boolean)}), allowing
@@ -419,6 +421,20 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     /**
+     * Returns one active replica shard on a remote node for the given shard id or <code>null</code> if
+     * no such replica is found.
+     * <p>
+     * Since we aim to continue moving forward during remote store migration, replicas already migrated to remote nodes
+     * are preferred for primary promotion
+     */
+    public ShardRouting activeReplicaOnRemoteNode(ShardId shardId) {
+        return assignedShards(shardId).stream().filter(shr -> !shr.primary() && shr.active()).filter((shr) -> {
+            RoutingNode nd = node(shr.currentNodeId());
+            return (nd != null && nd.node().isRemoteStoreNode());
+        }).findFirst().orElse(null);
+    }
+
+    /**
      * Returns <code>true</code> iff all replicas are active for the given shard routing. Otherwise <code>false</code>
      */
     public boolean allReplicasActive(ShardId shardId, Metadata metadata) {
@@ -729,34 +745,23 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             + " was matched but wasn't removed";
     }
 
-    public void swapPrimaryWithReplica(
-        Logger logger,
-        ShardRouting primaryShard,
-        ShardRouting replicaShard,
-        RoutingChangesObserver changes
-    ) {
-        assert primaryShard.primary() : "Invalid primary shard provided";
-        assert !replicaShard.primary() : "Invalid Replica shard provided";
-
-        ShardRouting newPrimary = primaryShard.moveActivePrimaryToReplica();
-        ShardRouting newReplica = replicaShard.moveActiveReplicaToPrimary();
-        updateAssigned(primaryShard, newPrimary);
-        updateAssigned(replicaShard, newReplica);
-        logger.info("Swap relocation performed for shard [{}]", newPrimary.shortSummary());
-        changes.replicaPromoted(newPrimary);
-    }
-
     private void unassignPrimaryAndPromoteActiveReplicaIfExists(
         ShardRouting failedShard,
         UnassignedInfo unassignedInfo,
         RoutingChangesObserver routingChangesObserver
     ) {
         assert failedShard.primary();
-        ShardRouting activeReplica;
-        if (metadata.isSegmentReplicationEnabled(failedShard.getIndexName())) {
-            activeReplica = activeReplicaWithOldestVersion(failedShard.shardId());
-        } else {
-            activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
+        ShardRouting activeReplica = null;
+        if (isMigratingToRemoteStore(metadata)) {
+            // we might not find any replica on remote node
+            activeReplica = activeReplicaOnRemoteNode(failedShard.shardId());
+        }
+        if (activeReplica == null) {
+            if (metadata.isSegmentReplicationEnabled(failedShard.getIndexName())) {
+                activeReplica = activeReplicaWithOldestVersion(failedShard.shardId());
+            } else {
+                activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
+            }
         }
         if (activeReplica == null) {
             moveToUnassigned(failedShard, unassignedInfo);

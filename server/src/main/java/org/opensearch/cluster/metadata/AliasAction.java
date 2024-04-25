@@ -35,6 +35,7 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.Strings;
+import org.opensearch.rest.action.admin.indices.AliasesNotFoundException;
 
 /**
  * Individual operation to perform on the cluster state as part of an {@link IndicesAliasesRequest}.
@@ -225,8 +226,8 @@ public abstract class AliasAction {
         @Override
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             if (false == index.getAliases().containsKey(alias)) {
-                if (mustExist != null && mustExist.booleanValue()) {
-                    throw new IllegalArgumentException("required alias [" + alias + "] does not exist");
+                if (mustExist != null && mustExist) {
+                    throw new AliasesNotFoundException(alias);
                 }
                 return false;
             }

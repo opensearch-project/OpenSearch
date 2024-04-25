@@ -52,7 +52,7 @@ public class InetAddresses {
         return ipStringToBytes(ipString) != null;
     }
 
-    private static byte[] ipStringToBytes(String ipString) {
+    public static byte[] ipStringToBytes(String ipString) {
         // Make a first pass to categorize the characters in this string.
         boolean hasColon = false;
         boolean hasDot = false;

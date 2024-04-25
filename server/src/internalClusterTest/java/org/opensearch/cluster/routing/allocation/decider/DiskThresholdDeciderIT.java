@@ -245,8 +245,10 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
             (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, TOTAL_SPACE_BYTES, TOTAL_SPACE_BYTES)
         );
 
-        // Validate if index create block is removed on the cluster
+        // Validate if index create block is removed on the cluster. Need to refresh this periodically as well to remove
+        // the node from high watermark breached list.
         assertBusy(() -> {
+            clusterInfoService.refresh();
             ClusterState state1 = client().admin().cluster().prepareState().setLocal(true).get().getState();
             assertFalse(state1.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
         }, 30L, TimeUnit.SECONDS);
