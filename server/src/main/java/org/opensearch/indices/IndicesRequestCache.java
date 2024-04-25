@@ -245,7 +245,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         } else {
             cacheEntity.onHit();
         }
-
         return value;
     }
 
