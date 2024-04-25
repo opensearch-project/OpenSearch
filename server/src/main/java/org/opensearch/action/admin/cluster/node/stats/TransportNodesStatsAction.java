@@ -129,7 +129,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             NodesStatsRequest.Metric.SEGMENT_REPLICATION_BACKPRESSURE.containedIn(metrics),
             NodesStatsRequest.Metric.REPOSITORIES.containedIn(metrics),
             NodesStatsRequest.Metric.ADMISSION_CONTROL.containedIn(metrics),
-            NodesStatsRequest.Metric.SEARCH_CACHE_STATS.containedIn(metrics)
+            NodesStatsRequest.Metric.CACHE_STATS.containedIn(metrics)
         );
     }
 

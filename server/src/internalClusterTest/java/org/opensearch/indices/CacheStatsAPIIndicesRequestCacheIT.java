@@ -245,7 +245,7 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
         NodesStatsResponse nodeStatsResponse = client.admin()
             .cluster()
             .prepareNodesStats("data:true")
-            .addMetric(NodesStatsRequest.Metric.SEARCH_CACHE_STATS.metricName())
+            .addMetric(NodesStatsRequest.Metric.CACHE_STATS.metricName())
             .setIndices(statsFlags)
             .get();
         // Can always get the first data node as there's only one in this test suite
@@ -288,7 +288,7 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
             assertEquals(expectedStats.getSizeInBytes(), (int) aggregatedStatsResponse.get(ImmutableCacheStats.Fields.SIZE_IN_BYTES));
         }
         if (checkEntries) {
-            assertEquals(expectedStats.getEntries(), (int) aggregatedStatsResponse.get(ImmutableCacheStats.Fields.ENTRIES));
+            assertEquals(expectedStats.getItems(), (int) aggregatedStatsResponse.get(ImmutableCacheStats.Fields.ITEM_COUNT));
         }
     }
 }

@@ -509,7 +509,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         public void onEvent(CacheEvent<? extends ICacheKey<K>, ? extends ByteArrayWrapper> event) {
             switch (event.getType()) {
                 case CREATED:
-                    cacheStatsHolder.incrementEntries(event.getKey().dimensions);
+                    cacheStatsHolder.incrementItems(event.getKey().dimensions);
                     cacheStatsHolder.incrementSizeInBytes(event.getKey().dimensions, getNewValuePairSize(event));
                     assert event.getOldValue() == null;
                     break;
@@ -517,7 +517,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.EVICTED)
                     );
-                    cacheStatsHolder.decrementEntries(event.getKey().dimensions);
+                    cacheStatsHolder.decrementItems(event.getKey().dimensions);
                     cacheStatsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
                     cacheStatsHolder.incrementEvictions(event.getKey().dimensions);
                     assert event.getNewValue() == null;
@@ -526,7 +526,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.EXPLICIT)
                     );
-                    cacheStatsHolder.decrementEntries(event.getKey().dimensions);
+                    cacheStatsHolder.decrementItems(event.getKey().dimensions);
                     cacheStatsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
                     assert event.getNewValue() == null;
                     break;
@@ -534,7 +534,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.INVALIDATED)
                     );
-                    cacheStatsHolder.decrementEntries(event.getKey().dimensions);
+                    cacheStatsHolder.decrementItems(event.getKey().dimensions);
                     cacheStatsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
                     assert event.getNewValue() == null;
                     break;

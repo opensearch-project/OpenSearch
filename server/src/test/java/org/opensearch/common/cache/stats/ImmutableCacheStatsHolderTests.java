@@ -103,7 +103,7 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
         assertEquals(expectedTotal.getMisses(), stats.getTotalMisses());
         assertEquals(expectedTotal.getEvictions(), stats.getTotalEvictions());
         assertEquals(expectedTotal.getSizeInBytes(), stats.getTotalSizeInBytes());
-        assertEquals(expectedTotal.getEntries(), stats.getTotalEntries());
+        assertEquals(expectedTotal.getItems(), stats.getTotalItems());
 
         assertSumOfChildrenStats(stats.getStatsRoot());
     }
@@ -213,8 +213,8 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
             (counter, value) -> counter.hits.inc(value),
             ImmutableCacheStats.Fields.MISS_COUNT,
             (counter, value) -> counter.misses.inc(value),
-            ImmutableCacheStats.Fields.ENTRIES,
-            (counter, value) -> counter.entries.inc(value)
+            ImmutableCacheStats.Fields.ITEM_COUNT,
+            (counter, value) -> counter.items.inc(value)
         );
 
         Map<List<String>, ImmutableCacheStatsHolder.Node> leafNodes = getAllLeafNodes(stats.getStatsRoot());
@@ -287,7 +287,7 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
         assertNotEquals(0, (int) result.get(ImmutableCacheStats.Fields.EVICTIONS));
         assertNotEquals(0, (int) result.get(ImmutableCacheStats.Fields.HIT_COUNT));
         assertNotEquals(0, (int) result.get(ImmutableCacheStats.Fields.MISS_COUNT));
-        assertNotEquals(0, (int) result.get(ImmutableCacheStats.Fields.ENTRIES));
+        assertNotEquals(0, (int) result.get(ImmutableCacheStats.Fields.ITEM_COUNT));
         // assert the store name is present
         assertEquals(storeName, (String) result.get(ImmutableCacheStatsHolder.STORE_NAME_FIELD));
     }

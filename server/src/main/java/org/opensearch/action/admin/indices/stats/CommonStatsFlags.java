@@ -43,6 +43,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Set;
 
 /**
  * Common Stats Flags for OpenSearch
@@ -167,7 +168,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         return flags.toArray(new Flag[0]);
     }
 
-    public EnumSet<CacheType> getIncludeCaches() {
+    public Set<CacheType> getIncludeCaches() {
         return includeCaches;
     }
 

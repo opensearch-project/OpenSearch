@@ -23,7 +23,7 @@ public enum CacheType {
     INDICES_REQUEST_CACHE("indices.requests.cache", "request_cache");
 
     private final String settingPrefix;
-    private final String value; // The value displayed for this cache type in API responses
+    private final String value; // The value displayed for this cache type in stats API responses
 
     private static final Map<String, CacheType> valuesMap;
     static {

@@ -151,8 +151,8 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
         return getTotalStats().getSizeInBytes();
     }
 
-    public long getTotalEntries() {
-        return getTotalStats().getEntries();
+    public long getTotalItems() {
+        return getTotalStats().getItems();
     }
 
     public ImmutableCacheStats getStatsForDimensionValues(List<String> dimensionValues) {

@@ -872,7 +872,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 assertNotNull(snapshot);
                 // check the values are not empty by confirming entries != 0, this should always be true since the missed value is loaded
                 // into the cache
-                assertNotEquals(0, snapshot.getEntries());
+                assertNotEquals(0, snapshot.getItems());
             }
         }
 
@@ -896,7 +896,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 assertNotNull(snapshot);
                 // check the values are not empty by confirming entries != 0, this should always be true since the missed value is loaded
                 // into the cache
-                assertNotEquals(0, snapshot.getEntries());
+                assertNotEquals(0, snapshot.getItems());
             }
         }
 

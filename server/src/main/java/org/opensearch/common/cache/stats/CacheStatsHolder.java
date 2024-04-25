@@ -80,12 +80,12 @@ public class CacheStatsHolder {
         internalIncrement(dimensionValues, (node) -> node.decrementSizeInBytes(amountBytes), false);
     }
 
-    public void incrementEntries(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, Node::incrementEntries, true);
+    public void incrementItems(List<String> dimensionValues) {
+        internalIncrement(dimensionValues, Node::incrementItems, true);
     }
 
-    public void decrementEntries(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, Node::decrementEntries, false);
+    public void decrementItems(List<String> dimensionValues) {
+        internalIncrement(dimensionValues, Node::decrementItems, false);
     }
 
     /**
@@ -105,7 +105,7 @@ public class CacheStatsHolder {
 
     public long count() {
         // Include this here so caches don't have to create an entire CacheStats object to run count().
-        return statsRoot.getEntries();
+        return statsRoot.getItems();
     }
 
     private void internalIncrement(List<String> dimensionValues, Consumer<Node> adder, boolean createNodesIfAbsent) {
@@ -255,16 +255,16 @@ public class CacheStatsHolder {
             this.stats.decrementSizeInBytes(amountBytes);
         }
 
-        void incrementEntries() {
-            this.stats.incrementEntries();
+        void incrementItems() {
+            this.stats.incrementItems();
         }
 
-        void decrementEntries() {
-            this.stats.decrementEntries();
+        void decrementItems() {
+            this.stats.decrementItems();
         }
 
-        long getEntries() {
-            return this.stats.getEntries();
+        long getItems() {
+            return this.stats.getItems();
         }
 
         ImmutableCacheStats getImmutableStats() {

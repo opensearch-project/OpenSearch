@@ -64,7 +64,7 @@ public class CacheStatsHolderTests extends OpenSearchTestCase {
         for (List<String> dimensionValues : expected.keySet()) {
             CacheStats originalCounter = expected.get(dimensionValues);
             originalCounter.sizeInBytes = new CounterMetric();
-            originalCounter.entries = new CounterMetric();
+            originalCounter.items = new CounterMetric();
 
             CacheStatsHolder.Node node = getNode(dimensionValues, cacheStatsHolder.getStatsRoot());
             ImmutableCacheStats actual = node.getImmutableStats();
@@ -116,7 +116,7 @@ public class CacheStatsHolderTests extends OpenSearchTestCase {
 
         long expectedCount = 0L;
         for (CacheStats counter : expected.values()) {
-            expectedCount += counter.getEntries();
+            expectedCount += counter.getItems();
         }
         assertEquals(expectedCount, cacheStatsHolder.count());
     }
@@ -225,7 +225,7 @@ public class CacheStatsHolderTests extends OpenSearchTestCase {
                         expected.get(dimensions).misses.inc(statsToInc.getMisses());
                         expected.get(dimensions).evictions.inc(statsToInc.getEvictions());
                         expected.get(dimensions).sizeInBytes.inc(statsToInc.getSizeInBytes());
-                        expected.get(dimensions).entries.inc(statsToInc.getEntries());
+                        expected.get(dimensions).items.inc(statsToInc.getItems());
                         CacheStatsHolderTests.populateStatsHolderFromStatsValueMap(cacheStatsHolder, Map.of(dimensions, statsToInc));
                     }
                 }
@@ -295,8 +295,8 @@ public class CacheStatsHolderTests extends OpenSearchTestCase {
                 cacheStatsHolder.incrementEvictions(dims);
             }
             cacheStatsHolder.incrementSizeInBytes(dims, stats.getSizeInBytes());
-            for (int i = 0; i < stats.getEntries(); i++) {
-                cacheStatsHolder.incrementEntries(dims);
+            for (int i = 0; i < stats.getItems(); i++) {
+                cacheStatsHolder.incrementItems(dims);
             }
         }
     }
