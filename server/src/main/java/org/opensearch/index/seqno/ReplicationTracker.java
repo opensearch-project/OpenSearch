@@ -256,6 +256,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private final Function<String, Boolean> isShardOnRemoteEnabledNode;
 
     /**
+     * Flag to indicate whether {@link ReplicationTracker#createMissingPeerRecoveryRetentionLeases(ActionListener)}
+     * has been run successfully
+     */
+    private boolean createdMissingRetentionLeases;
+
+    /**
      * Get all retention leases tracked on this shard.
      *
      * @return the retention leases
@@ -955,7 +961,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             assert checkpoints.get(aId) != null : "aId [" + aId + "] is pending in sync but isn't tracked";
         }
 
-        if (primaryMode && indexSettings.isSoftDeleteEnabled() && hasAllPeerRecoveryRetentionLeases) {
+        if (primaryMode && indexSettings.isSoftDeleteEnabled() && hasAllPeerRecoveryRetentionLeases
+        // Skip assertion if createMissingPeerRecoveryRetentionLeases has not yet run after activating primary context
+        // This is required since during an ongoing remote store migration,
+        // remote enabled primary taking over primary context from another remote enabled shard
+        // might not have retention leases for docrep shard copies
+        // (since all RetentionLease sync actions are blocked on remote shard copies)
+            && createdMissingRetentionLeases) {
             // all tracked shard copies have a corresponding peer-recovery retention lease
             for (final ShardRouting shardRouting : routingTable.assignedShards()) {
                 final CheckpointState cps = checkpoints.get(shardRouting.allocationId().getId());
@@ -1845,19 +1857,34 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert invariant();
     }
 
+    private synchronized void setCreatedMissingRetentionLeases() {
+        createdMissingRetentionLeases = true;
+        assert invariant();
+    }
+
     public synchronized boolean hasAllPeerRecoveryRetentionLeases() {
         return hasAllPeerRecoveryRetentionLeases;
     }
 
     /**
-     * Create any required peer-recovery retention leases that do not currently exist because we just did a rolling upgrade from a version
-     * prior to {@link LegacyESVersion#V_7_4_0} that does not create peer-recovery retention leases.
+     * Create any required peer-recovery retention leases that do not currently exist. This can happen if either:
+     * - We just did a rolling upgrade from a version prior to {@code LegacyESVersion#V_7_4_0} that does not create peer-recovery retention leases.
+     * - In a mixed mode cluster (during remote store migration), a remote enabled primary shard copy fails over to another remote enabled shard copy,
+     * but the replication group still has other shards in docrep nodes
      */
     public synchronized void createMissingPeerRecoveryRetentionLeases(ActionListener<Void> listener) {
-        if (hasAllPeerRecoveryRetentionLeases == false) {
+        // Create missing RetentionLeases if the primary is on a remote enabled
+        // and the replication group has at-least one shard copy in docrep enabled node
+        // No-Op if retention leases for the tracked shard copy already exists
+        boolean createMissingRetentionLeasesDuringMigration = indexSettings.isAssignedOnRemoteNode()
+            && replicationGroup.getReplicationTargets()
+                .stream()
+                .anyMatch(shardRouting -> isShardOnRemoteEnabledNode.apply(shardRouting.currentNodeId()) == false);
+        if (hasAllPeerRecoveryRetentionLeases == false || createMissingRetentionLeasesDuringMigration) {
             final List<ShardRouting> shardRoutings = routingTable.assignedShards();
             final GroupedActionListener<ReplicationResponse> groupedActionListener = new GroupedActionListener<>(ActionListener.wrap(vs -> {
                 setHasAllPeerRecoveryRetentionLeases();
+                setCreatedMissingRetentionLeases();
                 listener.onResponse(null);
             }, listener::onFailure), shardRoutings.size());
             for (ShardRouting shardRouting : shardRoutings) {

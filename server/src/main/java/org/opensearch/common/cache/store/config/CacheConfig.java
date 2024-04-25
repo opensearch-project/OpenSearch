@@ -9,6 +9,7 @@
 package org.opensearch.common.cache.store.config;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.serializer.Serializer;
@@ -16,6 +17,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.ToLongBiFunction;
 
@@ -42,9 +44,11 @@ public class CacheConfig<K, V> {
     /**
      * Represents a function that calculates the size or weight of a key-value pair.
      */
-    private final ToLongBiFunction<K, V> weigher;
+    private final ToLongBiFunction<ICacheKey<K>, V> weigher;
 
-    private final RemovalListener<K, V> removalListener;
+    private final RemovalListener<ICacheKey<K>, V> removalListener;
+
+    private final List<String> dimensionNames;
 
     // Serializers for keys and values. Not required for all caches.
     private final Serializer<K, ?> keySerializer;
@@ -72,6 +76,7 @@ public class CacheConfig<K, V> {
         this.weigher = builder.weigher;
         this.keySerializer = builder.keySerializer;
         this.valueSerializer = builder.valueSerializer;
+        this.dimensionNames = builder.dimensionNames;
         this.cachedResultParser = builder.cachedResultParser;
         this.maxSizeInBytes = builder.maxSizeInBytes;
         this.expireAfterAccess = builder.expireAfterAccess;
@@ -90,7 +95,7 @@ public class CacheConfig<K, V> {
         return settings;
     }
 
-    public RemovalListener<K, V> getRemovalListener() {
+    public RemovalListener<ICacheKey<K>, V> getRemovalListener() {
         return removalListener;
     }
 
@@ -102,12 +107,16 @@ public class CacheConfig<K, V> {
         return valueSerializer;
     }
 
-    public ToLongBiFunction<K, V> getWeigher() {
+    public ToLongBiFunction<ICacheKey<K>, V> getWeigher() {
         return weigher;
     }
 
     public Function<V, CachedQueryResult.PolicyValues> getCachedResultParser() {
         return cachedResultParser;
+    }
+
+    public List<String> getDimensionNames() {
+        return dimensionNames;
     }
 
     public Long getMaxSizeInBytes() {
@@ -135,12 +144,11 @@ public class CacheConfig<K, V> {
 
         private Class<V> valueType;
 
-        private RemovalListener<K, V> removalListener;
-
+        private RemovalListener<ICacheKey<K>, V> removalListener;
+        private List<String> dimensionNames;
         private Serializer<K, ?> keySerializer;
         private Serializer<V, ?> valueSerializer;
-
-        private ToLongBiFunction<K, V> weigher;
+        private ToLongBiFunction<ICacheKey<K>, V> weigher;
         private Function<V, CachedQueryResult.PolicyValues> cachedResultParser;
 
         private long maxSizeInBytes;
@@ -165,8 +173,13 @@ public class CacheConfig<K, V> {
             return this;
         }
 
-        public Builder<K, V> setRemovalListener(RemovalListener<K, V> removalListener) {
+        public Builder<K, V> setRemovalListener(RemovalListener<ICacheKey<K>, V> removalListener) {
             this.removalListener = removalListener;
+            return this;
+        }
+
+        public Builder<K, V> setWeigher(ToLongBiFunction<ICacheKey<K>, V> weigher) {
+            this.weigher = weigher;
             return this;
         }
 
@@ -180,8 +193,8 @@ public class CacheConfig<K, V> {
             return this;
         }
 
-        public Builder<K, V> setWeigher(ToLongBiFunction<K, V> weigher) {
-            this.weigher = weigher;
+        public Builder<K, V> setDimensionNames(List<String> dimensionNames) {
+            this.dimensionNames = dimensionNames;
             return this;
         }
 
