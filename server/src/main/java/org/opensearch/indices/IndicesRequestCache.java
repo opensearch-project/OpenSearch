@@ -209,14 +209,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     public void onRemoval(RemovalNotification<Key, BytesReference> notification) {
         // In case this event happens for an old shard, we can safely ignore this as we don't keep track for old
         // shards as part of request cache.
-        // Pass a new removal notification containing Key rather than ICacheKey<Key> to the CacheEntity for backwards compatibility.
-        Key key = notification.getKey().key;
-        RemovalNotification<Key, BytesReference> newNotification = new RemovalNotification<>(
-            key,
-            notification.getValue(),
-            notification.getRemovalReason()
-        );
-        cacheEntityLookup.apply(key.shardId).ifPresent(entity -> entity.onRemoval(newNotification));
+        Key key = notification.getKey();
+        cacheEntityLookup.apply(key.shardId).ifPresent(entity -> entity.onRemoval(notification));
         CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId);
         cacheCleanupManager.updateStaleCountOnEntryRemoval(cleanupKey, newNotification);
     }
