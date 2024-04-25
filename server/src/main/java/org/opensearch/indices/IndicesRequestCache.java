@@ -212,7 +212,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         Key key = notification.getKey();
         cacheEntityLookup.apply(key.shardId).ifPresent(entity -> entity.onRemoval(notification));
         CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId);
-        cacheCleanupManager.updateStaleCountOnEntryRemoval(cleanupKey, newNotification);
+        cacheCleanupManager.updateStaleCountOnEntryRemoval(cleanupKey, notification);
     }
 
     BytesReference getOrCompute(
