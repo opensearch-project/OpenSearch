@@ -108,7 +108,6 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
@@ -676,8 +675,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 remoteStoreRepository,
                 indexUUID,
                 String.valueOf(shardId.shardId()),
-                new RemoteStorePathStrategy(PathType.FIXED)
-            // TODO - The path type needs to be obtained from RemoteStoreShardShallowCopySnapshot
+                remStoreBasedShardMetadata.getRemoteStorePathStrategy()
             );
             remoteStoreMetadataLockManger.cloneLock(
                 FileLockInfo.getLockInfoBuilder().withAcquirerId(source.getUUID()).build(),
@@ -1217,8 +1215,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             remoteStoreRepoForIndex,
             indexUUID,
             shardId,
-            new RemoteStorePathStrategy(PathType.FIXED)
-            // TODO - The path type needs to be obtained from RemoteStoreShardShallowCopySnapshot
+            remoteStoreShardShallowCopySnapshot.getRemoteStorePathStrategy()
         );
         remoteStoreMetadataLockManager.release(FileLockInfo.getLockInfoBuilder().withAcquirerId(shallowSnapshotUUID).build());
         logger.debug("Successfully released lock for shard {} of index with uuid {}", shardId, indexUUID);
@@ -1241,8 +1238,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexUUID,
                 new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt(shardId)),
                 ThreadPool.Names.REMOTE_PURGE,
-                new RemoteStorePathStrategy(PathType.FIXED)
-                // TODO - The path type needs to be obtained from RemoteStoreShardShallowCopySnapshot
+                remoteStoreShardShallowCopySnapshot.getRemoteStorePathStrategy()
             );
         }
     }
@@ -2781,6 +2777,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // now create and write the commit point
             logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
             try {
+                RemoteStorePathStrategy pathStrategy = store.indexSettings().getRemoteStorePathStrategy();
                 REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.write(
                     new RemoteStoreShardShallowCopySnapshot(
                         snapshotId.getName(),
@@ -2794,7 +2791,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         store.indexSettings().getUUID(),
                         store.indexSettings().getRemoteStoreRepository(),
                         this.basePath().toString(),
-                        fileNames
+                        fileNames,
+                        pathStrategy.getType(),
+                        pathStrategy.getHashAlgorithm()
                     ),
                     shardContainer,
                     snapshotId.getUUID(),

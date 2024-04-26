@@ -58,8 +58,6 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.remote.RemoteStoreEnums.PathType;
-import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
@@ -405,8 +403,7 @@ final class StoreRecovery {
                     remoteStoreRepository,
                     indexUUID,
                     shardId,
-                    new RemoteStorePathStrategy(PathType.FIXED)
-                    // TODO - The path type needs to be obtained from RemoteStoreShardShallowCopySnapshot
+                    shallowCopyShardMetadata.getRemoteStorePathStrategy()
                 );
                 sourceRemoteDirectory.initializeToSpecificCommit(
                     primaryTerm,
