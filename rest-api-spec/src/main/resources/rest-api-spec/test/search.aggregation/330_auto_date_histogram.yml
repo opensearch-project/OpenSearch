@@ -79,10 +79,10 @@ setup:
   - match: { aggregations.histo_avg_v.value: 5 }
 
 ---
-"profile at top level":
+"auto_date_histogram profile shows filter rewrite info":
   - skip:
-      version: " - 7.99.99"
-      reason: Debug information added in 8.0.0 (to be backported to 7.9.0)
+      version: " - 2.99.99"
+      reason: debug info for filter rewrite added in 3.0.0
 
   - do:
       search:
