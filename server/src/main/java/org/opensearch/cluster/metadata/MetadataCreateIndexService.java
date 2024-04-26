@@ -557,17 +557,29 @@ public class MetadataCreateIndexService {
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(indexSettings);
         tmpImdBuilder.system(isSystem);
-
-        if (remoteStorePathResolver != null) {
-            String pathType = remoteStorePathResolver.resolveType().toString();
-            tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, Map.of(RemoteStorePathType.NAME, pathType));
-        }
+        addRemoteCustomData(tmpImdBuilder);
 
         // Set up everything, now locally create the index to see that things are ok, and apply
         IndexMetadata tempMetadata = tmpImdBuilder.build();
         validateActiveShardCount(request.waitForActiveShards(), tempMetadata);
 
         return tempMetadata;
+    }
+
+    public void addRemoteCustomData(IndexMetadata.Builder tmpImdBuilder) {
+        if (remoteStorePathResolver != null) {
+            // It is possible that remote custom data exists already. In such cases, we need to only update the path type
+            // in the remote store custom data map.
+            Map<String, String> existingRemoteCustomData = tmpImdBuilder.removeCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+            Map<String, String> remoteCustomData = existingRemoteCustomData == null
+                ? new HashMap<>()
+                : new HashMap<>(existingRemoteCustomData);
+            // Determine the path type for use using the remoteStorePathResolver.
+            String newPathType = remoteStorePathResolver.resolveType().toString();
+            String oldPathType = remoteCustomData.put(RemoteStorePathType.NAME, newPathType);
+            logger.trace(() -> new ParameterizedMessage("Added new path type {}, replaced old path type {}", newPathType, oldPathType));
+            tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, remoteCustomData);
+        }
     }
 
     private ClusterState applyCreateIndexRequestWithV1Templates(
