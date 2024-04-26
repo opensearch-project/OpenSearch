@@ -126,6 +126,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
+import org.opensearch.index.remote.RemoteStorePathType;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.seqno.RetentionLeaseStats;
@@ -305,6 +306,18 @@ public class IndicesService extends AbstractLifecycleComponent
         false,
         Property.NodeScope,
         Property.Final
+    );
+
+    /**
+     * This setting is used to set the remote store blob store path prefix strategy. This setting is effective only for
+     * remote store enabled cluster.
+     */
+    public static final Setting<RemoteStorePathType> CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING = new Setting<>(
+        "cluster.remote_store.index.path.prefix.type",
+        RemoteStorePathType.FIXED.toString(),
+        RemoteStorePathType::parseString,
+        Property.NodeScope,
+        Property.Dynamic
     );
 
     /**

@@ -74,6 +74,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.remote.RemoteStorePathType;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
@@ -1676,11 +1677,100 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         List<AliasMetadata> aliases = singletonList(AliasMetadata.builder("alias1").build());
-        IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata, false);
+        IndexMetadata indexMetadata = buildIndexMetadata(
+            "test",
+            aliases,
+            () -> null,
+            indexSettings,
+            4,
+            sourceIndexMetadata,
+            false,
+            new HashMap<>()
+        );
 
         assertThat(indexMetadata.getAliases().size(), is(1));
         assertThat(indexMetadata.getAliases().keySet().iterator().next(), is("alias1"));
         assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
+    }
+
+    /**
+     * This test checks if the cluster is a remote store cluster then we populate custom data for remote settings in
+     * index metadata of the underlying index. This captures information around the resolution pattern of the path for
+     * remote segments and translog.
+     */
+    public void testRemoteCustomData() {
+        // Case 1 - Remote store is not enabled
+        IndexMetadata indexMetadata = testRemoteCustomData(false, randomFrom(RemoteStorePathType.values()));
+        assertNull(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY));
+
+        // Case 2 - cluster.remote_store.index.path.prefix.optimised=fixed (default value)
+        indexMetadata = testRemoteCustomData(true, RemoteStorePathType.FIXED);
+        validateRemoteCustomData(
+            indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY),
+            RemoteStorePathType.NAME,
+            RemoteStorePathType.FIXED.toString()
+        );
+
+        // Case 3 - cluster.remote_store.index.path.prefix.optimised=hashed_prefix
+        indexMetadata = testRemoteCustomData(true, RemoteStorePathType.HASHED_PREFIX);
+        validateRemoteCustomData(
+            indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY),
+            RemoteStorePathType.NAME,
+            RemoteStorePathType.HASHED_PREFIX.toString()
+        );
+    }
+
+    private IndexMetadata testRemoteCustomData(boolean remoteStoreEnabled, RemoteStorePathType remoteStorePathType) {
+        Settings.Builder settingsBuilder = Settings.builder();
+        if (remoteStoreEnabled) {
+            settingsBuilder.put(NODE_ATTRIBUTES.getKey() + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "test");
+        }
+        settingsBuilder.put(IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING.getKey(), remoteStorePathType.toString());
+        Settings settings = settingsBuilder.build();
+
+        ClusterService clusterService = mock(ClusterService.class);
+        Metadata metadata = Metadata.builder()
+            .transientSettings(Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 1).build())
+            .build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getSettings()).thenReturn(settings);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
+            settings,
+            clusterService,
+            null,
+            null,
+            null,
+            createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+            new Environment(Settings.builder().put("path.home", "dummy").build(), null),
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            threadPool,
+            null,
+            new SystemIndices(Collections.emptyMap()),
+            true,
+            new AwarenessReplicaBalance(settings, clusterService.getClusterSettings())
+        );
+        CreateIndexClusterStateUpdateRequest request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        Settings indexSettings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+
+        IndexMetadata indexMetadata = metadataCreateIndexService.buildAndValidateTemporaryIndexMetadata(indexSettings, request, 0);
+        threadPool.shutdown();
+        return indexMetadata;
+    }
+
+    private void validateRemoteCustomData(Map<String, String> customData, String expectedKey, String expectedValue) {
+        assertTrue(customData.containsKey(expectedKey));
+        assertEquals(expectedValue, customData.get(expectedKey));
     }
 
     public void testGetIndexNumberOfRoutingShardsWithNullSourceIndex() {
