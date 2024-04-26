@@ -16,7 +16,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 /**
  * A class ICache implementations use to internally keep track of their stats across multiple dimensions.
@@ -32,7 +32,7 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
 
     // The list of permitted dimensions. Should be ordered from "outermost" to "innermost", as you would like to
     // aggregate them in an API response.
-    private final List<String> dimensionNames;
+    protected final List<String> dimensionNames;
     // A tree structure based on dimension values, which stores stats values in its leaf nodes.
     // Non-leaf nodes have stats matching the sum of their children.
     // We use a tree structure, rather than a map with concatenated keys, to save on memory usage. If there are many leaf
@@ -55,39 +55,39 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
     // The order has to match the order given in dimensionNames.
     @Override
     public void incrementHits(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, Node::incrementHits, true);
+        internalIncrement(dimensionValues, (node, depth) -> node.incrementHits(), true);
     }
 
     @Override
     public void incrementMisses(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, Node::incrementMisses, true);
+        internalIncrement(dimensionValues, (node, depth) -> node.incrementMisses(), true);
     }
 
     @Override
     public void incrementEvictions(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, Node::incrementEvictions, true);
+        internalIncrement(dimensionValues, (node, depth) -> node.incrementEvictions(), true);
     }
 
     @Override
     public void incrementSizeInBytes(List<String> dimensionValues, long amountBytes) {
-        internalIncrement(dimensionValues, (node) -> node.incrementSizeInBytes(amountBytes), true);
+        internalIncrement(dimensionValues, (node, depth) -> node.incrementSizeInBytes(amountBytes), true);
     }
 
     // For decrements, we should not create nodes if they are absent. This protects us from erroneously decrementing values for keys
     // which have been entirely deleted, for example in an async removal listener.
     @Override
     public void decrementSizeInBytes(List<String> dimensionValues, long amountBytes) {
-        internalIncrement(dimensionValues, (node) -> node.decrementSizeInBytes(amountBytes), false);
+        internalIncrement(dimensionValues, (node, depth) -> node.decrementSizeInBytes(amountBytes), false);
     }
 
     @Override
     public void incrementEntries(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, Node::incrementEntries, true);
+        internalIncrement(dimensionValues, (node, depth) -> node.incrementEntries(), true);
     }
 
     @Override
     public void decrementEntries(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, Node::decrementEntries, false);
+        internalIncrement(dimensionValues, (node, depth) -> node.decrementEntries(), false);
     }
 
     /**
@@ -112,7 +112,7 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
         return statsRoot.getEntries();
     }
 
-    private void internalIncrement(List<String> dimensionValues, Consumer<Node> adder, boolean createNodesIfAbsent) {
+    protected void internalIncrement(List<String> dimensionValues, BiConsumer<Node, Integer> adder, boolean createNodesIfAbsent) {
         assert dimensionValues.size() == dimensionNames.size();
         // First try to increment without creating nodes
         boolean didIncrement = internalIncrementHelper(dimensionValues, statsRoot, 0, adder, false);
@@ -136,12 +136,12 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
         List<String> dimensionValues,
         Node node,
         int depth, // Pass in the depth to avoid having to slice the list for each node.
-        Consumer<Node> adder,
+        BiConsumer<Node, Integer> adder,
         boolean createNodesIfAbsent
     ) {
         if (depth == dimensionValues.size()) {
             // This is the leaf node we are trying to reach
-            adder.accept(node);
+            adder.accept(node, depth);
             return true;
         }
 
@@ -156,7 +156,7 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
         }
         if (internalIncrementHelper(dimensionValues, child, depth + 1, adder, createNodesIfAbsent)) {
             // Function returns true if the next node down was incremented
-            adder.accept(node);
+            adder.accept(node, depth);
             return true;
         }
         return false;
@@ -208,7 +208,7 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
         return statsRoot;
     }
 
-    static class Node {
+    protected static class Node {
         private final String dimensionValue;
         // Map from dimensionValue to the DimensionNode for that dimension value.
         final Map<String, Node> children;
@@ -240,31 +240,31 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
 
         // Functions for modifying internal CacheStatsCounter without callers having to be aware of CacheStatsCounter
 
-        void incrementHits() {
+        public void incrementHits() {
             this.stats.incrementHits();
         }
 
-        void incrementMisses() {
+        public void incrementMisses() {
             this.stats.incrementMisses();
         }
 
-        void incrementEvictions() {
+        public void incrementEvictions() {
             this.stats.incrementEvictions();
         }
 
-        void incrementSizeInBytes(long amountBytes) {
+        public void incrementSizeInBytes(long amountBytes) {
             this.stats.incrementSizeInBytes(amountBytes);
         }
 
-        void decrementSizeInBytes(long amountBytes) {
+        public void decrementSizeInBytes(long amountBytes) {
             this.stats.decrementSizeInBytes(amountBytes);
         }
 
-        void incrementEntries() {
+        public void incrementEntries() {
             this.stats.incrementEntries();
         }
 
-        void decrementEntries() {
+        public void decrementEntries() {
             this.stats.decrementEntries();
         }
 

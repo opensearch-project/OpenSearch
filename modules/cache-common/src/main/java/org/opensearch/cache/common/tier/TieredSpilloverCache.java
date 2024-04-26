@@ -18,8 +18,6 @@ import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.policy.CachedQueryResult;
-import org.opensearch.common.cache.stats.CacheStatsHolder;
-import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.collect.Tuple;
@@ -44,6 +42,8 @@ import java.util.function.Predicate;
 import java.util.function.ToLongBiFunction;
 
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK_CACHE_ENABLED_SETTING_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
 
 /**
  * This cache spillover the evicted items from heap tier to disk tier. All the new items are first cached on heap
@@ -73,7 +73,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
     // In future we want to just read the stats from the individual tiers' statsHolder objects, but this isn't
     // possible right now because of the way computeIfAbsent is implemented.
-    private final CacheStatsHolder statsHolder;
+    private final TieredSpilloverCacheStatsHolder statsHolder;
     private ToLongBiFunction<ICacheKey<K>, V> weigher;
     private final List<String> dimensionNames;
     ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
@@ -85,17 +85,6 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     private final Map<ICache<K, V>, Boolean> caches;
     private final Map<ICache<K, V>, String> tierValueMap;
     private final List<Predicate<V>> policies;
-
-    // Common values used for tier dimension
-
-    /** The name for the tier dimension. */
-    public static final String TIER_DIMENSION_NAME = "tier";
-
-    /** Dimension value for on-heap cache, like OpenSearchOnHeapCache.*/
-    public static final String TIER_DIMENSION_VALUE_ON_HEAP = "on_heap";
-
-    /** Dimension value for on-disk cache, like EhcacheDiskCache. */
-    public static final String TIER_DIMENSION_VALUE_DISK = "disk";
 
     TieredSpilloverCache(Builder<K, V> builder) {
         Objects.requireNonNull(builder.onHeapCacheFactory, "onHeap cache builder can't be null");
@@ -148,7 +137,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             diskCache, TIER_DIMENSION_VALUE_DISK
         );
         // Pass "tier" as the innermost dimension name, in addition to whatever dimensions are specified for the cache as a whole
-        this.statsHolder = new DefaultCacheStatsHolder(getDimensionsWithTierValue(dimensionNames, TIER_DIMENSION_NAME));
+        this.statsHolder = new TieredSpilloverCacheStatsHolder(dimensionNames);
         this.policies = builder.policies; // Will never be null; builder initializes it to an empty list
         builder.cacheConfig.getClusterSettings()
             .addSettingsUpdateConsumer(DISK_CACHE_ENABLED_SETTING_MAP.get(builder.cacheType), this::enableDisableDiskCache);
@@ -214,7 +203,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             //for (Tuple<ICache<K, V>, String> pair : cacheAndTierValueList) {
             for (Map.Entry<ICache<K, V>, String> cacheEntry : tierValueMap.entrySet()) {
                 if (key.getDropStatsForDimensions()) {
-                    List<String> dimensionValues = getDimensionsWithTierValue(key.dimensions, cacheEntry.getValue());
+                    List<String> dimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, cacheEntry.getValue());
                     statsHolder.removeDimensions(dimensionValues);
                 }
                 if (key.key != null) {
@@ -286,7 +275,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                         V value = cacheEntry.getKey().get(key);
                         // Get the tier value corresponding to this cache
                         String tierValue = tierValueMap.get(cacheEntry.getKey());
-                        List<String> dimensionValues = getDimensionsWithTierValue(key.dimensions, tierValue);
+                        List<String> dimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, tierValue);
                         if (value != null) {
                             statsHolder.incrementHits(dimensionValues);
                             return value;
@@ -325,7 +314,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     }
 
     void updateStatsOnRemoval(String removedFromTierValue, boolean wasEvicted, ICacheKey<K> key, V value) {
-        List<String> dimensionValues = getDimensionsWithTierValue(key.dimensions, removedFromTierValue);
+        List<String> dimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, removedFromTierValue);
         if (wasEvicted) {
             statsHolder.incrementEvictions(dimensionValues);
         }
@@ -334,18 +323,9 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     }
 
     void updateStatsOnPut(String destinationTierValue, ICacheKey<K> key, V value) {
-        List<String> dimensionValues = getDimensionsWithTierValue(key.dimensions, destinationTierValue);
+        List<String> dimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, destinationTierValue);
         statsHolder.incrementEntries(dimensionValues);
         statsHolder.incrementSizeInBytes(dimensionValues, weigher.applyAsLong(key, value));
-    }
-
-    /**
-     * Add tierValue to the end of a copy of the initial dimension values.
-     */
-    private List<String> getDimensionsWithTierValue(List<String> initialDimensions, String tierValue) {
-        List<String> result = new ArrayList<>(initialDimensions);
-        result.add(tierValue);
-        return result;
     }
 
     boolean evaluatePolicies(V value) {
