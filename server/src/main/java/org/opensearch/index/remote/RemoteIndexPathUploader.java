@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
@@ -61,7 +62,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteS
 @ExperimentalApi
 public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
 
-    private static final String DELIMITER = "#";
+    public static final String DELIMITER = "#";
     public static final ConfigBlobStoreFormat<RemoteIndexPath> REMOTE_INDEX_PATH_FORMAT = new ConfigBlobStoreFormat<>(
         RemoteIndexPath.FILE_NAME_FORMAT
     );
@@ -239,6 +240,8 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
     }
 
     private boolean isTranslogSegmentRepoSame() {
+        // TODO - The current comparison checks the repository name. But it is also possible that the repository are same
+        // by attributes, but different by name. We need to handle this.
         String translogRepoName = settings.get(TRANSLOG_REPO_NAME_KEY);
         String segmentRepoName = settings.get(SEGMENT_REPO_NAME_KEY);
         return Objects.equals(translogRepoName, segmentRepoName);
@@ -296,7 +299,7 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
      * Creates a file name by combining index uuid, index metadata version and file version. # has been chosen as the
      * delimiter since it does not collide with any possible letters in file name.
      */
-    public static String generateFileName(String indexUUID, long indexMetadataVersion, String fileVersion) {
-        return String.join(DELIMITER, indexUUID, Long.toString(indexMetadataVersion), fileVersion);
+    private String generateFileName(String indexUUID, long indexMetadataVersion, String fileVersion) {
+        return String.join(DELIMITER, indexUUID, Long.toString(indexMetadataVersion), fileVersion, UUIDs.randomBase64UUID());
     }
 }
