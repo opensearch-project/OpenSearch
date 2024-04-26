@@ -19,7 +19,8 @@ jobs:
       - name: Setup docker (missing on MacOS)
         if: runner.os == 'macos'
         uses: douglascamata/setup-docker-macos-action@main
-      - name: Test docker
+      - name: Test docker (missing on MacOS)
+        if: runner.os == 'macos'
         run: |
           colima start
           sudo ln -sf $HOME/.colima/default/docker.sock /var/run/docker.sock
