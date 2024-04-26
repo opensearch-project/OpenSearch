@@ -24,7 +24,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add an individual setting of rate limiter for segment replication ([#12959](https://github.com/opensearch-project/OpenSearch/pull/12959))
 - [Streaming Indexing] Ensure support of the new transport by security plugin ([#13174](https://github.com/opensearch-project/OpenSearch/pull/13174))
 - Add cluster setting to dynamically configure the buckets for filter rewrite optimization. ([#13179](https://github.com/opensearch-project/OpenSearch/pull/13179))
+- [Tiered Caching] Add a dynamic setting to disable/enable disk cache. ([#13373](https://github.com/opensearch-project/OpenSearch/pull/13373))
 - [Remote Store] Add capability of doing refresh as determined by the translog ([#12992](https://github.com/opensearch-project/OpenSearch/pull/12992))
+- Batch mode for async fetching shard information in GatewayAllocator for unassigned shards ([#8746](https://github.com/opensearch-project/OpenSearch/pull/8746))
 - Support multi ranges traversal when doing date histogram rewrite optimization. ([#13317](https://github.com/opensearch-project/OpenSearch/pull/13317))
 
 ### Dependencies
@@ -47,6 +49,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.github.spullara.mustache.java:compiler` from 0.9.10 to 0.9.11 ([#13329](https://github.com/opensearch-project/OpenSearch/pull/13329))
 - Bump `jakarta.enterprise:jakarta.enterprise.cdi-api` from 4.0.1 to 4.1.0 ([#13328](https://github.com/opensearch-project/OpenSearch/pull/13328))
 - Bump `com.google.api.grpc:proto-google-iam-v1` from 0.12.0 to 1.33.0 ([#13332](https://github.com/opensearch-project/OpenSearch/pull/13332))
+- OpenJDK Update (April 2024 Patch releases), update to Eclipse Temurin 21.0.3+9 ([#13389](https://github.com/opensearch-project/OpenSearch/pull/13389))
+- Bump `com.squareup.okio:okio` from 3.8.0 to 3.9.0 ([#12997](https://github.com/opensearch-project/OpenSearch/pull/12997))
 
 ### Changed
 - [BWC and API enforcement] Enforcing the presence of API annotations at build time ([#12872](https://github.com/opensearch-project/OpenSearch/pull/12872))
