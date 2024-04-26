@@ -1,11 +1,11 @@
-FROM gradle:jdk17-alpine AS builder
+FROM gradle:jdk21-alpine AS builder
 USER gradle
 WORKDIR /home/wazuh-indexer
 COPY --chown=gradle:gradle . /home/wazuh-indexer
 RUN gradle clean
 
 
-FROM eclipse-temurin:17-jdk-alpine
+FROM eclipse-temurin:21-jdk-alpine
 RUN apk add git && \
   apk add curl && \
   apk add bash && \
