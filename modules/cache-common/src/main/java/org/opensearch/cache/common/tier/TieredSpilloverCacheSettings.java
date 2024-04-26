@@ -43,6 +43,14 @@ public class TieredSpilloverCacheSettings {
     );
 
     /**
+     * Setting to disable/enable disk cache dynamically.
+     */
+    public static final Setting.AffixSetting<Boolean> TIERED_SPILLOVER_DISK_CACHE_SETTING = Setting.suffixKeySetting(
+        TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".disk.store.enabled",
+        (key) -> Setting.boolSetting(key, true, NodeScope, Setting.Property.Dynamic)
+    );
+
+    /**
      * Setting defining the minimum took time for a query to be allowed into the disk cache.
      */
     private static final Setting.AffixSetting<TimeValue> TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD = Setting.suffixKeySetting(
@@ -63,17 +71,29 @@ public class TieredSpilloverCacheSettings {
     public static final Map<CacheType, Setting<TimeValue>> TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
 
     /**
-     * Fetches concrete took time policy settings.
+     * Stores disk cache enabled settings for various cache types as these are dynamic so that can be registered and
+     * retrieved accordingly.
+     */
+    public static final Map<CacheType, Setting<Boolean>> DISK_CACHE_ENABLED_SETTING_MAP;
+
+    /**
+     * Fetches concrete took time policy and disk cache settings.
      */
     static {
         Map<CacheType, Setting<TimeValue>> concreteTookTimePolicySettingMap = new HashMap<>();
+        Map<CacheType, Setting<Boolean>> diskCacheSettingMap = new HashMap<>();
         for (CacheType cacheType : CacheType.values()) {
             concreteTookTimePolicySettingMap.put(
                 cacheType,
                 TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD.getConcreteSettingForNamespace(cacheType.getSettingPrefix())
             );
+            diskCacheSettingMap.put(
+                cacheType,
+                TIERED_SPILLOVER_DISK_CACHE_SETTING.getConcreteSettingForNamespace(cacheType.getSettingPrefix())
+            );
         }
         TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP = concreteTookTimePolicySettingMap;
+        DISK_CACHE_ENABLED_SETTING_MAP = diskCacheSettingMap;
     }
 
     /**
