@@ -12,6 +12,7 @@ import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.plugins.CachePlugin;
 import org.opensearch.plugins.Plugin;
 
@@ -61,7 +62,9 @@ public class TieredSpilloverCachePlugin extends Plugin implements CachePlugin {
                 TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_NAME.getConcreteSettingForNamespace(cacheType.getSettingPrefix())
             );
             settingList.add(TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType));
-            settingList.add(DISK_CACHE_ENABLED_SETTING_MAP.get(cacheType));
+            if (FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings)) {
+                settingList.add(DISK_CACHE_ENABLED_SETTING_MAP.get(cacheType));
+            }
         }
         return settingList;
     }
