@@ -25,7 +25,8 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.remote.RemoteStorePathType;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -225,7 +226,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         indexDocuments(client, indexName1, randomIntBetween(5, 10));
         ensureGreen(indexName1);
-        validateRemoteStorePathType(indexName1, RemoteStorePathType.FIXED);
+        validatePathType(indexName1, PathType.FIXED, PathHashAlgorithm.FNV_1A);
 
         logger.info("--> snapshot");
         SnapshotInfo snapshotInfo = createSnapshot(snapshotRepoName, snapshotName1, new ArrayList<>(Arrays.asList(indexName1)));
@@ -242,14 +243,12 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertEquals(RestStatus.ACCEPTED, restoreSnapshotResponse.status());
         ensureGreen(restoredIndexName1version1);
-        validateRemoteStorePathType(restoredIndexName1version1, RemoteStorePathType.FIXED);
+        validatePathType(restoredIndexName1version1, PathType.FIXED, PathHashAlgorithm.FNV_1A);
 
         client(clusterManagerNode).admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING.getKey(), RemoteStorePathType.HASHED_PREFIX)
-            )
+            .setTransientSettings(Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING.getKey(), PathType.HASHED_PREFIX))
             .get();
 
         restoreSnapshotResponse = client.admin()
@@ -261,24 +260,25 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertEquals(RestStatus.ACCEPTED, restoreSnapshotResponse.status());
         ensureGreen(restoredIndexName1version2);
-        validateRemoteStorePathType(restoredIndexName1version2, RemoteStorePathType.HASHED_PREFIX);
+        validatePathType(restoredIndexName1version2, PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A);
 
         // Create index with cluster setting cluster.remote_store.index.path.prefix.type as hashed_prefix.
         indexSettings = getIndexSettings(1, 0).build();
         createIndex(indexName2, indexSettings);
         ensureGreen(indexName2);
-        validateRemoteStorePathType(indexName2, RemoteStorePathType.HASHED_PREFIX);
+        validatePathType(indexName2, PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A);
 
         // Validating that custom data has not changed for indexes which were created before the cluster setting got updated
-        validateRemoteStorePathType(indexName1, RemoteStorePathType.FIXED);
+        validatePathType(indexName1, PathType.FIXED, PathHashAlgorithm.FNV_1A);
     }
 
-    private void validateRemoteStorePathType(String index, RemoteStorePathType pathType) {
+    private void validatePathType(String index, PathType pathType, PathHashAlgorithm pathHashAlgorithm) {
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         // Validate that the remote_store custom data is present in index metadata for the created index.
         Map<String, String> remoteCustomData = state.metadata().index(index).getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
         assertNotNull(remoteCustomData);
-        assertEquals(pathType.toString(), remoteCustomData.get(RemoteStorePathType.NAME));
+        assertEquals(pathType.name(), remoteCustomData.get(PathType.NAME));
+        assertEquals(pathHashAlgorithm.name(), remoteCustomData.get(PathHashAlgorithm.NAME));
     }
 
     public void testRestoreInSameRemoteStoreEnabledIndex() throws IOException {
