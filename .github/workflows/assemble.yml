@@ -18,8 +18,9 @@ jobs:
           distribution: temurin
       - name: Setup docker (missing on MacOS)
         if: runner.os == 'macos'
+        with: douglascamata/setup-docker-macos-action@main
+      - name: Test docker
         run: |
-          brew install docker
           colima start
           sudo ln -sf $HOME/.colima/default/docker.sock /var/run/docker.sock
       - name: Run Gradle (assemble)
