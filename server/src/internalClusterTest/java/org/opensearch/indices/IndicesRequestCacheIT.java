@@ -1179,7 +1179,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
 
     // when staleness threshold is lower than staleness, it should clean the cache from all indices having stale keys
     public void testStaleKeysCleanupWithMultipleIndices() throws Exception {
-        int cacheCleanIntervalInMillis = 100;
+        int cacheCleanIntervalInMillis = 300;
         String node = internalCluster().startNode(
             Settings.builder()
                 .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_STALENESS_THRESHOLD_SETTING_KEY, 0.10)
