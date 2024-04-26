@@ -126,6 +126,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.seqno.RetentionLeaseStats;
@@ -276,8 +277,8 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public static final Setting<TimeValue> CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.minimum.index.refresh_interval",
-        IndexSettings.MINIMUM_REFRESH_INTERVAL,
-        IndexSettings.MINIMUM_REFRESH_INTERVAL,
+        TimeValue.ZERO,
+        TimeValue.ZERO,
         new ClusterMinimumRefreshIntervalValidator(),
         Property.NodeScope,
         Property.Dynamic
@@ -306,6 +307,18 @@ public class IndicesService extends AbstractLifecycleComponent
         false,
         Property.NodeScope,
         Property.Final
+    );
+
+    /**
+     * This setting is used to set the remote store blob store path prefix strategy. This setting is effective only for
+     * remote store enabled cluster.
+     */
+    public static final Setting<PathType> CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING = new Setting<>(
+        "cluster.remote_store.index.path.prefix.type",
+        PathType.FIXED.toString(),
+        PathType::parseString,
+        Property.NodeScope,
+        Property.Dynamic
     );
 
     /**
@@ -2009,6 +2022,9 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param defaultRefreshInterval value of cluster default index refresh interval setting
      */
     private static void validateRefreshIntervalSettings(TimeValue minimumRefreshInterval, TimeValue defaultRefreshInterval) {
+        if (defaultRefreshInterval.millis() < 0) {
+            return;
+        }
         if (minimumRefreshInterval.compareTo(defaultRefreshInterval) > 0) {
             throw new IllegalArgumentException(
                 "cluster minimum index refresh interval ["

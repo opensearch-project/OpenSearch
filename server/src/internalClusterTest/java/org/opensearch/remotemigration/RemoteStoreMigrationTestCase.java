@@ -13,8 +13,11 @@ import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRespo
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
@@ -69,5 +72,53 @@ public class RemoteStoreMigrationTestCase extends MigrationBaseTestCase {
 
         updateSettingsRequest.persistentSettings(Settings.builder().put(MIGRATION_DIRECTION_SETTING.getKey(), "random"));
         assertThrows(IllegalArgumentException.class, () -> client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+    }
+
+    public void testNoShallowSnapshotInMixedMode() throws Exception {
+        logger.info("Initialize remote cluster");
+        addRemote = true;
+        internalCluster().setBootstrapClusterManagerNodeIndex(0);
+        List<String> cmNodes = internalCluster().startNodes(1);
+        Client client = internalCluster().client(cmNodes.get(0));
+
+        logger.info("Add remote node");
+        internalCluster().startNode();
+        internalCluster().validateClusterFormed();
+
+        logger.info("Create remote backed index");
+        RemoteStoreMigrationShardAllocationBaseTestCase.createIndex("test", 0);
+        RemoteStoreMigrationShardAllocationBaseTestCase.assertRemoteStoreBackedIndex("test");
+
+        logger.info("Create shallow snapshot setting enabled repo");
+        String shallowSnapshotRepoName = "shallow-snapshot-repo-name";
+        Path shallowSnapshotRepoPath = randomRepoPath();
+        assertAcked(
+            clusterAdmin().preparePutRepository(shallowSnapshotRepoName)
+                .setType("fs")
+                .setSettings(
+                    Settings.builder()
+                        .put("location", shallowSnapshotRepoPath)
+                        .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), Boolean.TRUE)
+                )
+        );
+
+        logger.info("Verify shallow snapshot creation");
+        final String snapshot1 = "snapshot1";
+        SnapshotInfo snapshotInfo1 = RemoteStoreMigrationShardAllocationBaseTestCase.createSnapshot(
+            shallowSnapshotRepoName,
+            snapshot1,
+            "test"
+        );
+        assertEquals(snapshotInfo1.isRemoteStoreIndexShallowCopyEnabled(), true);
+
+        logger.info("Set MIXED compatibility mode");
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed"));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        logger.info("Verify that new snapshot is not shallow");
+        final String snapshot2 = "snapshot2";
+        SnapshotInfo snapshotInfo2 = RemoteStoreMigrationShardAllocationBaseTestCase.createSnapshot(shallowSnapshotRepoName, snapshot2);
+        assertEquals(snapshotInfo2.isRemoteStoreIndexShallowCopyEnabled(), false);
     }
 }
