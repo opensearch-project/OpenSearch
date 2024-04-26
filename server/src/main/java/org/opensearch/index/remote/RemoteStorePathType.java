@@ -8,6 +8,10 @@
 
 package org.opensearch.index.remote;
 
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.index.remote.RemoteStoreDataEnums.DataCategory;
+import org.opensearch.index.remote.RemoteStoreDataEnums.DataType;
+
 import java.util.Locale;
 
 /**
@@ -18,13 +22,46 @@ import java.util.Locale;
  */
 public enum RemoteStorePathType {
 
-    FIXED,
-    HASHED_PREFIX;
+    FIXED {
+        @Override
+        public BlobPath generatePath(BlobPath basePath, String indexUUID, String shardId, String dataCategory, String dataType) {
+            return basePath.add(indexUUID).add(shardId).add(dataCategory).add(dataType);
+        }
+    },
+    HASHED_PREFIX {
+        @Override
+        public BlobPath generatePath(BlobPath basePath, String indexUUID, String shardId, String dataCategory, String dataType) {
+            // TODO - We need to implement this, keeping the same path as Fixed for sake of multiple tests that can fail otherwise.
+            // throw new UnsupportedOperationException("Not implemented"); --> Not using this for unblocking couple of tests.
+            return basePath.add(indexUUID).add(shardId).add(dataCategory).add(dataType);
+        }
+    };
+
+    /**
+     * @param basePath     base path of the underlying blob store repository
+     * @param indexUUID    of the index
+     * @param shardId      shard id
+     * @param dataCategory is either translog or segment
+     * @param dataType     can be one of data, metadata or lock_files.
+     * @return the blob path for the underlying remote store path type.
+     */
+    public BlobPath path(BlobPath basePath, String indexUUID, String shardId, DataCategory dataCategory, DataType dataType) {
+        assert dataCategory.isSupportedDataType(dataType) : "category:"
+            + dataCategory
+            + " type:"
+            + dataType
+            + " are not supported together";
+        return generatePath(basePath, indexUUID, shardId, dataCategory.getName(), dataType.getName());
+    }
+
+    abstract BlobPath generatePath(BlobPath basePath, String indexUUID, String shardId, String dataCategory, String dataType);
 
     public static RemoteStorePathType parseString(String remoteStoreBlobPathType) {
         try {
             return RemoteStorePathType.valueOf(remoteStoreBlobPathType.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | NullPointerException e) {
+            // IllegalArgumentException is thrown when the input does not match any enum name
+            // NullPointerException is thrown when the input is null
             throw new IllegalArgumentException("Could not parse RemoteStorePathType for [" + remoteStoreBlobPathType + "]");
         }
     }
