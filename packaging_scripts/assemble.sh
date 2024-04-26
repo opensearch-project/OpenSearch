@@ -196,6 +196,17 @@ function enable_performance_analyzer() {
 }
 
 # ====
+# Fix https://github.com/wazuh/wazuh-indexer/issues/205
+# ====
+function fix_log_rotation() {
+    {
+        echo 'grant {'
+        echo '  permission java.lang.RuntimePermission "accessUserInformation";'
+        echo '};'
+    } >> "${1}/opensearch-performance-analyzer/opensearch_security.policy"
+}
+
+# ====
 # Move performance-analyzer-rca to its final location
 # ====
 function enable_performance_analyzer_rca() {
@@ -245,6 +256,7 @@ function assemble_tar() {
 
     # Install plugins
     install_plugins
+    fix_log_rotation ${PATH_CONF}
     # Swap configuration files
     add_configuration_files
     remove_unneeded_files
@@ -284,6 +296,7 @@ function assemble_rpm() {
 
     # Install plugins
     install_plugins
+    fix_log_rotation ${PATH_CONF}
     enable_performance_analyzer_rca ${src_path}
     # Swap configuration files
     add_configuration_files
@@ -337,6 +350,7 @@ function assemble_deb() {
 
     # Install plugins
     install_plugins
+    fix_log_rotation ${PATH_CONF}
     enable_performance_analyzer_rca ${src_path}
     # Swap configuration files
     add_configuration_files
