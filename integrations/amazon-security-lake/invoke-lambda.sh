@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export AUX_BUCKET=wazuh-indexer-aux-bucket
+export S3_BUCKET_RAW=wazuh-aws-security-lake-raw
 
 curl -X POST "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{
   "Records": [
@@ -24,11 +24,11 @@ curl -X POST "http://localhost:9000/2015-03-31/functions/function/invocations" -
         "s3SchemaVersion": "1.0",
         "configurationId": "testConfigRule",
         "bucket": {
-          "name": "'"${AUX_BUCKET}"'",
+          "name": "'"${S3_BUCKET_RAW}"'",
           "ownerIdentity": {
             "principalId":"A3NL1KOZZKExample"
           },
-          "arn": "'"arn:aws:s3:::${AUX_BUCKET}"'"
+          "arn": "'"arn:aws:s3:::${S3_BUCKET_RAW}"'"
         },
         "object": {
           "key": "'"${1}"'",

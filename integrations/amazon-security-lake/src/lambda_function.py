@@ -85,7 +85,7 @@ def check_environment_variables(variables):
     return True
 
 
-def get_full_key(src_location: str, account_id: str, region: str, key: str) -> str:
+def get_full_key(src_location: str, account_id: str, region: str, key: str, format: str) -> str:
     """
     Constructs a full S3 key path for storing a Parquet file based on event metadata.
 
@@ -94,6 +94,7 @@ def get_full_key(src_location: str, account_id: str, region: str, key: str) -> s
         account_id (str): AWS account ID associated with the event.
         region (str): AWS region where the event occurred.
         key (str): Event key containing metadata information.
+        format (str): File extension.
 
     Returns:
         str: Full S3 key path for storing the Parquet file.
@@ -110,12 +111,12 @@ def get_full_key(src_location: str, account_id: str, region: str, key: str) -> s
     filename_parts = key.split('.')
     filename = ''.join(filename_parts[2].split('-'))
 
-    # Construct the full S3 key path for storing the Parquet file
-    parquet_key = (
-        f'ext/{src_location}/region={region}/accountId={account_id}/eventDay={event_day}/{filename}.parquet'
+    # Construct the full S3 key path for storing the file
+    key = (
+        f'ext/{src_location}/region={region}/accountId={account_id}/eventDay={event_day}/{filename}.{format}'
     )
 
-    return parquet_key
+    return key
 
 
 def lambda_handler(event, context):
@@ -135,6 +136,7 @@ def lambda_handler(event, context):
     src_location = os.environ['SOURCE_LOCATION']
     account_id = os.environ['ACCOUNT_ID']
     region = os.environ['AWS_REGION']
+    ocsf_bucket = os.environ.get('S3_BUCKET_OCSF')
 
     # Extract bucket and key from S3 event
     src_bucket = event['Records'][0]['s3']['bucket']['name']
@@ -150,12 +152,21 @@ def lambda_handler(event, context):
     # Transform events to OCSF format
     ocsf_events = wazuh_ocsf_converter.transform_events(raw_events)
 
+    # Upload event in OCSF format
+    ocsf_upload_success = False
+    if ocsf_bucket is not None:
+        tmp_filename = '/tmp/tmp.json'
+        with open(tmp_filename, "w") as fd:
+            fd.write(json.dumps(ocsf_events))
+        ocsf_key = get_full_key(src_location, account_id, region, key, 'json')
+        ocsf_upload_success = upload_to_s3(ocsf_bucket, ocsf_key, tmp_filename)
+
     # Write OCSF events to Parquet file
     tmp_filename = '/tmp/tmp.parquet'
     write_parquet_file(ocsf_events, tmp_filename)
 
     # Upload Parquet file to destination S3 bucket
-    parquet_key = get_full_key(src_location, account_id, region, key)
+    parquet_key = get_full_key(src_location, account_id, region, key, 'parquet')
     upload_success = upload_to_s3(dst_bucket, parquet_key, tmp_filename)
 
     # Clean up temporary file
@@ -164,6 +175,7 @@ def lambda_handler(event, context):
     # Prepare response
     response = {
         'size': len(raw_events),
-        'upload_success': upload_success
+        'upload_success': upload_success,
+        'ocsf_upload_success': ocsf_upload_success
     }
     return json.dumps(response)

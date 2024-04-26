@@ -19,7 +19,7 @@ ENV LOGSTASH_KEYSTORE_PASS="SecretPassword"
 # Add the application source code.
 COPY --chown=logstash:logstash ./src /home/app
 # Add execution persmissions.
-RUN chmod a+x /home/app/run.py
+RUN chmod a+x /home/app/lambda_function.py
 # Copy the application's dependencies.
 COPY --from=builder /env /env
 
