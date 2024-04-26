@@ -744,9 +744,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
          * @return true if the cache cleanup process can be skipped, false otherwise.
          */
         private synchronized boolean canSkipCacheCleanup(double cleanThresholdPercent) {
-            if (cleanThresholdPercent == 
-               
-               ) {
+            if (cleanThresholdPercent == 0.0) {
                 return false;
             }
             double staleKeysInCachePercentage = staleKeysInCachePercentage();
