@@ -759,6 +759,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
                 }
                 return true;
             }
+
             return false;
         }
 
