@@ -40,7 +40,7 @@ def write_parquet_file(ocsf_events: list, filename: str) -> None:
     """
     Write OCSF events to a Parquet file.
     """
-    table = pa.Table.from_pydict({'events': ocsf_events})
+    table = pa.Table.from_pylist(ocsf_events)
     pq.write_table(table, filename, compression='ZSTD')
 
 
