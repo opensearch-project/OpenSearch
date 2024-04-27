@@ -906,6 +906,40 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         IOUtils.close(secondReader);
     }
 
+    public void testCacheCleanupBasedOnStaleThreshold_thresholdUpdate() throws Exception {
+        threadPool = getThreadPool();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%").build();
+        cache = getIndicesRequestCache(settings);
+
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+
+        // Get 2 entries into the cache
+        cache.getOrCompute(getEntity(indexShard), getLoader(reader), reader, getTermBytes());
+        cache.getOrCompute(getEntity(indexShard), getLoader(secondReader), secondReader, getTermBytes());
+        assertEquals(2, cache.count());
+
+        // Close the reader, to be enqueued for cleanup
+        // 1 out of 2 keys ie 50% are now stale.
+        reader.close();
+        // cache count should not be affected
+        assertEquals(2, cache.count());
+
+        // clean cache with 51% staleness threshold
+        cache.cacheCleanupManager.cleanCache();
+        // cleanup should have been ignored
+        assertEquals(2, cache.count());
+
+        cache.setStalenessThreshold("49%");
+        // clean cache with 49% staleness threshold
+        cache.cacheCleanupManager.cleanCache();
+        // cleanup should NOT have been ignored
+        assertEquals(1, cache.count());
+
+        IOUtils.close(secondReader);
+    }
+
     public void testEviction() throws Exception {
         final ByteSizeValue size;
         {

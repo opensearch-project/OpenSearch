@@ -24,8 +24,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add an individual setting of rate limiter for segment replication ([#12959](https://github.com/opensearch-project/OpenSearch/pull/12959))
 - [Streaming Indexing] Ensure support of the new transport by security plugin ([#13174](https://github.com/opensearch-project/OpenSearch/pull/13174))
 - Add cluster setting to dynamically configure the buckets for filter rewrite optimization. ([#13179](https://github.com/opensearch-project/OpenSearch/pull/13179))
+- [Tiered Caching] Add a dynamic setting to disable/enable disk cache. ([#13373](https://github.com/opensearch-project/OpenSearch/pull/13373))
 - [Remote Store] Add capability of doing refresh as determined by the translog ([#12992](https://github.com/opensearch-project/OpenSearch/pull/12992))
 - Add support for batch ingestion capability ([#12457](https://github.com/opensearch-project/OpenSearch/issues/12457))
+- [Tiered caching] Make Indices Request Cache Stale Key Mgmt Threshold setting dynamic ([#12941](https://github.com/opensearch-project/OpenSearch/pull/12941))
+- Batch mode for async fetching shard information in GatewayAllocator for unassigned shards ([#8746](https://github.com/opensearch-project/OpenSearch/pull/8746))
 
 ### Dependencies
 - Bump `org.apache.commons:commons-configuration2` from 2.10.0 to 2.10.1 ([#12896](https://github.com/opensearch-project/OpenSearch/pull/12896))
@@ -57,6 +60,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Ignoring unavailable shards during search request execution with ignore_available parameter ([#13298](https://github.com/opensearch-project/OpenSearch/pull/13298))
 - Refactoring globMatch using simpleMatchWithNormalizedStrings from Regex ([#13104](https://github.com/opensearch-project/OpenSearch/pull/13104))
 - [BWC and API enforcement] Reconsider the breaking changes check policy to detect breaking changes against released versions ([#13292](https://github.com/opensearch-project/OpenSearch/pull/13292))
+- Switch to macos-13 runner for precommit and assemble github actions due to macos-latest is now arm64 ([#13412](https://github.com/opensearch-project/OpenSearch/pull/13412))
 
 ### Deprecated
 
