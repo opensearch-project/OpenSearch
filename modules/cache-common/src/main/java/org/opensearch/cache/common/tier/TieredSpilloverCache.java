@@ -27,8 +27,9 @@ import org.opensearch.common.util.concurrent.ReleasableLock;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -37,6 +38,8 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.function.Predicate;
+
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK_CACHE_ENABLED_SETTING_MAP;
 
 /**
  * This cache spillover the evicted items from heap tier to disk tier. All the new items are first cached on heap
@@ -67,12 +70,14 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     /**
      * Maintains caching tiers in ascending order of cache latency.
      */
-    private final List<ICache<K, V>> cacheList;
+    private final Map<ICache<K, V>, Boolean> caches;
     private final List<Predicate<V>> policies;
 
     TieredSpilloverCache(Builder<K, V> builder) {
         Objects.requireNonNull(builder.onHeapCacheFactory, "onHeap cache builder can't be null");
         Objects.requireNonNull(builder.diskCacheFactory, "disk cache builder can't be null");
+        Objects.requireNonNull(builder.cacheConfig, "cache config can't be null");
+        Objects.requireNonNull(builder.cacheConfig.getClusterSettings(), "cluster settings can't be null");
         this.removalListener = Objects.requireNonNull(builder.removalListener, "Removal listener can't be null");
 
         this.onHeapCache = builder.onHeapCacheFactory.create(
@@ -80,7 +85,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 @Override
                 public void onRemoval(RemovalNotification<ICacheKey<K>, V> notification) {
                     try (ReleasableLock ignore = writeLock.acquire()) {
-                        if (SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason())
+                        if (caches.get(diskCache)
+                            && SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason())
                             && evaluatePolicies(notification.getValue())) {
                             diskCache.put(notification.getKey(), notification.getValue());
                         } else {
@@ -103,9 +109,15 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
         );
         this.diskCache = builder.diskCacheFactory.create(builder.cacheConfig, builder.cacheType, builder.cacheFactories);
-        this.cacheList = Arrays.asList(onHeapCache, diskCache);
+        Boolean isDiskCacheEnabled = DISK_CACHE_ENABLED_SETTING_MAP.get(builder.cacheType).get(builder.cacheConfig.getSettings());
+        LinkedHashMap<ICache<K, V>, Boolean> cacheListMap = new LinkedHashMap<>();
+        cacheListMap.put(onHeapCache, true);
+        cacheListMap.put(diskCache, isDiskCacheEnabled);
+        this.caches = Collections.synchronizedMap(cacheListMap);
         this.dimensionNames = builder.cacheConfig.getDimensionNames();
         this.policies = builder.policies; // Will never be null; builder initializes it to an empty list
+        builder.cacheConfig.getClusterSettings()
+            .addSettingsUpdateConsumer(DISK_CACHE_ENABLED_SETTING_MAP.get(builder.cacheType), this::enableDisableDiskCache);
     }
 
     // Package private for testing
@@ -116,6 +128,13 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     // Package private for testing
     ICache<K, V> getDiskCache() {
         return diskCache;
+    }
+
+    // Package private for testing.
+    void enableDisableDiskCache(Boolean isDiskCacheEnabled) {
+        // When disk cache is disabled, we are not clearing up the disk cache entries yet as that should be part of
+        // separate cache/clear API.
+        this.caches.put(diskCache, isDiskCacheEnabled);
     }
 
     @Override
@@ -132,7 +151,6 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
     @Override
     public V computeIfAbsent(ICacheKey<K> key, LoadAwareCacheLoader<ICacheKey<K>, V> loader) throws Exception {
-
         V cacheValue = getValueFromTieredCache().apply(key);
         if (cacheValue == null) {
             // Add the value to the onHeap cache. We are calling computeIfAbsent which does another get inside.
@@ -151,10 +169,10 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     public void invalidate(ICacheKey<K> key) {
         // We are trying to invalidate the key from all caches though it would be present in only of them.
         // Doing this as we don't know where it is located. We could do a get from both and check that, but what will
-        // also trigger a hit/miss listener event, so ignoring it for now.
+        // also count hits/misses stats, so ignoring it for now.
         try (ReleasableLock ignore = writeLock.acquire()) {
-            for (ICache<K, V> cache : cacheList) {
-                cache.invalidate(key);
+            for (Map.Entry<ICache<K, V>, Boolean> cacheEntry : caches.entrySet()) {
+                cacheEntry.getKey().invalidate(key);
             }
         }
     }
@@ -162,8 +180,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     @Override
     public void invalidateAll() {
         try (ReleasableLock ignore = writeLock.acquire()) {
-            for (ICache<K, V> cache : cacheList) {
-                cache.invalidateAll();
+            for (Map.Entry<ICache<K, V>, Boolean> cacheEntry : caches.entrySet()) {
+                cacheEntry.getKey().invalidateAll();
             }
         }
     }
@@ -175,15 +193,21 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     @SuppressWarnings({ "unchecked" })
     @Override
     public Iterable<ICacheKey<K>> keys() {
-        Iterable<ICacheKey<K>>[] iterables = (Iterable<ICacheKey<K>>[]) new Iterable<?>[] { onHeapCache.keys(), diskCache.keys() };
-        return new ConcatenatedIterables<ICacheKey<K>>(iterables);
+        List<Iterable<ICacheKey<K>>> iterableList = new ArrayList<>();
+        for (Map.Entry<ICache<K, V>, Boolean> cacheEntry : caches.entrySet()) {
+            iterableList.add(cacheEntry.getKey().keys());
+        }
+        Iterable<ICacheKey<K>>[] iterables = (Iterable<ICacheKey<K>>[]) iterableList.toArray(new Iterable<?>[0]);
+        return new ConcatenatedIterables<>(iterables);
     }
 
     @Override
     public long count() {
         long count = 0;
-        for (ICache<K, V> cache : cacheList) {
-            count += cache.count();
+        for (Map.Entry<ICache<K, V>, Boolean> cacheEntry : caches.entrySet()) {
+            // Count for all the tiers irrespective of whether they are enabled or not. As eventually
+            // this will turn to zero once cache is cleared up either via invalidation or manually.
+            count += cacheEntry.getKey().count();
         }
         return count;
     }
@@ -191,16 +215,17 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     @Override
     public void refresh() {
         try (ReleasableLock ignore = writeLock.acquire()) {
-            for (ICache<K, V> cache : cacheList) {
-                cache.refresh();
+            for (Map.Entry<ICache<K, V>, Boolean> cacheEntry : caches.entrySet()) {
+                cacheEntry.getKey().refresh();
             }
         }
     }
 
     @Override
     public void close() throws IOException {
-        for (ICache<K, V> cache : cacheList) {
-            cache.close();
+        for (Map.Entry<ICache<K, V>, Boolean> cacheEntry : caches.entrySet()) {
+            // Close all the caches here irrespective of whether they are enabled or not.
+            cacheEntry.getKey().close();
         }
     }
 
@@ -212,13 +237,12 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     private Function<ICacheKey<K>, V> getValueFromTieredCache() {
         return key -> {
             try (ReleasableLock ignore = readLock.acquire()) {
-                for (ICache<K, V> cache : cacheList) {
-                    V value = cache.get(key);
-                    if (value != null) {
-                        // update hit stats
-                        return value;
-                    } else {
-                        // update miss stats
+                for (Map.Entry<ICache<K, V>, Boolean> cacheEntry : caches.entrySet()) {
+                    if (cacheEntry.getValue()) {
+                        V value = cacheEntry.getKey().get(key);
+                        if (value != null) {
+                            return value;
+                        }
                     }
                 }
             }
