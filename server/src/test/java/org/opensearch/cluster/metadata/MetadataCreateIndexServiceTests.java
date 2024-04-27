@@ -1706,12 +1706,9 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         // Case 2 - cluster.remote_store.index.path.prefix.optimised=fixed (default value)
         indexMetadata = testRemoteCustomData(true, PathType.FIXED);
-        validateRemoteCustomData(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY), PathType.NAME, PathType.FIXED.name());
-        validateRemoteCustomData(
-            indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY),
-            PathHashAlgorithm.NAME,
-            PathHashAlgorithm.FNV_1A.name()
-        );
+        Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        validateRemoteCustomData(remoteCustomData, PathType.NAME, PathType.FIXED.name());
+        assertNull(remoteCustomData.get(PathHashAlgorithm.NAME));
 
         // Case 3 - cluster.remote_store.index.path.prefix.optimised=hashed_prefix
         indexMetadata = testRemoteCustomData(true, PathType.HASHED_PREFIX);

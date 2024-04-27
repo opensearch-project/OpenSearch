@@ -18,6 +18,7 @@ import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
@@ -46,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -226,7 +228,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         indexDocuments(client, indexName1, randomIntBetween(5, 10));
         ensureGreen(indexName1);
-        validatePathType(indexName1, PathType.FIXED, PathHashAlgorithm.FNV_1A);
+        validatePathType(indexName1, PathType.FIXED);
 
         logger.info("--> snapshot");
         SnapshotInfo snapshotInfo = createSnapshot(snapshotRepoName, snapshotName1, new ArrayList<>(Arrays.asList(indexName1)));
@@ -243,7 +245,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertEquals(RestStatus.ACCEPTED, restoreSnapshotResponse.status());
         ensureGreen(restoredIndexName1version1);
-        validatePathType(restoredIndexName1version1, PathType.FIXED, PathHashAlgorithm.FNV_1A);
+        validatePathType(restoredIndexName1version1, PathType.FIXED);
 
         client(clusterManagerNode).admin()
             .cluster()
@@ -269,16 +271,50 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         validatePathType(indexName2, PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A);
 
         // Validating that custom data has not changed for indexes which were created before the cluster setting got updated
-        validatePathType(indexName1, PathType.FIXED, PathHashAlgorithm.FNV_1A);
+        validatePathType(indexName1, PathType.FIXED);
+
+        // Create Snapshot of index 2
+        String snapshotName2 = "test-restore-snapshot2";
+        snapshotInfo = createSnapshot(snapshotRepoName, snapshotName2, new ArrayList<>(List.of(indexName2)));
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertTrue(snapshotInfo.successfulShards() > 0);
+        assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
+
+        // Update cluster settings to FIXED
+        client(clusterManagerNode).admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING.getKey(), PathType.FIXED))
+            .get();
+
+        // Close index 2
+        assertAcked(client().admin().indices().prepareClose(indexName2));
+        restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName2)
+            .setWaitForCompletion(false)
+            .setIndices(indexName2)
+            .get();
+        assertEquals(RestStatus.ACCEPTED, restoreSnapshotResponse.status());
+        ensureGreen(indexName2);
+
+        // Validating that custom data has not changed for testindex2 which was created before the cluster setting got updated
+        validatePathType(indexName2, PathType.HASHED_PREFIX, PathHashAlgorithm.FNV_1A);
     }
 
-    private void validatePathType(String index, PathType pathType, PathHashAlgorithm pathHashAlgorithm) {
+    private void validatePathType(String index, PathType pathType) {
+        validatePathType(index, pathType, null);
+    }
+
+    private void validatePathType(String index, PathType pathType, @Nullable PathHashAlgorithm pathHashAlgorithm) {
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         // Validate that the remote_store custom data is present in index metadata for the created index.
         Map<String, String> remoteCustomData = state.metadata().index(index).getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
         assertNotNull(remoteCustomData);
         assertEquals(pathType.name(), remoteCustomData.get(PathType.NAME));
-        assertEquals(pathHashAlgorithm.name(), remoteCustomData.get(PathHashAlgorithm.NAME));
+        if (Objects.nonNull(pathHashAlgorithm)) {
+            assertEquals(pathHashAlgorithm.name(), remoteCustomData.get(PathHashAlgorithm.NAME));
+        }
     }
 
     public void testRestoreInSameRemoteStoreEnabledIndex() throws IOException {
