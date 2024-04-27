@@ -64,3 +64,42 @@ teardown:
         index: test
         id: 1
   - match: { _source.message: "foo bar baz" }
+
+---
+"Test rename processor with override_target":
+  - skip:
+      version: " - 2.13.99"
+      reason: "introduced in 2.14.0"
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "rename" : {
+                  "field" : "foo",
+                  "target_field" : "bar",
+                  "override_target" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo: "foo",
+          bar: "bar"
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source: { "bar": "foo" } }
