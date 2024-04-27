@@ -1720,7 +1720,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         validateRemoteCustomData(
             indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY),
             PathHashAlgorithm.NAME,
-            PathHashAlgorithm.FNV_1A.name()
+            PathHashAlgorithm.FNV_1A_COMPOSITE_1.name()
         );
     }
 
@@ -1729,7 +1729,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         if (remoteStoreEnabled) {
             settingsBuilder.put(NODE_ATTRIBUTES.getKey() + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "test");
         }
-        settingsBuilder.put(IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING.getKey(), pathType.toString());
+        settingsBuilder.put(IndicesService.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), pathType.toString());
         Settings settings = settingsBuilder.build();
 
         ClusterService clusterService = mock(ClusterService.class);
