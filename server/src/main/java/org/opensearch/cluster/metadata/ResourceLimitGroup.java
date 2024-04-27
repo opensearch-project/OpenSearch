@@ -10,6 +10,7 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -21,6 +22,9 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -28,6 +32,7 @@ import java.util.Objects;
 /**
  * Class to define the ResourceLimitGroup schema
  * {
+ *     "uuid": ""
  *     "name": "analytics",
  *     "resourceLimits": [
  *          {
@@ -42,8 +47,11 @@ import java.util.Objects;
 public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> implements ToXContentObject {
 
     private final String name;
+    private final String uuid;
     private final List<ResourceLimit> resourceLimits;
     private final String enforcement;
+    private final String createdAt;
+    private final String updatedAt;
 
     private static final List<String> ALLOWED_RESOURCES = List.of("jvm");
     private static final List<String> ALLOWED_ENFORCEMENTS = List.of("monitor");
@@ -51,11 +59,25 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField RESOURCE_LIMITS_FIELD = new ParseField("resourceLimits");
     public static final ParseField ENFORCEMENT_FIELD = new ParseField("enforcement");
+    public static final ParseField UPDATED_TIMESTAMP_FIELD = new ParseField("updatedAt");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ResourceLimitGroup, Void> PARSER = new ConstructingObjectParser<>(
         "ResourceLimitGroupParser",
-        args -> new ResourceLimitGroup((String) args[0], (List<ResourceLimit>) args[1], (String) args[2])
+        args -> {
+            Instant currentTimestamp = Instant.now();
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd' 'HH:mm:ss", Locale.getDefault())
+                .withZone(ZoneId.of("UTC"));
+            String formattedTimestamp = formatter.format(currentTimestamp);
+            return new ResourceLimitGroup(
+                (String) args[0],
+                UUIDs.randomBase64UUID(),
+                (List<ResourceLimit>) args[1],
+                (String) args[2],
+                formattedTimestamp,
+                formattedTimestamp
+            );
+        }
     );
 
     static {
@@ -70,11 +92,16 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
 
     private static final ConstructingObjectParser<ResourceLimitGroup, Void> PARSER_OPTIONAL_FIELDS = new ConstructingObjectParser<>(
         "ResourceLimitGroupParser",
-        args -> new ResourceLimitGroup((String) args[0], (List<ResourceLimit>) args[1], (String) args[2])
+        args -> {
+            Instant currentTimestamp = Instant.now();
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd' 'HH:mm:ss", Locale.getDefault())
+                .withZone(ZoneId.of("UTC"));
+            String formattedTimestamp = formatter.format(currentTimestamp);
+            return new ResourceLimitGroup(null, null, (List<ResourceLimit>) args[0], (String) args[1], null, formattedTimestamp);
+        }
     );
 
     static {
-        PARSER_OPTIONAL_FIELDS.declareString(ConstructingObjectParser.optionalConstructorArg(), NAME_FIELD);
         PARSER_OPTIONAL_FIELDS.declareObjectArray(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> ResourceLimit.fromXContent(p),
@@ -83,18 +110,28 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         PARSER_OPTIONAL_FIELDS.declareString(ConstructingObjectParser.optionalConstructorArg(), ENFORCEMENT_FIELD);
     }
 
-    public ResourceLimitGroup(String name, List<ResourceLimit> resourceLimits, String enforcement) {
-        isValidResourceLimitGroup(name, enforcement);
+    public ResourceLimitGroup(
+        String name,
+        String uuid,
+        List<ResourceLimit> resourceLimits,
+        String enforcement,
+        String createdAt,
+        String updatedAt
+    ) {
+        isValidResourceLimitGroup(name, resourceLimits, enforcement);
         this.name = name;
+        this.uuid = uuid;
         this.resourceLimits = resourceLimits;
         this.enforcement = enforcement;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
     }
 
     public ResourceLimitGroup(StreamInput in) throws IOException {
-        this(in.readString(), in.readList(ResourceLimit::new), in.readString());
+        this(in.readString(), in.readString(), in.readList(ResourceLimit::new), in.readString(), in.readString(), in.readString());
     }
 
-    private void isValidResourceLimitGroup(String name, String enforcement) {
+    private void isValidResourceLimitGroup(String name, List<ResourceLimit> resourceLimits, String enforcement) {
         if (name != null) {
             if (name.isEmpty()) {
                 throw new IllegalArgumentException("Resource Limit Group name cannot be empty");
@@ -110,6 +147,9 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
                     "Resource Limit Group names can't contain spaces, commas, quotes, slashes, :, *, +, |, ?, #, >, or <"
                 );
             }
+        }
+        if (resourceLimits != null && resourceLimits.isEmpty()) {
+            throw new IllegalArgumentException("Resource limit cannot be empty.");
         }
         if (enforcement != null) {
             if (!ALLOWED_ENFORCEMENTS.contains(enforcement)) {
@@ -234,14 +274,24 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writeToOutputStream(out, name, resourceLimits, enforcement);
+        writeToOutputStream(out, name, uuid, resourceLimits, enforcement, createdAt, updatedAt);
     }
 
-    public static void writeToOutputStream(StreamOutput out, String name, List<ResourceLimit> resourceLimits, String enforcement)
-        throws IOException {
+    public static void writeToOutputStream(
+        StreamOutput out,
+        String name,
+        String uuid,
+        List<ResourceLimit> resourceLimits,
+        String enforcement,
+        String createdAt,
+        String updatedAt
+    ) throws IOException {
         out.writeString(name);
+        out.writeString(uuid);
         out.writeList(resourceLimits);
         out.writeString(enforcement);
+        out.writeString(createdAt);
+        out.writeString(updatedAt);
     }
 
     /**
@@ -256,6 +306,7 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         builder.field(NAME_FIELD.getPreferredName(), name);
         builder.field(RESOURCE_LIMITS_FIELD.getPreferredName(), resourceLimits);
         builder.field(ENFORCEMENT_FIELD.getPreferredName(), enforcement);
+        builder.field(UPDATED_TIMESTAMP_FIELD.getPreferredName(), updatedAt);
         builder.endObject();
         return builder;
     }
@@ -297,5 +348,17 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
 
     public String getEnforcement() {
         return enforcement;
+    }
+
+    public String getUUID() {
+        return uuid;
+    }
+
+    public String getCreatedAt() {
+        return createdAt;
+    }
+
+    public String getUpdatedAt() {
+        return updatedAt;
     }
 }

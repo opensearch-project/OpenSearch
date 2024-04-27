@@ -36,7 +36,7 @@ public class RestGetResourceLimitGroupAction extends BaseRestHandler {
     /**
      * Constructor for RestGetResourceLimitGroupAction
      */
-    public RestGetResourceLimitGroupAction(){}
+    public RestGetResourceLimitGroupAction() {}
 
     @Override
     public String getName() {
@@ -48,17 +48,18 @@ public class RestGetResourceLimitGroupAction extends BaseRestHandler {
      */
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "_resource_limit_group/{name}"),
-            new Route(GET, "_resource_limit_group/")
-        );
+        return List.of(new Route(GET, "_resource_limit_group/{name}"), new Route(GET, "_resource_limit_group/"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String name = request.param("name");
         GetResourceLimitGroupRequest getResourceLimitGroupRequest = new GetResourceLimitGroupRequest(name);
-        return channel -> client.execute(GetResourceLimitGroupAction.INSTANCE, getResourceLimitGroupRequest, getResourceLimitGroupResponse(channel));
+        return channel -> client.execute(
+            GetResourceLimitGroupAction.INSTANCE,
+            getResourceLimitGroupRequest,
+            getResourceLimitGroupResponse(channel)
+        );
     }
 
     private RestResponseListener<GetResourceLimitGroupResponse> getResourceLimitGroupResponse(final RestChannel channel) {

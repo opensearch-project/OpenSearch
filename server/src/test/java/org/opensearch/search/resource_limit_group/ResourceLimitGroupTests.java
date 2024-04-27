@@ -15,6 +15,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -23,11 +24,16 @@ public class ResourceLimitGroupTests extends OpenSearchTestCase {
 
     public static final String JVM = "jvm";
     public static final String NAME_ONE = "resource_limit_group_one";
+    public static final String UUID_ONE = "AgfUO5Ja9yfsYlONlYi3TQ==";
+    public static final String TIMESTAMP_ONE = "2024-04-26 23:02:21";
     public static final String MONITOR = "monitor";
     public static final ResourceLimitGroup resourceLimitGroupOne = new ResourceLimitGroup(
         NAME_ONE,
-        List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3)),
-        MONITOR
+        UUID_ONE,
+        List.of(new ResourceLimitGroup.ResourceLimit("jvm", 0.3)),
+        MONITOR,
+        TIMESTAMP_ONE,
+        TIMESTAMP_ONE
     );
 
     public static void compareResourceLimits(
@@ -71,38 +77,53 @@ public class ResourceLimitGroupTests extends OpenSearchTestCase {
     public void testInvalidName() {
         assertThrows(
             IllegalArgumentException.class,
-            () -> new ResourceLimitGroup("", List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3)), MONITOR)
+            () -> new ResourceLimitGroup("", null, List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3)), MONITOR, null, null)
         );
         assertThrows(
             IllegalArgumentException.class,
-            () -> new ResourceLimitGroup("-test", List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3)), MONITOR)
+            () -> new ResourceLimitGroup("-test", null, List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3)), MONITOR, null, null)
         );
         assertThrows(
             IllegalArgumentException.class,
-            () -> new ResourceLimitGroup("_test", List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3)), MONITOR)
+            () -> new ResourceLimitGroup("_test", null, List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3)), MONITOR, null, null)
         );
         assertThrows(
             IllegalArgumentException.class,
-            () -> new ResourceLimitGroup(":test", List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3)), MONITOR)
+            () -> new ResourceLimitGroup(":test", null, List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3)), MONITOR, null, null)
         );
         assertThrows(
             IllegalArgumentException.class,
-            () -> new ResourceLimitGroup("te*st", List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3)), MONITOR)
+            () -> new ResourceLimitGroup("te*st", null, List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3)), MONITOR, null, null)
         );
         assertThrows(
             IllegalArgumentException.class,
-            () -> new ResourceLimitGroup("test?", List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3)), MONITOR)
+            () -> new ResourceLimitGroup("test?", null, List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3)), MONITOR, null, null)
         );
         assertThrows(
             IllegalArgumentException.class,
-            () -> new ResourceLimitGroup("Test", List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3)), MONITOR)
+            () -> new ResourceLimitGroup("Test", null, List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3)), MONITOR, null, null)
+        );
+    }
+
+    public void testInvalidResourceLimitList() {
+        assertThrows(IllegalArgumentException.class, () -> new ResourceLimitGroup("Test", null, new ArrayList<>(), MONITOR, null, null));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new ResourceLimitGroup(
+                "Test",
+                null,
+                List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3), new ResourceLimitGroup.ResourceLimit(JVM, 0.4)),
+                MONITOR,
+                null,
+                null
+            )
         );
     }
 
     public void testInvalidEnforcement() {
         assertThrows(
             IllegalArgumentException.class,
-            () -> new ResourceLimitGroup(NAME_ONE, List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3)), "random")
+            () -> new ResourceLimitGroup(NAME_ONE, null, List.of(new ResourceLimitGroup.ResourceLimit(JVM, 0.3)), "random", null, null)
         );
     }
 

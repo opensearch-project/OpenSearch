@@ -36,7 +36,7 @@ public class RestDeleteResourceLimitGroupAction extends BaseRestHandler {
     /**
      * Constructor for RestDeleteResourceLimitGroupAction
      */
-    public RestDeleteResourceLimitGroupAction(){}
+    public RestDeleteResourceLimitGroupAction() {}
 
     @Override
     public String getName() {
@@ -48,17 +48,18 @@ public class RestDeleteResourceLimitGroupAction extends BaseRestHandler {
      */
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(DELETE, "_resource_limit_group/{name}"),
-            new Route(DELETE, "_resource_limit_group/")
-        );
+        return List.of(new Route(DELETE, "_resource_limit_group/{name}"), new Route(DELETE, "_resource_limit_group/"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String name = request.param("name");
         DeleteResourceLimitGroupRequest deleteResourceLimitGroupRequest = new DeleteResourceLimitGroupRequest(name);
-        return channel -> client.execute(DeleteResourceLimitGroupAction.INSTANCE, deleteResourceLimitGroupRequest, deleteResourceLimitGroupResponse(channel));
+        return channel -> client.execute(
+            DeleteResourceLimitGroupAction.INSTANCE,
+            deleteResourceLimitGroupRequest,
+            deleteResourceLimitGroupResponse(channel)
+        );
     }
 
     private RestResponseListener<DeleteResourceLimitGroupResponse> deleteResourceLimitGroupResponse(final RestChannel channel) {

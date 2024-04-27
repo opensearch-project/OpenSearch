@@ -17,38 +17,34 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.opensearch.plugin.resource_limit_group.ResourceLimitGroupTestUtils.*;
+import static org.opensearch.plugin.resource_limit_group.ResourceLimitGroupTestUtils.compareResourceLimitGroups;
+import static org.opensearch.plugin.resource_limit_group.ResourceLimitGroupTestUtils.resourceLimitGroupList;
+import static org.opensearch.plugin.resource_limit_group.ResourceLimitGroupTestUtils.resourceLimitGroupOne;
 
 public class DeleteResourceLimitGroupResponseTests extends OpenSearchTestCase {
 
     public void testSerializationSingleResourceLimitGroup() throws IOException {
-        // create a list of sandboxes as the response
         List<ResourceLimitGroup> list = List.of(resourceLimitGroupOne);
         DeleteResourceLimitGroupResponse response = new DeleteResourceLimitGroupResponse(list);
         assertEquals(response.getResourceLimitGroups(), list);
 
-        // serialize the response
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
 
-        // deserialize the response and check whether each field equals the original list of sandbox
         DeleteResourceLimitGroupResponse otherResponse = new DeleteResourceLimitGroupResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
         compareResourceLimitGroups(response.getResourceLimitGroups(), otherResponse.getResourceLimitGroups());
     }
 
     public void testSerializationMultipleResourceLimitGroup() throws IOException {
-        // create a list of sandboxes as the response
         DeleteResourceLimitGroupResponse response = new DeleteResourceLimitGroupResponse(resourceLimitGroupList);
         assertEquals(response.getResourceLimitGroups(), resourceLimitGroupList);
 
-        // serialize the response
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
 
-        // deserialize the response and check whether each field equals the original list of sandbox
         DeleteResourceLimitGroupResponse otherResponse = new DeleteResourceLimitGroupResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
         assertEquals(2, otherResponse.getResourceLimitGroups().size());
@@ -56,17 +52,14 @@ public class DeleteResourceLimitGroupResponseTests extends OpenSearchTestCase {
     }
 
     public void testSerializationNull() throws IOException {
-        // create a list of sandboxes (empty list) as the response
         List<ResourceLimitGroup> list = new ArrayList<>();
         DeleteResourceLimitGroupResponse response = new DeleteResourceLimitGroupResponse(list);
         assertEquals(response.getResourceLimitGroups(), list);
 
-        // serialize the response
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
 
-        // deserialize the response and check whether each field equals the original list of sandbox
         DeleteResourceLimitGroupResponse otherResponse = new DeleteResourceLimitGroupResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
         assertEquals(0, otherResponse.getResourceLimitGroups().size());

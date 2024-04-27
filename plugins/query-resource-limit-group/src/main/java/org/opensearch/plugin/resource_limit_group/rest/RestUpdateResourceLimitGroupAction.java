@@ -38,7 +38,7 @@ public class RestUpdateResourceLimitGroupAction extends BaseRestHandler {
     /**
      * Constructor for RestUpdateResourceLimitGroupAction
      */
-    public RestUpdateResourceLimitGroupAction(){}
+    public RestUpdateResourceLimitGroupAction() {}
 
     @Override
     public String getName() {
@@ -50,25 +50,26 @@ public class RestUpdateResourceLimitGroupAction extends BaseRestHandler {
      */
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "_resource_limit_group/{name}"),
-            new Route(PUT, "_resource_limit_group/{name}")
-        );
+        return List.of(new Route(POST, "_resource_limit_group/{name}"), new Route(PUT, "_resource_limit_group/{name}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String name = request.param("name");
         UpdateResourceLimitGroupRequest updateResourceLimitGroupRequest = new UpdateResourceLimitGroupRequest(name);
-        request.applyContentParser((parser) -> { parseRestRequest(updateResourceLimitGroupRequest, parser); });
-        return channel -> client.execute(UpdateResourceLimitGroupAction.INSTANCE, updateResourceLimitGroupRequest, updateResourceLimitGroupResponse(channel));
+        request.applyContentParser((parser) -> parseRestRequest(updateResourceLimitGroupRequest, parser));
+        return channel -> client.execute(
+            UpdateResourceLimitGroupAction.INSTANCE,
+            updateResourceLimitGroupRequest,
+            updateResourceLimitGroupResponse(channel)
+        );
     }
 
     private void parseRestRequest(UpdateResourceLimitGroupRequest request, XContentParser parser) throws IOException {
         final UpdateResourceLimitGroupRequest updateResourceLimitGroupRequest = UpdateResourceLimitGroupRequest.fromXContent(parser);
-        request.setUpdatingName(updateResourceLimitGroupRequest.getUpdatingName());
         request.setResourceLimits(updateResourceLimitGroupRequest.getResourceLimits());
         request.setEnforcement(updateResourceLimitGroupRequest.getEnforcement());
+        request.setUpdatedAt(updateResourceLimitGroupRequest.getUpdatedAt());
     }
 
     private RestResponseListener<UpdateResourceLimitGroupResponse> updateResourceLimitGroupResponse(final RestChannel channel) {

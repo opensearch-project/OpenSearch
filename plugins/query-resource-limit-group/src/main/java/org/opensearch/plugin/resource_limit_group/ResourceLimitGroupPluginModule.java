@@ -22,10 +22,12 @@ public class ResourceLimitGroupPluginModule extends AbstractModule {
     /**
      * Constructor for ResourceLimitGroupPluginModule
      */
-    public ResourceLimitGroupPluginModule(){}
+    public ResourceLimitGroupPluginModule() {}
+
     @Override
     protected void configure() {
         // bind(Persistable.class).to(ResourceLimitGroupPersistenceService.class).asEagerSingleton();
-        bind(new TypeLiteral<Persistable<ResourceLimitGroup>>() {}).to(ResourceLimitGroupPersistenceService.class).asEagerSingleton();
+        bind(new TypeLiteral<Persistable<ResourceLimitGroup>>() {
+        }).to(ResourceLimitGroupPersistenceService.class).asEagerSingleton();
     }
 }

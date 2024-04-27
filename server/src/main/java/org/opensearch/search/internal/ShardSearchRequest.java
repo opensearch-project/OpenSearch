@@ -112,7 +112,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private SearchSourceBuilder source;
     private final ShardSearchContextId readerId;
     private final TimeValue keepAlive;
-    private String resourceLimitGroupId;
 
     public ShardSearchRequest(
         OriginalIndices originalIndices,
@@ -267,9 +266,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         readerId = in.readOptionalWriteable(ShardSearchContextId::new);
         keepAlive = in.readOptionalTimeValue();
         originalIndices = OriginalIndices.readOriginalIndices(in);
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            resourceLimitGroupId = in.readOptionalString();
-        }
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
     }
 
@@ -294,7 +290,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = clone.originalIndices;
         this.readerId = clone.readerId;
         this.keepAlive = clone.keepAlive;
-        this.resourceLimitGroupId = clone.resourceLimitGroupId;
     }
 
     @Override
@@ -302,9 +297,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         super.writeTo(out);
         innerWriteTo(out, false);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeOptionalString(resourceLimitGroupId);
-        }
     }
 
     protected final void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
@@ -431,14 +423,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public String preference() {
         return preference;
-    }
-
-    public String resourceLimitGroupId() {
-        return resourceLimitGroupId;
-    }
-
-    public void setResourceLimitGroupId(String resourceLimitGroupId) {
-        this.resourceLimitGroupId = resourceLimitGroupId;
     }
 
     /**

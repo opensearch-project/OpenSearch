@@ -26,9 +26,12 @@ import java.util.List;
  * @opensearch.internal
  */
 public class CreateResourceLimitGroupRequest extends ActionRequest implements Writeable.Reader<CreateResourceLimitGroupRequest> {
-    String name;
-    List<ResourceLimit> resourceLimits;
-    String enforcement;
+    private String name;
+    private String uuid;
+    private List<ResourceLimit> resourceLimits;
+    private String enforcement;
+    private String createdAt;
+    private String updatedAt;
 
     /**
      * Default constructor for CreateResourceLimitGroupRequest
@@ -41,8 +44,11 @@ public class CreateResourceLimitGroupRequest extends ActionRequest implements Wr
      */
     public CreateResourceLimitGroupRequest(ResourceLimitGroup resourceLimitGroup) {
         this.name = resourceLimitGroup.getName();
+        this.uuid = resourceLimitGroup.getUUID();
         this.resourceLimits = resourceLimitGroup.getResourceLimits();
         this.enforcement = resourceLimitGroup.getEnforcement();
+        this.createdAt = resourceLimitGroup.getCreatedAt();
+        this.updatedAt = resourceLimitGroup.getUpdatedAt();
     }
 
     /**
@@ -52,8 +58,11 @@ public class CreateResourceLimitGroupRequest extends ActionRequest implements Wr
     public CreateResourceLimitGroupRequest(StreamInput in) throws IOException {
         super(in);
         name = in.readString();
+        uuid = in.readString();
         resourceLimits = in.readList(ResourceLimit::new);
         enforcement = in.readString();
+        createdAt = in.readString();
+        updatedAt = in.readString();
     }
 
     @Override
@@ -76,14 +85,14 @@ public class CreateResourceLimitGroupRequest extends ActionRequest implements Wr
     }
 
     /**
-     * Name getter
+     * name getter
      */
     public String getName() {
         return name;
     }
 
     /**
-     * Name setter
+     * name setter
      * @param name - name to be set
      */
     public void setName(String name) {
@@ -91,15 +100,15 @@ public class CreateResourceLimitGroupRequest extends ActionRequest implements Wr
     }
 
     /**
-     * ResourceLimits getter
+     * resourceLimits getter
      */
     public List<ResourceLimit> getResourceLimits() {
         return resourceLimits;
     }
 
     /**
-     * ResourceLimits setter
-     * @param resourceLimits - ResourceLimit to be set
+     * resourceLimits setter
+     * @param resourceLimits - resourceLimit to be set
      */
     public void setResourceLimits(List<ResourceLimit> resourceLimits) {
         this.resourceLimits = resourceLimits;
@@ -123,6 +132,51 @@ public class CreateResourceLimitGroupRequest extends ActionRequest implements Wr
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        ResourceLimitGroup.writeToOutputStream(out, name, resourceLimits, enforcement);
+        ResourceLimitGroup.writeToOutputStream(out, name, uuid, resourceLimits, enforcement, createdAt, updatedAt);
+    }
+
+    /**
+     * UUID getter
+     */
+    public String getUUID() {
+        return uuid;
+    }
+
+    /**
+     * UUID setter
+     * @param uuid - uuid to be set
+     */
+    public void setUUID(String uuid) {
+        this.uuid = uuid;
+    }
+
+    /**
+     * createdAt getter
+     */
+    public String getCreatedAt() {
+        return createdAt;
+    }
+
+    /**
+     * createdAt setter
+     * @param createdAt - createdAt to be set
+     */
+    public void setCreatedAt(String createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    /**
+     * updatedAt getter
+     */
+    public String getUpdatedAt() {
+        return updatedAt;
+    }
+
+    /**
+     * updatedAt setter
+     * @param updatedAt - updatedAt to be set
+     */
+    public void setUpdatedAt(String updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }

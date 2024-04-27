@@ -23,11 +23,12 @@ import org.opensearch.transport.TransportService;
  *
  * @opensearch.internal
  */
-public class TransportGetResourceLimitGroupAction extends HandledTransportAction<GetResourceLimitGroupRequest, GetResourceLimitGroupResponse> {
+public class TransportGetResourceLimitGroupAction extends HandledTransportAction<
+    GetResourceLimitGroupRequest,
+    GetResourceLimitGroupResponse> {
 
     private final ThreadPool threadPool;
     private final Persistable<ResourceLimitGroup> resourceLimitGroupPersistenceService;
-
 
     /**
      * Constructor for TransportGetResourceLimitGroupAction
@@ -39,13 +40,13 @@ public class TransportGetResourceLimitGroupAction extends HandledTransportAction
      * @param resourceLimitGroupPersistenceService - a {@link Persistable} object
      */
     @Inject
-    public TransportGetResourceLimitGroupAction
-        (String actionName,
-         TransportService transportService,
-         ActionFilters actionFilters,
-         ThreadPool threadPool,
-         Persistable<ResourceLimitGroup> resourceLimitGroupPersistenceService
-        ) {
+    public TransportGetResourceLimitGroupAction(
+        String actionName,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ThreadPool threadPool,
+        Persistable<ResourceLimitGroup> resourceLimitGroupPersistenceService
+    ) {
         super(GetResourceLimitGroupAction.NAME, transportService, actionFilters, GetResourceLimitGroupRequest::new);
         this.threadPool = threadPool;
         this.resourceLimitGroupPersistenceService = resourceLimitGroupPersistenceService;

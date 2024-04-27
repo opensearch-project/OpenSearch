@@ -26,17 +26,17 @@ import java.util.List;
  * @opensearch.internal
  */
 public class UpdateResourceLimitGroupRequest extends ActionRequest implements Writeable.Reader<UpdateResourceLimitGroupRequest> {
-    String existingName;
-    String updatingName;
+    String name;
     List<ResourceLimit> resourceLimits;
     String enforcement;
+    String updatedAt;
 
     /**
      * Default constructor for UpdateResourceLimitGroupRequest
-     * @param existingName - existing name for Resource Limit Group
+     * @param name - name for Resource Limit Group
      */
-    public UpdateResourceLimitGroupRequest(String existingName) {
-        this.existingName = existingName;
+    public UpdateResourceLimitGroupRequest(String name) {
+        this.name = name;
     }
 
     /**
@@ -44,9 +44,10 @@ public class UpdateResourceLimitGroupRequest extends ActionRequest implements Wr
      * @param resourceLimitGroup - A {@link ResourceLimitGroup} object
      */
     public UpdateResourceLimitGroupRequest(ResourceLimitGroup resourceLimitGroup) {
-        this.updatingName = resourceLimitGroup.getName();
+        this.name = resourceLimitGroup.getName();
         this.resourceLimits = resourceLimitGroup.getResourceLimits();
         this.enforcement = resourceLimitGroup.getEnforcement();
+        this.updatedAt = resourceLimitGroup.getUpdatedAt();
     }
 
     /**
@@ -55,12 +56,12 @@ public class UpdateResourceLimitGroupRequest extends ActionRequest implements Wr
      */
     public UpdateResourceLimitGroupRequest(StreamInput in) throws IOException {
         super(in);
-        existingName = in.readOptionalString();
-        updatingName = in.readOptionalString();
+        name = in.readString();
         if (in.readBoolean()) {
             resourceLimits = in.readList(ResourceLimit::new);
         }
         enforcement = in.readOptionalString();
+        updatedAt = in.readString();
     }
 
     @Override
@@ -83,33 +84,18 @@ public class UpdateResourceLimitGroupRequest extends ActionRequest implements Wr
     }
 
     /**
-     * existingName getter
+     * name getter
      */
-    public String getExistingName() {
-        return existingName;
+    public String getName() {
+        return name;
     }
 
     /**
-     * existingName setter
-     * @param existingName - name to be set
+     * name setter
+     * @param name - name to be set
      */
-    public void setExistingName(String existingName) {
-        this.existingName = existingName;
-    }
-
-    /**
-     * updatingName getter
-     */
-    public String getUpdatingName() {
-        return updatingName;
-    }
-
-    /**
-     * updatingName setter
-     * @param updatingName - name to be set
-     */
-    public void setUpdatingName(String updatingName) {
-        this.updatingName = updatingName;
+    public void setName(String name) {
+        this.name = name;
     }
 
     /**
@@ -142,11 +128,25 @@ public class UpdateResourceLimitGroupRequest extends ActionRequest implements Wr
         this.enforcement = enforcement;
     }
 
+    /**
+     * updatedAt getter
+     */
+    public String getUpdatedAt() {
+        return updatedAt;
+    }
+
+    /**
+     * updatedAt setter
+     * @param updatedAt - updatedAt to be set
+     */
+    public void setUpdatedAt(String updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalString(existingName);
-        out.writeOptionalString(updatingName);
+        out.writeString(name);
         if (resourceLimits == null || resourceLimits.isEmpty()) {
             out.writeBoolean(false);
         } else {
@@ -154,5 +154,6 @@ public class UpdateResourceLimitGroupRequest extends ActionRequest implements Wr
             out.writeList(resourceLimits);
         }
         out.writeOptionalString(enforcement);
+        out.writeString(updatedAt);
     }
 }

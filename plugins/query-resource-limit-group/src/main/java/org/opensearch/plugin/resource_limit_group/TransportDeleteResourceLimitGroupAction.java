@@ -23,11 +23,12 @@ import org.opensearch.transport.TransportService;
  *
  * @opensearch.internal
  */
-public class TransportDeleteResourceLimitGroupAction extends HandledTransportAction<DeleteResourceLimitGroupRequest, DeleteResourceLimitGroupResponse> {
+public class TransportDeleteResourceLimitGroupAction extends HandledTransportAction<
+    DeleteResourceLimitGroupRequest,
+    DeleteResourceLimitGroupResponse> {
 
     private final ThreadPool threadPool;
     private final Persistable<ResourceLimitGroup> resourceLimitGroupPersistenceService;
-
 
     /**
      * Constructor for TransportDeleteResourceLimitGroupAction
@@ -39,20 +40,24 @@ public class TransportDeleteResourceLimitGroupAction extends HandledTransportAct
      * @param resourceLimitGroupPersistenceService - a {@link Persistable} object
      */
     @Inject
-    public TransportDeleteResourceLimitGroupAction
-        (String actionName,
-         TransportService transportService,
-         ActionFilters actionFilters,
-         ThreadPool threadPool,
-         Persistable<ResourceLimitGroup> resourceLimitGroupPersistenceService
-        ) {
+    public TransportDeleteResourceLimitGroupAction(
+        String actionName,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ThreadPool threadPool,
+        Persistable<ResourceLimitGroup> resourceLimitGroupPersistenceService
+    ) {
         super(DeleteResourceLimitGroupAction.NAME, transportService, actionFilters, DeleteResourceLimitGroupRequest::new);
         this.threadPool = threadPool;
         this.resourceLimitGroupPersistenceService = resourceLimitGroupPersistenceService;
     }
 
     @Override
-    protected void doExecute(Task task, DeleteResourceLimitGroupRequest request, ActionListener<DeleteResourceLimitGroupResponse> listener) {
+    protected void doExecute(
+        Task task,
+        DeleteResourceLimitGroupRequest request,
+        ActionListener<DeleteResourceLimitGroupResponse> listener
+    ) {
         String name = request.getName();
         threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> resourceLimitGroupPersistenceService.delete(name, listener));
     }

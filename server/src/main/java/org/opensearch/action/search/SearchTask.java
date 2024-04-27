@@ -53,7 +53,6 @@ public class SearchTask extends CancellableTask implements SearchBackpressureTas
     // generating description in a lazy way since source can be quite big
     private final Supplier<String> descriptionSupplier;
     private SearchProgressListener progressListener = SearchProgressListener.NOOP;
-    private String resourceLimitGroupId;
 
     public SearchTask(
         long id,
@@ -106,13 +105,5 @@ public class SearchTask extends CancellableTask implements SearchBackpressureTas
     @Override
     public boolean shouldCancelChildrenOnCancellation() {
         return true;
-    }
-
-    public String getResourceLimitGroupId() {
-        return resourceLimitGroupId;
-    }
-
-    public void setResourceLimitGroupId(String resourceLimitGroupId) {
-        this.resourceLimitGroupId = resourceLimitGroupId;
     }
 }

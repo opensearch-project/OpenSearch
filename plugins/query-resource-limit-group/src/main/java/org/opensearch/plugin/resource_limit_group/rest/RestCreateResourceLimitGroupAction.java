@@ -9,9 +9,9 @@
 package org.opensearch.plugin.resource_limit_group.rest;
 
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.plugin.resource_limit_group.CreateResourceLimitGroupAction;
 import org.opensearch.plugin.resource_limit_group.CreateResourceLimitGroupRequest;
 import org.opensearch.plugin.resource_limit_group.CreateResourceLimitGroupResponse;
@@ -38,7 +38,7 @@ public class RestCreateResourceLimitGroupAction extends BaseRestHandler {
     /**
      * Constructor for RestCreateResourceLimitGroupAction
      */
-    public RestCreateResourceLimitGroupAction(){}
+    public RestCreateResourceLimitGroupAction() {}
 
     @Override
     public String getName() {
@@ -50,24 +50,28 @@ public class RestCreateResourceLimitGroupAction extends BaseRestHandler {
      */
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "_resource_limit_group/"),
-            new Route(PUT, "_resource_limit_group/")
-        );
+        return List.of(new Route(POST, "_resource_limit_group/"), new Route(PUT, "_resource_limit_group/"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         CreateResourceLimitGroupRequest createResourceLimitGroupRequest = new CreateResourceLimitGroupRequest();
         request.applyContentParser((parser) -> parseRestRequest(createResourceLimitGroupRequest, parser));
-        return channel -> client.execute(CreateResourceLimitGroupAction.INSTANCE, createResourceLimitGroupRequest, createResourceLimitGroupResponse(channel));
+        return channel -> client.execute(
+            CreateResourceLimitGroupAction.INSTANCE,
+            createResourceLimitGroupRequest,
+            createResourceLimitGroupResponse(channel)
+        );
     }
 
     private void parseRestRequest(CreateResourceLimitGroupRequest request, XContentParser parser) throws IOException {
         final CreateResourceLimitGroupRequest createResourceLimitGroupRequest = CreateResourceLimitGroupRequest.fromXContent(parser);
         request.setName(createResourceLimitGroupRequest.getName());
+        request.setUUID(createResourceLimitGroupRequest.getUUID());
         request.setResourceLimits(createResourceLimitGroupRequest.getResourceLimits());
         request.setEnforcement(createResourceLimitGroupRequest.getEnforcement());
+        request.setCreatedAt(createResourceLimitGroupRequest.getCreatedAt());
+        request.setUpdatedAt(createResourceLimitGroupRequest.getUpdatedAt());
     }
 
     private RestResponseListener<CreateResourceLimitGroupResponse> createResourceLimitGroupResponse(final RestChannel channel) {

@@ -23,11 +23,12 @@ import org.opensearch.transport.TransportService;
  *
  * @opensearch.internal
  */
-public class TransportCreateResourceLimitGroupAction extends HandledTransportAction<CreateResourceLimitGroupRequest, CreateResourceLimitGroupResponse> {
+public class TransportCreateResourceLimitGroupAction extends HandledTransportAction<
+    CreateResourceLimitGroupRequest,
+    CreateResourceLimitGroupResponse> {
 
     private final ThreadPool threadPool;
     private final Persistable<ResourceLimitGroup> resourceLimitGroupPersistenceService;
-
 
     /**
      * Constructor for TransportCreateResourceLimitGroupAction
@@ -39,21 +40,33 @@ public class TransportCreateResourceLimitGroupAction extends HandledTransportAct
      * @param resourceLimitGroupPersistenceService - a {@link Persistable} object
      */
     @Inject
-    public TransportCreateResourceLimitGroupAction
-        (String actionName,
-         TransportService transportService,
-         ActionFilters actionFilters,
-         ThreadPool threadPool,
-         Persistable<ResourceLimitGroup> resourceLimitGroupPersistenceService
-        ) {
+    public TransportCreateResourceLimitGroupAction(
+        String actionName,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ThreadPool threadPool,
+        Persistable<ResourceLimitGroup> resourceLimitGroupPersistenceService
+    ) {
         super(CreateResourceLimitGroupAction.NAME, transportService, actionFilters, CreateResourceLimitGroupRequest::new);
         this.threadPool = threadPool;
         this.resourceLimitGroupPersistenceService = resourceLimitGroupPersistenceService;
     }
 
     @Override
-    protected void doExecute(Task task, CreateResourceLimitGroupRequest request, ActionListener<CreateResourceLimitGroupResponse> listener) {
-        ResourceLimitGroup resourceLimitGroup = new ResourceLimitGroup(request.getName(), request.getResourceLimits(), request.getEnforcement());
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> resourceLimitGroupPersistenceService.persist(resourceLimitGroup, listener));
+    protected void doExecute(
+        Task task,
+        CreateResourceLimitGroupRequest request,
+        ActionListener<CreateResourceLimitGroupResponse> listener
+    ) {
+        ResourceLimitGroup resourceLimitGroup = new ResourceLimitGroup(
+            request.getName(),
+            request.getUUID(),
+            request.getResourceLimits(),
+            request.getEnforcement(),
+            request.getCreatedAt(),
+            request.getUpdatedAt()
+        );
+        threadPool.executor(ThreadPool.Names.GENERIC)
+            .execute(() -> resourceLimitGroupPersistenceService.persist(resourceLimitGroup, listener));
     }
 }

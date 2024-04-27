@@ -31,10 +31,9 @@ public interface Persistable<T> {
     /**
      * update the resource limit group in a durable storage
      * @param resourceLimitGroup
-     * @param existingName
      * @param listener
      */
-    void update(T resourceLimitGroup, String existingName, ActionListener<UpdateResourceLimitGroupResponse> listener);
+    void update(T resourceLimitGroup, ActionListener<UpdateResourceLimitGroupResponse> listener);
 
     /**
      * fetch the resource limit group in a durable storage
