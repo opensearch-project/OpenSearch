@@ -757,6 +757,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
                             + stalenessThreshold
                     );
                 }
+
                 return true;
             }
             return false;
