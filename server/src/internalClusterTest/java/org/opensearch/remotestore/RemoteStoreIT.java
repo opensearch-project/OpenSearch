@@ -60,6 +60,7 @@ import java.util.stream.Stream;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
@@ -836,7 +837,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .get()
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
 
-        Path translogMetaDataPath = Path.of(String.valueOf(translogRepoPath), indexUUID, "/0/translog/metadata");
+        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", TRANSLOG, METADATA).buildAsString();
+        Path translogMetaDataPath = Path.of(translogRepoPath + "/" + shardPath);
 
         try (Stream<Path> files = Files.list(translogMetaDataPath)) {
             files.forEach(p -> {
