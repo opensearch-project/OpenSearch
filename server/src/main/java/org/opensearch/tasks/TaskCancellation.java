@@ -46,6 +46,14 @@ public class TaskCancellation implements Comparable<TaskCancellation> {
         return reasons.stream().map(Reason::getMessage).collect(Collectors.joining(", "));
     }
 
+    public TaskCancellation merge(final TaskCancellation other) {
+        final List<Reason> newReasons = new ArrayList<>(reasons);
+        reasons.addAll(other.getReasons());
+        final List<Runnable> newOnCancelCallbacks = new ArrayList<>(onCancelCallbacks);
+        newOnCancelCallbacks.addAll(other.onCancelCallbacks);
+        return new TaskCancellation(task, newReasons, newOnCancelCallbacks);
+    }
+
     /**
      * Cancels the task and invokes all onCancelCallbacks.
      */

@@ -29,7 +29,7 @@ import static org.opensearch.search.backpressure.trackers.TaskResourceUsageTrack
  *
  * @opensearch.internal
  */
-public class CpuUsageTracker extends TaskResourceUsageTracker {
+public class CpuUsageTracker extends TaskResourceUsageTrackers.TaskResourceUsageTracker {
 
     private final LongSupplier thresholdSupplier;
 
@@ -64,7 +64,7 @@ public class CpuUsageTracker extends TaskResourceUsageTracker {
     }
 
     @Override
-    public TaskResourceUsageTracker.Stats stats(List<? extends Task> activeTasks) {
+    public TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats stats(List<? extends Task> activeTasks) {
         long currentMax = activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getCpuTimeInNanos()).max().orElse(0);
         long currentAvg = (long) activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getCpuTimeInNanos()).average().orElse(0);
         return new Stats(getCancellations(), currentMax, currentAvg);
@@ -73,7 +73,7 @@ public class CpuUsageTracker extends TaskResourceUsageTracker {
     /**
      * Stats related to CpuUsageTracker.
      */
-    public static class Stats implements TaskResourceUsageTracker.Stats {
+    public static class Stats implements TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats {
         private final long cancellationCount;
         private final long currentMax;
         private final long currentAvg;

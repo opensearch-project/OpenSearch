@@ -24,8 +24,10 @@ import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
 import org.opensearch.search.backpressure.stats.SearchShardTaskStats;
 import org.opensearch.search.backpressure.stats.SearchTaskStats;
 import org.opensearch.search.backpressure.trackers.NodeDuressTracker;
+import org.opensearch.search.backpressure.trackers.NodeDuressTrackers;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
+import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
@@ -89,8 +91,11 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         AtomicReference<Double> cpuUsage = new AtomicReference<>();
         AtomicReference<Double> heapUsage = new AtomicReference<>();
-        NodeDuressTracker cpuUsageTracker = new NodeDuressTracker(() -> cpuUsage.get() >= 0.5);
-        NodeDuressTracker heapUsageTracker = new NodeDuressTracker(() -> heapUsage.get() >= 0.5);
+        NodeDuressTrackers.NodeDuressTracker cpuUsageTracker = new NodeDuressTrackers.NodeDuressTracker(
+            () -> cpuUsage.get() >= 0.5,
+            () -> 3);
+        NodeDuressTrackers.NodeDuressTracker heapUsageTracker = new NodeDuressTrackers.NodeDuressTracker(() -> heapUsage.get() >= 0.5,
+            () -> 3);
 
         SearchBackpressureSettings settings = new SearchBackpressureSettings(
             Settings.EMPTY,
@@ -102,9 +107,9 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             mockTaskResourceTrackingService,
             threadPool,
             System::nanoTime,
-            List.of(cpuUsageTracker, heapUsageTracker),
-            Collections.emptyList(),
-            Collections.emptyList(),
+            new NodeDuressTrackers(heapUsageTracker, cpuUsageTracker),
+            new TaskResourceUsageTrackers(),
+            new TaskResourceUsageTrackers(),
             taskManager
         );
 
@@ -131,7 +136,9 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
     public void testTrackerStateUpdateOnSearchTaskCompletion() {
         TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
         LongSupplier mockTimeNanosSupplier = () -> TimeUnit.SECONDS.toNanos(1234);
-        TaskResourceUsageTracker mockTaskResourceUsageTracker = mock(TaskResourceUsageTracker.class);
+        TaskResourceUsageTrackers.TaskResourceUsageTracker mockTaskResourceUsageTracker = mock(TaskResourceUsageTrackers.TaskResourceUsageTracker.class);
+        TaskResourceUsageTrackers taskResourceUsageTrackers = new TaskResourceUsageTrackers();
+        taskResourceUsageTrackers.addCpuUsageTracker(mockTaskResourceUsageTracker);
 
         SearchBackpressureSettings settings = new SearchBackpressureSettings(
             Settings.EMPTY,
@@ -143,9 +150,9 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             mockTaskResourceTrackingService,
             threadPool,
             mockTimeNanosSupplier,
-            Collections.emptyList(),
-            List.of(mockTaskResourceUsageTracker),
-            Collections.emptyList(),
+            new NodeDuressTrackers(null, null),
+            taskResourceUsageTrackers,
+            new TaskResourceUsageTrackers(),
             taskManager
         );
 
@@ -160,7 +167,9 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
     public void testTrackerStateUpdateOnSearchShardTaskCompletion() {
         TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
         LongSupplier mockTimeNanosSupplier = () -> TimeUnit.SECONDS.toNanos(1234);
-        TaskResourceUsageTracker mockTaskResourceUsageTracker = mock(TaskResourceUsageTracker.class);
+        TaskResourceUsageTrackers.TaskResourceUsageTracker mockTaskResourceUsageTracker = mock(TaskResourceUsageTrackers.TaskResourceUsageTracker.class);
+        TaskResourceUsageTrackers taskResourceUsageTrackers = new TaskResourceUsageTrackers();
+        taskResourceUsageTrackers.addCpuUsageTracker(mockTaskResourceUsageTracker);
 
         SearchBackpressureSettings settings = new SearchBackpressureSettings(
             Settings.EMPTY,
@@ -172,9 +181,9 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             mockTaskResourceTrackingService,
             threadPool,
             mockTimeNanosSupplier,
-            Collections.emptyList(),
-            Collections.emptyList(),
-            List.of(mockTaskResourceUsageTracker),
+            new NodeDuressTrackers(null, null),
+            new TaskResourceUsageTrackers(),
+            taskResourceUsageTrackers,
             taskManager
         );
 
@@ -192,9 +201,12 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
         AtomicLong mockTime = new AtomicLong(0);
         LongSupplier mockTimeNanosSupplier = mockTime::get;
-        NodeDuressTracker mockNodeDuressTracker = new NodeDuressTracker(() -> true);
+        NodeDuressTrackers.NodeDuressTracker mockNodeDuressTracker = new NodeDuressTrackers.NodeDuressTracker(
+            () -> true, () -> 3);
 
-        TaskResourceUsageTracker mockTaskResourceUsageTracker = getMockedTaskResourceUsageTracker();
+        TaskResourceUsageTrackers.TaskResourceUsageTracker mockTaskResourceUsageTracker = getMockedTaskResourceUsageTracker();
+        TaskResourceUsageTrackers taskResourceUsageTrackers = new TaskResourceUsageTrackers();
+        taskResourceUsageTrackers.addHeapUsageTracker(mockTaskResourceUsageTracker);
 
         // Mocking 'settings' with predictable rate limiting thresholds.
         SearchBackpressureSettings settings = getBackpressureSettings("enforced", 0.1, 0.003, 5.0);
@@ -204,9 +216,9 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             mockTaskResourceTrackingService,
             threadPool,
             mockTimeNanosSupplier,
-            List.of(mockNodeDuressTracker),
-            List.of(mockTaskResourceUsageTracker),
-            Collections.emptyList(),
+            new NodeDuressTrackers(mockNodeDuressTracker, null),
+            taskResourceUsageTrackers,
+            new TaskResourceUsageTrackers(),
             mockTaskManager
         );
 
@@ -344,8 +356,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         );
     }
 
-    private TaskResourceUsageTracker getMockedTaskResourceUsageTracker() {
-        return new TaskResourceUsageTracker() {
+    private TaskResourceUsageTrackers.TaskResourceUsageTracker getMockedTaskResourceUsageTracker() {
+        return new TaskResourceUsageTrackers.TaskResourceUsageTracker() {
             @Override
             public String name() {
                 return TaskResourceUsageTrackerType.CPU_USAGE_TRACKER.getName();
@@ -370,7 +382,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         };
     }
 
-    private static class MockStats implements TaskResourceUsageTracker.Stats {
+    private static class MockStats implements TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats {
         private final long cancellationCount;
 
         public MockStats(long cancellationCount) {

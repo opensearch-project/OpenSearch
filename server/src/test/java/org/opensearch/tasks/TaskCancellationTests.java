@@ -9,7 +9,7 @@
 package org.opensearch.tasks;
 
 import org.opensearch.action.search.SearchShardTask;
-import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
+import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -22,9 +22,9 @@ public class TaskCancellationTests extends OpenSearchTestCase {
     public void testTaskCancellation() {
         SearchShardTask mockTask = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
 
-        TaskResourceUsageTracker mockTracker1 = createMockTaskResourceUsageTracker("mock_tracker_1");
-        TaskResourceUsageTracker mockTracker2 = createMockTaskResourceUsageTracker("mock_tracker_2");
-        TaskResourceUsageTracker mockTracker3 = createMockTaskResourceUsageTracker("mock_tracker_3");
+        TaskResourceUsageTrackers.TaskResourceUsageTracker mockTracker1 = createMockTaskResourceUsageTracker("mock_tracker_1");
+        TaskResourceUsageTrackers.TaskResourceUsageTracker mockTracker2 = createMockTaskResourceUsageTracker("mock_tracker_2");
+        TaskResourceUsageTrackers.TaskResourceUsageTracker mockTracker3 = createMockTaskResourceUsageTracker("mock_tracker_3");
 
         List<TaskCancellation.Reason> reasons = new ArrayList<>();
         List<Runnable> callbacks = List.of(mockTracker1::incrementCancellations, mockTracker2::incrementCancellations);
@@ -53,8 +53,8 @@ public class TaskCancellationTests extends OpenSearchTestCase {
         assertEquals(0, mockTracker3.getCancellations());
     }
 
-    private static TaskResourceUsageTracker createMockTaskResourceUsageTracker(String name) {
-        return new TaskResourceUsageTracker() {
+    private static TaskResourceUsageTrackers.TaskResourceUsageTracker createMockTaskResourceUsageTracker(String name) {
+        return new TaskResourceUsageTrackers.TaskResourceUsageTracker() {
             @Override
             public String name() {
                 return name;

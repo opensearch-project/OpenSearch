@@ -12,7 +12,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
 import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
 import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
-import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
+import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 
@@ -31,7 +31,7 @@ public class SearchTaskStatsTests extends AbstractWireSerializingTestCase<Search
     }
 
     public static SearchTaskStats randomInstance() {
-        Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats = Map.of(
+        Map<TaskResourceUsageTrackerType, TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats> resourceUsageTrackerStats = Map.of(
             TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
             new CpuUsageTracker.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
             TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER,

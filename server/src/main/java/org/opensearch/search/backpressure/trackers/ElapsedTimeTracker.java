@@ -29,7 +29,7 @@ import static org.opensearch.search.backpressure.trackers.TaskResourceUsageTrack
  *
  * @opensearch.internal
  */
-public class ElapsedTimeTracker extends TaskResourceUsageTracker {
+public class ElapsedTimeTracker extends TaskResourceUsageTrackers.TaskResourceUsageTracker {
     private final LongSupplier thresholdSupplier;
     private final LongSupplier timeNanosSupplier;
 
@@ -65,7 +65,7 @@ public class ElapsedTimeTracker extends TaskResourceUsageTracker {
     }
 
     @Override
-    public TaskResourceUsageTracker.Stats stats(List<? extends Task> activeTasks) {
+    public TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats stats(List<? extends Task> activeTasks) {
         long now = timeNanosSupplier.getAsLong();
         long currentMax = activeTasks.stream().mapToLong(t -> now - t.getStartTimeNanos()).max().orElse(0);
         long currentAvg = (long) activeTasks.stream().mapToLong(t -> now - t.getStartTimeNanos()).average().orElse(0);
@@ -75,7 +75,7 @@ public class ElapsedTimeTracker extends TaskResourceUsageTracker {
     /**
      * Stats related to ElapsedTimeTracker.
      */
-    public static class Stats implements TaskResourceUsageTracker.Stats {
+    public static class Stats implements TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats {
         private final long cancellationCount;
         private final long currentMax;
         private final long currentAvg;

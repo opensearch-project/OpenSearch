@@ -37,7 +37,7 @@ import static org.opensearch.search.backpressure.trackers.TaskResourceUsageTrack
  *
  * @opensearch.internal
  */
-public class HeapUsageTracker extends TaskResourceUsageTracker {
+public class HeapUsageTracker extends TaskResourceUsageTrackers.TaskResourceUsageTracker {
     private static final Logger logger = LogManager.getLogger(HeapUsageTracker.class);
     private static final long HEAP_SIZE_BYTES = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
     private final DoubleSupplier heapVarianceSupplier;
@@ -117,7 +117,7 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
     }
 
     @Override
-    public TaskResourceUsageTracker.Stats stats(List<? extends Task> activeTasks) {
+    public TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats stats(List<? extends Task> activeTasks) {
         long currentMax = activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).max().orElse(0);
         long currentAvg = (long) activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).average().orElse(0);
         return new Stats(getCancellations(), currentMax, currentAvg, (long) movingAverageReference.get().getAverage());
@@ -126,7 +126,7 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
     /**
      * Stats related to HeapUsageTracker.
      */
-    public static class Stats implements TaskResourceUsageTracker.Stats {
+    public static class Stats implements TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats {
         private final long cancellationCount;
         private final long currentMax;
         private final long currentAvg;
