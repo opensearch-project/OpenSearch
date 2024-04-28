@@ -636,21 +636,34 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
     }
 
     public void testSettingTokenCredentialTypeToBeEmpty() {
-        final MockSecureSettings secureSettings = new MockSecureSettings();
         // Azure clients without account key and sas token.
+        final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("azure.client.azure1.account", "myaccount");
-        secureSettings.setString("azure.client.azure2.account", "myaccount");
-
-        // Disabled Managed Identity in the settings by default
         final Settings settings = Settings.builder()
             .setSecureSettings(secureSettings)
             .put("azure.client.azure1.token_credential_type", "")
+            .build();
+        // Expect fall back to authentication via sas token or account key when token credential is not specified.
+        final SettingsException e = expectThrows(SettingsException.class, () -> storageServiceWithSettingsValidation(settings));
+        assertEquals("Neither a secret key nor a shared access token was set.", e.getMessage());
+
+        // Azure clients without account key and sas token.
+        final MockSecureSettings secureSettings2 = new MockSecureSettings();
+        secureSettings2.setString("azure.client.azure2.account", "myaccount");
+        final Settings settings2 = Settings.builder()
+            .setSecureSettings(secureSettings2)
             .put("azure.client.azure2.token_credential_type", " ")
             .build();
-        final SettingsException e = expectThrows(SettingsException.class, () -> storageServiceWithSettingsValidation(settings));
-
-        // Expect fall back to authentication via sas token or account key when token credential is not specified.
-        assertEquals("Neither a secret key nor a shared access token was set.", e.getMessage());
+        // Expect failing token credential type checks
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> storageServiceWithSettingsValidation(settings2)
+        );
+        assertEquals(
+            "The token credential type ' ' is unsupported, please use one of the following values: "
+                + String.join(", ", TokenCredentialType.getTokenCredentialTypes()),
+            e2.getMessage()
+        );
     }
 
     public void testManagedIdentityIsEnabled() {

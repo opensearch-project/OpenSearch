@@ -299,7 +299,7 @@ final class AzureStorageSettings {
     }
 
     private static Boolean usesTokenCredential(String tokenCredential) {
-        return tokenCredential != null && !tokenCredential.isEmpty() && !tokenCredential.isBlank();
+        return tokenCredential != null && !tokenCredential.isEmpty();
     }
 
     public StorageEndpoint getStorageEndpoint() {
