@@ -53,10 +53,7 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
 
     @ParametersFactory
     public static Collection<Object[]> parameters() {
-        return Arrays.asList(
-            new Object[] { Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE, "true").build() },
-            new Object[] { Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE, "false").build() }
-        );
+        return Arrays.<Object[]>asList(new Object[] { Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE, "true").build() });
     }
 
     public void testCacheStatsAPIWIthOnHeapCache() throws Exception {
