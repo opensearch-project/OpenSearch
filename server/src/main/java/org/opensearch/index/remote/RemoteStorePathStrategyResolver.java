@@ -9,6 +9,7 @@
 package org.opensearch.index.remote;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -20,6 +21,7 @@ import java.util.function.Supplier;
  *
  * @opensearch.internal
  */
+@ExperimentalApi
 public class RemoteStorePathStrategyResolver {
 
     private final RemoteStoreSettings remoteStoreSettings;
