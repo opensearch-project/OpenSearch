@@ -64,7 +64,6 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.service.CacheService;
@@ -127,8 +126,6 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
-import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
-import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.seqno.RetentionLeaseStats;
@@ -308,33 +305,6 @@ public class IndicesService extends AbstractLifecycleComponent
         false,
         Property.NodeScope,
         Property.Final
-    );
-
-    /**
-     * This setting is used to set the remote store blob store path type strategy. This setting is effective only for
-     * remote store enabled cluster.
-     */
-    @ExperimentalApi
-    public static final Setting<PathType> CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING = new Setting<>(
-        "cluster.remote_store.index.path.type",
-        PathType.FIXED.toString(),
-        PathType::parseString,
-        Property.NodeScope,
-        Property.Dynamic
-    );
-
-    /**
-     * This setting is used to set the remote store blob store path hash algorithm strategy. This setting is effective only for
-     * remote store enabled cluster. This setting will come to effect if the {@link #CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING}
-     * is either {@code HASHED_PREFIX} or {@code HASHED_INFIX}.
-     */
-    @ExperimentalApi
-    public static final Setting<PathHashAlgorithm> CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING = new Setting<>(
-        "cluster.remote_store.index.path.hash_algorithm",
-        PathHashAlgorithm.FNV_1A_COMPOSITE_1.toString(),
-        PathHashAlgorithm::parseString,
-        Property.NodeScope,
-        Property.Dynamic
     );
 
     /**
