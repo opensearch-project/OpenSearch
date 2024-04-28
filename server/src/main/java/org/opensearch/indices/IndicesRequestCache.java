@@ -711,7 +711,6 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             }
 
             Set<List<String>> dimensionListsToDrop = new HashSet<>();
-
             for (Iterator<ICacheKey<Key>> iterator = cache.keys().iterator(); iterator.hasNext();) {
                 ICacheKey<Key> key = iterator.next();
                 if (cleanupKeysFromClosedShards.contains(key.key.shardId)) {
