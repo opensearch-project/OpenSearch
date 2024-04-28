@@ -140,47 +140,29 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         }
     }
 
-    public void testCreateClientWithInvalidEndpointSuffix() {
-        final MockSecureSettings secureSettings1 = new MockSecureSettings();
-        secureSettings1.setString("azure.client.azure1.account", "myaccount1");
+    public void testCreateClientWithInvalidEndpointSuffix() throws IOException {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("azure.client.azure1.account", "myaccount1");
+        secureSettings.setString("azure.client.azure2.account", "myaccount2");
+        secureSettings.setString("azure.client.azure2.key", encodeKey("mykey12"));
+        secureSettings.setString("azure.client.azure3.account", "myaccount1");
+        secureSettings.setString("azure.client.azure3.sas_token", encodeKey("mysastoken"));
 
-        final MockSecureSettings secureSettings2 = new MockSecureSettings();
-        secureSettings2.setString("azure.client.azure2.account", "myaccount2");
-        secureSettings2.setString("azure.client.azure2.key", encodeKey("mykey12"));
-
-        final MockSecureSettings secureSettings3 = new MockSecureSettings();
-        secureSettings3.setString("azure.client.azure3.account", "myaccount1");
-        secureSettings3.setString("azure.client.azure3.sas_token", encodeKey("mysastoken"));
-
-        // Test invalid endpointsuffix when token credential is used
         final Settings settings = Settings.builder()
-            .setSecureSettings(secureSettings1)
+            .setSecureSettings(secureSettings)
             .put("azure.client.azure1.token_credential_type", TokenCredentialType.MANAGED_IDENTITY.name())
             .put("azure.client.azure1.endpoint_suffix", "invalid endpoint suffix")
-            .build();
-
-        final IllegalArgumentException e1 = expectThrows(
-            IllegalArgumentException.class,
-            () -> storageServiceWithSettingsValidation(settings)
-        );
-
-        // Test invalid endpointsuffix when account key is used
-        final Settings settings2 = Settings.builder()
-            .setSecureSettings(secureSettings2)
-            // Defined an invalid endpoint suffix
             .put("azure.client.azure2.endpoint_suffix", "invalid endpoint suffix")
-            .build();
-
-        final RuntimeException e2 = expectThrows(RuntimeException.class, () -> storageServiceWithSettingsValidation(settings2));
-
-        // Test invalid endpointsuffix when sas token key is used
-        final Settings settings3 = Settings.builder()
-            .setSecureSettings(secureSettings3)
-            // Defined an invalid endpoint suffix
             .put("azure.client.azure3.endpoint_suffix", "invalid endpoint suffix")
             .build();
 
-        final RuntimeException e3 = expectThrows(RuntimeException.class, () -> storageServiceWithSettingsValidation(settings3));
+        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
+            final AzureStorageService azureStorageService = plugin.azureStoreService;
+            // Expect all clients 1 to fail due to invalid endpoint suffix
+            expectThrows(SettingsException.class, () -> azureStorageService.client("azure1").v1());
+            expectThrows(RuntimeException.class, () -> azureStorageService.client("azure2").v1());
+            expectThrows(RuntimeException.class, () -> azureStorageService.client("azure3").v1());
+        }
     }
 
     public void testGettingSecondaryStorageBlobEndpoint() throws IOException {
