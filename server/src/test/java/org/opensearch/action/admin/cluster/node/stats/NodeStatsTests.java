@@ -45,8 +45,8 @@ import org.opensearch.cluster.service.ClusterStateStats;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.service.NodeCacheStats;
 import org.opensearch.common.cache.stats.CacheStats;
-import org.opensearch.common.cache.stats.CacheStatsHolder;
-import org.opensearch.common.cache.stats.CacheStatsHolderTests;
+import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
+import org.opensearch.common.cache.stats.DefaultCacheStatsHolderTests;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.metrics.OperationStats;
@@ -948,7 +948,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             int numShardsPerIndex = randomIntBetween(1, 50);
 
             List<String> dimensionNames = List.of("index", "shard", "tier");
-            CacheStatsHolder statsHolder = new CacheStatsHolder(dimensionNames, "dummyStoreName");
+            DefaultCacheStatsHolder statsHolder = new DefaultCacheStatsHolder(dimensionNames, "dummyStoreName");
             for (int indexNum = 0; indexNum < numIndices; indexNum++) {
                 String indexName = "index" + indexNum;
                 for (int shardNum = 0; shardNum < numShardsPerIndex; shardNum++) {
@@ -956,7 +956,10 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     for (String tierName : new String[] { "dummy_tier_1", "dummy_tier_2" }) {
                         List<String> dimensionValues = List.of(indexName, shardName, tierName);
                         CacheStats toIncrement = new CacheStats(randomInt(20), randomInt(20), randomInt(20), randomInt(20), randomInt(20));
-                        CacheStatsHolderTests.populateStatsHolderFromStatsValueMap(statsHolder, Map.of(dimensionValues, toIncrement));
+                        DefaultCacheStatsHolderTests.populateStatsHolderFromStatsValueMap(
+                            statsHolder,
+                            Map.of(dimensionValues, toIncrement)
+                        );
                     }
                 }
             }

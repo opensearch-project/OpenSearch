@@ -50,7 +50,7 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
     private static final String SERIALIZATION_DONE = "end";
 
     ImmutableCacheStatsHolder(
-        CacheStatsHolder.Node originalStatsRoot,
+        DefaultCacheStatsHolder.Node originalStatsRoot,
         String[] levels,
         List<String> originalDimensionNames,
         String storeName
@@ -171,9 +171,9 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
      * The new tree only has dimensions matching the levels passed in.
      * The levels passed in must be in the proper order, as they would be in the output of filterLevels().
      */
-    Node aggregateByLevels(CacheStatsHolder.Node originalStatsRoot, List<String> originalDimensionNames) {
+    Node aggregateByLevels(DefaultCacheStatsHolder.Node originalStatsRoot, List<String> originalDimensionNames) {
         Node newRoot = new Node("", false, originalStatsRoot.getImmutableStats());
-        for (CacheStatsHolder.Node child : originalStatsRoot.children.values()) {
+        for (DefaultCacheStatsHolder.Node child : originalStatsRoot.children.values()) {
             aggregateByLevelsHelper(newRoot, child, originalDimensionNames, 0);
         }
         return newRoot;
@@ -191,7 +191,7 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
      */
     private void aggregateByLevelsHelper(
         Node parentInNewTree,
-        CacheStatsHolder.Node currentInOriginalTree,
+        DefaultCacheStatsHolder.Node currentInOriginalTree,
         List<String> allDimensions,
         int depth
     ) {
@@ -215,8 +215,8 @@ public class ImmutableCacheStatsHolder implements Writeable, ToXContent {
             parentInNewTree = nodeInNewTree;
         }
 
-        for (Map.Entry<String, CacheStatsHolder.Node> childEntry : currentInOriginalTree.children.entrySet()) {
-            CacheStatsHolder.Node child = childEntry.getValue();
+        for (Map.Entry<String, DefaultCacheStatsHolder.Node> childEntry : currentInOriginalTree.children.entrySet()) {
+            DefaultCacheStatsHolder.Node child = childEntry.getValue();
             aggregateByLevelsHelper(parentInNewTree, child, allDimensions, depth + 1);
         }
     }

@@ -29,9 +29,9 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3");
-        CacheStatsHolder statsHolder = new CacheStatsHolder(dimensionNames, storeName);
-        Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
-        CacheStatsHolderTests.populateStats(statsHolder, usedDimensionValues, 100, 10);
+        DefaultCacheStatsHolder statsHolder = new DefaultCacheStatsHolder(dimensionNames, storeName);
+        Map<String, List<String>> usedDimensionValues = DefaultCacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
+        DefaultCacheStatsHolderTests.populateStats(statsHolder, usedDimensionValues, 100, 10);
         ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder(null);
         assertNotEquals(0, stats.getStatsRoot().children.size());
 
@@ -57,12 +57,12 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
 
     public void testEquals() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3");
-        CacheStatsHolder statsHolder = new CacheStatsHolder(dimensionNames, storeName);
-        CacheStatsHolder differentStoreNameStatsHolder = new CacheStatsHolder(dimensionNames, "nonMatchingStoreName");
-        CacheStatsHolder nonMatchingStatsHolder = new CacheStatsHolder(dimensionNames, storeName);
-        Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
-        CacheStatsHolderTests.populateStats(List.of(statsHolder, differentStoreNameStatsHolder), usedDimensionValues, 100, 10);
-        CacheStatsHolderTests.populateStats(nonMatchingStatsHolder, usedDimensionValues, 100, 10);
+        DefaultCacheStatsHolder statsHolder = new DefaultCacheStatsHolder(dimensionNames, storeName);
+        DefaultCacheStatsHolder differentStoreNameStatsHolder = new DefaultCacheStatsHolder(dimensionNames, "nonMatchingStoreName");
+        DefaultCacheStatsHolder nonMatchingStatsHolder = new DefaultCacheStatsHolder(dimensionNames, storeName);
+        Map<String, List<String>> usedDimensionValues = DefaultCacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
+        DefaultCacheStatsHolderTests.populateStats(List.of(statsHolder, differentStoreNameStatsHolder), usedDimensionValues, 100, 10);
+        DefaultCacheStatsHolderTests.populateStats(nonMatchingStatsHolder, usedDimensionValues, 100, 10);
         ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder(null);
 
         ImmutableCacheStatsHolder secondStats = statsHolder.getImmutableCacheStatsHolder(null);
@@ -75,17 +75,24 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
 
     public void testGet() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
-        CacheStatsHolder cacheStatsHolder = new CacheStatsHolder(dimensionNames, storeName);
-        Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(cacheStatsHolder, 10);
-        Map<List<String>, CacheStats> expected = CacheStatsHolderTests.populateStats(cacheStatsHolder, usedDimensionValues, 1000, 10);
+        DefaultCacheStatsHolder cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames, storeName);
+        Map<String, List<String>> usedDimensionValues = DefaultCacheStatsHolderTests.getUsedDimensionValues(cacheStatsHolder, 10);
+        Map<List<String>, CacheStats> expected = DefaultCacheStatsHolderTests.populateStats(
+            cacheStatsHolder,
+            usedDimensionValues,
+            1000,
+            10
+        );
         ImmutableCacheStatsHolder stats = cacheStatsHolder.getImmutableCacheStatsHolder(dimensionNames.toArray(new String[0]));
 
         // test the value in the map is as expected for each distinct combination of values
         for (List<String> dimensionValues : expected.keySet()) {
             CacheStats expectedCounter = expected.get(dimensionValues);
 
-            ImmutableCacheStats actualCacheStatsHolder = CacheStatsHolderTests.getNode(dimensionValues, cacheStatsHolder.getStatsRoot())
-                .getImmutableStats();
+            ImmutableCacheStats actualCacheStatsHolder = DefaultCacheStatsHolderTests.getNode(
+                dimensionValues,
+                cacheStatsHolder.getStatsRoot()
+            ).getImmutableStats();
             ImmutableCacheStats actualImmutableCacheStatsHolder = getNode(dimensionValues, stats.getStatsRoot()).getStats();
 
             assertEquals(expectedCounter.immutableSnapshot(), actualCacheStatsHolder);
@@ -110,9 +117,9 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
 
     public void testEmptyDimsList() throws Exception {
         // If the dimension list is empty, the tree should have only the root node containing the total stats.
-        CacheStatsHolder cacheStatsHolder = new CacheStatsHolder(List.of(), storeName);
-        Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(cacheStatsHolder, 100);
-        CacheStatsHolderTests.populateStats(cacheStatsHolder, usedDimensionValues, 10, 100);
+        DefaultCacheStatsHolder cacheStatsHolder = new DefaultCacheStatsHolder(List.of(), storeName);
+        Map<String, List<String>> usedDimensionValues = DefaultCacheStatsHolderTests.getUsedDimensionValues(cacheStatsHolder, 100);
+        DefaultCacheStatsHolderTests.populateStats(cacheStatsHolder, usedDimensionValues, 10, 100);
         ImmutableCacheStatsHolder stats = cacheStatsHolder.getImmutableCacheStatsHolder(null);
 
         ImmutableCacheStatsHolder.Node statsRoot = stats.getStatsRoot();
@@ -123,9 +130,9 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
     public void testAggregateByAllDimensions() throws Exception {
         // Aggregating with all dimensions as levels should just give us the same values that were in the original map
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
-        CacheStatsHolder statsHolder = new CacheStatsHolder(dimensionNames, storeName);
-        Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
-        Map<List<String>, CacheStats> expected = CacheStatsHolderTests.populateStats(statsHolder, usedDimensionValues, 1000, 10);
+        DefaultCacheStatsHolder statsHolder = new DefaultCacheStatsHolder(dimensionNames, storeName);
+        Map<String, List<String>> usedDimensionValues = DefaultCacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
+        Map<List<String>, CacheStats> expected = DefaultCacheStatsHolderTests.populateStats(statsHolder, usedDimensionValues, 1000, 10);
         ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder(dimensionNames.toArray(new String[0]));
 
         for (Map.Entry<List<String>, CacheStats> expectedEntry : expected.entrySet()) {
@@ -140,9 +147,9 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
 
     public void testAggregateBySomeDimensions() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
-        CacheStatsHolder statsHolder = new CacheStatsHolder(dimensionNames, storeName);
-        Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
-        Map<List<String>, CacheStats> expected = CacheStatsHolderTests.populateStats(statsHolder, usedDimensionValues, 1000, 10);
+        DefaultCacheStatsHolder statsHolder = new DefaultCacheStatsHolder(dimensionNames, storeName);
+        Map<String, List<String>> usedDimensionValues = DefaultCacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
+        Map<List<String>, CacheStats> expected = DefaultCacheStatsHolderTests.populateStats(statsHolder, usedDimensionValues, 1000, 10);
 
         for (int i = 0; i < (1 << dimensionNames.size()); i++) {
             // Test each combination of possible levels
@@ -179,8 +186,8 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
     public void testXContentForLevels() throws Exception {
         List<String> dimensionNames = List.of("A", "B", "C");
 
-        CacheStatsHolder statsHolder = new CacheStatsHolder(dimensionNames, storeName);
-        CacheStatsHolderTests.populateStatsHolderFromStatsValueMap(
+        DefaultCacheStatsHolder statsHolder = new DefaultCacheStatsHolder(dimensionNames, storeName);
+        DefaultCacheStatsHolderTests.populateStatsHolderFromStatsValueMap(
             statsHolder,
             Map.of(
                 List.of("A1", "B1", "C1"),
@@ -242,9 +249,9 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
     public void testXContent() throws Exception {
         // Tests logic of filtering levels out, logic for aggregating by those levels is already covered
         List<String> dimensionNames = List.of("A", "B", "C");
-        CacheStatsHolder statsHolder = new CacheStatsHolder(dimensionNames, storeName);
-        Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
-        CacheStatsHolderTests.populateStats(statsHolder, usedDimensionValues, 100, 10);
+        DefaultCacheStatsHolder statsHolder = new DefaultCacheStatsHolder(dimensionNames, storeName);
+        Map<String, List<String>> usedDimensionValues = DefaultCacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
+        DefaultCacheStatsHolderTests.populateStats(statsHolder, usedDimensionValues, 100, 10);
 
         // If the levels in the params are empty or contains only unrecognized levels, we should only see the total stats and no level
         // aggregation
