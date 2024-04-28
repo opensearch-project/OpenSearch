@@ -20,7 +20,6 @@ import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.cache.store.config.CacheConfig;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -132,10 +131,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         this.caches = Collections.synchronizedMap(cacheListMap);
 
         this.dimensionNames = builder.cacheConfig.getDimensionNames();
-        this.tierValueMap = Map.of(
-            onHeapCache, TIER_DIMENSION_VALUE_ON_HEAP,
-            diskCache, TIER_DIMENSION_VALUE_DISK
-        );
+        this.tierValueMap = Map.of(onHeapCache, TIER_DIMENSION_VALUE_ON_HEAP, diskCache, TIER_DIMENSION_VALUE_DISK);
         // Pass "tier" as the innermost dimension name, in addition to whatever dimensions are specified for the cache as a whole
         this.statsHolder = new TieredSpilloverCacheStatsHolder(dimensionNames);
         this.policies = builder.policies; // Will never be null; builder initializes it to an empty list
@@ -200,7 +196,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         // also trigger a hit/miss listener event, so ignoring it for now.
         // We don't update stats here, as this is handled by the removal listeners for the tiers.
         try (ReleasableLock ignore = writeLock.acquire()) {
-            //for (Tuple<ICache<K, V>, String> pair : cacheAndTierValueList) {
+            // for (Tuple<ICache<K, V>, String> pair : cacheAndTierValueList) {
             for (Map.Entry<ICache<K, V>, String> cacheEntry : tierValueMap.entrySet()) {
                 if (key.getDropStatsForDimensions()) {
                     List<String> dimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, cacheEntry.getValue());
@@ -292,7 +288,9 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     void handleRemovalFromHeapTier(RemovalNotification<ICacheKey<K>, V> notification) {
         ICacheKey<K> key = notification.getKey();
         boolean wasEvicted = false;
-        if (caches.get(diskCache) && SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason()) && evaluatePolicies(notification.getValue())) {
+        if (caches.get(diskCache)
+            && SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason())
+            && evaluatePolicies(notification.getValue())) {
             try (ReleasableLock ignore = writeLock.acquire()) {
                 diskCache.put(key, notification.getValue()); // spill over to the disk tier and increment its stats
                 updateStatsOnPut(TIER_DIMENSION_VALUE_DISK, key, notification.getValue());
