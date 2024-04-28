@@ -438,7 +438,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         logger.debug("state: [CREATED]");
 
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
-        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays, nodeId);
+        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays, nodeId, seedRemote);
         final String aId = shardRouting.allocationId().getId();
         final long primaryTerm = indexSettings.getIndexMetadata().primaryTerm(shardId.id());
         this.pendingPrimaryTerm = primaryTerm;
@@ -5012,7 +5012,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             shardPath().resolveTranslog(),
             indexSettings.getRemoteStorePathStrategy(),
             remoteStoreSettings,
-            logger
+            logger,
+            shouldSeedRemoteStore()
         );
     }
 

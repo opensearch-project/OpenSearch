@@ -38,7 +38,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         try {
             translogManager = new InternalTranslogManager(
-                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
+                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
                 primaryTerm,
                 globalCheckpoint::get,
                 createTranslogDeletionPolicy(INDEX_SETTINGS),
@@ -68,7 +68,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             translogManager.syncTranslog();
             translogManager.close();
             translogManager = new InternalTranslogManager(
-                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
+                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
                 primaryTerm,
                 globalCheckpoint::get,
                 createTranslogDeletionPolicy(INDEX_SETTINGS),
@@ -117,7 +117,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         try {
             translogManager = new InternalTranslogManager(
-                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
+                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
                 primaryTerm,
                 globalCheckpoint::get,
                 createTranslogDeletionPolicy(INDEX_SETTINGS),
@@ -147,7 +147,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             translogManager.syncTranslog();
             translogManager.close();
             translogManager = new InternalTranslogManager(
-                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
+                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
                 primaryTerm,
                 globalCheckpoint::get,
                 createTranslogDeletionPolicy(INDEX_SETTINGS),
@@ -182,7 +182,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         try {
             translogManager = new InternalTranslogManager(
-                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
+                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
                 primaryTerm,
                 globalCheckpoint::get,
                 createTranslogDeletionPolicy(INDEX_SETTINGS),
@@ -214,7 +214,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
 
             translogManager.close();
             translogManager = new InternalTranslogManager(
-                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
+                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
                 primaryTerm,
                 globalCheckpoint::get,
                 createTranslogDeletionPolicy(INDEX_SETTINGS),
@@ -253,7 +253,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
             AtomicReference<InternalTranslogManager> translogManagerAtomicReference = new AtomicReference<>();
             translogManager = new InternalTranslogManager(
-                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
+                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
                 primaryTerm,
                 globalCheckpoint::get,
                 createTranslogDeletionPolicy(INDEX_SETTINGS),
