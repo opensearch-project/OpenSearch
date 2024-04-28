@@ -17,17 +17,24 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
 
     public void testGet() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3", "dim4");
-        CacheStatsHolder cacheStatsHolder = new CacheStatsHolder(dimensionNames);
-        Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(cacheStatsHolder, 10);
-        Map<List<String>, CacheStats> expected = CacheStatsHolderTests.populateStats(cacheStatsHolder, usedDimensionValues, 1000, 10);
+        DefaultCacheStatsHolder cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames);
+        Map<String, List<String>> usedDimensionValues = DefaultCacheStatsHolderTests.getUsedDimensionValues(cacheStatsHolder, 10);
+        Map<List<String>, CacheStats> expected = DefaultCacheStatsHolderTests.populateStats(
+            cacheStatsHolder,
+            usedDimensionValues,
+            1000,
+            10
+        );
         ImmutableCacheStatsHolder stats = cacheStatsHolder.getImmutableCacheStatsHolder();
 
         // test the value in the map is as expected for each distinct combination of values
         for (List<String> dimensionValues : expected.keySet()) {
             CacheStats expectedCounter = expected.get(dimensionValues);
 
-            ImmutableCacheStats actualCacheStatsHolder = CacheStatsHolderTests.getNode(dimensionValues, cacheStatsHolder.getStatsRoot())
-                .getImmutableStats();
+            ImmutableCacheStats actualCacheStatsHolder = DefaultCacheStatsHolderTests.getNode(
+                dimensionValues,
+                cacheStatsHolder.getStatsRoot()
+            ).getImmutableStats();
             ImmutableCacheStats actualImmutableCacheStatsHolder = getNode(dimensionValues, stats.getStatsRoot()).getStats();
 
             assertEquals(expectedCounter.immutableSnapshot(), actualCacheStatsHolder);
@@ -52,9 +59,9 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
 
     public void testEmptyDimsList() throws Exception {
         // If the dimension list is empty, the tree should have only the root node containing the total stats.
-        CacheStatsHolder cacheStatsHolder = new CacheStatsHolder(List.of());
-        Map<String, List<String>> usedDimensionValues = CacheStatsHolderTests.getUsedDimensionValues(cacheStatsHolder, 100);
-        CacheStatsHolderTests.populateStats(cacheStatsHolder, usedDimensionValues, 10, 100);
+        DefaultCacheStatsHolder cacheStatsHolder = new DefaultCacheStatsHolder(List.of());
+        Map<String, List<String>> usedDimensionValues = DefaultCacheStatsHolderTests.getUsedDimensionValues(cacheStatsHolder, 100);
+        DefaultCacheStatsHolderTests.populateStats(cacheStatsHolder, usedDimensionValues, 10, 100);
         ImmutableCacheStatsHolder stats = cacheStatsHolder.getImmutableCacheStatsHolder();
 
         ImmutableCacheStatsHolder.Node statsRoot = stats.getStatsRoot();

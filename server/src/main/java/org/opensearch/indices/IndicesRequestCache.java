@@ -826,13 +826,6 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     }
 
     /**
-     * Returns the current size in bytes of the cache
-     */
-    long getSizeInBytes() {
-        return cache.stats().getTotalSizeInBytes();
-    }
-
-    /**
      * Returns the current cache stats. Pkg-private for testing.
      */
     ImmutableCacheStatsHolder stats() {
