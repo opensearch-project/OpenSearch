@@ -298,17 +298,6 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
             return children.computeIfAbsent(dimensionValue, (key) -> new Node(dimensionValue, createMapInChild));
         }
 
-        /*ImmutableCacheStatsHolder.Node snapshot() {
-            TreeMap<String, ImmutableCacheStatsHolder.Node> snapshotChildren = null;
-            if (!children.isEmpty()) {
-                snapshotChildren = new TreeMap<>();
-                for (Node child : children.values()) {
-                    snapshotChildren.put(child.getDimensionValue(), child.snapshot());
-                }
-            }
-            return new ImmutableCacheStatsHolder.Node(dimensionValue, snapshotChildren, getImmutableStats());
-        }*/
-
         /**
          * Return whether this is a leaf node which is at the lowest level of the tree.
          * Does not return true if this is a node at a higher level whose children are still being constructed.
