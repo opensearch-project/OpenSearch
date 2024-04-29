@@ -93,7 +93,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 String value = ehcacheTest.get(getICacheKey(entry.getKey()));
                 assertEquals(entry.getValue(), value);
             }
-            assertEquals(randomKeys, ehcacheTest.stats().getTotalEntries());
+            assertEquals(randomKeys, ehcacheTest.stats().getTotalItems());
             assertEquals(randomKeys, ehcacheTest.stats().getTotalHits());
             assertEquals(expectedSize, ehcacheTest.stats().getTotalSizeInBytes());
             assertEquals(randomKeys, ehcacheTest.count());
@@ -217,7 +217,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 assertEquals(entry.getValue(), value);
             }
             assertEquals(randomKeys, ehcacheTest.count());
-            assertEquals(randomKeys, ehcacheTest.stats().getTotalEntries());
+            assertEquals(randomKeys, ehcacheTest.stats().getTotalItems());
             ehcacheTest.close();
         }
     }
@@ -416,7 +416,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             assertEquals(1, numberOfTimesValueLoaded);
             assertEquals(0, ((EhcacheDiskCache) ehcacheTest).getCompletableFutureMap().size());
             assertEquals(1, ehcacheTest.stats().getTotalMisses());
-            assertEquals(1, ehcacheTest.stats().getTotalEntries());
+            assertEquals(1, ehcacheTest.stats().getTotalItems());
             assertEquals(numberOfRequest - 1, ehcacheTest.stats().getTotalHits());
             assertEquals(1, ehcacheTest.count());
             ehcacheTest.close();

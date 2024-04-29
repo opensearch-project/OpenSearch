@@ -169,7 +169,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         } else {
             // If this cache is being used, FeatureFlags.PLUGGABLE_CACHE is already on, so we can always use the DefaultCacheStatsHolder
             // unless useNoopStats is explicitly set in CacheConfig.
-            this.cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames);
+            this.cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames, EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME);
         }
     }
 
@@ -453,12 +453,13 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     }
 
     /**
-     * Relevant stats for this cache.
-     * @return CacheStats
+     * Relevant stats for this cache, aggregated by levels.
+     * @param levels The levels to aggregate by.
+     * @return ImmutableCacheStatsHolder
      */
     @Override
-    public ImmutableCacheStatsHolder stats() {
-        return cacheStatsHolder.getImmutableCacheStatsHolder();
+    public ImmutableCacheStatsHolder stats(String[] levels) {
+        return cacheStatsHolder.getImmutableCacheStatsHolder(levels);
     }
 
     /**
@@ -517,7 +518,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         public void onEvent(CacheEvent<? extends ICacheKey<K>, ? extends ByteArrayWrapper> event) {
             switch (event.getType()) {
                 case CREATED:
-                    cacheStatsHolder.incrementEntries(event.getKey().dimensions);
+                    cacheStatsHolder.incrementItems(event.getKey().dimensions);
                     cacheStatsHolder.incrementSizeInBytes(event.getKey().dimensions, getNewValuePairSize(event));
                     assert event.getOldValue() == null;
                     break;
@@ -525,7 +526,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.EVICTED)
                     );
-                    cacheStatsHolder.decrementEntries(event.getKey().dimensions);
+                    cacheStatsHolder.decrementItems(event.getKey().dimensions);
                     cacheStatsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
                     cacheStatsHolder.incrementEvictions(event.getKey().dimensions);
                     assert event.getNewValue() == null;
@@ -534,7 +535,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.EXPLICIT)
                     );
-                    cacheStatsHolder.decrementEntries(event.getKey().dimensions);
+                    cacheStatsHolder.decrementItems(event.getKey().dimensions);
                     cacheStatsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
                     assert event.getNewValue() == null;
                     break;
@@ -542,7 +543,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.INVALIDATED)
                     );
-                    cacheStatsHolder.decrementEntries(event.getKey().dimensions);
+                    cacheStatsHolder.decrementItems(event.getKey().dimensions);
                     cacheStatsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
                     assert event.getNewValue() == null;
                     break;

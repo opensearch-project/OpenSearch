@@ -69,7 +69,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         if (useNoopStats) {
             this.cacheStatsHolder = NoopCacheStatsHolder.getInstance();
         } else {
-            this.cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames);
+            this.cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames, OpenSearchOnHeapCacheFactory.NAME);
         }
         this.removalListener = builder.getRemovalListener();
         this.weigher = builder.getWeigher();
@@ -89,7 +89,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
     @Override
     public void put(ICacheKey<K> key, V value) {
         cache.put(key, value);
-        cacheStatsHolder.incrementEntries(key.dimensions);
+        cacheStatsHolder.incrementItems(key.dimensions);
         cacheStatsHolder.incrementSizeInBytes(key.dimensions, weigher.applyAsLong(key, value));
     }
 
@@ -100,7 +100,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
             cacheStatsHolder.incrementHits(key.dimensions);
         } else {
             cacheStatsHolder.incrementMisses(key.dimensions);
-            cacheStatsHolder.incrementEntries(key.dimensions);
+            cacheStatsHolder.incrementItems(key.dimensions);
             cacheStatsHolder.incrementSizeInBytes(key.dimensions, cache.getWeigher().applyAsLong(key, value));
         }
         return value;
@@ -141,14 +141,14 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
     public void close() {}
 
     @Override
-    public ImmutableCacheStatsHolder stats() {
-        return cacheStatsHolder.getImmutableCacheStatsHolder();
+    public ImmutableCacheStatsHolder stats(String[] levels) {
+        return cacheStatsHolder.getImmutableCacheStatsHolder(levels);
     }
 
     @Override
     public void onRemoval(RemovalNotification<ICacheKey<K>, V> notification) {
         removalListener.onRemoval(notification);
-        cacheStatsHolder.decrementEntries(notification.getKey().dimensions);
+        cacheStatsHolder.decrementItems(notification.getKey().dimensions);
         cacheStatsHolder.decrementSizeInBytes(
             notification.getKey().dimensions,
             cache.getWeigher().applyAsLong(notification.getKey(), notification.getValue())

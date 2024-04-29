@@ -44,7 +44,10 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
      * @param diskCacheEnabled whether the disk tier starts out enabled
      */
     public TieredSpilloverCacheStatsHolder(List<String> originalDimensionNames, boolean diskCacheEnabled) {
-        super(getDimensionNamesWithTier(originalDimensionNames));
+        super(
+            getDimensionNamesWithTier(originalDimensionNames),
+            TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
+        );
         this.diskCacheEnabled = diskCacheEnabled;
     }
 
@@ -134,17 +137,17 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
     }
 
     @Override
-    public void incrementEntries(List<String> dimensionValues) {
+    public void incrementItems(List<String> dimensionValues) {
         validateTierDimensionValue(dimensionValues);
         // Entries from either tier should be included in the total values.
-        super.incrementEntries(dimensionValues);
+        super.incrementItems(dimensionValues);
     }
 
     @Override
-    public void decrementEntries(List<String> dimensionValues) {
+    public void decrementItems(List<String> dimensionValues) {
         validateTierDimensionValue(dimensionValues);
         // Entries from either tier should be included in the total values.
-        super.decrementEntries(dimensionValues);
+        super.decrementItems(dimensionValues);
     }
 
     void setDiskCacheEnabled(boolean diskCacheEnabled) {

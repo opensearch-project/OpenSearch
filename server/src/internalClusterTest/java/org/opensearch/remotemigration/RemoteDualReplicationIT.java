@@ -89,7 +89,7 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
         initDocRepToRemoteMigration();
 
         logger.info("---> Starting 1 remote enabled data node");
-        addRemote = true;
+        setAddRemote(true);
         String remoteNodeName = internalCluster().startDataOnlyNode();
         internalCluster().validateClusterFormed();
         assertEquals(
@@ -161,7 +161,7 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
         initDocRepToRemoteMigration();
 
         logger.info("---> Starting 1 remote enabled data node");
-        addRemote = true;
+        setAddRemote(true);
 
         String remoteNodeName = internalCluster().startDataOnlyNode();
         internalCluster().validateClusterFormed();
@@ -346,7 +346,7 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
         ensureGreen(FAILOVER_REMOTE_TO_DOCREP);
         initDocRepToRemoteMigration();
         logger.info("---> Starting 1 remote enabled data node");
-        addRemote = true;
+        setAddRemote(true);
         String remoteNodeName = internalCluster().startDataOnlyNode();
         internalCluster().validateClusterFormed();
         assertEquals(
@@ -603,7 +603,7 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
         ensureGreen(FAILOVER_REMOTE_TO_DOCREP);
 
         logger.info("---> Starting a new remote enabled node");
-        addRemote = true;
+        setAddRemote(true);
         String remoteNodeName = internalCluster().startDataOnlyNode();
         internalCluster().validateClusterFormed();
         assertEquals(

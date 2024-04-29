@@ -289,8 +289,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     }
 
     @Override
-    public ImmutableCacheStatsHolder stats() {
-        return statsHolder.getImmutableCacheStatsHolder();
+    public ImmutableCacheStatsHolder stats(String[] levels) {
+        return statsHolder.getImmutableCacheStatsHolder(levels);
     }
 
     /**
@@ -350,13 +350,13 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         if (wasEvicted) {
             statsHolder.incrementEvictions(dimensionValues);
         }
-        statsHolder.decrementEntries(dimensionValues);
+        statsHolder.decrementItems(dimensionValues);
         statsHolder.decrementSizeInBytes(dimensionValues, weigher.applyAsLong(key, value));
     }
 
     void updateStatsOnPut(String destinationTierValue, ICacheKey<K> key, V value) {
         List<String> dimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, destinationTierValue);
-        statsHolder.incrementEntries(dimensionValues);
+        statsHolder.incrementItems(dimensionValues);
         statsHolder.incrementSizeInBytes(dimensionValues, weigher.applyAsLong(key, value));
     }
 

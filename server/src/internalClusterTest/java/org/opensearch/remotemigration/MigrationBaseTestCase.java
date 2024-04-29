@@ -16,15 +16,20 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.Before;
 
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -50,6 +55,16 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
         randomAlphaOfLength(5),
         randomAlphaOfLength(5)
     );
+
+    void setAddRemote(boolean addRemote) {
+        this.addRemote = addRemote;
+    }
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        setAddRemote(false);
+    }
 
     protected Settings nodeSettings(int nodeOrdinal) {
         if (segmentRepoPath == null || translogRepoPath == null) {
@@ -114,6 +129,20 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
         return client().bulk(bulkRequest).actionGet();
     }
 
+    Map<String, Integer> getShardCountByNodeId() {
+        final Map<String, Integer> shardCountByNodeId = new HashMap<>();
+        final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        for (final RoutingNode node : clusterState.getRoutingNodes()) {
+            logger.info(
+                "----> node {} has {} shards",
+                node.nodeId(),
+                clusterState.getRoutingNodes().node(node.nodeId()).numberOfOwningShards()
+            );
+            shardCountByNodeId.put(node.nodeId(), clusterState.getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
+        }
+        return shardCountByNodeId;
+    }
+
     private void indexSingleDoc(String indexName) {
         IndexResponse indexResponse = client().prepareIndex(indexName).setId("id").setSource("field", "value").get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
@@ -127,6 +156,8 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
         private AtomicLong indexedDocs = new AtomicLong(0);
         private AtomicBoolean finished = new AtomicBoolean();
         private Thread indexingThread;
+
+        private int refreshFrequency = 3;
 
         AsyncIndexingService(String indexName) {
             this.indexName = indexName;
@@ -151,10 +182,21 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
                 while (finished.get() == false) {
                     indexSingleDoc(indexName);
                     long currentDocCount = indexedDocs.incrementAndGet();
+                    if (currentDocCount > 0 && currentDocCount % refreshFrequency == 0) {
+                        logger.info("--> [iteration {}] flushing index", currentDocCount);
+                        if (rarely()) {
+                            client().admin().indices().prepareFlush(indexName).get();
+                        } else {
+                            client().admin().indices().prepareRefresh(indexName).get();
+                        }
+                    }
                     logger.info("Completed ingestion of {} docs", currentDocCount);
-
                 }
             });
+        }
+
+        public void setRefreshFrequency(int refreshFrequency) {
+            this.refreshFrequency = refreshFrequency;
         }
     }
 }

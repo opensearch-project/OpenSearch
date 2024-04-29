@@ -46,7 +46,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
         if (useNoopStats) {
             this.statsHolder = NoopCacheStatsHolder.getInstance();
         } else {
-            this.statsHolder = new DefaultCacheStatsHolder(List.of());
+            this.statsHolder = new DefaultCacheStatsHolder(List.of(), "mock_disk_cache");
         }
     }
 
@@ -60,7 +60,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
     public void put(ICacheKey<K> key, V value) {
         if (this.cache.size() >= maxSize) { // For simplification
             this.removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EVICTED));
-            this.statsHolder.decrementEntries(List.of());
+            this.statsHolder.decrementItems(List.of());
         }
         try {
             Thread.sleep(delay);
@@ -68,7 +68,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
             throw new RuntimeException(e);
         }
         this.cache.put(key, value);
-        this.statsHolder.incrementEntries(List.of());
+        this.statsHolder.incrementItems(List.of());
     }
 
     @Override
@@ -111,7 +111,12 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
     public ImmutableCacheStatsHolder stats() {
         // To allow testing of useNoopStats logic in TSC, return a dummy ImmutableCacheStatsHolder with the
         // right number of entries, unless useNoopStats is true
-        return statsHolder.getImmutableCacheStatsHolder();
+        return statsHolder.getImmutableCacheStatsHolder(null);
+    }
+
+    @Override
+    public ImmutableCacheStatsHolder stats(String[] levels) {
+        return null;
     }
 
     @Override
