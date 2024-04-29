@@ -22,7 +22,7 @@ class AttackInfo(pydantic.BaseModel):
 
 class FindingInfo(pydantic.BaseModel):
     analytic: AnalyticInfo
-    attacks: AttackInfo
+    attacks: typing.List[AttackInfo]
     title: str
     types: typing.List[str]
     uid: str
@@ -61,6 +61,6 @@ class DetectionFinding(pydantic.BaseModel):
     risk_score: int
     severity_id: int
     status_id: int = 99
-    time: str
+    time: int
     type_uid: int = 200401
     unmapped: typing.Dict[str, typing.List[str]] = pydantic.Field()

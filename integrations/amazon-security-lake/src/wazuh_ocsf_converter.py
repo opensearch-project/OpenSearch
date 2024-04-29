@@ -1,7 +1,9 @@
 import pydantic
 import models
 import logging
+from datetime import datetime
 
+timestamp_pattern = "%Y-%m-%dT%H:%M:%S.%f%z"
 
 def normalize(level: int) -> int:
     """
@@ -40,17 +42,19 @@ def to_detection_finding(event: models.wazuh.Event) -> models.ocsf.DetectionFind
                 type_id=1,
                 uid=event.rule.id
             ),
-            attacks=models.ocsf.AttackInfo(
-                tactic=models.ocsf.TechniqueInfo(
-                    name=", ".join(event.rule.mitre.tactic),
-                    uid=", ".join(event.rule.mitre.id)
-                ),
-                technique=models.ocsf.TechniqueInfo(
-                    name=", ".join(event.rule.mitre.technique),
-                    uid=", ".join(event.rule.mitre.id)
-                ),
-                version="v13.1"
-            ),
+            attacks=[
+                models.ocsf.AttackInfo(
+                    tactic=models.ocsf.TechniqueInfo(
+                        name=", ".join(event.rule.mitre.tactic),
+                        uid=", ".join(event.rule.mitre.id)
+                    ),
+                    technique=models.ocsf.TechniqueInfo(
+                        name=", ".join(event.rule.mitre.technique),
+                        uid=", ".join(event.rule.mitre.id)
+                    ),
+                    version="v13.1"
+                )
+            ],
             title=event.rule.description,
             types=[event.input.type],
             uid=event.id
@@ -89,12 +93,15 @@ def to_detection_finding(event: models.wazuh.Event) -> models.ocsf.DetectionFind
             resources=resources,
             risk_score=event.rule.level,
             severity_id=severity_id,
-            time=event.timestamp,
+            time=to_epoch(event.timestamp),
             unmapped=unmapped
         )
     except AttributeError as e:
         logging.error(f"Error transforming event: {e}")
         return {}
+
+def to_epoch(timestamp: str) -> int:
+    return int(datetime.strptime(timestamp, timestamp_pattern).timestamp())
 
 
 def from_json(json_line: str) -> models.wazuh.Event:
