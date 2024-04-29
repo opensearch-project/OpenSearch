@@ -13,6 +13,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
@@ -41,9 +42,17 @@ public abstract class IndexMetadataUploadListener {
      * @param indexMetadataList list of index metadata of new indexes (or first time index metadata upload).
      * @param actionListener    listener to be invoked on success or failure.
      */
-    public final void onNewIndexUpload(List<IndexMetadata> indexMetadataList, ActionListener<Void> actionListener) {
-        executorService.execute(() -> doOnNewIndexUpload(indexMetadataList, actionListener));
+    public final void onUpload(
+        List<IndexMetadata> indexMetadataList,
+        Map<String, IndexMetadata> prevIndexMetadataByName,
+        ActionListener<Void> actionListener
+    ) {
+        executorService.execute(() -> doOnUpload(indexMetadataList, prevIndexMetadataByName, actionListener));
     }
 
-    protected abstract void doOnNewIndexUpload(List<IndexMetadata> indexMetadataList, ActionListener<Void> actionListener);
+    protected abstract void doOnUpload(
+        List<IndexMetadata> indexMetadataList,
+        Map<String, IndexMetadata> prevIndexMetadataByName,
+        ActionListener<Void> actionListener
+    );
 }
