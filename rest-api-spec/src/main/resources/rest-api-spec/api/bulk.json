@@ -77,11 +77,11 @@
       },
       "batch_size": {
         "type": "int",
-        "description": "Sets the batch size"
+        "description": "Sets the batch size with batch_ingestion_option"
       },
       "batch_ingestion_option": {
         "type": "string",
-        "description": "A signal to enable batch ingestion"
+        "description": "Type of batch ingestion to use"
       }
     },
     "body":{
