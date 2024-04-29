@@ -357,11 +357,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      * @return {@link BulkRequest}
      */
     public BulkRequest batchSize(int size) {
-        if (size > 1) {
-            this.batchSize = size;
-        } else {
-            this.batchSize = 1;
+        if (size < 1) {
+            throw new IllegalArgumentException("batch_size must be larger than 0");
         }
+        this.batchSize = size;
         return this;
     }
 
