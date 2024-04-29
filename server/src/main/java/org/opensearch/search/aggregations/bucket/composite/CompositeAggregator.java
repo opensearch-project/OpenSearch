@@ -98,7 +98,7 @@ import static org.opensearch.search.aggregations.MultiBucketConsumerService.MAX_
  *
  * @opensearch.internal
  */
-final class CompositeAggregator extends BucketsAggregator {
+public final class CompositeAggregator extends BucketsAggregator {
     private final int size;
     private final List<String> sourceNames;
     private final int[] reverseMuls;
@@ -180,7 +180,7 @@ final class CompositeAggregator extends BucketsAggregator {
     /**
      * Currently the filter rewrite is only supported for date histograms
      */
-    private class CompositeAggregationType extends FastFilterRewriteHelper.AbstractDateHistogramAggregationType {
+    public class CompositeAggregationType extends FastFilterRewriteHelper.AbstractDateHistogramAggregationType {
         private final RoundingValuesSource valuesSource;
         private long afterKey = -1L;
 
@@ -212,7 +212,6 @@ final class CompositeAggregator extends BucketsAggregator {
             }
         }
 
-        @Override
         public int getSize() {
             return size;
         }
