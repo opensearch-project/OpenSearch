@@ -24,9 +24,9 @@ public interface CacheStatsHolder {
 
     void decrementSizeInBytes(List<String> dimensionValues, long amountBytes);
 
-    void incrementEntries(List<String> dimensionValues);
+    void incrementItems(List<String> dimensionValues);
 
-    void decrementEntries(List<String> dimensionValues);
+    void decrementItems(List<String> dimensionValues);
 
     void reset();
 
@@ -34,5 +34,5 @@ public interface CacheStatsHolder {
 
     void removeDimensions(List<String> dimensionValues);
 
-    ImmutableCacheStatsHolder getImmutableCacheStatsHolder();
+    ImmutableCacheStatsHolder getImmutableCacheStatsHolder(String[] levels);
 }
