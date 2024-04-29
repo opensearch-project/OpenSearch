@@ -123,6 +123,10 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new TermQuery(new Term("field", "F")), ft.rangeQuery(null, false, true, true, null));
 
         assertEquals(new DocValuesFieldExistsQuery("field"), ft.rangeQuery(false, null, true, true, null));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.rangeQuery("random", null, true, true, null));
+
+        assertEquals("Can't parse boolean value [random], expected [true] or [false]", e.getMessage());
     }
 
     public void testFetchSourceValue() throws IOException {

@@ -318,14 +318,17 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
             }
 
+            lowerTerm = indexedValueForSearch(lowerTerm);
+            upperTerm = indexedValueForSearch(upperTerm);
+
             if (lowerTerm == upperTerm) {
                 if (!includeLower || !includeUpper) {
                     return new MatchNoDocsQuery();
                 }
-                return termQuery(lowerTerm, context);
+                return termQuery(lowerTerm.equals(Values.TRUE), context);
             }
 
-            if ((boolean) lowerTerm) {
+            if (lowerTerm.equals(Values.TRUE)) {
                 return new MatchNoDocsQuery();
             }
             if (!includeLower && !includeUpper) {
