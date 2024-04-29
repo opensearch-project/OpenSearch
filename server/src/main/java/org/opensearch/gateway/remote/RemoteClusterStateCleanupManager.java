@@ -38,6 +38,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateService.GLOBAL_MET
 import static org.opensearch.gateway.remote.RemoteClusterStateService.GLOBAL_METADATA_PATH_TOKEN;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.INDEX_METADATA_FORMAT;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.INDEX_PATH_TOKEN;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.MANIFEST_FILE_PREFIX;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.MANIFEST_PATH_TOKEN;
 
 /**
@@ -113,22 +114,21 @@ public class RemoteClusterStateCleanupManager implements Closeable {
         }
     }
 
+    // visible for testing
     void cleanUpStaleFiles() {
         ClusterState currentAppliedState = clusterApplierService.state();
         if (currentAppliedState.nodes().isLocalNodeElectedClusterManager()) {
             long cleanUpAttemptStateVersion = currentAppliedState.version();
-            if (
-                cleanUpAttemptStateVersion - lastCleanupAttemptStateVersion > SKIP_CLEANUP_STATE_CHANGES &&
-                    Strings.isNotEmpty(currentAppliedState.getClusterName().value()) &&
-                    Strings.isNotEmpty(currentAppliedState.metadata().clusterUUID())
-            ) {
+            if (cleanUpAttemptStateVersion - lastCleanupAttemptStateVersion > SKIP_CLEANUP_STATE_CHANGES
+                && Strings.isNotEmpty(currentAppliedState.getClusterName().value())
+                && Strings.isNotEmpty(currentAppliedState.metadata().clusterUUID())) {
                 logger.info(
                     "Cleaning up stale remote state files for cluster [{}] with uuid [{}]. Last clean was done before {} updates",
                     currentAppliedState.getClusterName().value(),
                     currentAppliedState.metadata().clusterUUID(),
                     cleanUpAttemptStateVersion - lastCleanupAttemptStateVersion
                 );
-                deleteStaleClusterMetadata(
+                this.deleteStaleClusterMetadata(
                     currentAppliedState.getClusterName().value(),
                     currentAppliedState.metadata().clusterUUID(),
                     RETAINED_MANIFESTS
@@ -230,7 +230,7 @@ public class RemoteClusterStateCleanupManager implements Closeable {
             getBlobStoreTransferService().listAllInSortedOrderAsync(
                 ThreadPool.Names.REMOTE_PURGE,
                 remoteClusterStateService.getManifestFolderPath(clusterName, clusterUUID),
-                "manifest",
+                MANIFEST_FILE_PREFIX,
                 Integer.MAX_VALUE,
                 new ActionListener<>() {
                     @Override
@@ -297,10 +297,12 @@ public class RemoteClusterStateCleanupManager implements Closeable {
         });
     }
 
-
     private void deleteStalePaths(String clusterName, String clusterUUID, List<String> stalePaths) throws IOException {
         logger.debug(String.format(Locale.ROOT, "Deleting stale files from remote - %s", stalePaths));
-        getBlobStoreTransferService().deleteBlobs(remoteClusterStateService.getCusterMetadataBasePath(clusterName, clusterUUID), stalePaths);
+        getBlobStoreTransferService().deleteBlobs(
+            remoteClusterStateService.getCusterMetadataBasePath(clusterName, clusterUUID),
+            stalePaths
+        );
     }
 
     /**
@@ -314,7 +316,9 @@ public class RemoteClusterStateCleanupManager implements Closeable {
             logger.debug("Deleting stale cluster UUIDs data from remote [{}]", clusterName);
             Set<String> allClustersUUIDsInRemote;
             try {
-                allClustersUUIDsInRemote = new HashSet<>(remoteClusterStateService.getAllClusterUUIDs(clusterState.getClusterName().value()));
+                allClustersUUIDsInRemote = new HashSet<>(
+                    remoteClusterStateService.getAllClusterUUIDs(clusterState.getClusterName().value())
+                );
             } catch (IOException e) {
                 logger.info(String.format(Locale.ROOT, "Error while fetching all cluster UUIDs for [%s]", clusterName));
                 return;
@@ -325,7 +329,6 @@ public class RemoteClusterStateCleanupManager implements Closeable {
             deleteStaleUUIDsClusterMetadata(clusterName, new ArrayList<>(allClustersUUIDsInRemote));
         });
     }
-
 
     public TimeValue getStaleFileCleanupInterval() {
         return this.staleFileCleanupInterval;
@@ -341,6 +344,7 @@ public class RemoteClusterStateCleanupManager implements Closeable {
 
     static final class AsyncStaleFileDeletion extends AbstractAsyncTask {
         private final RemoteClusterStateCleanupManager remoteClusterStateCleanupManager;
+
         AsyncStaleFileDeletion(RemoteClusterStateCleanupManager remoteClusterStateCleanupManager) {
             super(
                 logger,

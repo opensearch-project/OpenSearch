@@ -462,9 +462,7 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
             });
             when(transportService.getThreadPool()).thenReturn(threadPool);
             ClusterService clusterService = mock(ClusterService.class);
-            when(clusterService.getClusterSettings()).thenReturn(
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            );
+            when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
             final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
                 nodeEnvironment,
                 xContentRegistry(),

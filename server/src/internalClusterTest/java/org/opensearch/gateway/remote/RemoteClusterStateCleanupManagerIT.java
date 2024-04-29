@@ -148,8 +148,6 @@ public class RemoteClusterStateCleanupManagerIT extends RemoteStoreBaseIntegTest
         assertEquals(shardCount, indexMetadataMap.values().stream().findFirst().get().getNumberOfShards());
     }
 
-
-
     private void setReplicaCount(int replicaCount) {
         client().admin()
             .indices()

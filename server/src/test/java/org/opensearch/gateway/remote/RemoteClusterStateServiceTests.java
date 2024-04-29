@@ -173,8 +173,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
     public void testFailInitializationWhenRemoteStateDisabled() {
         final Settings settings = Settings.builder().build();
-        when(clusterService.getClusterSettings())
-            .thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         assertThrows(
             AssertionError.class,
             () -> new RemoteClusterStateService(

@@ -145,7 +145,6 @@ public class RemoteClusterStateService implements Closeable {
         Property.Final
     );
 
-
     public static final String CLUSTER_STATE_PATH_TOKEN = "cluster-state";
     public static final String INDEX_PATH_TOKEN = "index";
     public static final String GLOBAL_METADATA_PATH_TOKEN = "global-metadata";
@@ -211,7 +210,6 @@ public class RemoteClusterStateService implements Closeable {
         this.remoteClusterStateCleanupManager = new RemoteClusterStateCleanupManager(this, clusterService);
         this.indexMetadataUploadListeners = indexMetadataUploadListeners;
     }
-
 
     /**
      * This method uploads entire cluster state metadata to the configured blob store. For now only index metadata upload is supported. This method should be
