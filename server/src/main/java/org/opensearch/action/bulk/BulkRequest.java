@@ -479,7 +479,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
-        if (out.getVersion().onOrAfter(MINIMAL_VERSION_SUPPORT_BATCH)) {
+        if (out.getVersion().onOrAfter(Version.V_2_14_0)) {
             out.writeInt(batchSize);
         }
     }
