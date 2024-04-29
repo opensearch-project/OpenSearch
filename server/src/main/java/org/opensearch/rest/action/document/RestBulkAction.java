@@ -97,7 +97,6 @@ public class RestBulkAction extends BaseRestHandler {
         Boolean defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, null);
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
-        bulkRequest.batchIngestionOption(request.param("batch_ingestion_option", ""));
         bulkRequest.batchSize(request.paramAsInt("batch_size", 1));
         bulkRequest.add(
             request.requiredContent(),

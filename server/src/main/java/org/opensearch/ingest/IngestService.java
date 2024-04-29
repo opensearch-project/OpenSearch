@@ -39,7 +39,6 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.DocWriteRequest;
-import org.opensearch.action.bulk.BatchIngestionOption;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.TransportBulkAction;
 import org.opensearch.action.index.IndexRequest;
@@ -526,9 +525,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
             @Override
             protected void doRun() {
-                BatchIngestionOption batchOption = originalBulkRequest.batchIngestionOption();
                 int batchSize = originalBulkRequest.batchSize();
-                if (shouldExecuteBulkRequestInBatch(batchOption, originalBulkRequest.requests().size(), batchSize)) {
+                if (shouldExecuteBulkRequestInBatch(originalBulkRequest.requests().size(), batchSize)) {
                     runBulkRequestInBatch(numberOfActionRequests, actionRequests, onFailure, onCompletion, onDropped, originalBulkRequest);
                     return;
                 }
@@ -656,8 +654,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    private boolean shouldExecuteBulkRequestInBatch(BatchIngestionOption batchOption, int documentSize, int batchSize) {
-        return batchOption == BatchIngestionOption.ENABLED && documentSize > 1 && batchSize > 1;
+    private boolean shouldExecuteBulkRequestInBatch(int documentSize, int batchSize) {
+        return documentSize > 1 && batchSize > 1;
     }
 
     /**

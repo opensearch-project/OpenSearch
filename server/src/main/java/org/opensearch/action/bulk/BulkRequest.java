@@ -97,7 +97,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private String globalRouting;
     private String globalIndex;
     private Boolean globalRequireAlias;
-    private BatchIngestionOption batchIngestionOption = BatchIngestionOption.NONE;
     private int batchSize = 1;
 
     private long sizeInBytes = 0;
@@ -111,7 +110,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
         if (in.getVersion().onOrAfter(MINIMAL_VERSION_SUPPORT_BATCH)) {
-            batchIngestionOption = in.readEnum(BatchIngestionOption.class);
             batchSize = in.readInt();
         }
     }
@@ -354,24 +352,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     }
 
     /**
-     * Convert string version of batch option and convert it to {@link BatchIngestionOption}
-     * @param batchOption a string input from request
-     * @return {@link BulkRequest}
-     */
-    public BulkRequest batchIngestionOption(String batchOption) {
-        this.batchIngestionOption = BatchIngestionOption.from(batchOption);
-        return this;
-    }
-
-    /**
-     * Get batch ingestion option
-     * @return {@link BatchIngestionOption}
-     */
-    public BatchIngestionOption batchIngestionOption() {
-        return this.batchIngestionOption;
-    }
-
-    /**
      * Set batch size
      * @param size batch size from input
      * @return {@link BulkRequest}
@@ -501,7 +481,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
         if (out.getVersion().onOrAfter(MINIMAL_VERSION_SUPPORT_BATCH)) {
-            out.writeEnum(batchIngestionOption);
             out.writeInt(batchSize);
         }
     }

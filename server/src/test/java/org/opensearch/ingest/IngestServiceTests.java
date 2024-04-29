@@ -38,7 +38,6 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest;
-import org.opensearch.action.bulk.BatchIngestionOption;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.TransportBulkAction;
 import org.opensearch.action.delete.DeleteRequest;
@@ -143,7 +142,6 @@ public class IngestServiceTests extends OpenSearchTestCase {
         when(threadPool.generic()).thenReturn(executorService);
         when(threadPool.executor(anyString())).thenReturn(executorService);
         mockBulkRequest = mock(BulkRequest.class);
-        lenient().when(mockBulkRequest.batchIngestionOption()).thenReturn(BatchIngestionOption.NONE);
         lenient().when(mockBulkRequest.batchSize()).thenReturn(1);
     }
 
@@ -1710,7 +1708,6 @@ public class IngestServiceTests extends OpenSearchTestCase {
         bulkRequest.add(indexRequest3);
         IndexRequest indexRequest4 = new IndexRequest("_index").id("_id4").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest4);
-        bulkRequest.batchIngestionOption("enabled");
         bulkRequest.batchSize(2);
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
@@ -1747,7 +1744,6 @@ public class IngestServiceTests extends OpenSearchTestCase {
         bulkRequest.add(indexRequest3);
         IndexRequest indexRequest4 = new IndexRequest("_index").id("_id4").source(emptyMap()).setPipeline("_id").setFinalPipeline("_final");
         bulkRequest.add(indexRequest4);
-        bulkRequest.batchIngestionOption("enabled");
         bulkRequest.batchSize(2);
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
@@ -1777,7 +1773,6 @@ public class IngestServiceTests extends OpenSearchTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest1);
-        bulkRequest.batchIngestionOption("enabled");
         bulkRequest.batchSize(2);
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
@@ -1816,7 +1811,6 @@ public class IngestServiceTests extends OpenSearchTestCase {
             .setPipeline("_none")
             .setFinalPipeline("_none");
         bulkRequest.add(indexRequest2);
-        bulkRequest.batchIngestionOption("enabled");
         bulkRequest.batchSize(2);
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
@@ -1847,7 +1841,6 @@ public class IngestServiceTests extends OpenSearchTestCase {
         // will not be handled as not valid document type
         bulkRequest.add(new DeleteRequest("_index", "_id"));
         bulkRequest.add(new DeleteRequest("_index", "_id"));
-        bulkRequest.batchIngestionOption("enabled");
         bulkRequest.batchSize(2);
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
@@ -1881,7 +1874,6 @@ public class IngestServiceTests extends OpenSearchTestCase {
         bulkRequest.add(indexRequest1);
         IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest2);
-        bulkRequest.batchIngestionOption("enabled");
         bulkRequest.batchSize(2);
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
@@ -1914,7 +1906,6 @@ public class IngestServiceTests extends OpenSearchTestCase {
         bulkRequest.add(indexRequest1);
         IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest2);
-        bulkRequest.batchIngestionOption("enabled");
         bulkRequest.batchSize(2);
 
         List<IngestDocumentWrapper> results = Arrays.asList(
