@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
@@ -197,7 +198,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 // if present
                 updateStatsOnPut(TIER_DIMENSION_VALUE_ON_HEAP, key, value);
                 statsHolder.incrementMisses(heapDimensionValues);
-                if (caches.get(diskCache).isEnabled) {
+                if (caches.get(diskCache).isEnabled()) {
                     statsHolder.incrementMisses(diskDimensionValues);
                 }
             } else {
@@ -205,14 +206,12 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 statsHolder.incrementHits(heapDimensionValues);
             }
             return value;
-        }
-
-        else {
+        } else {
             // Handle stats for an initial hit from getValueFromTieredCache()
             if (cacheValueTuple.v2().equals(TIER_DIMENSION_VALUE_ON_HEAP)) {
                 // A hit for the heap tier
                 statsHolder.incrementHits(heapDimensionValues);
-            } else {
+            } else if (cacheValueTuple.v2().equals(TIER_DIMENSION_VALUE_DISK)) {
                 // Miss for the heap tier, hit for the disk tier
                 statsHolder.incrementMisses(heapDimensionValues);
                 statsHolder.incrementHits(diskDimensionValues);
@@ -227,13 +226,13 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         // Doing this as we don't know where it is located. We could do a get from both and check that, but what will
         // also trigger a hit/miss listener event, so ignoring it for now.
         // We don't update stats here, as this is handled by the removal listeners for the tiers.
-        try (ReleasableLock ignore = writeLock.acquire()) {
-            for (Map.Entry<ICache<K, V>, TierInfo> cacheEntry : caches.entrySet()) {
-                if (key.getDropStatsForDimensions()) {
-                    List<String> dimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, cacheEntry.getValue().tierName);
-                    statsHolder.removeDimensions(dimensionValues);
-                }
-                if (key.key != null) {
+        for (Map.Entry<ICache<K, V>, TierInfo> cacheEntry : caches.entrySet()) {
+            if (key.getDropStatsForDimensions()) {
+                List<String> dimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, cacheEntry.getValue().tierName);
+                statsHolder.removeDimensions(dimensionValues);
+            }
+            if (key.key != null) {
+                try (ReleasableLock ignore = writeLock.acquire()) {
                     cacheEntry.getKey().invalidate(key);
                 }
             }
@@ -303,7 +302,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         return key -> {
             try (ReleasableLock ignore = readLock.acquire()) {
                 for (Map.Entry<ICache<K, V>, TierInfo> cacheEntry : caches.entrySet()) {
-                    if (cacheEntry.getValue().isEnabled) {
+                    if (cacheEntry.getValue().isEnabled()) {
                         V value = cacheEntry.getKey().get(key);
                         // Get the tier value corresponding to this cache
                         String tierValue = cacheEntry.getValue().tierName;
@@ -326,11 +325,11 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     void handleRemovalFromHeapTier(RemovalNotification<ICacheKey<K>, V> notification) {
         ICacheKey<K> key = notification.getKey();
         boolean wasEvicted = SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason());
-        if (caches.get(diskCache).isEnabled && wasEvicted && evaluatePolicies(notification.getValue())) {
+        if (caches.get(diskCache).isEnabled() && wasEvicted && evaluatePolicies(notification.getValue())) {
             try (ReleasableLock ignore = writeLock.acquire()) {
                 diskCache.put(key, notification.getValue()); // spill over to the disk tier and increment its stats
-                updateStatsOnPut(TIER_DIMENSION_VALUE_DISK, key, notification.getValue());
             }
+            updateStatsOnPut(TIER_DIMENSION_VALUE_DISK, key, notification.getValue());
         } else {
             // If the value is not going to the disk cache, send this notification to the TSC's removal listener
             // as the value is leaving the TSC entirely
@@ -464,12 +463,16 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     }
 
     private class TierInfo {
-        boolean isEnabled;
-        String tierName;
+        AtomicBoolean isEnabled;
+        final String tierName;
 
         TierInfo(boolean isEnabled, String tierName) {
-            this.isEnabled = isEnabled;
+            this.isEnabled = new AtomicBoolean(isEnabled);
             this.tierName = tierName;
+        }
+
+        boolean isEnabled() {
+            return isEnabled.get();
         }
     }
 
