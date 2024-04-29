@@ -16,7 +16,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * A class ICache implementations use to internally keep track of their stats across multiple dimensions.
@@ -55,39 +55,39 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
     // The order has to match the order given in dimensionNames.
     @Override
     public void incrementHits(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, (node, depth) -> node.incrementHits(), true);
+        internalIncrement(dimensionValues, Node::incrementHits, true);
     }
 
     @Override
     public void incrementMisses(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, (node, depth) -> node.incrementMisses(), true);
+        internalIncrement(dimensionValues, Node::incrementMisses, true);
     }
 
     @Override
     public void incrementEvictions(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, (node, depth) -> node.incrementEvictions(), true);
+        internalIncrement(dimensionValues, Node::incrementEvictions, true);
     }
 
     @Override
     public void incrementSizeInBytes(List<String> dimensionValues, long amountBytes) {
-        internalIncrement(dimensionValues, (node, depth) -> node.incrementSizeInBytes(amountBytes), true);
+        internalIncrement(dimensionValues, (node) -> node.incrementSizeInBytes(amountBytes), true);
     }
 
     // For decrements, we should not create nodes if they are absent. This protects us from erroneously decrementing values for keys
     // which have been entirely deleted, for example in an async removal listener.
     @Override
     public void decrementSizeInBytes(List<String> dimensionValues, long amountBytes) {
-        internalIncrement(dimensionValues, (node, depth) -> node.decrementSizeInBytes(amountBytes), false);
+        internalIncrement(dimensionValues, (node) -> node.decrementSizeInBytes(amountBytes), false);
     }
 
     @Override
     public void incrementEntries(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, (node, depth) -> node.incrementEntries(), true);
+        internalIncrement(dimensionValues, Node::incrementEntries, true);
     }
 
     @Override
     public void decrementEntries(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, (node, depth) -> node.decrementEntries(), false);
+        internalIncrement(dimensionValues, Node::decrementEntries, false);
     }
 
     /**
@@ -112,7 +112,7 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
         return statsRoot.getEntries();
     }
 
-    protected void internalIncrement(List<String> dimensionValues, BiConsumer<Node, Integer> adder, boolean createNodesIfAbsent) {
+    protected void internalIncrement(List<String> dimensionValues, Consumer<Node> adder, boolean createNodesIfAbsent) {
         assert dimensionValues.size() == dimensionNames.size();
         // First try to increment without creating nodes
         boolean didIncrement = internalIncrementHelper(dimensionValues, statsRoot, 0, adder, false);
@@ -136,12 +136,12 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
         List<String> dimensionValues,
         Node node,
         int depth, // Pass in the depth to avoid having to slice the list for each node.
-        BiConsumer<Node, Integer> adder,
+        Consumer<Node> adder,
         boolean createNodesIfAbsent
     ) {
         if (depth == dimensionValues.size()) {
             // This is the leaf node we are trying to reach
-            adder.accept(node, depth);
+            adder.accept(node);
             return true;
         }
 
@@ -156,7 +156,7 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
         }
         if (internalIncrementHelper(dimensionValues, child, depth + 1, adder, createNodesIfAbsent)) {
             // Function returns true if the next node down was incremented
-            adder.accept(node, depth);
+            adder.accept(node);
             return true;
         }
         return false;
@@ -304,6 +304,17 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
                 }
             }
             return new ImmutableCacheStatsHolder.Node(dimensionValue, snapshotChildren, getImmutableStats());
+        }
+
+        /**
+         * Return whether this is a leaf node which is at the lowest level of the tree.
+         * Does not return true if this is a node at a higher level whose children are still being constructed.
+         * @return if this is a leaf node at the lowest level
+         */
+        public boolean isAtLowestLevel() {
+            // Compare by value to the empty children map, to ensure we don't get false positives for nodes
+            // which are in the process of having children added
+            return children == EMPTY_CHILDREN_MAP;
         }
     }
 }
