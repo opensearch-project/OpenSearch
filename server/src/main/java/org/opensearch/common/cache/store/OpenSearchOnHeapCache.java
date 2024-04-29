@@ -195,9 +195,9 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
             return NAME;
         }
 
-        private boolean useNoopStats(Settings settings, boolean configUseNoopStats) {
+        private boolean useNoopStats(Settings settings, boolean useNoopStatsConfig) {
             // Use noop stats when pluggable caching is off, or when explicitly set in the CacheConfig
-            return !FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings) || configUseNoopStats;
+            return !FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings) || useNoopStatsConfig;
         }
     }
 

@@ -388,7 +388,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 assertFalse(loadAwareCacheLoader.isLoaded());
             }
         }
-        for (int iter = 0; iter < randomIntBetween(50, 200); iter++) {
+        int numRandom = randomIntBetween(50, 200);
+        for (int iter = 0; iter < numRandom; iter++) {
             // Hit cache with randomized key which is expected to miss cache always.
             LoadAwareCacheLoader<ICacheKey<String>, String> tieredCacheLoader = getLoadAwareCacheLoader();
             tieredSpilloverCache.computeIfAbsent(getICacheKey(UUID.randomUUID().toString()), tieredCacheLoader);
@@ -812,6 +813,9 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             }
         }
         assertEquals(1, numberOfTimesKeyLoaded); // It should be loaded only once.
+        // We should see only one heap miss, and the rest hits
+        assertEquals(1, getMissesForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
+        assertEquals(numberOfSameKeys - 1, getHitsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
     }
 
     public void testConcurrencyForEvictionFlowFromOnHeapToDiskTier() throws Exception {
