@@ -32,58 +32,42 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.Version;
-import org.opensearch.cluster.node.DiscoveryNode;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.common.CheckedSupplier;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.network.CloseableChannel;
-import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.transport.NetworkExceptionHelper;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.NotifyOnceListener;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.OutboundMessageHandler.SendContext;
-import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
-import org.opensearch.transport.nativeprotocol.NativeOutboundMessageHandler;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * Outbound data handler
  *
  * @opensearch.internal
  */
-final class OutboundHandler {
+public final class OutboundHandler {
 
-    private final String nodeName;
-    private final Version version;
+    private static final Logger logger = LogManager.getLogger(OutboundHandler.class);
+
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
-    private final Map<String, OutboundMessageHandler> protocolMessageHandlers;
 
-    OutboundHandler(
-        String nodeName,
-        Version version,
-        String[] features,
-        StatsTracker statsTracker,
-        ThreadPool threadPool,
-        BigArrays bigArrays
-    ) {
-        this.nodeName = nodeName;
-        this.version = version;
+    OutboundHandler(StatsTracker statsTracker, ThreadPool threadPool) {
         this.statsTracker = statsTracker;
         this.threadPool = threadPool;
-        this.protocolMessageHandlers = Map.of(
-            NativeInboundMessage.NATIVE_PROTOCOL,
-            new NativeOutboundMessageHandler(features, statsTracker, threadPool, bigArrays)
-        );
     }
 
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
-        SendContext sendContext = new SendContext(channel, () -> bytes, listener, statsTracker);
+        SendContext sendContext = new SendContext(statsTracker, channel, () -> bytes, listener);
         try {
             internalSend(channel, sendContext);
         } catch (IOException e) {
@@ -92,96 +76,7 @@ final class OutboundHandler {
         }
     }
 
-    /**
-     * Sends the request to the given channel. This method should be used to send {@link TransportRequest}
-     * objects back to the caller.
-     */
-    void sendRequest(
-        final DiscoveryNode node,
-        final TcpChannel channel,
-        final long requestId,
-        final String action,
-        final TransportRequest request,
-        final TransportRequestOptions options,
-        final Version channelVersion,
-        final boolean compressRequest,
-        final boolean isHandshake
-    ) throws IOException, TransportException {
-        Version version = Version.min(this.version, channelVersion);
-        // TODO: Add logic for protocols in transport message
-        OutboundMessageHandler outboundMessageHandler = protocolMessageHandlers.get("native");
-        ProtocolOutboundMessage message = outboundMessageHandler.convertRequestToOutboundMessage(
-            request,
-            action,
-            requestId,
-            isHandshake,
-            compressRequest,
-            version
-        );
-        ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onRequestSent(node, requestId, action, request, options));
-        outboundMessageHandler.sendMessage(channel, message, listener);
-    }
-
-    /**
-     * Sends the response to the given channel. This method should be used to send {@link TransportResponse}
-     * objects back to the caller.
-     *
-     * @see #sendErrorResponse(Version, Set, TcpChannel, long, String, Exception) for sending error responses
-     */
-    void sendResponse(
-        final Version nodeVersion,
-        final Set<String> features,
-        final TcpChannel channel,
-        final long requestId,
-        final String action,
-        final TransportResponse response,
-        final boolean compress,
-        final boolean isHandshake
-    ) throws IOException {
-        Version version = Version.min(this.version, nodeVersion);
-        // TODO: Add logic for protocols in transport message
-        OutboundMessageHandler outboundMessageHandler = protocolMessageHandlers.get("native");
-        ProtocolOutboundMessage message = outboundMessageHandler.convertResponseToOutboundMessage(
-            response,
-            features,
-            requestId,
-            isHandshake,
-            compress,
-            version
-        );
-        ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
-        outboundMessageHandler.sendMessage(channel, message, listener);
-    }
-
-    /**
-     * Sends back an error response to the caller via the given channel
-     */
-    void sendErrorResponse(
-        final Version nodeVersion,
-        final Set<String> features,
-        final TcpChannel channel,
-        final long requestId,
-        final String action,
-        final Exception error
-    ) throws IOException {
-        Version version = Version.min(this.version, nodeVersion);
-        TransportAddress address = new TransportAddress(channel.getLocalAddress());
-        RemoteTransportException tx = new RemoteTransportException(nodeName, address, action, error);
-        // TODO: Add logic for protocols in transport message
-        OutboundMessageHandler outboundMessageHandler = protocolMessageHandlers.get("native");
-        ProtocolOutboundMessage message = outboundMessageHandler.convertErrorResponseToOutboundMessage(
-            tx,
-            features,
-            requestId,
-            false,
-            false,
-            version
-        );
-        ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, error));
-        outboundMessageHandler.sendMessage(channel, message, listener);
-    }
-
-    private void internalSend(TcpChannel channel, SendContext sendContext) throws IOException {
+    public void internalSend(TcpChannel channel, SendContext sendContext) throws IOException {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         BytesReference reference = sendContext.get();
         // stash thread context so that channel event loop is not polluted by thread context
@@ -194,12 +89,74 @@ final class OutboundHandler {
         }
     }
 
-    void setMessageListener(TransportMessageListener listener) {
-        if (messageListener == TransportMessageListener.NOOP_LISTENER) {
-            messageListener = listener;
-        } else {
-            throw new IllegalStateException("Cannot set message listener twice");
+    /**
+     * Internal message serializer
+     *
+     * @opensearch.internal
+     */
+    public static class SendContext extends NotifyOnceListener<Void> implements CheckedSupplier<BytesReference, IOException> {
+        private final StatsTracker statsTracker;
+        private final TcpChannel channel;
+        private final CheckedSupplier<BytesReference, IOException> messageSupplier;
+        private final ActionListener<Void> listener;
+        private final Releasable optionalReleasable;
+        private long messageSize = -1;
+
+        SendContext(
+            StatsTracker statsTracker,
+            TcpChannel channel,
+            CheckedSupplier<BytesReference, IOException> messageSupplier,
+            ActionListener<Void> listener
+        ) {
+            this(statsTracker, channel, messageSupplier, listener, null);
+        }
+
+        public SendContext(
+            StatsTracker statsTracker,
+            TcpChannel channel,
+            CheckedSupplier<BytesReference, IOException> messageSupplier,
+            ActionListener<Void> listener,
+            Releasable optionalReleasable
+        ) {
+            this.channel = channel;
+            this.messageSupplier = messageSupplier;
+            this.listener = listener;
+            this.optionalReleasable = optionalReleasable;
+            this.statsTracker = statsTracker;
+        }
+
+        public BytesReference get() throws IOException {
+            BytesReference message;
+            try {
+                message = messageSupplier.get();
+                messageSize = message.length();
+                TransportLogger.logOutboundMessage(channel, message);
+                return message;
+            } catch (Exception e) {
+                onFailure(e);
+                throw e;
+            }
+        }
+
+        @Override
+        protected void innerOnResponse(Void v) {
+            assert messageSize != -1 : "If onResponse is being called, the message should have been serialized";
+            statsTracker.markBytesWritten(messageSize);
+            closeAndCallback(() -> listener.onResponse(v));
+        }
+
+        @Override
+        protected void innerOnFailure(Exception e) {
+            if (NetworkExceptionHelper.isCloseConnectionException(e)) {
+                logger.debug(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+            } else {
+                logger.warn(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+            }
+            closeAndCallback(() -> listener.onFailure(e));
+        }
+
+        private void closeAndCallback(Runnable runnable) {
+            Releasables.close(optionalReleasable, runnable::run);
         }
     }
-
 }

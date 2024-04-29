@@ -54,6 +54,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
+import org.opensearch.transport.nativeprotocol.NativeOutboundHandler;
 import org.junit.After;
 import org.junit.Before;
 
@@ -79,6 +80,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
     private final AtomicReference<Tuple<Header, BytesReference>> message = new AtomicReference<>();
     private InboundPipeline pipeline;
     private OutboundHandler handler;
+    private NativeOutboundHandler nativeOutboundHandler;
     private FakeTcpChannel channel;
     private DiscoveryNode node;
 
@@ -90,7 +92,16 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
         node = new DiscoveryNode("", transportAddress, Version.CURRENT);
         String[] features = { feature1, feature2 };
         StatsTracker statsTracker = new StatsTracker();
-        handler = new OutboundHandler("node", Version.CURRENT, features, statsTracker, threadPool, BigArrays.NON_RECYCLING_INSTANCE);
+        handler = new OutboundHandler(statsTracker, threadPool);
+        nativeOutboundHandler = new NativeOutboundHandler(
+            "node",
+            Version.CURRENT,
+            features,
+            statsTracker,
+            threadPool,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            handler
+        );
 
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
@@ -152,7 +163,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
         AtomicReference<TransportRequest> requestRef = new AtomicReference<>();
-        handler.setMessageListener(new TransportMessageListener() {
+        nativeOutboundHandler.setMessageListener(new TransportMessageListener() {
             @Override
             public void onRequestSent(
                 DiscoveryNode node,
@@ -167,7 +178,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
                 requestRef.set(request);
             }
         });
-        handler.sendRequest(node, channel, requestId, action, request, options, version, compress, isHandshake);
+        nativeOutboundHandler.sendRequest(node, channel, requestId, action, request, options, version, compress, isHandshake);
 
         BytesReference reference = channel.getMessageCaptor().get();
         ActionListener<Void> sendListener = channel.getListenerCaptor().get();
@@ -218,7 +229,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
         AtomicReference<TransportResponse> responseRef = new AtomicReference<>();
-        handler.setMessageListener(new TransportMessageListener() {
+        nativeOutboundHandler.setMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action, TransportResponse response) {
                 requestIdRef.set(requestId);
@@ -226,7 +237,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
                 responseRef.set(response);
             }
         });
-        handler.sendResponse(version, Collections.emptySet(), channel, requestId, action, response, compress, isHandshake);
+        nativeOutboundHandler.sendResponse(version, Collections.emptySet(), channel, requestId, action, response, compress, isHandshake);
 
         BytesReference reference = channel.getMessageCaptor().get();
         ActionListener<Void> sendListener = channel.getListenerCaptor().get();
@@ -275,7 +286,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
         AtomicReference<Exception> responseRef = new AtomicReference<>();
-        handler.setMessageListener(new TransportMessageListener() {
+        nativeOutboundHandler.setMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action, Exception error) {
                 requestIdRef.set(requestId);
@@ -283,7 +294,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
                 responseRef.set(error);
             }
         });
-        handler.sendErrorResponse(version, Collections.emptySet(), channel, requestId, action, error);
+        nativeOutboundHandler.sendErrorResponse(version, Collections.emptySet(), channel, requestId, action, error);
 
         BytesReference reference = channel.getMessageCaptor().get();
         ActionListener<Void> sendListener = channel.getListenerCaptor().get();

@@ -24,4 +24,6 @@ public interface ProtocolMessageHandler {
         long slowLogThresholdMs,
         TransportMessageListener messageListener
     ) throws IOException;
+
+    public void setMessageListener(TransportMessageListener listener);
 }

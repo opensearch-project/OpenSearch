@@ -57,6 +57,7 @@ import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
+import org.opensearch.transport.nativeprotocol.NativeOutboundHandler;
 import org.opensearch.transport.nativeprotocol.NativeOutboundMessage;
 import org.junit.After;
 import org.junit.Before;
@@ -86,6 +87,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
     private Transport.RequestHandlers requestHandlers;
     private InboundHandler handler;
     private OutboundHandler outboundHandler;
+    private NativeOutboundHandler nativeOutboundHandler;
     private FakeTcpChannel channel;
 
     @Before
@@ -102,19 +104,17 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         };
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         TransportHandshaker handshaker = new TransportHandshaker(version, threadPool, (n, c, r, v) -> {});
-        outboundHandler = new OutboundHandler(
+        outboundHandler = new OutboundHandler(new StatsTracker(), threadPool);
+        TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, outboundHandler::sendBytes);
+        requestHandlers = new Transport.RequestHandlers();
+        responseHandlers = new Transport.ResponseHandlers();
+        handler = new InboundHandler(
             "node",
             version,
             new String[0],
             new StatsTracker(),
             threadPool,
-            BigArrays.NON_RECYCLING_INSTANCE
-        );
-        TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, outboundHandler::sendBytes);
-        requestHandlers = new Transport.RequestHandlers();
-        responseHandlers = new Transport.ResponseHandlers();
-        handler = new InboundHandler(
-            threadPool,
+            BigArrays.NON_RECYCLING_INSTANCE,
             outboundHandler,
             namedWriteableRegistry,
             handshaker,
@@ -122,6 +122,15 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             requestHandlers,
             responseHandlers,
             NoopTracer.INSTANCE
+        );
+        nativeOutboundHandler = new NativeOutboundHandler(
+            "node",
+            version,
+            new String[0],
+            new StatsTracker(),
+            threadPool,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            outboundHandler
         );
     }
 
@@ -405,7 +414,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             false
         );
 
-        outboundHandler.setMessageListener(new TransportMessageListener() {
+        nativeOutboundHandler.setMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action, Exception error) {
                 exceptionCaptor.set(error);
@@ -481,7 +490,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             false
         );
 
-        outboundHandler.setMessageListener(new TransportMessageListener() {
+        nativeOutboundHandler.setMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action, Exception error) {
                 exceptionCaptor.set(error);
