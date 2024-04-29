@@ -751,8 +751,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         )
     );
 
-    public static List<SettingUpgrader<?
-      BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
+    public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 
     /**
      * Map of feature flag name to feature-flagged cluster settings. Once each feature
