@@ -152,6 +152,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final InboundHandler inboundHandler;
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
     private final RequestHandlers requestHandlers = new RequestHandlers();
+    private final NativeOutboundHandler handshakerHandler;
 
     private final AtomicLong outboundConnectionCount = new AtomicLong(); // also used as a correlation ID for open/close logs
 
@@ -188,11 +189,21 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
         BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
 
-        this.outboundHandler = new OutboundHandler(nodeName, version, features, statsTracker, threadPool, bigArrays);
+        this.outboundHandler = new OutboundHandler(statsTracker, threadPool);
+        this.handshakerHandler = new NativeOutboundHandler(
+            nodeName,
+            version,
+            features,
+            statsTracker,
+            threadPool,
+            bigArrays,
+            outboundHandler
+        );
+
         this.handshaker = new TransportHandshaker(
             version,
             threadPool,
-            (node, channel, requestId, v) -> outboundHandler.sendRequest(
+            (node, channel, requestId, v) -> handshakerHandler.sendRequest(
                 node,
                 channel,
                 requestId,
@@ -206,7 +217,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         );
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
         this.inboundHandler = new InboundHandler(
+            nodeName,
+            version,
+            features,
+            statsTracker,
             threadPool,
+            bigArrays,
             outboundHandler,
             namedWriteableRegistry,
             handshaker,
@@ -238,7 +254,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     public synchronized void setMessageListener(TransportMessageListener listener) {
-        outboundHandler.setMessageListener(listener);
         inboundHandler.setMessageListener(listener);
     }
 
@@ -319,7 +334,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
-            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compress, false);
+            handshakerHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compress, false);
         }
     }
 
