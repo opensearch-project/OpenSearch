@@ -33,6 +33,7 @@
 package org.opensearch.common.blobstore;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,8 +43,9 @@ import java.util.List;
 /**
  * The list of paths where a blob can reside.  The contents of the paths are dependent upon the implementation of {@link BlobContainer}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class BlobPath implements Iterable<String> {
 
     private static final String SEPARATOR = "/";
@@ -75,6 +77,15 @@ public class BlobPath implements Iterable<String> {
         List<String> paths = new ArrayList<>(this.paths);
         paths.add(path);
         return new BlobPath(Collections.unmodifiableList(paths));
+    }
+
+    /**
+     * Add additional level of paths to the existing path and returns new {@link BlobPath} with the updated paths.
+     */
+    public BlobPath add(Iterable<String> paths) {
+        List<String> updatedPaths = new ArrayList<>(this.paths);
+        paths.iterator().forEachRemaining(updatedPaths::add);
+        return new BlobPath(Collections.unmodifiableList(updatedPaths));
     }
 
     public String buildAsString() {

@@ -51,7 +51,7 @@ public class RemoteTransferContainer implements Closeable {
     private final String remoteFileName;
     private final boolean failTransferIfFileExists;
     private final WritePriority writePriority;
-    private final long expectedChecksum;
+    private final Long expectedChecksum;
     private final OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier;
     private final boolean isRemoteDataIntegritySupported;
     private final AtomicBoolean readBlock = new AtomicBoolean();
@@ -77,7 +77,7 @@ public class RemoteTransferContainer implements Closeable {
         boolean failTransferIfFileExists,
         WritePriority writePriority,
         OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier,
-        long expectedChecksum,
+        Long expectedChecksum,
         boolean isRemoteDataIntegritySupported
     ) {
         this.fileName = fileName;
@@ -190,7 +190,7 @@ public class RemoteTransferContainer implements Closeable {
     }
 
     private boolean isRemoteDataIntegrityCheckPossible() {
-        return isRemoteDataIntegritySupported;
+        return isRemoteDataIntegritySupported && Objects.nonNull(expectedChecksum);
     }
 
     private void finalizeUpload(boolean uploadSuccessful) throws IOException {
@@ -198,7 +198,7 @@ public class RemoteTransferContainer implements Closeable {
             return;
         }
 
-        if (uploadSuccessful) {
+        if (uploadSuccessful && Objects.nonNull(expectedChecksum)) {
             long actualChecksum = getActualChecksum();
             if (actualChecksum != expectedChecksum) {
                 throw new CorruptIndexException(

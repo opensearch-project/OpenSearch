@@ -9,15 +9,27 @@
 package org.opensearch.remotemigration;
 
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotState;
 
 import java.util.Map;
 import java.util.Optional;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
+import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -98,4 +110,88 @@ public class RemoteStoreMigrationShardAllocationBaseTestCase extends MigrationBa
         return (isPrimary ? table.primaryShard() : table.replicaShards().get(0));
     }
 
+    // create a snapshot
+    public static SnapshotInfo createSnapshot(String snapshotRepoName, String snapshotName, String... indices) {
+        SnapshotInfo snapshotInfo = internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName)
+            .setIndices(indices)
+            .setWaitForCompletion(true)
+            .get()
+            .getSnapshotInfo();
+
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertTrue(snapshotInfo.successfulShards() > 0);
+        assertEquals(0, snapshotInfo.failedShards());
+        return snapshotInfo;
+    }
+
+    // create new index
+    public static void createIndex(String indexName, int replicaCount) {
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicaCount)
+                        .build()
+                )
+                .get()
+        );
+    }
+
+    // restore indices from a snapshot
+    public static RestoreSnapshotResponse restoreSnapshot(String snapshotRepoName, String snapshotName, String restoredIndexName) {
+        RestoreSnapshotResponse restoreSnapshotResponse = internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName)
+            .setWaitForCompletion(false)
+            .setIndices(TEST_INDEX)
+            .setRenamePattern(TEST_INDEX)
+            .setRenameReplacement(restoredIndexName)
+            .get();
+        assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
+        return restoreSnapshotResponse;
+    }
+
+    // verify that the created index is not remote store backed
+    public static void assertNonRemoteStoreBackedIndex(String indexName) {
+        Settings indexSettings = internalCluster().client()
+            .admin()
+            .indices()
+            .prepareGetIndex()
+            .execute()
+            .actionGet()
+            .getSettings()
+            .get(indexName);
+        assertEquals(ReplicationType.DOCUMENT.toString(), indexSettings.get(SETTING_REPLICATION_TYPE));
+        assertNull(indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
+        assertNull(indexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
+        assertNull(indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
+    }
+
+    // verify that the created index is remote store backed
+    public static void assertRemoteStoreBackedIndex(String indexName) {
+        Settings indexSettings = internalCluster().client()
+            .admin()
+            .indices()
+            .prepareGetIndex()
+            .execute()
+            .actionGet()
+            .getSettings()
+            .get(indexName);
+        assertEquals(ReplicationType.SEGMENT.toString(), indexSettings.get(SETTING_REPLICATION_TYPE));
+        assertEquals("true", indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
+        assertEquals(REPOSITORY_NAME, indexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
+        assertEquals(REPOSITORY_2_NAME, indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
+        assertEquals(
+            IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
+            INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings)
+        );
+    }
 }

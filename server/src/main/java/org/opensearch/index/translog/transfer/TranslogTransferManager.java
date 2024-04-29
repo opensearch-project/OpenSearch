@@ -28,6 +28,7 @@ import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -58,17 +59,12 @@ public class TranslogTransferManager {
     private final TransferService transferService;
     private final BlobPath remoteDataTransferPath;
     private final BlobPath remoteMetadataTransferPath;
-    private final BlobPath remoteBaseTransferPath;
     private final FileTransferTracker fileTransferTracker;
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
-
-    private static final long TRANSFER_TIMEOUT_IN_MILLIS = 30000;
-
+    private final RemoteStoreSettings remoteStoreSettings;
     private static final int METADATA_FILES_TO_FETCH = 10;
 
     private final Logger logger;
-    private final static String METADATA_DIR = "metadata";
-    private final static String DATA_DIR = "data";
 
     private static final VersionedCodecStreamWrapper<TranslogTransferMetadata> metadataStreamWrapper = new VersionedCodecStreamWrapper<>(
         new TranslogTransferMetadataHandler(),
@@ -79,18 +75,20 @@ public class TranslogTransferManager {
     public TranslogTransferManager(
         ShardId shardId,
         TransferService transferService,
-        BlobPath remoteBaseTransferPath,
+        BlobPath remoteDataTransferPath,
+        BlobPath remoteMetadataTransferPath,
         FileTransferTracker fileTransferTracker,
-        RemoteTranslogTransferTracker remoteTranslogTransferTracker
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        RemoteStoreSettings remoteStoreSettings
     ) {
         this.shardId = shardId;
         this.transferService = transferService;
-        this.remoteBaseTransferPath = remoteBaseTransferPath;
-        this.remoteDataTransferPath = remoteBaseTransferPath.add(DATA_DIR);
-        this.remoteMetadataTransferPath = remoteBaseTransferPath.add(METADATA_DIR);
+        this.remoteDataTransferPath = remoteDataTransferPath;
+        this.remoteMetadataTransferPath = remoteMetadataTransferPath;
         this.fileTransferTracker = fileTransferTracker;
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
+        this.remoteStoreSettings = remoteStoreSettings;
     }
 
     public RemoteTranslogTransferTracker getRemoteTranslogTransferTracker() {
@@ -154,7 +152,7 @@ public class TranslogTransferManager {
             transferService.uploadBlobs(toUpload, blobPathMap, latchedActionListener, WritePriority.HIGH);
 
             try {
-                if (latch.await(TRANSFER_TIMEOUT_IN_MILLIS, TimeUnit.MILLISECONDS) == false) {
+                if (latch.await(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
                     Exception ex = new TranslogUploadFailedException(
                         "Timed out waiting for transfer of snapshot " + transferSnapshot + " to complete"
                     );
@@ -456,17 +454,27 @@ public class TranslogTransferManager {
         );
     }
 
+    /**
+     * Deletes all the translog content related to the underlying shard.
+     */
     public void delete() {
-        // cleans up all the translog contents in async fashion
-        transferService.deleteAsync(ThreadPool.Names.REMOTE_PURGE, remoteBaseTransferPath, new ActionListener<>() {
+        // Delete the translog data content from the remote store.
+        delete(remoteDataTransferPath);
+        // Delete the translog metadata content from the remote store.
+        delete(remoteMetadataTransferPath);
+    }
+
+    private void delete(BlobPath path) {
+        // cleans up all the translog contents in async fashion for the given path
+        transferService.deleteAsync(ThreadPool.Names.REMOTE_PURGE, path, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
-                logger.info("Deleted all remote translog data");
+                logger.info("Deleted all remote translog data at path={}", path);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("Exception occurred while cleaning translog", e);
+                logger.error(new ParameterizedMessage("Exception occurred while cleaning translog at path={}", path), e);
             }
         });
     }

@@ -54,6 +54,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.indices.InvalidIndexTemplateException;
 import org.opensearch.indices.SystemIndices;
@@ -2050,7 +2051,8 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             xContentRegistry,
             new SystemIndices(Collections.emptyMap()),
             true,
-            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+            DefaultRemoteStoreSettings.INSTANCE
         );
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(
             clusterService,
