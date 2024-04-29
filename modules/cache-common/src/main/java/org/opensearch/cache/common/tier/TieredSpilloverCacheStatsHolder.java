@@ -37,6 +37,11 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
     /** Dimension value for on-disk cache, like EhcacheDiskCache. */
     public static final String TIER_DIMENSION_VALUE_DISK = "disk";
 
+    /**
+     * Constructor for the stats holder.
+     * @param originalDimensionNames the original dimension names, not including TIER_DIMENSION_NAME
+     * @param diskCacheEnabled whether the disk tier starts out enabled
+     */
     public TieredSpilloverCacheStatsHolder(List<String> originalDimensionNames, boolean diskCacheEnabled) {
         super(getDimensionNamesWithTier(originalDimensionNames));
         this.diskCacheEnabled = diskCacheEnabled;
