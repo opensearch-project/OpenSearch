@@ -35,7 +35,7 @@ public class RemoteStorePathStrategyResolverTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), pathType).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
-        RemoteStorePathStrategyResolver resolver = new RemoteStorePathStrategyResolver(remoteStoreSettings, () -> Version.CURRENT);
+        RemoteStorePathStrategyResolver resolver = new RemoteStorePathStrategyResolver(remoteStoreSettings, () -> Version.V_2_14_0);
         assertEquals(pathType, resolver.get().getType());
         if (pathType.requiresHashAlgorithm()) {
             assertNotNull(resolver.get().getHashAlgorithm());
@@ -49,7 +49,7 @@ public class RemoteStorePathStrategyResolverTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), PathType.FIXED).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
-        RemoteStorePathStrategyResolver resolver = new RemoteStorePathStrategyResolver(remoteStoreSettings, () -> Version.CURRENT);
+        RemoteStorePathStrategyResolver resolver = new RemoteStorePathStrategyResolver(remoteStoreSettings, () -> Version.V_2_14_0);
         assertEquals(PathType.FIXED, resolver.get().getType());
 
         // FIXED type with hash algorithm
@@ -59,14 +59,14 @@ public class RemoteStorePathStrategyResolverTests extends OpenSearchTestCase {
             .build();
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
-        resolver = new RemoteStorePathStrategyResolver(remoteStoreSettings, () -> Version.CURRENT);
+        resolver = new RemoteStorePathStrategyResolver(remoteStoreSettings, () -> Version.V_2_14_0);
         assertEquals(PathType.FIXED, resolver.get().getType());
 
         // HASHED_PREFIX type with FNV_1A_COMPOSITE
         settings = Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), PathType.HASHED_PREFIX).build();
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
-        resolver = new RemoteStorePathStrategyResolver(remoteStoreSettings, () -> Version.CURRENT);
+        resolver = new RemoteStorePathStrategyResolver(remoteStoreSettings, () -> Version.V_2_14_0);
         assertEquals(PathType.HASHED_PREFIX, resolver.get().getType());
         assertEquals(PathHashAlgorithm.FNV_1A_COMPOSITE_1, resolver.get().getHashAlgorithm());
 
@@ -74,7 +74,7 @@ public class RemoteStorePathStrategyResolverTests extends OpenSearchTestCase {
         settings = Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), PathType.HASHED_PREFIX).build();
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
-        resolver = new RemoteStorePathStrategyResolver(remoteStoreSettings, () -> Version.CURRENT);
+        resolver = new RemoteStorePathStrategyResolver(remoteStoreSettings, () -> Version.V_2_14_0);
         assertEquals(PathType.HASHED_PREFIX, resolver.get().getType());
         assertEquals(PathHashAlgorithm.FNV_1A_COMPOSITE_1, resolver.get().getHashAlgorithm());
 
@@ -85,7 +85,7 @@ public class RemoteStorePathStrategyResolverTests extends OpenSearchTestCase {
             .build();
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
-        resolver = new RemoteStorePathStrategyResolver(remoteStoreSettings, () -> Version.CURRENT);
+        resolver = new RemoteStorePathStrategyResolver(remoteStoreSettings, () -> Version.V_2_14_0);
         assertEquals(PathType.HASHED_PREFIX, resolver.get().getType());
         assertEquals(PathHashAlgorithm.FNV_1A_BASE64, resolver.get().getHashAlgorithm());
 
@@ -96,7 +96,7 @@ public class RemoteStorePathStrategyResolverTests extends OpenSearchTestCase {
             .build();
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
-        resolver = new RemoteStorePathStrategyResolver(remoteStoreSettings, () -> Version.CURRENT);
+        resolver = new RemoteStorePathStrategyResolver(remoteStoreSettings, () -> Version.V_2_14_0);
         assertEquals(PathType.HASHED_PREFIX, resolver.get().getType());
         assertEquals(PathHashAlgorithm.FNV_1A_BASE64, resolver.get().getHashAlgorithm());
     }
@@ -107,7 +107,7 @@ public class RemoteStorePathStrategyResolverTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
-        RemoteStorePathStrategyResolver resolver = new RemoteStorePathStrategyResolver(remoteStoreSettings, () -> Version.CURRENT);
+        RemoteStorePathStrategyResolver resolver = new RemoteStorePathStrategyResolver(remoteStoreSettings, () -> Version.V_2_14_0);
         assertEquals(PathType.FIXED, resolver.get().getType());
         assertNull(resolver.get().getHashAlgorithm());
 
