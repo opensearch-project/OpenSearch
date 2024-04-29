@@ -272,9 +272,11 @@ public class RemoteClusterStateService implements Closeable {
             return null;
         }
 
+        List<IndexMetadata> indexMetadataList = new ArrayList<>(clusterState.metadata().indices().values());
         UploadedMetadataResults uploadedMetadataResults = writeMetadataInParallel(
             clusterState,
-            new ArrayList<>(clusterState.metadata().indices().values()),
+            indexMetadataList,
+            ClusterState.UNKNOWN_UUID.equals(previousClusterUUID) ? indexMetadataList : Collections.emptyList(),
             clusterState.metadata().customs(),
             true,
             true,
@@ -391,11 +393,20 @@ public class RemoteClusterStateService implements Closeable {
         // For migration case from codec V0 or V1 to V2, we have added null check on metadata attribute files,
         // If file is empty and codec is 1 then write global metadata.
         if (firstUpload) {
-            uploadedMetadataResults = writeMetadataInParallel(clusterState, toUpload, clusterState.metadata().customs(), true, true, true);
+            uploadedMetadataResults = writeMetadataInParallel(
+                clusterState,
+                toUpload,
+                newIndexMetadataList,
+                clusterState.metadata().customs(),
+                true,
+                true,
+                true
+            );
         } else {
             uploadedMetadataResults = writeMetadataInParallel(
                 clusterState,
                 toUpload,
+                newIndexMetadataList,
                 customsToUpload,
                 updateCoordinationMetadata,
                 updateSettingsMetadata,
@@ -473,8 +484,9 @@ public class RemoteClusterStateService implements Closeable {
         boolean uploadSettingsMetadata,
         boolean uploadTemplateMetadata
     ) throws IOException {
-        int totalUploadTasks = indexToUpload.size() + newIndexMetadataList.size() + customToUpload.size() +
-            (uploadCoordinationMetadata ? 1 : 0) + (uploadSettingsMetadata ? 1 : 0) + (uploadTemplateMetadata ? 1 : 0);
+        int totalUploadTasks = indexToUpload.size() + newIndexMetadataList.size() + customToUpload.size() + (uploadCoordinationMetadata
+            ? 1
+            : 0) + (uploadSettingsMetadata ? 1 : 0) + (uploadTemplateMetadata ? 1 : 0);
         CountDownLatch latch = new CountDownLatch(totalUploadTasks);
         Map<String, CheckedRunnable<IOException>> uploadTasks = new HashMap<>(totalUploadTasks);
         Map<String, ClusterMetadataManifest.UploadedMetadata> results = new HashMap<>(totalUploadTasks);

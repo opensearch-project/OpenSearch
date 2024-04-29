@@ -9,6 +9,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.AbstractDiffable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -25,6 +26,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
+@PublicApi(since = "3.0.0")
 public class TemplatesMetadata extends AbstractDiffable<TemplatesMetadata> implements ToXContentFragment {
     public static TemplatesMetadata EMPTY_METADATA = builder().build();
     private final Map<String, IndexTemplateMetadata> templates;
@@ -83,6 +85,7 @@ public class TemplatesMetadata extends AbstractDiffable<TemplatesMetadata> imple
      *
      * @opensearch.api
      */
+    @PublicApi(since = "3.0.0")
     public static class Builder {
         private final Map<String, IndexTemplateMetadata> templates;
 
