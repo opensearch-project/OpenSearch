@@ -98,7 +98,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private String globalIndex;
     private Boolean globalRequireAlias;
     private BatchIngestionOption batchIngestionOption = BatchIngestionOption.NONE;
-    private int maximumBatchSize = 1;
+    private int batchSize = 1;
 
     private long sizeInBytes = 0;
 
@@ -112,7 +112,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         timeout = in.readTimeValue();
         if (in.getVersion().onOrAfter(MINIMAL_VERSION_SUPPORT_BATCH)) {
             batchIngestionOption = in.readEnum(BatchIngestionOption.class);
-            maximumBatchSize = in.readInt();
+            batchSize = in.readInt();
         }
     }
 
@@ -372,25 +372,25 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     }
 
     /**
-     * Set maximum batch size
-     * @param size maximum batch size from input
+     * Set batch size
+     * @param size batch size from input
      * @return {@link BulkRequest}
      */
-    public BulkRequest maximumBatchSize(int size) {
+    public BulkRequest batchSize(int size) {
         if (size > 1) {
-            this.maximumBatchSize = size;
+            this.batchSize = size;
         } else {
-            this.maximumBatchSize = 1;
+            this.batchSize = 1;
         }
         return this;
     }
 
     /**
-     * Get maximum batch size
-     * @return maximum batch size
+     * Get batch size
+     * @return batch size
      */
-    public int maximumBatchSize() {
-        return this.maximumBatchSize;
+    public int batchSize() {
+        return this.batchSize;
     }
 
     /**
@@ -502,7 +502,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         out.writeTimeValue(timeout);
         if (out.getVersion().onOrAfter(MINIMAL_VERSION_SUPPORT_BATCH)) {
             out.writeEnum(batchIngestionOption);
-            out.writeInt(maximumBatchSize);
+            out.writeInt(batchSize);
         }
     }
 

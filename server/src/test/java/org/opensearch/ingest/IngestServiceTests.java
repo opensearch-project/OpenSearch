@@ -144,7 +144,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         when(threadPool.executor(anyString())).thenReturn(executorService);
         mockBulkRequest = mock(BulkRequest.class);
         lenient().when(mockBulkRequest.batchIngestionOption()).thenReturn(BatchIngestionOption.NONE);
-        lenient().when(mockBulkRequest.maximumBatchSize()).thenReturn(1);
+        lenient().when(mockBulkRequest.batchSize()).thenReturn(1);
     }
 
     public void testIngestPlugin() {
@@ -1711,7 +1711,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         IndexRequest indexRequest4 = new IndexRequest("_index").id("_id4").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest4);
         bulkRequest.batchIngestionOption("enabled");
-        bulkRequest.maximumBatchSize(2);
+        bulkRequest.batchSize(2);
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
@@ -1748,7 +1748,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         IndexRequest indexRequest4 = new IndexRequest("_index").id("_id4").source(emptyMap()).setPipeline("_id").setFinalPipeline("_final");
         bulkRequest.add(indexRequest4);
         bulkRequest.batchIngestionOption("enabled");
-        bulkRequest.maximumBatchSize(2);
+        bulkRequest.batchSize(2);
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
@@ -1778,7 +1778,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest1);
         bulkRequest.batchIngestionOption("enabled");
-        bulkRequest.maximumBatchSize(2);
+        bulkRequest.batchSize(2);
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
@@ -1817,7 +1817,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
             .setFinalPipeline("_none");
         bulkRequest.add(indexRequest2);
         bulkRequest.batchIngestionOption("enabled");
-        bulkRequest.maximumBatchSize(2);
+        bulkRequest.batchSize(2);
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
@@ -1848,7 +1848,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         bulkRequest.add(new DeleteRequest("_index", "_id"));
         bulkRequest.add(new DeleteRequest("_index", "_id"));
         bulkRequest.batchIngestionOption("enabled");
-        bulkRequest.maximumBatchSize(2);
+        bulkRequest.batchSize(2);
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
@@ -1882,7 +1882,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest2);
         bulkRequest.batchIngestionOption("enabled");
-        bulkRequest.maximumBatchSize(2);
+        bulkRequest.batchSize(2);
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
@@ -1915,7 +1915,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest2);
         bulkRequest.batchIngestionOption("enabled");
-        bulkRequest.maximumBatchSize(2);
+        bulkRequest.batchSize(2);
 
         List<IngestDocumentWrapper> results = Arrays.asList(
             new IngestDocumentWrapper(0, IngestService.toIngestDocument(indexRequest1), null),

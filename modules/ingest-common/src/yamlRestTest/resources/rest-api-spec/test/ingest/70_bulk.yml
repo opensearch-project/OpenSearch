@@ -178,7 +178,7 @@ teardown:
       bulk:
         refresh: true
         batch_ingestion_option: "enabled"
-        maximum_batch_size: 2
+        batch_size: 2
         pipeline: "pipeline1"
         body:
           - '{"index": {"_index": "test_index", "_id": "test_id1"}}'

@@ -527,7 +527,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             @Override
             protected void doRun() {
                 BatchIngestionOption batchOption = originalBulkRequest.batchIngestionOption();
-                int batchSize = originalBulkRequest.maximumBatchSize();
+                int batchSize = originalBulkRequest.batchSize();
                 if (shouldExecuteBulkRequestInBatch(batchOption, originalBulkRequest.requests().size(), batchSize)) {
                     runBulkRequestInBatch(numberOfActionRequests, actionRequests, onFailure, onCompletion, onDropped, originalBulkRequest);
                     return;
@@ -637,7 +637,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             i++;
         }
 
-        int batchSize = originalBulkRequest.maximumBatchSize();
+        int batchSize = originalBulkRequest.batchSize();
         List<List<IndexRequestWrapper>> batches = prepareBatches(batchSize, indexRequestWrappers);
         logger.debug("batchSize: {}, batches: {}", batchSize, batches.size());
 

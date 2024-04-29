@@ -98,7 +98,7 @@ public class RestBulkAction extends BaseRestHandler {
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
         bulkRequest.batchIngestionOption(request.param("batch_ingestion_option", ""));
-        bulkRequest.maximumBatchSize(request.paramAsInt("maximum_batch_size", 1));
+        bulkRequest.batchSize(request.paramAsInt("batch_size", 1));
         bulkRequest.add(
             request.requiredContent(),
             defaultIndex,
