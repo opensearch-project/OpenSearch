@@ -279,10 +279,8 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
      * uploads. It checks if the remote store path type is {@code HASHED_PREFIX} and returns true if so.
      */
     private boolean requiresPathUpload(IndexMetadata indexMetadata, IndexMetadata prevIndexMetadata) {
-        PathType pathType = determineRemoteStorePathStrategy(indexMetadata, false).getType();
-        PathType prevPathType = Objects.nonNull(prevIndexMetadata)
-            ? determineRemoteStorePathStrategy(prevIndexMetadata, false).getType()
-            : null;
+        PathType pathType = determineRemoteStorePathStrategy(indexMetadata).getType();
+        PathType prevPathType = Objects.nonNull(prevIndexMetadata) ? determineRemoteStorePathStrategy(prevIndexMetadata).getType() : null;
         // If previous metadata is null or previous path type is not hashed_prefix, and along with new path type being
         // hashed_prefix, then this can mean any of the following -
         // 1. This is creation of remote index with hashed_prefix
@@ -297,7 +295,10 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
 
     /**
      * Creates a file name by combining index uuid, index metadata version and file version. # has been chosen as the
-     * delimiter since it does not collide with any possible letters in file name.
+     * delimiter since it does not collide with any possible letters in file name. The random base64 uuid is added to
+     * ensure that the file does not get overwritten. We do check if translog and segment repo are same by name, but
+     * it is possible that a user configures same repo by different name for translog and segment in which case, this
+     * will lead to file not being overwritten.
      */
     private String generateFileName(String indexUUID, long indexMetadataVersion, String fileVersion) {
         return String.join(DELIMITER, indexUUID, Long.toString(indexMetadataVersion), fileVersion, UUIDs.randomBase64UUID());

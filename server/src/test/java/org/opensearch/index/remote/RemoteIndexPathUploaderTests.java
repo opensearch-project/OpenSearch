@@ -180,15 +180,23 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
         assertEquals(0, failureCount.get());
 
         // Case 2 - Empty remoteCustomData
-        indexMetadataList = List.of(createIndexMetadata(new HashMap<>()));
-        remoteIndexPathUploader.doOnUpload(indexMetadataList, Collections.emptyMap(), actionListener);
-        assertEquals(2, successCount.get());
+        assertThrows(
+            AssertionError.class,
+            () -> remoteIndexPathUploader.doOnUpload(List.of(createIndexMetadata(new HashMap<>())), Collections.emptyMap(), actionListener)
+        );
+        assertEquals(1, successCount.get());
         assertEquals(0, failureCount.get());
 
         // Case 3 - RemoteStoreEnums.PathType.NAME not in remoteCustomData map
-        indexMetadataList = List.of(createIndexMetadata(Map.of("test", "test")));
-        remoteIndexPathUploader.doOnUpload(indexMetadataList, Collections.emptyMap(), actionListener);
-        assertEquals(3, successCount.get());
+        assertThrows(
+            AssertionError.class,
+            () -> remoteIndexPathUploader.doOnUpload(
+                List.of(createIndexMetadata(Map.of("test", "test"))),
+                Collections.emptyMap(),
+                actionListener
+            )
+        );
+        assertEquals(1, successCount.get());
         assertEquals(0, failureCount.get());
 
         // Case 4 - RemoteStoreEnums.PathType.NAME is not HASHED_PREFIX
@@ -199,7 +207,7 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
         remoteCustomData.put(PathHashAlgorithm.NAME, pathHashAlgorithm);
         indexMetadataList = List.of(createIndexMetadata(remoteCustomData));
         remoteIndexPathUploader.doOnUpload(indexMetadataList, Collections.emptyMap(), actionListener);
-        assertEquals(4, successCount.get());
+        assertEquals(2, successCount.get());
         assertEquals(0, failureCount.get());
     }
 

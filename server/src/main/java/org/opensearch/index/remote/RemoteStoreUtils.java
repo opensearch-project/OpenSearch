@@ -152,11 +152,9 @@ public class RemoteStoreUtils {
     /**
      * Determines the remote store path strategy by reading the custom data map in IndexMetadata class.
      */
-    public static RemoteStorePathStrategy determineRemoteStorePathStrategy(IndexMetadata indexMetadata, boolean assertRemoteCustomData) {
+    public static RemoteStorePathStrategy determineRemoteStorePathStrategy(IndexMetadata indexMetadata) {
         Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
-        if (assertRemoteCustomData) {
-            assert remoteCustomData == null || remoteCustomData.containsKey(RemoteStoreEnums.PathType.NAME);
-        }
+        assert remoteCustomData == null || remoteCustomData.containsKey(RemoteStoreEnums.PathType.NAME);
         if (remoteCustomData != null && remoteCustomData.containsKey(RemoteStoreEnums.PathType.NAME)) {
             RemoteStoreEnums.PathType pathType = RemoteStoreEnums.PathType.parseString(
                 remoteCustomData.get(RemoteStoreEnums.PathType.NAME)

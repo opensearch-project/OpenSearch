@@ -527,7 +527,7 @@ public class RemoteClusterStateService implements Closeable {
      * Invokes the index metadata upload listener but does not wait for the execution to complete.
      */
     private void invokeIndexMetadataUploadListeners(
-        List<IndexMetadata> udpatedIndexMetadataList,
+        List<IndexMetadata> updatedIndexMetadataList,
         Map<String, IndexMetadata> prevIndexMetadataByName,
         CountDownLatch latch,
         List<Exception> exceptionList
@@ -535,9 +535,9 @@ public class RemoteClusterStateService implements Closeable {
         for (IndexMetadataUploadListener listener : indexMetadataUploadListeners) {
             String listenerName = listener.getClass().getSimpleName();
             listener.onUpload(
-                udpatedIndexMetadataList,
+                updatedIndexMetadataList,
                 prevIndexMetadataByName,
-                getIndexMetadataUploadActionListener(udpatedIndexMetadataList, prevIndexMetadataByName, latch, exceptionList, listenerName)
+                getIndexMetadataUploadActionListener(updatedIndexMetadataList, prevIndexMetadataByName, latch, exceptionList, listenerName)
             );
         }
 
