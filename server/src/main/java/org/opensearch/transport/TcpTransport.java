@@ -254,6 +254,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     public synchronized void setMessageListener(TransportMessageListener listener) {
+        // outboundHandler.setMessageListener(listener);
         inboundHandler.setMessageListener(listener);
     }
 

@@ -183,7 +183,7 @@ public final class NativeOutboundHandler extends ProtocolOutboundHandler {
     private void sendMessage(TcpChannel channel, NativeOutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
         MessageSerializer serializer = new MessageSerializer(networkMessage, bigArrays);
         OutboundHandler.SendContext sendContext = new OutboundHandler.SendContext(statsTracker, channel, serializer, listener, serializer);
-        handler.internalSend(channel, sendContext);
+        handler.sendInternalBytes(channel, sendContext);
     }
 
     public void setMessageListener(TransportMessageListener listener) {

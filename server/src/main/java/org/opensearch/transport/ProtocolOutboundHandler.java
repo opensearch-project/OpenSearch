@@ -18,7 +18,7 @@ import java.util.Set;
 /**
  * Protocol based outbound data handler.
  * Different transport protocols can have different implementations of this class.
- * 
+ *
  * @opensearch.internal
  */
 public abstract class ProtocolOutboundHandler {
