@@ -1225,7 +1225,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
 
         // force refresh both index1 and index2
         flushAndRefresh(index1, index2);
-        // create another cache entry in index 1, this should not be cleaned up.
+        // create another cache entry in index 1 same as memorySizeForIndex1With1Entries, this should not be cleaned up.
         createCacheEntry(client, index1, "hello");
         // sleep until cache cleaner would have cleaned up the stale key from index2
         assertBusy(() -> {
@@ -1233,7 +1233,8 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
             // cache cleaner should have only cleaned up the stale entities for index1
             long currentMemorySizeInBytesForIndex1 = getRequestCacheStats(client, index1).getMemorySizeInBytes();
-            assertTrue(currentMemorySizeInBytesForIndex1 < memorySizeForIndex1With2Entries);
+            // assert the memory size of index1 to only contain 1 entry added after flushAndRefresh
+            assertEquals(memorySizeForIndex1With1Entries, currentMemorySizeInBytesForIndex1);
             // cache for index1 should not be empty since there was an item cached after flushAndRefresh
             assertTrue(currentMemorySizeInBytesForIndex1 > 0);
         }, cacheCleanIntervalInMillis * 2, TimeUnit.MILLISECONDS);
