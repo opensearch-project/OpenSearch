@@ -133,7 +133,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         this.dimensionNames = builder.cacheConfig.getDimensionNames();
         this.tierValueMap = Map.of(onHeapCache, TIER_DIMENSION_VALUE_ON_HEAP, diskCache, TIER_DIMENSION_VALUE_DISK);
         // Pass "tier" as the innermost dimension name, in addition to whatever dimensions are specified for the cache as a whole
-        this.statsHolder = new TieredSpilloverCacheStatsHolder(dimensionNames);
+        this.statsHolder = new TieredSpilloverCacheStatsHolder(dimensionNames, isDiskCacheEnabled);
         this.policies = builder.policies; // Will never be null; builder initializes it to an empty list
         builder.cacheConfig.getClusterSettings()
             .addSettingsUpdateConsumer(DISK_CACHE_ENABLED_SETTING_MAP.get(builder.cacheType), this::enableDisableDiskCache);
@@ -154,6 +154,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         // When disk cache is disabled, we are not clearing up the disk cache entries yet as that should be part of
         // separate cache/clear API.
         this.caches.put(diskCache, isDiskCacheEnabled);
+        this.statsHolder.setDiskCacheEnabled(isDiskCacheEnabled);
     }
 
     @Override
@@ -287,18 +288,15 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
     void handleRemovalFromHeapTier(RemovalNotification<ICacheKey<K>, V> notification) {
         ICacheKey<K> key = notification.getKey();
-        boolean wasEvicted = false;
-        if (caches.get(diskCache)
-            && SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason())
-            && evaluatePolicies(notification.getValue())) {
+        boolean wasEvicted = SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason());
+        if (caches.get(diskCache) && wasEvicted && evaluatePolicies(notification.getValue())) {
             try (ReleasableLock ignore = writeLock.acquire()) {
                 diskCache.put(key, notification.getValue()); // spill over to the disk tier and increment its stats
                 updateStatsOnPut(TIER_DIMENSION_VALUE_DISK, key, notification.getValue());
             }
-            wasEvicted = true;
         } else {
-            // If the removal was for another reason, send this notification to the TSC's removal listener, as the value is leaving the TSC
-            // entirely
+            // If the value is not going to the disk cache, send this notification to the TSC's removal listener
+            // as the value is leaving the TSC entirely
             removalListener.onRemoval(notification);
         }
         updateStatsOnRemoval(TIER_DIMENSION_VALUE_ON_HEAP, wasEvicted, key, notification.getValue());

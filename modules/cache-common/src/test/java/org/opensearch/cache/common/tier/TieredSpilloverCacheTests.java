@@ -1277,6 +1277,34 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         // Also check the heap stats don't have zero misses or evictions
         assertNotEquals(0, heapStats.getMisses());
         assertNotEquals(0, heapStats.getEvictions());
+
+        // Now turn off the disk tier and do more misses and evictions from the heap tier.
+        // These should be added to the totals, as the disk tier is now absent
+        long missesBeforeDisablingDiskCache = totalStats.getMisses();
+        long evictionsBeforeDisablingDiskCache = totalStats.getEvictions();
+        long heapTierEvictionsBeforeDisablingDiskCache = heapStats.getEvictions();
+
+        clusterSettings.applySettings(
+            Settings.builder().put(DISK_CACHE_ENABLED_SETTING_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(), false).build()
+        );
+
+        int newMisses = randomIntBetween(10, 30);
+        for (int i = 0; i < newMisses; i++) {
+            LoadAwareCacheLoader<ICacheKey<String>, String> tieredCacheLoader = getLoadAwareCacheLoader();
+            tieredSpilloverCache.computeIfAbsent(getICacheKey(UUID.randomUUID().toString()), tieredCacheLoader);
+        }
+
+        totalStats = tieredSpilloverCache.stats().getTotalStats();
+        heapStats = getStatsSnapshotForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP);
+        assertEquals(missesBeforeDisablingDiskCache + newMisses, totalStats.getMisses());
+        assertEquals(heapTierEvictionsBeforeDisablingDiskCache + newMisses, heapStats.getEvictions());
+        assertEquals(evictionsBeforeDisablingDiskCache + newMisses, totalStats.getEvictions());
+
+        // Turn the disk cache back on in cluster settings for other tests
+        clusterSettings.applySettings(
+            Settings.builder().put(DISK_CACHE_ENABLED_SETTING_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(), true).build()
+        );
+
     }
 
     private List<String> getMockDimensions() {

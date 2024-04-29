@@ -23,6 +23,9 @@ import java.util.function.BiConsumer;
  */
 public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
 
+    /** Whether the disk cache is currently enabled. */
+    private boolean diskCacheEnabled;
+
     // Common values used for tier dimension
 
     /** The name for the tier dimension. */
@@ -34,8 +37,9 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
     /** Dimension value for on-disk cache, like EhcacheDiskCache. */
     public static final String TIER_DIMENSION_VALUE_DISK = "disk";
 
-    public TieredSpilloverCacheStatsHolder(List<String> originalDimensionNames) {
+    public TieredSpilloverCacheStatsHolder(List<String> originalDimensionNames, boolean diskCacheEnabled) {
         super(getDimensionNamesWithTier(originalDimensionNames));
+        this.diskCacheEnabled = diskCacheEnabled;
     }
 
     private static List<String> getDimensionNamesWithTier(List<String> dimensionNames) {
@@ -75,16 +79,16 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
     public void incrementMisses(List<String> dimensionValues) {
         final String tierValue = getAndCheckTierDimensionValue(dimensionValues);
 
-        // Only misses from the disk tier should be included in total values.
+        // If the disk tier is present, only misses from the disk tier should be included in total values.
         BiConsumer<Node, Integer> missIncrementer = (node, depth) -> {
-            if (tierValue.equals(TIER_DIMENSION_VALUE_ON_HEAP)) {
+            if (tierValue.equals(TIER_DIMENSION_VALUE_ON_HEAP) && diskCacheEnabled) {
                 // If on-heap tier, increment only the leaf node corresponding to the on heap values; not the total values in its parent
                 // nodes
                 if (isLeafNode(depth)) {
                     node.incrementMisses();
                 }
             } else {
-                // If disk tier, increment the leaf node and its parents
+                // If disk tier, or on-heap tier with a disabled disk tier, increment the leaf node and its parents
                 node.incrementMisses();
             }
         };
@@ -96,16 +100,16 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
     public void incrementEvictions(List<String> dimensionValues) {
         final String tierValue = getAndCheckTierDimensionValue(dimensionValues);
 
-        // Only evictions from the disk tier should be included in total values.
+        // If the disk tier is present, only evictions from the disk tier should be included in total values.
         BiConsumer<DefaultCacheStatsHolder.Node, Integer> evictionsIncrementer = (node, depth) -> {
-            if (tierValue.equals(TIER_DIMENSION_VALUE_ON_HEAP)) {
+            if (tierValue.equals(TIER_DIMENSION_VALUE_ON_HEAP) && diskCacheEnabled) {
                 // If on-heap tier, increment only the leaf node corresponding to the on heap values; not the total values in its parent
                 // nodes
                 if (isLeafNode(depth)) {
                     node.incrementEvictions();
                 }
             } else {
-                // If disk tier, increment the leaf node and its parents
+                // If disk tier, or on-heap tier with a disabled disk tier, increment the leaf node and its parents
                 node.incrementEvictions();
             }
         };
@@ -141,5 +145,9 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
         getAndCheckTierDimensionValue(dimensionValues);
         // Entries from either tier should be included in the total values.
         internalIncrement(dimensionValues, (node, depth) -> node.decrementEntries(), false);
+    }
+
+    void setDiskCacheEnabled(boolean diskCacheEnabled) {
+        this.diskCacheEnabled = diskCacheEnabled;
     }
 }
