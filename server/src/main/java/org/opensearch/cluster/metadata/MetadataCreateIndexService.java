@@ -52,6 +52,7 @@ import org.opensearch.cluster.ack.CreateIndexClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
@@ -97,11 +98,12 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexNameException;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -144,6 +146,8 @@ import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SET
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.isMigratingToRemoteStore;
 
 /**
  * Service responsible for submitting create index requests
@@ -188,7 +192,8 @@ public class MetadataCreateIndexService {
         final NamedXContentRegistry xContentRegistry,
         final SystemIndices systemIndices,
         final boolean forbidPrivateIndexSettings,
-        final AwarenessReplicaBalance awarenessReplicaBalance
+        final AwarenessReplicaBalance awarenessReplicaBalance,
+        final RemoteStoreSettings remoteStoreSettings
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -206,8 +211,9 @@ public class MetadataCreateIndexService {
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         createIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_KEY, true);
+        Supplier<Version> minNodeVersionSupplier = () -> clusterService.state().nodes().getMinNodeVersion();
         remoteStorePathStrategyResolver = isRemoteDataAttributePresent(settings)
-            ? new RemoteStorePathStrategyResolver(clusterService.getClusterSettings())
+            ? new RemoteStorePathStrategyResolver(remoteStoreSettings, minNodeVersionSupplier)
             : null;
     }
 
@@ -572,28 +578,23 @@ public class MetadataCreateIndexService {
      * @param assertNullOldType flag to verify that the old remote store path type is null
      */
     public void addRemoteStorePathStrategyInCustomData(IndexMetadata.Builder tmpImdBuilder, boolean assertNullOldType) {
-        if (remoteStorePathStrategyResolver != null) {
-            // It is possible that remote custom data exists already. In such cases, we need to only update the path type
-            // in the remote store custom data map.
-            Map<String, String> existingRemoteCustomData = tmpImdBuilder.removeCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
-            Map<String, String> remoteCustomData = existingRemoteCustomData == null
-                ? new HashMap<>()
-                : new HashMap<>(existingRemoteCustomData);
-            // Determine the path type for use using the remoteStorePathResolver.
-            RemoteStorePathStrategy newPathStrategy = remoteStorePathStrategyResolver.get();
-            String oldPathType = remoteCustomData.put(PathType.NAME, newPathStrategy.getType().name());
-            String oldHashAlgorithm = remoteCustomData.put(PathHashAlgorithm.NAME, newPathStrategy.getHashAlgorithm().name());
-            assert !assertNullOldType || (Objects.isNull(oldPathType) && Objects.isNull(oldHashAlgorithm));
-            logger.trace(
-                () -> new ParameterizedMessage(
-                    "Added newPathStrategy={}, replaced oldPathType={} oldHashAlgorithm={}",
-                    newPathStrategy,
-                    oldPathType,
-                    oldHashAlgorithm
-                )
-            );
-            tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, remoteCustomData);
+        if (remoteStorePathStrategyResolver == null) {
+            return;
         }
+        // It is possible that remote custom data exists already. In such cases, we need to only update the path type
+        // in the remote store custom data map.
+        Map<String, String> existingCustomData = tmpImdBuilder.removeCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        assert assertNullOldType == false || Objects.isNull(existingCustomData);
+
+        // Determine the path type for use using the remoteStorePathResolver.
+        RemoteStorePathStrategy newPathStrategy = remoteStorePathStrategyResolver.get();
+        Map<String, String> remoteCustomData = new HashMap<>();
+        remoteCustomData.put(PathType.NAME, newPathStrategy.getType().name());
+        if (Objects.nonNull(newPathStrategy.getHashAlgorithm())) {
+            remoteCustomData.put(PathHashAlgorithm.NAME, newPathStrategy.getHashAlgorithm().name());
+        }
+        logger.trace(() -> new ParameterizedMessage("Added newStrategy={}, replaced oldStrategy={}", remoteCustomData, existingCustomData));
+        tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, remoteCustomData);
     }
 
     private ClusterState applyCreateIndexRequestWithV1Templates(
@@ -948,8 +949,8 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
-        updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, combinedTemplateSettings);
-        updateRemoteStoreSettings(indexSettingsBuilder, settings);
+        updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, combinedTemplateSettings, clusterSettings);
+        updateRemoteStoreSettings(indexSettingsBuilder, currentState, clusterSettings, settings, request.index());
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
@@ -997,29 +998,34 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster level settings
      * @param combinedTemplateSettings combined template settings which satisfy the index
      */
-    private static void updateReplicationStrategy(
+    public static void updateReplicationStrategy(
         Settings.Builder settingsBuilder,
         Settings requestSettings,
-        Settings clusterSettings,
-        Settings combinedTemplateSettings
+        Settings nodeSettings,
+        Settings combinedTemplateSettings,
+        ClusterSettings clusterSettings
     ) {
         // The replication setting is applied in the following order:
-        // 1. Explicit index creation request parameter
-        // 2. Template property for replication type
-        // 3. Defaults to segment if remote store attributes on the cluster
-        // 4. Default cluster level setting
+        // 1. Strictly SEGMENT if cluster is undergoing remote store migration
+        // 2. Explicit index creation request parameter
+        // 3. Template property for replication type
+        // 4. Replication type according to cluster level settings
+        // 5. Defaults to segment if remote store attributes on the cluster
+        // 6. Default cluster level setting
 
         final ReplicationType indexReplicationType;
-        if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings)) {
+        if (isMigratingToRemoteStore(clusterSettings)) {
+            indexReplicationType = ReplicationType.SEGMENT;
+        } else if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings)) {
             indexReplicationType = INDEX_REPLICATION_TYPE_SETTING.get(requestSettings);
-        } else if (INDEX_REPLICATION_TYPE_SETTING.exists(combinedTemplateSettings)) {
+        } else if (combinedTemplateSettings != null && INDEX_REPLICATION_TYPE_SETTING.exists(combinedTemplateSettings)) {
             indexReplicationType = INDEX_REPLICATION_TYPE_SETTING.get(combinedTemplateSettings);
-        } else if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings)) {
-            indexReplicationType = CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings);
-        } else if (isRemoteDataAttributePresent(clusterSettings)) {
+        } else if (CLUSTER_REPLICATION_TYPE_SETTING.exists(nodeSettings)) {
+            indexReplicationType = CLUSTER_REPLICATION_TYPE_SETTING.get(nodeSettings);
+        } else if (isRemoteDataAttributePresent(nodeSettings)) {
             indexReplicationType = ReplicationType.SEGMENT;
         } else {
-            indexReplicationType = CLUSTER_REPLICATION_TYPE_SETTING.getDefault(clusterSettings);
+            indexReplicationType = CLUSTER_REPLICATION_TYPE_SETTING.getDefault(nodeSettings);
         }
         settingsBuilder.put(SETTING_REPLICATION_TYPE, indexReplicationType);
     }
@@ -1027,23 +1033,49 @@ public class MetadataCreateIndexService {
     /**
      * Updates index settings to enable remote store by default based on node attributes
      * @param settingsBuilder index settings builder to be updated with relevant settings
+     * @param clusterState state of cluster
      * @param clusterSettings cluster level settings
+     * @param nodeSettings node level settings
+     * @param indexName name of index
      */
-    private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings clusterSettings) {
-        if (isRemoteDataAttributePresent(clusterSettings)) {
-            settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
-                .put(
-                    SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
-                    clusterSettings.get(
-                        Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
-                    )
-                )
-                .put(
-                    SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
-                    clusterSettings.get(
-                        Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
-                    )
-                );
+    public static void updateRemoteStoreSettings(
+        Settings.Builder settingsBuilder,
+        ClusterState clusterState,
+        ClusterSettings clusterSettings,
+        Settings nodeSettings,
+        String indexName
+    ) {
+        if ((isRemoteDataAttributePresent(nodeSettings)
+            && clusterSettings.get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING).equals(RemoteStoreNodeService.CompatibilityMode.STRICT))
+            || isMigratingToRemoteStore(clusterSettings)) {
+            String segmentRepo, translogRepo;
+
+            Optional<DiscoveryNode> remoteNode = clusterState.nodes()
+                .getNodes()
+                .values()
+                .stream()
+                .filter(DiscoveryNode::isRemoteStoreNode)
+                .findFirst();
+
+            if (remoteNode.isPresent()) {
+                translogRepo = remoteNode.get()
+                    .getAttributes()
+                    .get(RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY);
+                segmentRepo = remoteNode.get()
+                    .getAttributes()
+                    .get(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY);
+                if (segmentRepo != null && translogRepo != null) {
+                    settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
+                        .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, segmentRepo)
+                        .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, translogRepo);
+                } else {
+                    ValidationException validationException = new ValidationException();
+                    validationException.addValidationErrors(
+                        Collections.singletonList("Cluster is migrating to remote store but no remote node found, failing index creation")
+                    );
+                    throw new IndexCreationException(indexName, validationException);
+                }
+            }
         }
     }
 
@@ -1604,10 +1636,15 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster setting
      */
     public static void validateRefreshIntervalSettings(Settings requestSettings, ClusterSettings clusterSettings) {
-        if (IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.exists(requestSettings) == false) {
+        if (IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.exists(requestSettings) == false
+            || requestSettings.get(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()) == null) {
             return;
         }
         TimeValue requestRefreshInterval = IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(requestSettings);
+        // If the refresh interval supplied is -1, we allow the index to be created because -1 means no periodic refresh.
+        if (requestRefreshInterval.millis() == -1) {
+            return;
+        }
         TimeValue clusterMinimumRefreshInterval = clusterSettings.get(IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING);
         if (requestRefreshInterval.millis() < clusterMinimumRefreshInterval.millis()) {
             throw new IllegalArgumentException(

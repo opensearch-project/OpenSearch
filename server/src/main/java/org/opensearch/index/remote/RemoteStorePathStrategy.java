@@ -8,7 +8,9 @@
 
 package org.opensearch.index.remote;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.index.remote.RemoteStoreEnums.DataCategory;
@@ -24,6 +26,7 @@ import java.util.Objects;
  * @opensearch.internal
  */
 @PublicApi(since = "2.14.0")
+@ExperimentalApi
 public class RemoteStorePathStrategy {
 
     private final PathType type;
@@ -36,9 +39,19 @@ public class RemoteStorePathStrategy {
     }
 
     public RemoteStorePathStrategy(PathType type, PathHashAlgorithm hashAlgorithm) {
-        assert type.requiresHashAlgorithm() == false || Objects.nonNull(hashAlgorithm);
-        this.type = Objects.requireNonNull(type);
+        Objects.requireNonNull(type, "pathType can not be null");
+        if (isCompatible(type, hashAlgorithm) == false) {
+            throw new IllegalArgumentException(
+                new ParameterizedMessage("pathType={} pathHashAlgorithm={} are incompatible", type, hashAlgorithm).getFormattedMessage()
+            );
+        }
+        this.type = type;
         this.hashAlgorithm = hashAlgorithm;
+    }
+
+    public static boolean isCompatible(PathType type, PathHashAlgorithm hashAlgorithm) {
+        return (type.requiresHashAlgorithm() == false && Objects.isNull(hashAlgorithm))
+            || (type.requiresHashAlgorithm() && Objects.nonNull(hashAlgorithm));
     }
 
     public PathType getType() {
@@ -55,7 +68,7 @@ public class RemoteStorePathStrategy {
     }
 
     public BlobPath generatePath(PathInput pathInput) {
-        return type.generatePath(pathInput, hashAlgorithm);
+        return type.path(pathInput, hashAlgorithm);
     }
 
     /**
@@ -63,6 +76,7 @@ public class RemoteStorePathStrategy {
      * @opensearch.internal
      */
     @PublicApi(since = "2.14.0")
+    @ExperimentalApi
     public static class PathInput {
         private final BlobPath basePath;
         private final String indexUUID;
@@ -111,6 +125,7 @@ public class RemoteStorePathStrategy {
          * @opensearch.internal
          */
         @PublicApi(since = "2.14.0")
+        @ExperimentalApi
         public static class Builder {
             private BlobPath basePath;
             private String indexUUID;

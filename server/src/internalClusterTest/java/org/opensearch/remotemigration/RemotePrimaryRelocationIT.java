@@ -8,9 +8,8 @@
 
 package org.opensearch.remotemigration;
 
-import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-
 import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
@@ -18,11 +17,13 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.client.Client;
+import org.opensearch.client.Requests;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
@@ -162,12 +163,12 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         String remoteNode = internalCluster().startNode();
         internalCluster().validateClusterFormed();
 
-        // assert repo gets registered
-        GetRepositoriesRequest gr = new GetRepositoriesRequest(new String[] { REPOSITORY_NAME });
-        GetRepositoriesResponse getRepositoriesResponse = client.admin().cluster().getRepositories(gr).actionGet();
-        assertEquals(1, getRepositoriesResponse.repositories().size());
-
         setFailRate(REPOSITORY_NAME, 100);
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(RecoverySettings.INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.getKey(), "10s"))
+            .get();
 
         logger.info("--> relocating from {} to {} ", docRepNode, remoteNode);
         client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, docRepNode, remoteNode)).execute().actionGet();
@@ -181,29 +182,23 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
             .actionGet();
 
         assertTrue(clusterHealthResponse.getRelocatingShards() == 1);
-        setFailRate(REPOSITORY_NAME, 0);
-        Thread.sleep(RandomNumbers.randomIntBetween(random(), 0, 2000));
-        clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
-            .setTimeout(TimeValue.timeValueSeconds(45))
-            .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNoRelocatingShards(true)
-            .execute()
-            .actionGet();
-        assertTrue(clusterHealthResponse.getRelocatingShards() == 0);
-        logger.info("--> remote to remote relocation complete");
+        // waiting more than waitForRemoteStoreSync's sleep time of 30 sec to deterministically fail
+        Thread.sleep(40000);
+
+        ClusterHealthRequest healthRequest = Requests.clusterHealthRequest()
+            .waitForNoRelocatingShards(true)
+            .waitForNoInitializingShards(true);
+        ClusterHealthResponse actionGet = client().admin().cluster().health(healthRequest).actionGet();
+        assertEquals(actionGet.getRelocatingShards(), 0);
+        assertEquals(docRepNode, primaryNodeName("test"));
+
         finished.set(true);
         indexingThread.join();
-        refresh("test");
-        OpenSearchAssertions.assertHitCount(client().prepareSearch("test").setTrackTotalHits(true).get(), numAutoGenDocs.get());
-        OpenSearchAssertions.assertHitCount(
-            client().prepareSearch("test")
-                .setTrackTotalHits(true)// extra paranoia ;)
-                .setQuery(QueryBuilders.termQuery("auto", true))
-                .get(),
-            numAutoGenDocs.get()
-        );
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(RecoverySettings.INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.getKey(), (String) null))
+            .get();
     }
 
     private static Thread getIndexingThread(AtomicBoolean finished, AtomicInteger numAutoGenDocs) {

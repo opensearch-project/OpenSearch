@@ -21,6 +21,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
 import org.opensearch.index.translog.transfer.TransferSnapshot;
@@ -119,7 +120,7 @@ public class RemoteFsTranslog extends Translog {
             remoteStoreSettings
         );
         try {
-            download(translogTransferManager, location, logger);
+            download(translogTransferManager, location, logger, config.shouldSeedRemote());
             Checkpoint checkpoint = readCheckpoint(location);
             logger.info("Downloaded data from remote translog till maxSeqNo = {}", checkpoint.maxSeqNo);
             this.readers.addAll(recoverFromFiles(checkpoint));
@@ -167,7 +168,8 @@ public class RemoteFsTranslog extends Translog {
         Path location,
         RemoteStorePathStrategy pathStrategy,
         RemoteStoreSettings remoteStoreSettings,
-        Logger logger
+        Logger logger,
+        boolean seedRemote
     ) throws IOException {
         assert repository instanceof BlobStoreRepository : String.format(
             Locale.ROOT,
@@ -188,11 +190,12 @@ public class RemoteFsTranslog extends Translog {
             pathStrategy,
             remoteStoreSettings
         );
-        RemoteFsTranslog.download(translogTransferManager, location, logger);
+        RemoteFsTranslog.download(translogTransferManager, location, logger, seedRemote);
         logger.trace(remoteTranslogTransferTracker.toString());
     }
 
-    static void download(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
+    static void download(TranslogTransferManager translogTransferManager, Path location, Logger logger, boolean seedRemote)
+        throws IOException {
         /*
         In Primary to Primary relocation , there can be concurrent upload and download of translog.
         While translog files are getting downloaded by new primary, it might hence be deleted by the primary
@@ -205,7 +208,7 @@ public class RemoteFsTranslog extends Translog {
             boolean success = false;
             long startTimeMs = System.currentTimeMillis();
             try {
-                downloadOnce(translogTransferManager, location, logger);
+                downloadOnce(translogTransferManager, location, logger, seedRemote);
                 success = true;
                 return;
             } catch (FileNotFoundException | NoSuchFileException e) {
@@ -219,7 +222,8 @@ public class RemoteFsTranslog extends Translog {
         throw ex;
     }
 
-    static private void downloadOnce(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
+    private static void downloadOnce(TranslogTransferManager translogTransferManager, Path location, Logger logger, boolean seedRemote)
+        throws IOException {
         logger.debug("Downloading translog files from remote");
         RemoteTranslogTransferTracker statsTracker = translogTransferManager.getRemoteTranslogTransferTracker();
         long prevDownloadBytesSucceeded = statsTracker.getDownloadBytesSucceeded();
@@ -254,8 +258,32 @@ public class RemoteFsTranslog extends Translog {
                 location.resolve(Translog.getCommitCheckpointFileName(translogMetadata.getGeneration())),
                 location.resolve(Translog.CHECKPOINT_FILE_NAME)
             );
+        } else {
+            // When code flow reaches this block, it means we don't have any translog files uploaded to remote store.
+            // If local filesystem contains empty translog or no translog, we don't do anything.
+            // If local filesystem contains non-empty translog, we clean up these files and create empty translog.
+            logger.debug("No translog files found on remote, checking local filesystem for cleanup");
+            if (FileSystemUtils.exists(location.resolve(CHECKPOINT_FILE_NAME))) {
+                final Checkpoint checkpoint = readCheckpoint(location);
+                if (seedRemote) {
+                    logger.debug("Remote migration ongoing. Retaining the translog on local, skipping clean-up");
+                } else if (isEmptyTranslog(checkpoint) == false) {
+                    logger.debug("Translog files exist on local without any metadata in remote, cleaning up these files");
+                    // Creating empty translog will cleanup the older un-referenced tranlog files, we don't have to explicitly delete
+                    Translog.createEmptyTranslog(location, translogTransferManager.getShardId(), checkpoint);
+                } else {
+                    logger.debug("Empty translog on local, skipping clean-up");
+                }
+            }
         }
         logger.debug("downloadOnce execution completed");
+    }
+
+    private static boolean isEmptyTranslog(Checkpoint checkpoint) {
+        return checkpoint.generation == checkpoint.minTranslogGeneration
+            && checkpoint.minSeqNo == SequenceNumbers.NO_OPS_PERFORMED
+            && checkpoint.maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED
+            && checkpoint.numOps == 0;
     }
 
     public static TranslogTransferManager buildTranslogTransferManager(
@@ -651,5 +679,16 @@ public class RemoteFsTranslog extends Translog {
     // Visible for testing
     int availablePermits() {
         return syncPermit.availablePermits();
+    }
+
+    /**
+     * Checks whether or not the shard should be flushed based on translog files.
+     * This checks if number of translog files breaches the threshold count determined by
+     * {@code cluster.remote_store.translog.max_readers} setting
+     * @return {@code true} if the shard should be flushed
+     */
+    @Override
+    protected boolean shouldFlush() {
+        return readers.size() >= translogTransferManager.getMaxRemoteTranslogReadersSettings();
     }
 }

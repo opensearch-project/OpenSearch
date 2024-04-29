@@ -12,11 +12,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.FetchBlobResult;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
@@ -162,6 +164,12 @@ public class BlobStoreTransferService implements TransferService {
     @Override
     public InputStream downloadBlob(Iterable<String> path, String fileName) throws IOException {
         return blobStore.blobContainer((BlobPath) path).readBlob(fileName);
+    }
+
+    @Override
+    @ExperimentalApi
+    public FetchBlobResult downloadBlobWithMetadata(Iterable<String> path, String fileName) throws IOException {
+        return blobStore.blobContainer((BlobPath) path).readBlobWithMetadata(fileName);
     }
 
     @Override

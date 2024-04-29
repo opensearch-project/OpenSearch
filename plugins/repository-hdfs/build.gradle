@@ -70,18 +70,18 @@ dependencies {
   api 'com.google.code.gson:gson:2.10.1'
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
-  api 'commons-cli:commons-cli:1.6.0'
+  api 'commons-cli:commons-cli:1.7.0'
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'commons-collections:commons-collections:3.2.2'
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
   api 'org.apache.commons:commons-configuration2:2.10.1'
-  api 'commons-io:commons-io:2.16.0'
+  api "commons-io:commons-io:${versions.commonsio}"
   api 'org.apache.commons:commons-lang3:3.14.0'
   implementation 'com.google.re2j:re2j:1.7'
   api 'javax.servlet:servlet-api:2.5'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-  api 'net.minidev:json-smart:2.5.0'
+  api 'net.minidev:json-smart:2.5.1'
   api "io.netty:netty-all:${versions.netty}"
   implementation "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
   implementation 'org.codehaus.woodstox:stax2-api:4.2.2'

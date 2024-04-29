@@ -40,7 +40,7 @@ apply plugin: 'opensearch.internal-distribution-download'
 testFixtures.useFixture()
 
 dependencies {
-  providedCompile('jakarta.enterprise:jakarta.enterprise.cdi-api:4.0.1') {
+  providedCompile('jakarta.enterprise:jakarta.enterprise.cdi-api:4.1.0') {
     exclude module: 'jakarta.annotation-api'
   }
   providedCompile 'jakarta.ws.rs:jakarta.ws.rs-api:3.1.0'
