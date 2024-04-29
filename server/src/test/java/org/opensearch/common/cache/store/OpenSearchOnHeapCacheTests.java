@@ -52,7 +52,7 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
 
             assertEquals(i + 1, cache.stats().getTotalMisses());
             assertEquals(0, cache.stats().getTotalHits());
-            assertEquals(Math.min(maxKeys, i + 1), cache.stats().getTotalEntries());
+            assertEquals(Math.min(maxKeys, i + 1), cache.stats().getTotalItems());
             assertEquals(Math.min(maxKeys, i + 1) * keyValueSize, cache.stats().getTotalSizeInBytes());
             assertEquals(Math.max(0, i + 1 - maxKeys), cache.stats().getTotalEvictions());
         }
@@ -63,7 +63,7 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
 
             assertEquals(numAdded, cache.stats().getTotalMisses());
             assertEquals(numHits, cache.stats().getTotalHits());
-            assertEquals(maxKeys, cache.stats().getTotalEntries());
+            assertEquals(maxKeys, cache.stats().getTotalItems());
             assertEquals(maxKeys * keyValueSize, cache.stats().getTotalSizeInBytes());
             assertEquals(numEvicted, cache.stats().getTotalEvictions());
         }
@@ -75,7 +75,7 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
 
             assertEquals(numAdded, cache.stats().getTotalMisses());
             assertEquals(maxKeys, cache.stats().getTotalHits());
-            assertEquals(maxKeys - numInvalidated, cache.stats().getTotalEntries());
+            assertEquals(maxKeys - numInvalidated, cache.stats().getTotalItems());
             assertEquals((maxKeys - numInvalidated) * keyValueSize, cache.stats().getTotalSizeInBytes());
             assertEquals(numEvicted, cache.stats().getTotalEvictions());
         }
