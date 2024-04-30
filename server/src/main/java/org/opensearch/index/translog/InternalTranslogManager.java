@@ -436,6 +436,12 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
      * @return if the translog should be flushed
      */
     public boolean shouldPeriodicallyFlush(long localCheckpointOfLastCommit, long flushThreshold) {
+        /*
+         * This can trigger flush depending upon translog's implementation
+         */
+        if (translog.shouldFlush()) {
+            return true;
+        }
         // This is the minimum seqNo that is referred in translog and considered for calculating translog size
         long minTranslogRefSeqNo = translog.getMinUnreferencedSeqNoInSegments(localCheckpointOfLastCommit + 1);
         final long minReferencedTranslogGeneration = translog.getMinGenerationForSeqNo(minTranslogRefSeqNo).translogFileGeneration;
