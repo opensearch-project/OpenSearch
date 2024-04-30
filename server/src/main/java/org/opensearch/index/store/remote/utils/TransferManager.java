@@ -39,11 +39,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class TransferManager {
     private static final Logger logger = LogManager.getLogger(TransferManager.class);
 
-    private final BlobContainer blobContainer;
+    @FunctionalInterface
+    public interface BlobStreamReader {
+        InputStream read(String name, long position, long length) throws IOException;
+    }
+
+    private final BlobStreamReader blobStreamReader;
     private final FileCache fileCache;
 
-    public TransferManager(final BlobContainer blobContainer, final FileCache fileCache) {
-        this.blobContainer = blobContainer;
+
+    public TransferManager(final BlobStreamReader blobStreamReader, final FileCache fileCache) {
+        this.blobStreamReader = blobStreamReader;
         this.fileCache = fileCache;
     }
 
@@ -59,7 +65,7 @@ public class TransferManager {
         final CachedIndexInput cacheEntry = fileCache.compute(key, (path, cachedIndexInput) -> {
             if (cachedIndexInput == null || cachedIndexInput.isClosed()) {
                 // Doesn't exist or is closed, either way create a new one
-                return new DelayedCreationCachedIndexInput(fileCache, blobContainer, blobFetchRequest);
+                return new DelayedCreationCachedIndexInput(fileCache, blobStreamReader, blobFetchRequest);
             } else {
                 // already in the cache and ready to be used (open)
                 return cachedIndexInput;
@@ -77,7 +83,7 @@ public class TransferManager {
     }
 
     @SuppressWarnings("removal")
-    private static FileCachedIndexInput createIndexInput(FileCache fileCache, BlobContainer blobContainer, BlobFetchRequest request) {
+    private static FileCachedIndexInput createIndexInput(FileCache fileCache, BlobStreamReader blobStreamReader, BlobFetchRequest request) {
         // We need to do a privileged action here in order to fetch from remote
         // and write to the local file cache in case this is invoked as a side
         // effect of a plugin (such as a scripted search) that doesn't have the
@@ -91,7 +97,7 @@ public class TransferManager {
                     ) {
                         for (BlobFetchRequest.BlobPart blobPart : request.blobParts()) {
                             try (
-                                InputStream snapshotFileInputStream = blobContainer.readBlob(
+                                InputStream snapshotFileInputStream = blobStreamReader.read(
                                     blobPart.getBlobName(),
                                     blobPart.getPosition(),
                                     blobPart.getLength()
@@ -119,15 +125,15 @@ public class TransferManager {
      */
     private static class DelayedCreationCachedIndexInput implements CachedIndexInput {
         private final FileCache fileCache;
-        private final BlobContainer blobContainer;
+        private final BlobStreamReader blobStreamReader;
         private final BlobFetchRequest request;
         private final CompletableFuture<IndexInput> result = new CompletableFuture<>();
         private final AtomicBoolean isStarted = new AtomicBoolean(false);
         private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
-        private DelayedCreationCachedIndexInput(FileCache fileCache, BlobContainer blobContainer, BlobFetchRequest request) {
+        private DelayedCreationCachedIndexInput(FileCache fileCache, BlobStreamReader blobStreamReader, BlobFetchRequest request) {
             this.fileCache = fileCache;
-            this.blobContainer = blobContainer;
+            this.blobStreamReader = blobStreamReader;
             this.request = request;
         }
 
@@ -139,7 +145,7 @@ public class TransferManager {
             if (isStarted.getAndSet(true) == false) {
                 // We're the first one here, need to download the block
                 try {
-                    result.complete(createIndexInput(fileCache, blobContainer, request));
+                    result.complete(createIndexInput(fileCache, blobStreamReader, request));
                 } catch (Exception e) {
                     result.completeExceptionally(e);
                     fileCache.remove(request.getFilePath());

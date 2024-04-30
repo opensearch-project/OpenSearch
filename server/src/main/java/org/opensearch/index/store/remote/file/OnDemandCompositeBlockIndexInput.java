@@ -13,19 +13,16 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
-import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.BlockIOContext;
+import org.opensearch.index.store.remote.utils.TransferManager;
 
-import java.io.BufferedOutputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
-import java.nio.file.Path;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * OnDemandCompositeBlockIndexInput is used by the Composite Directory to read data in blocks from Remote and cache those blocks in FileCache
@@ -39,6 +36,7 @@ public class OnDemandCompositeBlockIndexInput extends OnDemandBlockIndexInput {
     private final FSDirectory localDirectory;
     private final IOContext context;
     private final FileCache fileCache;
+    private final TransferManager transferManager;
 
     public OnDemandCompositeBlockIndexInput(
         RemoteSegmentStoreDirectory remoteDirectory,
@@ -75,6 +73,9 @@ public class OnDemandCompositeBlockIndexInput extends OnDemandBlockIndexInput {
         this.fileName = fileName;
         this.fileCache = fileCache;
         this.context = context;
+        this.transferManager = new TransferManager(
+            (name, position, length) -> new InputStreamIndexInput(remoteDirectory.openInput(name, new BlockIOContext(context, position, length)), length),
+            fileCache);
         originalFileSize = remoteDirectory.fileLength(fileName);
     }
 
@@ -113,20 +114,12 @@ public class OnDemandCompositeBlockIndexInput extends OnDemandBlockIndexInput {
             length,
             originalFileSize
         );
-        Path blockFilePath = getLocalFilePath(blockFileName);
-        final CachedIndexInput cacheEntry = fileCache.compute(blockFilePath, (path, cachedIndexInput) -> {
-            if (cachedIndexInput == null || cachedIndexInput.isClosed()) {
-                // Doesn't exist or is closed, either way create a new one
-                IndexInput indexInput = fetchIndexInput(blockFileName, blockStart, length);
-                return new CachedIndexInputImpl(indexInput);
-            } else {
-                logger.trace("Block already present in cache");
-                // already in the cache and ready to be used (open)
-                return cachedIndexInput;
-            }
-        });
-
-        return cacheEntry.getIndexInput();
+        BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder()
+            .directory(localDirectory)
+            .fileName(blockFileName)
+            .blobParts(new ArrayList<>(List.of(new BlobFetchRequest.BlobPart(fileName, blockStart, length))))
+            .build();
+        return transferManager.fetchBlob(blobFetchRequest);
     }
 
     @Override
@@ -141,89 +134,4 @@ public class OnDemandCompositeBlockIndexInput extends OnDemandBlockIndexInput {
         return (blockId != getBlock(originalFileSize - 1)) ? blockSize : getBlockOffset(originalFileSize - 1) + 1;
     }
 
-    private Path getLocalFilePath(String file) {
-        return localDirectory.getDirectory().resolve(file);
-    }
-
-    private IndexInput fetchIndexInput(String blockFileName, long start, long length) {
-        IndexInput indexInput;
-        Path filePath = getLocalFilePath(blockFileName);
-        try {
-            // Fetch from local if block file is present locally in disk
-            indexInput = localDirectory.openInput(blockFileName, IOContext.READ);
-            logger.trace("Block file present locally, just putting it in cache");
-        } catch (FileNotFoundException | NoSuchFileException e) {
-            logger.trace("Block file not present locally, fetching from Remote");
-            // If block file is not present locally in disk, fetch from remote and persist the block file in disk
-            try (
-                OutputStream fileOutputStream = Files.newOutputStream(filePath);
-                OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream)
-            ) {
-                logger.trace("Fetching block file from Remote");
-                indexInput = remoteDirectory.openInput(fileName, new BlockIOContext(IOContext.READ, start, length));
-                logger.trace("Persisting the fetched blocked file from Remote");
-                int indexInputLength = (int) indexInput.length();
-                byte[] bytes = new byte[indexInputLength];
-                indexInput.readBytes(bytes, 0, indexInputLength);
-                localFileOutputStream.write(bytes);
-            } catch (Exception err) {
-                logger.trace("Exception while fetching block from remote and persisting it on disk");
-                throw new RuntimeException(err);
-            }
-        } catch (Exception e) {
-            logger.trace("Exception while fetching block file locally");
-            throw new RuntimeException(e);
-        }
-        return indexInput;
-    }
-
-    /**
-     * Implementation of the CachedIndexInput interface
-     */
-    private class CachedIndexInputImpl implements CachedIndexInput {
-
-        IndexInput indexInput;
-        AtomicBoolean isClosed;
-
-        /**
-         * Constructor - takes IndexInput as parameter
-         */
-        CachedIndexInputImpl(IndexInput indexInput) {
-            this.indexInput = indexInput;
-            isClosed = new AtomicBoolean(false);
-        }
-
-        /**
-         * Returns the wrapped indexInput
-         */
-        @Override
-        public IndexInput getIndexInput() throws IOException {
-            return indexInput;
-        }
-
-        /**
-         * Returns the length of the wrapped indexInput
-         */
-        @Override
-        public long length() {
-            return indexInput.length();
-        }
-
-        /**
-         * Checks if the wrapped indexInput is closed
-         */
-        @Override
-        public boolean isClosed() {
-            return isClosed.get();
-        }
-
-        /**
-         * Closes the wrapped indexInput
-         */
-        @Override
-        public void close() throws Exception {
-            indexInput.close();
-            isClosed.set(true);
-        }
-    }
 }
