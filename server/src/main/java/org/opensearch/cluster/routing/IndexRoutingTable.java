@@ -302,6 +302,20 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         return shards;
     }
 
+    /**
+     * Returns a {@link List} of shards that match the provided {@link Predicate}
+     *
+     * @param predicate {@link Predicate} to apply
+     * @return a {@link List} of shards that match one of the given {@link Predicate}
+     */
+    public List<ShardRouting> shardsMatchingPredicate(Predicate<ShardRouting> predicate) {
+        List<ShardRouting> shards = new ArrayList<>();
+        for (IndexShardRoutingTable shardRoutingTable : this) {
+            shards.addAll(shardRoutingTable.shardsMatchingPredicate(predicate));
+        }
+        return shards;
+    }
+
     public int shardsMatchingPredicateCount(Predicate<ShardRouting> predicate) {
         int count = 0;
         for (IndexShardRoutingTable shardRoutingTable : this) {
