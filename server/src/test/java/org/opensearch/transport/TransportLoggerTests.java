@@ -43,7 +43,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
-import org.opensearch.transport.nativeprotocol.NativeOutboundMessage;
+import org.opensearch.transport.nativeprotocol.NativeOutboundMessageTests;
 
 import java.io.IOException;
 
@@ -94,17 +94,25 @@ public class TransportLoggerTests extends OpenSearchTestCase {
     private BytesReference buildRequest() throws IOException {
         boolean compress = randomBoolean();
         try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
-            NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
+            // NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
+            // new ThreadContext(Settings.EMPTY),
+            // new String[0],
+            // new ClusterStatsRequest(),
+            // Version.CURRENT,
+            // ClusterStatsAction.NAME,
+            // randomInt(30),
+            // false,
+            // compress
+            // );
+            // return request.serialize(bytesStreamOutput);
+            return NativeOutboundMessageTests.serializeNativeOutboundRequest(
                 new ThreadContext(Settings.EMPTY),
-                new String[0],
                 new ClusterStatsRequest(),
                 Version.CURRENT,
                 ClusterStatsAction.NAME,
                 randomInt(30),
-                false,
                 compress
             );
-            return request.serialize(bytesStreamOutput);
         }
     }
 }

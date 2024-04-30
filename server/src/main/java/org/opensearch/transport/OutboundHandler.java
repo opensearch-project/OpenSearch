@@ -60,7 +60,7 @@ public final class OutboundHandler {
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
 
-    OutboundHandler(StatsTracker statsTracker, ThreadPool threadPool) {
+    public OutboundHandler(StatsTracker statsTracker, ThreadPool threadPool) {
         this.statsTracker = statsTracker;
         this.threadPool = threadPool;
     }

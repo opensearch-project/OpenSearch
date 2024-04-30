@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.transport;
+package org.opensearch.transport.nativeprotocol;
 
 import org.opensearch.Version;
 import org.opensearch.common.bytes.ReleasableBytesReference;
@@ -42,7 +42,10 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.transport.TransportMessage;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
-import org.opensearch.transport.nativeprotocol.NativeOutboundMessage;
+import org.opensearch.transport.Header;
+import org.opensearch.transport.TcpHeader;
+import org.opensearch.transport.TestRequest;
+import org.opensearch.transport.TestResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;

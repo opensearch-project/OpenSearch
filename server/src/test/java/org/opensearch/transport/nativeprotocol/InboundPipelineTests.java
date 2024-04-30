@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.transport;
+package org.opensearch.transport.nativeprotocol;
 
 import org.opensearch.Version;
 import org.opensearch.common.breaker.TestCircuitBreaker;
@@ -49,8 +49,15 @@ import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
-import org.opensearch.transport.nativeprotocol.NativeOutboundMessage;
+import org.opensearch.transport.FakeTcpChannel;
+import org.opensearch.transport.Header;
+import org.opensearch.transport.InboundPipeline;
+import org.opensearch.transport.ProtocolInboundMessage;
+import org.opensearch.transport.StatsTracker;
+import org.opensearch.transport.TcpChannel;
+import org.opensearch.transport.TcpHeader;
+import org.opensearch.transport.TestRequest;
+import org.opensearch.transport.TestResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,7 +77,7 @@ public class InboundPipelineTests extends OpenSearchTestCase {
     private static final int BYTE_THRESHOLD = 128 * 1024;
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
-    public void testPipelineHandling() throws IOException {
+    public void testPipelineHandlingForNativeProtocol() throws IOException {
         final List<Tuple<MessageData, Exception>> expected = new ArrayList<>();
         final List<Tuple<MessageData, Exception>> actual = new ArrayList<>();
         final List<ReleasableBytesReference> toRelease = new ArrayList<>();
@@ -87,10 +94,10 @@ public class InboundPipelineTests extends OpenSearchTestCase {
                     actualData = new MessageData(version, requestId, isRequest, isCompressed, header.getActionName(), null);
                 } else if (isRequest) {
                     final TestRequest request = new TestRequest(message.openOrGetStreamInput());
-                    actualData = new MessageData(version, requestId, isRequest, isCompressed, header.getActionName(), request.value);
+                    actualData = new MessageData(version, requestId, isRequest, isCompressed, header.getActionName(), request.getValue());
                 } else {
                     final TestResponse response = new TestResponse(message.openOrGetStreamInput());
-                    actualData = new MessageData(version, requestId, isRequest, isCompressed, null, response.value);
+                    actualData = new MessageData(version, requestId, isRequest, isCompressed, null, response.getValue());
                 }
                 actual.add(new Tuple<>(actualData, message.getException()));
             } catch (IOException e) {

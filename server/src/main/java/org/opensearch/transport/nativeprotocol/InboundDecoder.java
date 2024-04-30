@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.transport;
+package org.opensearch.transport.nativeprotocol;
 
 import org.opensearch.Version;
 import org.opensearch.common.bytes.ReleasableBytesReference;
@@ -39,6 +39,10 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.transport.Header;
+import org.opensearch.transport.TcpHeader;
+import org.opensearch.transport.TcpTransport;
+import org.opensearch.transport.TransportDecompressor;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -185,7 +189,7 @@ public class InboundDecoder implements Releasable {
     }
 
     // exposed for use in tests
-    static Header readHeader(Version version, int networkMessageSize, BytesReference bytesReference) throws IOException {
+    public static Header readHeader(Version version, int networkMessageSize, BytesReference bytesReference) throws IOException {
         try (StreamInput streamInput = bytesReference.streamInput()) {
             streamInput.skip(TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
             long requestId = streamInput.readLong();

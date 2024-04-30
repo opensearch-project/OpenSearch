@@ -52,7 +52,7 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public abstract class NativeOutboundMessage extends NetworkMessage {
+abstract class NativeOutboundMessage extends NetworkMessage {
 
     private final Writeable message;
 
@@ -61,7 +61,7 @@ public abstract class NativeOutboundMessage extends NetworkMessage {
         this.message = message;
     }
 
-    public BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
+    BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
         bytesStream.setVersion(version);
         bytesStream.skip(TcpHeader.headerSize(version));
 

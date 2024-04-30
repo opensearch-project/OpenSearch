@@ -60,11 +60,11 @@ public class Header {
     private final long requestId;
     private final byte status;
     // These are directly set by tests
-    String actionName;
-    Tuple<Map<String, String>, Map<String, Set<String>>> headers;
+    public String actionName;
+    public Tuple<Map<String, String>, Map<String, Set<String>>> headers;
     Set<String> features;
 
-    Header(int networkMessageSize, long requestId, byte status, Version version) {
+    public Header(int networkMessageSize, long requestId, byte status, Version version) {
         this.networkMessageSize = networkMessageSize;
         this.version = version;
         this.requestId = requestId;
@@ -91,11 +91,11 @@ public class Header {
         return TransportStatus.isRequest(status);
     }
 
-    boolean isResponse() {
+    public boolean isResponse() {
         return TransportStatus.isRequest(status) == false;
     }
 
-    boolean isError() {
+    public boolean isError() {
         return TransportStatus.isError(status);
     }
 
@@ -103,7 +103,7 @@ public class Header {
         return TransportStatus.isHandshake(status);
     }
 
-    boolean isCompressed() {
+    public boolean isCompressed() {
         return TransportStatus.isCompress(status);
     }
 
@@ -111,7 +111,7 @@ public class Header {
         return actionName;
     }
 
-    boolean needsToReadVariableHeader() {
+    public boolean needsToReadVariableHeader() {
         return headers == null;
     }
 
@@ -119,11 +119,11 @@ public class Header {
         return features;
     }
 
-    Tuple<Map<String, String>, Map<String, Set<String>>> getHeaders() {
+    public Tuple<Map<String, String>, Map<String, Set<String>>> getHeaders() {
         return headers;
     }
 
-    void finishParsingHeader(StreamInput input) throws IOException {
+    public void finishParsingHeader(StreamInput input) throws IOException {
         this.headers = ThreadContext.readHeadersFromStream(input);
 
         if (isRequest()) {

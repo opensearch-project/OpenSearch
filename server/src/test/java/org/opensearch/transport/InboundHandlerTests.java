@@ -39,7 +39,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
@@ -56,9 +55,10 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.nativeprotocol.InboundDecoder;
 import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
 import org.opensearch.transport.nativeprotocol.NativeOutboundHandler;
-import org.opensearch.transport.nativeprotocol.NativeOutboundMessage;
+import org.opensearch.transport.nativeprotocol.NativeOutboundMessageTests;
 import org.junit.After;
 import org.junit.Before;
 
@@ -205,18 +205,25 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
+        // NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
+        // threadPool.getThreadContext(),
+        // new String[0],
+        // new TestRequest(requestValue),
+        // version,
+        // action,
+        // requestId,
+        // false,
+        // false
+        // );
+
+        BytesReference fullRequestBytes = NativeOutboundMessageTests.serializeNativeOutboundRequest(
             threadPool.getThreadContext(),
-            new String[0],
             new TestRequest(requestValue),
             version,
             action,
             requestId,
-            false,
             false
         );
-
-        BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
         NativeInboundMessage requestMessage = new NativeInboundMessage(
@@ -403,18 +410,18 @@ public class InboundHandlerTests extends OpenSearchTestCase {
 
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
-            threadPool.getThreadContext(),
-            new String[0],
-            new TestRequest(requestValue),
-            version,
-            action,
-            requestId,
-            false,
-            false
-        );
+        // NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
+        // threadPool.getThreadContext(),
+        // new String[0],
+        // new TestRequest(requestValue),
+        // version,
+        // action,
+        // requestId,
+        // false,
+        // false
+        // );
 
-        nativeOutboundHandler.setMessageListener(new TransportMessageListener() {
+        handler.setMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action, Exception error) {
                 exceptionCaptor.set(error);
@@ -422,7 +429,14 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         });
 
         // Create the request payload with 1 byte overflow
-        final BytesRef bytes = request.serialize(new BytesStreamOutput()).toBytesRef();
+        final BytesRef bytes = NativeOutboundMessageTests.serializeNativeOutboundRequest(
+            threadPool.getThreadContext(),
+            new TestRequest(requestValue),
+            version,
+            action,
+            requestId,
+            false
+        ).toBytesRef();
         final ByteBuffer buffer = ByteBuffer.allocate(bytes.length + 1);
         buffer.put(bytes.bytes, 0, bytes.length);
         buffer.put((byte) 1);
@@ -479,25 +493,32 @@ public class InboundHandlerTests extends OpenSearchTestCase {
 
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
-            threadPool.getThreadContext(),
-            new String[0],
-            new TestRequest(requestValue),
-            version,
-            action,
-            requestId,
-            false,
-            false
-        );
+        // NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
+        // threadPool.getThreadContext(),
+        // new String[0],
+        // new TestRequest(requestValue),
+        // version,
+        // action,
+        // requestId,
+        // false,
+        // false
+        // );
 
-        nativeOutboundHandler.setMessageListener(new TransportMessageListener() {
+        handler.setMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action, Exception error) {
                 exceptionCaptor.set(error);
             }
         });
 
-        final BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
+        final BytesReference fullRequestBytes = NativeOutboundMessageTests.serializeNativeOutboundRequest(
+            threadPool.getThreadContext(),
+            new TestRequest(requestValue),
+            version,
+            action,
+            requestId,
+            false
+        );
         // Create the request payload by intentionally stripping 1 byte away
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize - 1);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
@@ -557,18 +578,25 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
+        // NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
+        // threadPool.getThreadContext(),
+        // new String[0],
+        // new TestRequest(requestValue),
+        // version,
+        // action,
+        // requestId,
+        // false,
+        // false
+        // );
+
+        BytesReference fullRequestBytes = NativeOutboundMessageTests.serializeNativeOutboundRequest(
             threadPool.getThreadContext(),
-            new String[0],
             new TestRequest(requestValue),
             version,
             action,
             requestId,
-            false,
             false
         );
-
-        BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
         NativeInboundMessage requestMessage = new NativeInboundMessage(
@@ -653,18 +681,25 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
+        // NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
+        // threadPool.getThreadContext(),
+        // new String[0],
+        // new TestRequest(requestValue),
+        // version,
+        // action,
+        // requestId,
+        // false,
+        // false
+        // );
+
+        BytesReference fullRequestBytes = NativeOutboundMessageTests.serializeNativeOutboundRequest(
             threadPool.getThreadContext(),
-            new String[0],
             new TestRequest(requestValue),
             version,
             action,
             requestId,
-            false,
             false
         );
-
-        BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
         NativeInboundMessage requestMessage = new NativeInboundMessage(
