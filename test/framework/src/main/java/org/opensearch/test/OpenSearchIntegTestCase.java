@@ -2409,6 +2409,12 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return clusterState.getRoutingNodes().node(nodeId).node().getName();
     }
 
+    protected String primaryNodeName(String indexName, int shardId) {
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        String nodeId = clusterState.getRoutingTable().index(indexName).shard(shardId).primaryShard().currentNodeId();
+        return clusterState.getRoutingNodes().node(nodeId).node().getName();
+    }
+
     protected String replicaNodeName(String indexName) {
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         String nodeId = clusterState.getRoutingTable().index(indexName).shard(0).replicaShards().get(0).currentNodeId();

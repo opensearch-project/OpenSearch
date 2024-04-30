@@ -12,7 +12,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -41,9 +40,12 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
     // To avoid sync problems, obtain a lock before creating or removing nodes in the stats tree.
     // No lock is needed to edit stats on existing nodes.
     private final Lock lock = new ReentrantLock();
+    // The name of the cache type using these stats
+    private final String storeName;
 
-    public DefaultCacheStatsHolder(List<String> dimensionNames) {
+    public DefaultCacheStatsHolder(List<String> dimensionNames, String storeName) {
         this.dimensionNames = Collections.unmodifiableList(dimensionNames);
+        this.storeName = storeName;
         this.statsRoot = new Node("", true); // The root node has the empty string as its dimension value
     }
 
@@ -81,13 +83,13 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
     }
 
     @Override
-    public void incrementEntries(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, Node::incrementEntries, true);
+    public void incrementItems(List<String> dimensionValues) {
+        internalIncrement(dimensionValues, Node::incrementItems, true);
     }
 
     @Override
-    public void decrementEntries(List<String> dimensionValues) {
-        internalIncrement(dimensionValues, Node::decrementEntries, false);
+    public void decrementItems(List<String> dimensionValues) {
+        internalIncrement(dimensionValues, Node::decrementItems, false);
     }
 
     /**
@@ -163,11 +165,12 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
     }
 
     /**
-     * Produce an immutable version of these stats.
+     * Produce an immutable version of these stats, aggregated according to levels.
+     * If levels is null, do not aggregate and return an immutable version of the original tree.
      */
     @Override
-    public ImmutableCacheStatsHolder getImmutableCacheStatsHolder() {
-        return new ImmutableCacheStatsHolder(statsRoot.snapshot(), dimensionNames);
+    public ImmutableCacheStatsHolder getImmutableCacheStatsHolder(String[] levels) {
+        return new ImmutableCacheStatsHolder(this.statsRoot, levels, dimensionNames, storeName);
     }
 
     @Override
@@ -260,16 +263,16 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
             this.stats.decrementSizeInBytes(amountBytes);
         }
 
-        void incrementEntries() {
-            this.stats.incrementEntries();
+        void incrementItems() {
+            this.stats.incrementItems();
         }
 
-        void decrementEntries() {
-            this.stats.decrementEntries();
+        void decrementItems() {
+            this.stats.decrementItems();
         }
 
         long getEntries() {
-            return this.stats.getEntries();
+            return this.stats.getItems();
         }
 
         ImmutableCacheStats getImmutableStats() {
@@ -290,17 +293,6 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
 
         Node createChild(String dimensionValue, boolean createMapInChild) {
             return children.computeIfAbsent(dimensionValue, (key) -> new Node(dimensionValue, createMapInChild));
-        }
-
-        ImmutableCacheStatsHolder.Node snapshot() {
-            TreeMap<String, ImmutableCacheStatsHolder.Node> snapshotChildren = null;
-            if (!children.isEmpty()) {
-                snapshotChildren = new TreeMap<>();
-                for (Node child : children.values()) {
-                    snapshotChildren.put(child.getDimensionValue(), child.snapshot());
-                }
-            }
-            return new ImmutableCacheStatsHolder.Node(dimensionValue, snapshotChildren, getImmutableStats());
         }
     }
 }
