@@ -190,14 +190,36 @@ public class RemoteStoreMigrationShardAllocationBaseTestCase extends MigrationBa
     }
 
     // get allocation and relocation decisions for all nodes
-    protected void prepareDecisions() {
-        internalCluster().client()
-            .admin()
-            .indices()
-            .prepareUpdateSettings(TEST_INDEX)
-            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", allNodesExcept(null)))
-            .execute()
-            .actionGet();
+    protected void excludeAllNodes() {
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings(TEST_INDEX)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.routing.allocation.include._name", "")
+                        .put("index.routing.allocation.exclude._name", allNodesExcept(null))
+                )
+                .execute()
+                .actionGet()
+        );
+    }
+
+    protected void includeAllNodes() {
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings(TEST_INDEX)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.routing.allocation.exclude._name", "")
+                        .put("index.routing.allocation.include._name", allNodesExcept(null))
+                )
+                .execute()
+                .actionGet()
+        );
     }
 
     protected void attemptAllocation(@Nullable String targetNodeName) {
@@ -244,7 +266,7 @@ public class RemoteStoreMigrationShardAllocationBaseTestCase extends MigrationBa
         assertTrue(shardRouting.active());
         assertNotNull(shardRouting.currentNodeId());
         if (targetNode != null) {
-            assertEquals(shardRouting.currentNodeId(), targetNode.getId());
+            assertEquals(targetNode.getId(), shardRouting.currentNodeId());
         }
     }
 
