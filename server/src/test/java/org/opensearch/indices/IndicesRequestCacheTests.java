@@ -89,7 +89,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.opensearch.indices.IndicesRequestCache.INDEX_DIMENSION_NAME;
 import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING;
+import static org.opensearch.indices.IndicesRequestCache.SHARD_ID_DIMENSION_NAME;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -799,6 +801,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
     public void testClosingIndexWipesStats() throws Exception {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        String[] levels = { INDEX_DIMENSION_NAME, SHARD_ID_DIMENSION_NAME };
         // Create two indices each with multiple shards
         int numShards = 3;
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
@@ -873,8 +876,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 ShardId shardId = indexService.getShard(i).shardId();
                 List<String> dimensionValues = List.of(shardId.getIndexName(), shardId.toString());
                 initialDimensionValues.add(dimensionValues);
-                ImmutableCacheStatsHolder holder = cache.stats();
-                ImmutableCacheStats snapshot = cache.stats().getStatsForDimensionValues(dimensionValues);
+                ImmutableCacheStatsHolder holder = cache.stats(levels);
+                ImmutableCacheStats snapshot = cache.stats(levels).getStatsForDimensionValues(dimensionValues);
                 assertNotNull(snapshot);
                 // check the values are not empty by confirming entries != 0, this should always be true since the missed value is loaded
                 // into the cache
@@ -895,7 +898,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
         // Now stats for the closed index should be gone
         for (List<String> dimensionValues : initialDimensionValues) {
-            ImmutableCacheStats snapshot = cache.stats().getStatsForDimensionValues(dimensionValues);
+            ImmutableCacheStats snapshot = cache.stats(levels).getStatsForDimensionValues(dimensionValues);
             if (dimensionValues.get(0).equals(indexToCloseName)) {
                 assertNull(snapshot);
             } else {
