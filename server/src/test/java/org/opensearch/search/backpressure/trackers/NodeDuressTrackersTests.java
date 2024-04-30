@@ -12,6 +12,17 @@ import org.opensearch.test.OpenSearchTestCase;
 
 public class NodeDuressTrackersTests extends OpenSearchTestCase {
 
+    public void testNodeNotInDuress() {
+        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(
+            new NodeDuressTrackers.NodeDuressTracker(() -> false, () -> 2),
+            new NodeDuressTrackers.NodeDuressTracker(() -> false, () -> 2)
+        );
+
+        assertFalse(nodeDuressTrackers.isNodeInDuress());
+        assertFalse(nodeDuressTrackers.isNodeInDuress());
+        assertFalse(nodeDuressTrackers.isNodeInDuress());
+    }
+
     public void testNodeInDuressWhenHeapInDuress() {
         NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(
             new NodeDuressTrackers.NodeDuressTracker(() -> true, () -> 3),
