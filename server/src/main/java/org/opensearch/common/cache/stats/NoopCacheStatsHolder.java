@@ -16,11 +16,12 @@ import java.util.List;
  * A singleton instance is used for memory purposes.
  */
 public class NoopCacheStatsHolder implements CacheStatsHolder {
+    private static final String dummyStoreName = "noop_store";
     private static final NoopCacheStatsHolder singletonInstance = new NoopCacheStatsHolder();
     private static final ImmutableCacheStatsHolder immutableCacheStatsHolder;
     static {
-        ImmutableCacheStatsHolder.Node dummyNode = new ImmutableCacheStatsHolder.Node("", null, new ImmutableCacheStats(0, 0, 0, 0, 0));
-        immutableCacheStatsHolder = new ImmutableCacheStatsHolder(dummyNode, List.of());
+        DefaultCacheStatsHolder.Node dummyNode = new DefaultCacheStatsHolder.Node("", false);
+        immutableCacheStatsHolder = new ImmutableCacheStatsHolder(dummyNode, new String[0], List.of(), dummyStoreName);
     }
 
     private NoopCacheStatsHolder() {}
@@ -45,10 +46,10 @@ public class NoopCacheStatsHolder implements CacheStatsHolder {
     public void decrementSizeInBytes(List<String> dimensionValues, long amountBytes) {}
 
     @Override
-    public void incrementEntries(List<String> dimensionValues) {}
+    public void incrementItems(List<String> dimensionValues) {}
 
     @Override
-    public void decrementEntries(List<String> dimensionValues) {}
+    public void decrementItems(List<String> dimensionValues) {}
 
     @Override
     public void reset() {}
@@ -62,7 +63,7 @@ public class NoopCacheStatsHolder implements CacheStatsHolder {
     public void removeDimensions(List<String> dimensionValues) {}
 
     @Override
-    public ImmutableCacheStatsHolder getImmutableCacheStatsHolder() {
+    public ImmutableCacheStatsHolder getImmutableCacheStatsHolder(String[] levels) {
         return immutableCacheStatsHolder;
     }
 }

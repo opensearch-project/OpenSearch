@@ -230,7 +230,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     }
 
     @Override
-    public ImmutableCacheStatsHolder stats() {
+    public ImmutableCacheStatsHolder stats(String[] levels) {
         return null; // TODO: in TSC stats PR
     }
 

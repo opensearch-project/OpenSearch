@@ -42,6 +42,12 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.cluster.service.ClusterStateStats;
+import org.opensearch.common.cache.CacheType;
+import org.opensearch.common.cache.service.NodeCacheStats;
+import org.opensearch.common.cache.stats.CacheStats;
+import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
+import org.opensearch.common.cache.stats.DefaultCacheStatsHolderTests;
+import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.common.settings.ClusterSettings;
@@ -89,6 +95,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -577,6 +584,13 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         deserializedAdmissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType())
                     );
                 }
+                NodeCacheStats nodeCacheStats = nodeStats.getNodeCacheStats();
+                NodeCacheStats deserializedNodeCacheStats = deserializedNodeStats.getNodeCacheStats();
+                if (nodeCacheStats == null) {
+                    assertNull(deserializedNodeCacheStats);
+                } else {
+                    assertEquals(nodeCacheStats, deserializedNodeCacheStats);
+                }
             }
         }
     }
@@ -927,6 +941,39 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
         NodeIndicesStats indicesStats = getNodeIndicesStats(remoteStoreStats);
 
+        NodeCacheStats nodeCacheStats = null;
+        if (frequently()) {
+            int numIndices = randomIntBetween(1, 10);
+            int numShardsPerIndex = randomIntBetween(1, 50);
+
+            List<String> dimensionNames = List.of("index", "shard", "tier");
+            DefaultCacheStatsHolder statsHolder = new DefaultCacheStatsHolder(dimensionNames, "dummyStoreName");
+            for (int indexNum = 0; indexNum < numIndices; indexNum++) {
+                String indexName = "index" + indexNum;
+                for (int shardNum = 0; shardNum < numShardsPerIndex; shardNum++) {
+                    String shardName = "[" + indexName + "][" + shardNum + "]";
+                    for (String tierName : new String[] { "dummy_tier_1", "dummy_tier_2" }) {
+                        List<String> dimensionValues = List.of(indexName, shardName, tierName);
+                        CacheStats toIncrement = new CacheStats(randomInt(20), randomInt(20), randomInt(20), randomInt(20), randomInt(20));
+                        DefaultCacheStatsHolderTests.populateStatsHolderFromStatsValueMap(
+                            statsHolder,
+                            Map.of(dimensionValues, toIncrement)
+                        );
+                    }
+                }
+            }
+            CommonStatsFlags flags = new CommonStatsFlags();
+            for (CacheType cacheType : CacheType.values()) {
+                if (frequently()) {
+                    flags.includeCacheType(cacheType);
+                }
+            }
+            ImmutableCacheStatsHolder cacheStats = statsHolder.getImmutableCacheStatsHolder(dimensionNames.toArray(new String[0]));
+            TreeMap<CacheType, ImmutableCacheStatsHolder> cacheStatsMap = new TreeMap<>();
+            cacheStatsMap.put(CacheType.INDICES_REQUEST_CACHE, cacheStats);
+            nodeCacheStats = new NodeCacheStats(cacheStatsMap, flags);
+        }
+
         // TODO: Only remote_store based aspects of NodeIndicesStats are being tested here.
         // It is possible to test other metrics in NodeIndicesStats as well since it extends Writeable now
         return new NodeStats(
@@ -957,7 +1004,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null,
             segmentReplicationRejectionStats,
             null,
-            admissionControlStats
+            admissionControlStats,
+            nodeCacheStats
         );
     }
 

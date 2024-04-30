@@ -100,6 +100,11 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
     }
 
     @Override
+    public ImmutableCacheStatsHolder stats(String[] levels) {
+        return null;
+    }
+
+    @Override
     public void close() {
 
     }
