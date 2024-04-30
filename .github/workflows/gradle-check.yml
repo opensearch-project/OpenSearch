@@ -9,6 +9,8 @@ on:
     types: [opened, synchronize, reopened]
     paths-ignore:
       - 'release-notes/**'
+      - '.github/**'
+      - '**.md'
 
 permissions:
   contents: read # to fetch code (actions/checkout)
