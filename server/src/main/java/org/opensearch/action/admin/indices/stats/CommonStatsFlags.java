@@ -96,7 +96,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         includeUnloadedSegments = in.readBoolean();
         includeAllShardIndexingPressureTrackers = in.readBoolean();
         includeOnlyTopIndexingPressureMetrics = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_14_0)) {
             includeCaches = in.readEnumSet(CacheType.class);
             levels = in.readStringArray();
         }
@@ -120,7 +120,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         out.writeBoolean(includeUnloadedSegments);
         out.writeBoolean(includeAllShardIndexingPressureTrackers);
         out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_14_0)) {
             out.writeEnumSet(includeCaches);
             out.writeStringArrayNullable(levels);
         }
