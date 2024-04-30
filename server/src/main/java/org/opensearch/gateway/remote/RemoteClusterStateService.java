@@ -272,11 +272,10 @@ public class RemoteClusterStateService implements Closeable {
             return null;
         }
 
-        List<IndexMetadata> indexMetadataList = new ArrayList<>(clusterState.metadata().indices().values());
         UploadedMetadataResults uploadedMetadataResults = writeMetadataInParallel(
             clusterState,
-            indexMetadataList,
-            ClusterState.UNKNOWN_UUID.equals(previousClusterUUID) ? indexMetadataList : Collections.emptyList(),
+            new ArrayList<>(clusterState.metadata().indices().values()),
+            Collections.emptyMap(),
             clusterState.metadata().customs(),
             true,
             true,
@@ -355,9 +354,9 @@ public class RemoteClusterStateService implements Closeable {
         }
 
         // Write Index Metadata
-        final Map<String, Long> previousStateIndexMetadataVersionByName = new HashMap<>();
+        final Map<String, IndexMetadata> previousStateIndexMetadataByName = new HashMap<>();
         for (final IndexMetadata indexMetadata : previousClusterState.metadata().indices().values()) {
-            previousStateIndexMetadataVersionByName.put(indexMetadata.getIndex().getName(), indexMetadata.getVersion());
+            previousStateIndexMetadataByName.put(indexMetadata.getIndex().getName(), indexMetadata);
         }
 
         int numIndicesUpdated = 0;
@@ -367,9 +366,12 @@ public class RemoteClusterStateService implements Closeable {
             .collect(Collectors.toMap(UploadedIndexMetadata::getIndexName, Function.identity()));
 
         List<IndexMetadata> toUpload = new ArrayList<>();
-        List<IndexMetadata> newIndexMetadataList = new ArrayList<>();
+        // We prepare a map that contains the previous index metadata for the indexes for which version has changed.
+        Map<String, IndexMetadata> prevIndexMetadataByName = new HashMap<>();
         for (final IndexMetadata indexMetadata : clusterState.metadata().indices().values()) {
-            final Long previousVersion = previousStateIndexMetadataVersionByName.get(indexMetadata.getIndex().getName());
+            String indexName = indexMetadata.getIndex().getName();
+            final IndexMetadata prevIndexMetadata = previousStateIndexMetadataByName.get(indexName);
+            Long previousVersion = prevIndexMetadata != null ? prevIndexMetadata.getVersion() : null;
             if (previousVersion == null || indexMetadata.getVersion() != previousVersion) {
                 logger.debug(
                     "updating metadata for [{}], changing version from [{}] to [{}]",
@@ -379,14 +381,11 @@ public class RemoteClusterStateService implements Closeable {
                 );
                 numIndicesUpdated++;
                 toUpload.add(indexMetadata);
+                prevIndexMetadataByName.put(indexName, prevIndexMetadata);
             } else {
                 numIndicesUnchanged++;
             }
-            previousStateIndexMetadataVersionByName.remove(indexMetadata.getIndex().getName());
-            // Adding the indexMetadata to newIndexMetadataList if there is no previous version present for the index.
-            if (previousVersion == null) {
-                newIndexMetadataList.add(indexMetadata);
-            }
+            previousStateIndexMetadataByName.remove(indexMetadata.getIndex().getName());
         }
         UploadedMetadataResults uploadedMetadataResults;
         boolean firstUpload = !previousManifest.hasMetadataAttributesFiles();
@@ -396,7 +395,7 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults = writeMetadataInParallel(
                 clusterState,
                 toUpload,
-                newIndexMetadataList,
+                prevIndexMetadataByName,
                 clusterState.metadata().customs(),
                 true,
                 true,
@@ -406,7 +405,7 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults = writeMetadataInParallel(
                 clusterState,
                 toUpload,
-                newIndexMetadataList,
+                prevIndexMetadataByName,
                 customsToUpload,
                 updateCoordinationMetadata,
                 updateSettingsMetadata,
@@ -421,7 +420,7 @@ public class RemoteClusterStateService implements Closeable {
         allUploadedCustomMap.putAll(uploadedMetadataResults.uploadedCustomMetadataMap);
         // remove the data for removed custom/indices
         previousStateCustomMap.keySet().forEach(allUploadedCustomMap::remove);
-        previousStateIndexMetadataVersionByName.keySet().forEach(allUploadedIndexMetadata::remove);
+        previousStateIndexMetadataByName.keySet().forEach(allUploadedIndexMetadata::remove);
         final ClusterMetadataManifest manifest = uploadManifest(
             clusterState,
             new ArrayList<>(allUploadedIndexMetadata.values()),
@@ -478,15 +477,15 @@ public class RemoteClusterStateService implements Closeable {
     private UploadedMetadataResults writeMetadataInParallel(
         ClusterState clusterState,
         List<IndexMetadata> indexToUpload,
-        List<IndexMetadata> newIndexMetadataList,
+        Map<String, IndexMetadata> prevIndexMetadataByName,
         Map<String, Metadata.Custom> customToUpload,
         boolean uploadCoordinationMetadata,
         boolean uploadSettingsMetadata,
         boolean uploadTemplateMetadata
     ) throws IOException {
-        int totalUploadTasks = indexToUpload.size() + newIndexMetadataList.size() + customToUpload.size() + (uploadCoordinationMetadata
-            ? 1
-            : 0) + (uploadSettingsMetadata ? 1 : 0) + (uploadTemplateMetadata ? 1 : 0);
+        assert Objects.nonNull(indexMetadataUploadListeners) : "indexMetadataUploadListeners can not be null";
+        int totalUploadTasks = indexToUpload.size() + indexMetadataUploadListeners.size() + customToUpload.size()
+            + (uploadCoordinationMetadata ? 1 : 0) + (uploadSettingsMetadata ? 1 : 0) + (uploadTemplateMetadata ? 1 : 0);
         CountDownLatch latch = new CountDownLatch(totalUploadTasks);
         Map<String, CheckedRunnable<IOException>> uploadTasks = new HashMap<>(totalUploadTasks);
         Map<String, ClusterMetadataManifest.UploadedMetadata> results = new HashMap<>(totalUploadTasks);
@@ -558,7 +557,7 @@ public class RemoteClusterStateService implements Closeable {
             uploadTask.run();
         }
 
-        invokeIndexMetadataUploadListeners(newIndexMetadataList, latch, exceptionList);
+        invokeIndexMetadataUploadListeners(indexToUpload, prevIndexMetadataByName, latch, exceptionList);
 
         try {
             if (latch.await(getGlobalMetadataUploadTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
@@ -625,15 +624,17 @@ public class RemoteClusterStateService implements Closeable {
      * Invokes the index metadata upload listener but does not wait for the execution to complete.
      */
     private void invokeIndexMetadataUploadListeners(
-        List<IndexMetadata> newIndexMetadataList,
+        List<IndexMetadata> updatedIndexMetadataList,
+        Map<String, IndexMetadata> prevIndexMetadataByName,
         CountDownLatch latch,
         List<Exception> exceptionList
     ) {
         for (IndexMetadataUploadListener listener : indexMetadataUploadListeners) {
             String listenerName = listener.getClass().getSimpleName();
-            listener.onNewIndexUpload(
-                newIndexMetadataList,
-                getIndexMetadataUploadActionListener(newIndexMetadataList, latch, exceptionList, listenerName)
+            listener.onUpload(
+                updatedIndexMetadataList,
+                prevIndexMetadataByName,
+                getIndexMetadataUploadActionListener(updatedIndexMetadataList, prevIndexMetadataByName, latch, exceptionList, listenerName)
             );
         }
 
@@ -641,6 +642,7 @@ public class RemoteClusterStateService implements Closeable {
 
     private ActionListener<Void> getIndexMetadataUploadActionListener(
         List<IndexMetadata> newIndexMetadataList,
+        Map<String, IndexMetadata> prevIndexMetadataByName,
         CountDownLatch latch,
         List<Exception> exceptionList,
         String listenerName
@@ -650,18 +652,20 @@ public class RemoteClusterStateService implements Closeable {
             ActionListener.wrap(
                 ignored -> logger.trace(
                     new ParameterizedMessage(
-                        "{} : Invoked listener={} successfully tookTimeNs={}",
+                        "listener={} : Invoked successfully with indexMetadataList={} prevIndexMetadataList={} tookTimeNs={}",
                         listenerName,
                         newIndexMetadataList,
+                        prevIndexMetadataByName.values(),
                         (System.nanoTime() - startTime)
                     )
                 ),
                 ex -> {
                     logger.error(
                         new ParameterizedMessage(
-                            "{} : Exception during invocation of listener={} tookTimeNs={}",
+                            "listener={} : Exception during invocation with indexMetadataList={} prevIndexMetadataList={} tookTimeNs={}",
                             listenerName,
                             newIndexMetadataList,
+                            prevIndexMetadataByName.values(),
                             (System.nanoTime() - startTime)
                         ),
                         ex
@@ -997,7 +1001,7 @@ public class RemoteClusterStateService implements Closeable {
             (committed ? "C" : "P"), // C for committed and P for published
             RemoteStoreUtils.invertLong(System.currentTimeMillis()),
             String.valueOf(codecVersion) // Keep the codec version at last place only, during read we reads last place to
-                                         // determine codec version.
+            // determine codec version.
         );
     }
 
