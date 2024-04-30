@@ -2924,7 +2924,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @return {@code true} if the engine should be flushed
      */
-    boolean shouldPeriodicallyFlush() {
+    public boolean shouldPeriodicallyFlush() {
         final Engine engine = getEngineOrNull();
         if (engine != null) {
             try {
@@ -4508,6 +4508,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Schedules a flush or translog generation roll if needed but will not schedule more than one concurrently. The operation will be
      * executed asynchronously on the flush thread pool.
+     * Can also schedule a flush if decided by translog manager
      */
     public void afterWriteOperation() {
         if (shouldPeriodicallyFlush() || shouldRollTranslogGeneration()) {

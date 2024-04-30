@@ -904,6 +904,22 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return shards;
     }
 
+    /**
+     * Returns a {@link List} of shards that match the provided {@link Predicate}
+     *
+     * @param predicate {@link Predicate} to apply
+     * @return a {@link List} of shards that match one of the given {@link Predicate}
+     */
+    public List<ShardRouting> shardsMatchingPredicate(Predicate<ShardRouting> predicate) {
+        List<ShardRouting> shards = new ArrayList<>();
+        for (ShardRouting shardEntry : this) {
+            if (predicate.test(shardEntry)) {
+                shards.add(shardEntry);
+            }
+        }
+        return shards;
+    }
+
     public int shardsMatchingPredicateCount(Predicate<ShardRouting> predicate) {
         int count = 0;
         for (ShardRouting shardEntry : this) {

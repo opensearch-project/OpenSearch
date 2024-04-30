@@ -680,4 +680,15 @@ public class RemoteFsTranslog extends Translog {
     int availablePermits() {
         return syncPermit.availablePermits();
     }
+
+    /**
+     * Checks whether or not the shard should be flushed based on translog files.
+     * This checks if number of translog files breaches the threshold count determined by
+     * {@code cluster.remote_store.translog.max_readers} setting
+     * @return {@code true} if the shard should be flushed
+     */
+    @Override
+    protected boolean shouldFlush() {
+        return readers.size() >= translogTransferManager.getMaxRemoteTranslogReadersSettings();
+    }
 }

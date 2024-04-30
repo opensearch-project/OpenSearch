@@ -1118,6 +1118,10 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         String index = "index";
         setupIndex(client, index);
 
+        // assert there are no entries in the cache for index
+        assertEquals(0, getRequestCacheStats(client, index).getMemorySizeInBytes());
+        // assert there are no entries in the cache from other indices in the node
+        assertEquals(0, getNodeCacheStats(client).getMemorySizeInBytes());
         // create first cache entry in index
         createCacheEntry(client, index, "hello");
         assertCacheState(client, index, 0, 1);
@@ -1135,7 +1139,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // sleep until cache cleaner would have cleaned up the stale key from index
         assertBusy(() -> {
             // cache cleaner should have cleaned up the stale keys from index
-            assertFalse(getNodeCacheStats(client).getMemorySizeInBytes() > 0);
+            assertEquals(0, getNodeCacheStats(client).getMemorySizeInBytes());
         }, cacheCleanIntervalInMillis * 2, TimeUnit.MILLISECONDS);
     }
 
@@ -1154,6 +1158,10 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         String index = "index";
         setupIndex(client, index);
 
+        // assert there are no entries in the cache for index
+        assertEquals(0, getRequestCacheStats(client, index).getMemorySizeInBytes());
+        // assert there are no entries in the cache from other indices in the node
+        assertEquals(0, getNodeCacheStats(client).getMemorySizeInBytes());
         // create first cache entry in index
         createCacheEntry(client, index, "hello");
         assertCacheState(client, index, 0, 1);
@@ -1172,13 +1180,13 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // sleep until cache cleaner would have cleaned up the stale key from index
         assertBusy(() -> {
             // cache cleaner should have cleaned up the stale keys from index
-            assertFalse(getNodeCacheStats(client).getMemorySizeInBytes() > 0);
+            assertEquals(0, getNodeCacheStats(client).getMemorySizeInBytes());
         }, cacheCleanIntervalInMillis * 2, TimeUnit.MILLISECONDS);
     }
 
     // when staleness threshold is lower than staleness, it should clean the cache from all indices having stale keys
     public void testStaleKeysCleanupWithMultipleIndices() throws Exception {
-        int cacheCleanIntervalInMillis = 300;
+        int cacheCleanIntervalInMillis = 10;
         String node = internalCluster().startNode(
             Settings.builder()
                 .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_STALENESS_THRESHOLD_SETTING_KEY, 0.10)
@@ -1193,37 +1201,41 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         setupIndex(client, index1);
         setupIndex(client, index2);
 
+        // assert cache is empty for index1
+        assertEquals(0, getRequestCacheStats(client, index1).getMemorySizeInBytes());
         // create first cache entry in index1
         createCacheEntry(client, index1, "hello");
         assertCacheState(client, index1, 0, 1);
-        long memorySizeForIndex1 = getRequestCacheStats(client, index1).getMemorySizeInBytes();
-        assertTrue(memorySizeForIndex1 > 0);
+        long memorySizeForIndex1With1Entries = getRequestCacheStats(client, index1).getMemorySizeInBytes();
+        assertTrue(memorySizeForIndex1With1Entries > 0);
 
         // create second cache entry in index1
         createCacheEntry(client, index1, "there");
         assertCacheState(client, index1, 0, 2);
-        long finalMemorySizeForIndex1 = getRequestCacheStats(client, index1).getMemorySizeInBytes();
-        assertTrue(finalMemorySizeForIndex1 > memorySizeForIndex1);
+        long memorySizeForIndex1With2Entries = getRequestCacheStats(client, index1).getMemorySizeInBytes();
+        assertTrue(memorySizeForIndex1With2Entries > memorySizeForIndex1With1Entries);
 
+        // assert cache is empty for index2
+        assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
         // create first cache entry in index2
         createCacheEntry(client, index2, "hello");
         assertCacheState(client, index2, 0, 1);
         assertTrue(getRequestCacheStats(client, index2).getMemorySizeInBytes() > 0);
 
-        // force refresh index 1 so that it creates 2 stale keys
-        flushAndRefresh(index1);
-        // create another cache entry in index 1, this should not be cleaned up.
+        // force refresh both index1 and index2
+        flushAndRefresh(index1, index2);
+        // create another cache entry in index 1 same as memorySizeForIndex1With1Entries, this should not be cleaned up.
         createCacheEntry(client, index1, "hello");
-        // record the size of this entry
-        long memorySizeOfLatestEntryForIndex1 = getRequestCacheStats(client, index1).getMemorySizeInBytes() - finalMemorySizeForIndex1;
-        // force refresh index 2 so that it creates 1 stale key
-        flushAndRefresh(index2);
-        // sleep until cache cleaner would have cleaned up the stale key from index 2
+        // sleep until cache cleaner would have cleaned up the stale key from index2
         assertBusy(() -> {
-            // cache cleaner should have cleaned up the stale key from index 2
+            // cache cleaner should have cleaned up the stale key from index2 and hence cache should be empty
             assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
-            // cache cleaner should have only cleaned up the stale entities
-            assertEquals(memorySizeOfLatestEntryForIndex1, getRequestCacheStats(client, index1).getMemorySizeInBytes());
+            // cache cleaner should have only cleaned up the stale entities for index1
+            long currentMemorySizeInBytesForIndex1 = getRequestCacheStats(client, index1).getMemorySizeInBytes();
+            // assert the memory size of index1 to only contain 1 entry added after flushAndRefresh
+            assertEquals(memorySizeForIndex1With1Entries, currentMemorySizeInBytesForIndex1);
+            // cache for index1 should not be empty since there was an item cached after flushAndRefresh
+            assertTrue(currentMemorySizeInBytesForIndex1 > 0);
         }, cacheCleanIntervalInMillis * 2, TimeUnit.MILLISECONDS);
     }
 
