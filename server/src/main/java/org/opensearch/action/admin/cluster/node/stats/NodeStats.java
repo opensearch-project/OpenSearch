@@ -40,6 +40,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.cache.service.NodeCacheStats;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.indices.breaker.AllCircuitBreakerStats;
@@ -159,6 +160,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private AdmissionControlStats admissionControlStats;
 
+    @Nullable
+    private NodeCacheStats nodeCacheStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -248,6 +252,12 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             admissionControlStats = null;
         }
+        // TODO: change from V_3_0_0 to V_2_14_0 on main after backport to 2.x
+        if (in.getVersion().onOrAfter(Version.V_2_14_0)) {
+            nodeCacheStats = in.readOptionalWriteable(NodeCacheStats::new);
+        } else {
+            nodeCacheStats = null;
+        }
     }
 
     public NodeStats(
@@ -278,7 +288,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable SearchPipelineStats searchPipelineStats,
         @Nullable SegmentReplicationRejectionStats segmentReplicationRejectionStats,
         @Nullable RepositoriesStats repositoriesStats,
-        @Nullable AdmissionControlStats admissionControlStats
+        @Nullable AdmissionControlStats admissionControlStats,
+        @Nullable NodeCacheStats nodeCacheStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -308,6 +319,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.segmentReplicationRejectionStats = segmentReplicationRejectionStats;
         this.repositoriesStats = repositoriesStats;
         this.admissionControlStats = admissionControlStats;
+        this.nodeCacheStats = nodeCacheStats;
     }
 
     public long getTimestamp() {
@@ -465,6 +477,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return admissionControlStats;
     }
 
+    @Nullable
+    public NodeCacheStats getNodeCacheStats() {
+        return nodeCacheStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -526,6 +543,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
 
         if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalWriteable(admissionControlStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_14_0)) {
+            out.writeOptionalWriteable(nodeCacheStats);
         }
     }
 
@@ -628,6 +648,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getAdmissionControlStats() != null) {
             getAdmissionControlStats().toXContent(builder, params);
+        }
+        if (getNodeCacheStats() != null) {
+            getNodeCacheStats().toXContent(builder, params);
         }
         return builder;
     }
