@@ -15,12 +15,17 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * A tier-aware version of DefaultCacheStatsHolder. Overrides the incrementer functions, as we cannot just add the on-heap
- * and disk stats to get a total for the cache as a whole. For example, if the heap tier has 5 misses and the disk tier
- * has 4, the total cache has had 4 misses, not 9. The same goes for evictions. Other stats values add normally.
+ * A tier-aware version of DefaultCacheStatsHolder. Overrides the incrementer functions, as we can't just add the on-heap
+ * and disk stats to get a total for the cache as a whole. If the disk tier is present, the total hits, size, and entries
+ * should be the sum of both tiers' values, but the total misses and evictions should be the disk tier's values.
+ * When the disk tier isn't present, on-heap misses and evictions should contribute to the total.
+ *
+ * For example, if the heap tier has 5 misses and the disk tier has 4, the total cache has had 4 misses, not 9.
+ * The same goes for evictions. Other stats values add normally.
+ *
  * This means for misses and evictions, if we are incrementing for the on-heap tier and the disk tier is present,
- * we have to increment only the leaf nodes corresponding to the on-heap tier itself, and not its ancestors.
- * If the disk tier is not present, we do increment the ancestor nodes.
+ * we have to increment only the leaf nodes corresponding to the on-heap tier itself, and not its ancestors,
+ * which correspond to totals including both tiers. If the disk tier is not present, we do increment the ancestor nodes.
  */
 public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
 
