@@ -291,7 +291,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         );
 
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings);
-        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize, "");
+        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize, "", false);
     }
 
     private Location addToTranslogAndList(Translog translog, List<Translog.Operation> list, Translog.Operation op) throws IOException {
@@ -1453,7 +1453,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             temp.getIndexSettings(),
             temp.getBigArrays(),
             new ByteSizeValue(1, ByteSizeUnit.KB),
-            ""
+            "",
+            false
         );
 
         final Set<Long> persistedSeqNos = new HashSet<>();
@@ -1552,7 +1553,8 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             temp.getIndexSettings(),
             temp.getBigArrays(),
             new ByteSizeValue(1, ByteSizeUnit.KB),
-            ""
+            "",
+            false
         );
 
         final Set<Long> persistedSeqNos = new HashSet<>();

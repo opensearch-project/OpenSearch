@@ -8,6 +8,7 @@
 
 package org.opensearch.index.remote;
 
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.collect.Tuple;
 
 import java.nio.ByteBuffer;
@@ -17,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 /**
@@ -145,5 +147,24 @@ public class RemoteStoreUtils {
         int base64DecimalValue = Integer.valueOf(base64Part, 2);
         assert base64DecimalValue >= 0 && base64DecimalValue < 64;
         return URL_BASE64_CHARSET[base64DecimalValue] + binaryPart;
+    }
+
+    /**
+     * Determines the remote store path strategy by reading the custom data map in IndexMetadata class.
+     */
+    public static RemoteStorePathStrategy determineRemoteStorePathStrategy(IndexMetadata indexMetadata) {
+        Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        assert remoteCustomData == null || remoteCustomData.containsKey(RemoteStoreEnums.PathType.NAME);
+        if (remoteCustomData != null && remoteCustomData.containsKey(RemoteStoreEnums.PathType.NAME)) {
+            RemoteStoreEnums.PathType pathType = RemoteStoreEnums.PathType.parseString(
+                remoteCustomData.get(RemoteStoreEnums.PathType.NAME)
+            );
+            String hashAlgoStr = remoteCustomData.get(RemoteStoreEnums.PathHashAlgorithm.NAME);
+            RemoteStoreEnums.PathHashAlgorithm hashAlgorithm = Objects.nonNull(hashAlgoStr)
+                ? RemoteStoreEnums.PathHashAlgorithm.parseString(hashAlgoStr)
+                : null;
+            return new RemoteStorePathStrategy(pathType, hashAlgorithm);
+        }
+        return new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED);
     }
 }
