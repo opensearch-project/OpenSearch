@@ -59,8 +59,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.opensearch.index.remote.RemoteStoreUtils.getRemoteStoreRepoName;
-
 /**
  * Observer that tracks changes made to RoutingNodes in order to update the primary terms and in-sync allocation ids in
  * {@link IndexMetadata} once the allocation round has completed.
@@ -160,10 +158,6 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
         Map<Index, List<Map.Entry<ShardId, Updates>>> changesGroupedByIndex = shardChanges.entrySet()
             .stream()
             .collect(Collectors.groupingBy(e -> e.getKey().getIndex()));
-        Map<String, String> remoteRepoNames = new HashMap<>();
-        if (ongoingRemoteStoreMigration) {
-            remoteRepoNames = getRemoteStoreRepoName(discoveryNodes);
-        }
         Metadata.Builder metadataBuilder = null;
         for (Map.Entry<Index, List<Map.Entry<ShardId, Updates>>> indexChanges : changesGroupedByIndex.entrySet()) {
             Index index = indexChanges.getKey();
