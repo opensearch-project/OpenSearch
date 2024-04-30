@@ -826,8 +826,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     /**
      * Returns the current cache stats. Pkg-private for testing.
      */
-    ImmutableCacheStatsHolder stats() {
-        return cache.stats();
+    ImmutableCacheStatsHolder stats(String[] levels) {
+        return cache.stats(levels);
     }
 
     int numRegisteredCloseListeners() { // for testing
