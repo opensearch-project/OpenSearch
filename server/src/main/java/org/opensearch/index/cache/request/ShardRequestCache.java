@@ -32,6 +32,7 @@
 
 package org.opensearch.index.cache.request;
 
+import org.apache.lucene.util.Accountable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -61,6 +62,7 @@ public final class ShardRequestCache {
         missCount.inc();
     }
 
+    // Functions used to increment size by passing in the size directly, Used now, as we use ICacheKey<Key> in the IndicesRequestCache..
     public void onCached(long keyRamBytesUsed, BytesReference value) {
         totalMetric.inc(keyRamBytesUsed + value.ramBytesUsed());
     }
@@ -74,5 +76,23 @@ public final class ShardRequestCache {
             dec += value.ramBytesUsed();
         }
         totalMetric.dec(dec);
+    }
+
+    // Old functions which increment size by passing in an Accountable. Functional but no longer used.
+    public void onCached(Accountable key, BytesReference value) {
+        totalMetric.inc(key.ramBytesUsed() + value.ramBytesUsed());
+    }
+
+    public void onRemoval(Accountable key, BytesReference value, boolean evicted) {
+        if (evicted) {
+            evictionsMetric.inc();
+        }
+        long dec = 0;
+        if (key != null) {
+            dec += key.ramBytesUsed();
+        }
+        if (value != null) {
+            dec += value.ramBytesUsed();
+        }
     }
 }
