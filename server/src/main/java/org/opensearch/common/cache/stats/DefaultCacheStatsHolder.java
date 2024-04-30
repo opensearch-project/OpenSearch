@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -170,7 +171,8 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
      */
     @Override
     public ImmutableCacheStatsHolder getImmutableCacheStatsHolder(String[] levels) {
-        return new ImmutableCacheStatsHolder(this.statsRoot, levels, dimensionNames, storeName);
+        String[] nonNullLevels = Objects.requireNonNullElseGet(levels, () -> new String[0]);
+        return new ImmutableCacheStatsHolder(this.statsRoot, nonNullLevels, dimensionNames, storeName);
     }
 
     @Override
