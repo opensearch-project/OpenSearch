@@ -96,6 +96,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.FeatureFlagSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -147,6 +148,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
@@ -218,6 +220,8 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.test.XContentTestUtils.convertToMap;
 import static org.opensearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -2432,6 +2436,15 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return refreshResponse;
     }
 
+    public boolean isMigratingToRemoteStore() {
+        ClusterSettings clusterSettings = clusterService().getClusterSettings();
+        boolean isMixedMode = clusterSettings.get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING)
+            .equals(RemoteStoreNodeService.CompatibilityMode.MIXED);
+        boolean isRemoteStoreMigrationDirection = clusterSettings.get(MIGRATION_DIRECTION_SETTING)
+            .equals(RemoteStoreNodeService.Direction.REMOTE_STORE);
+        return (isMixedMode && isRemoteStoreMigrationDirection);
+    }
+
     /**
      * Waits until active/started replica shards are caught up with primary shard only when Segment Replication is enabled.
      * This doesn't wait for inactive/non-started replica shards to become active/started.
@@ -2456,11 +2469,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                                             for (ShardRouting replica : replicaRouting) {
                                                 if (replica.state().toString().equals("STARTED")) {
                                                     IndexShard replicaShard = getIndexShard(replica, index);
-                                                    assertEquals(
-                                                        "replica shards haven't caught up with primary",
-                                                        getLatestSegmentInfoVersion(primaryShard),
-                                                        getLatestSegmentInfoVersion(replicaShard)
-                                                    );
+                                                    if (replicaShard.indexSettings().isSegRepEnabledOrRemoteNode()) {
+                                                        assertEquals(
+                                                            "replica shards haven't caught up with primary",
+                                                            getLatestSegmentInfoVersion(primaryShard),
+                                                            getLatestSegmentInfoVersion(replicaShard)
+                                                        );
+                                                    }
                                                 }
                                             }
                                         }
@@ -2484,7 +2499,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Checks if Segment Replication is enabled on Index.
      */
     protected boolean isSegmentReplicationEnabledForIndex(String index) {
-        return clusterService().state().getMetadata().isSegmentReplicationEnabled(index);
+        return clusterService().state().getMetadata().isSegmentReplicationEnabled(index) || isMigratingToRemoteStore();
     }
 
     protected IndexShard getIndexShard(ShardRouting routing, String indexName) {

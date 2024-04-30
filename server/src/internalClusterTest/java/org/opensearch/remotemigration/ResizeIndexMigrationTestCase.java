@@ -32,7 +32,7 @@ public class ResizeIndexMigrationTestCase extends MigrationBaseTestCase {
     * and index is on DocRep node, and migration to remote store is in progress.
     * */
     public void testFailResizeIndexWhileDocRepToRemoteStoreMigration() throws Exception {
-        addRemote = false;
+        setAddRemote(false);
         // create a docrep cluster
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().validateClusterFormed();
@@ -127,7 +127,7 @@ public class ResizeIndexMigrationTestCase extends MigrationBaseTestCase {
      * */
     public void testFailResizeIndexWhileRemoteStoreToDocRepMigration() throws Exception {
         // creates a remote cluster
-        addRemote = true;
+        setAddRemote(true);
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().validateClusterFormed();
 

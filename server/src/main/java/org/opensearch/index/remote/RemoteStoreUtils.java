@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.function.Function;
 
 /**
@@ -154,6 +156,22 @@ public class RemoteStoreUtils {
         return URL_BASE64_CHARSET[base64DecimalValue] + binaryPart;
     }
 
+    public static RemoteStorePathStrategy determineRemoteStorePathStrategy(IndexMetadata indexMetadata) {
+        Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        assert remoteCustomData == null || remoteCustomData.containsKey(RemoteStoreEnums.PathType.NAME);
+        if (remoteCustomData != null && remoteCustomData.containsKey(RemoteStoreEnums.PathType.NAME)) {
+            RemoteStoreEnums.PathType pathType = RemoteStoreEnums.PathType.parseString(
+                    remoteCustomData.get(RemoteStoreEnums.PathType.NAME)
+            );
+            String hashAlgoStr = remoteCustomData.get(RemoteStoreEnums.PathHashAlgorithm.NAME);
+            RemoteStoreEnums.PathHashAlgorithm hashAlgorithm = Objects.nonNull(hashAlgoStr)
+                    ? RemoteStoreEnums.PathHashAlgorithm.parseString(hashAlgoStr)
+                    : null;
+            return new RemoteStorePathStrategy(pathType, hashAlgorithm);
+        }
+        return new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED);
+    }
+
     /**
      * Fetches segment and translog repository names from remote store node attributes.
      * Returns a blank {@link HashMap} if the cluster does not contain any remote nodes.
@@ -165,10 +183,10 @@ public class RemoteStoreUtils {
      */
     public static Map<String, String> getRemoteStoreRepoName(DiscoveryNodes discoveryNodes) {
         Optional<DiscoveryNode> remoteNode = discoveryNodes.getNodes()
-            .values()
-            .stream()
-            .filter(DiscoveryNode::isRemoteStoreNode)
-            .findFirst();
+                .values()
+                .stream()
+                .filter(DiscoveryNode::isRemoteStoreNode)
+                .findFirst();
         return remoteNode.map(RemoteStoreNodeAttribute::getDataRepoNames).orElseGet(HashMap::new);
     }
 }
