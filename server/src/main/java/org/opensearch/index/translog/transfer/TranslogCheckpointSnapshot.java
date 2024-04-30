@@ -39,6 +39,7 @@ public class TranslogCheckpointSnapshot {
     private final Long translogChecksum;
     private final Long checkpointChecksum;
     private final Checkpoint checkpoint;
+    private final long checkpointGeneration;
 
     public TranslogCheckpointSnapshot(
         long primaryTerm,
@@ -48,7 +49,8 @@ public class TranslogCheckpointSnapshot {
         Path checkpointPath,
         Long translogChecksum,
         Long checkpointChecksum,
-        Checkpoint checkpoint
+        Checkpoint checkpoint,
+        long checkpointGeneration
     ) {
         this.primaryTerm = primaryTerm;
         this.generation = generation;
@@ -58,6 +60,7 @@ public class TranslogCheckpointSnapshot {
         this.translogChecksum = translogChecksum;
         this.checkpointChecksum = checkpointChecksum;
         this.checkpoint = checkpoint;
+        this.checkpointGeneration = checkpointGeneration;
     }
 
     public String getTranslogFileName() {
@@ -69,17 +72,15 @@ public class TranslogCheckpointSnapshot {
     }
 
     public long getTranslogFileContentLength() throws IOException {
-        FileChannel fileChannel = FileChannel.open(translogPath, StandardOpenOption.READ);
-        long tlogContentLength = fileChannel.size();
-        fileChannel.close();
-        return tlogContentLength;
+        try (FileChannel fileChannel = FileChannel.open(translogPath, StandardOpenOption.READ)) {
+            return fileChannel.size();
+        }
     }
 
     public long getCheckpointFileContentLength() throws IOException {
-        FileChannel fileChannel = FileChannel.open(checkpointPath, StandardOpenOption.READ);
-        long ckpContentLength = fileChannel.size();
-        fileChannel.close();
-        return ckpContentLength;
+        try (FileChannel fileChannel = FileChannel.open(checkpointPath, StandardOpenOption.READ)) {
+            return fileChannel.size();
+        }
     }
 
     public long getGeneration() {
@@ -88,6 +89,10 @@ public class TranslogCheckpointSnapshot {
 
     public long getPrimaryTerm() {
         return primaryTerm;
+    }
+
+    public long getCheckpointGeneration() {
+        return checkpointGeneration;
     }
 
     TransferFileSnapshot getTranslogFileSnapshot() throws IOException {

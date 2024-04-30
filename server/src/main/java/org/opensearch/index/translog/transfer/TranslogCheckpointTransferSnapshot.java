@@ -187,7 +187,8 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
                         checkpointPath,
                         reader.getTranslogChecksum(),
                         reader.getCheckpointChecksum(),
-                        reader.getCheckpoint()
+                        reader.getCheckpoint(),
+                        checkpointGeneration
                     )
                 );
                 if (readerGeneration > highestGeneration) {

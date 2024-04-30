@@ -37,6 +37,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -46,7 +47,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.opensearch.index.remote.RemoteStoreUtils.getBytesArrayFromBase64String;
 import static org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
 /**
@@ -67,7 +67,6 @@ public class TranslogTransferManager {
     final static String CHECKPOINT_FILE_DATA_KEY = "ckp-data";
     private final boolean shouldUploadTranslogCkpAsMetadata;
     private final TranslogCheckpointSnapshotTransferManager transferManager;
-    private int downloadedTranslogMetadataFileVersion;
 
     private final Logger logger;
 
@@ -137,7 +136,7 @@ public class TranslogTransferManager {
                     assert ex instanceof TranslogGenerationTransferException;
                     logger.error(
                         () -> new ParameterizedMessage(
-                            "Exception during transfer for file {}",
+                            "Exception during transfer for translog generation {}",
                             ((TranslogGenerationTransferException) ex).getFileSnapshot().getGeneration()
                         ),
                         ex
@@ -146,6 +145,15 @@ public class TranslogTransferManager {
                     TranslogCheckpointSnapshot file = e.getFileSnapshot();
                     fileTransferTracker.onFailure(file, ex);
                     exceptionList.add(ex);
+
+                    Set<TransferFileSnapshot> failedFiles = e.getExceptionList();
+                    Set<TransferFileSnapshot> successFiles = e.getSuccessFiles();
+                    if (!failedFiles.isEmpty()) {
+                        failedFiles.forEach(failedFile -> { fileTransferTracker.add(failedFile.getName(), false); });
+                    }
+                    if (!successFiles.isEmpty()) {
+                        successFiles.forEach(successFile -> { fileTransferTracker.add(successFile.getName(), true); });
+                    }
                 }),
                 latch
             );
@@ -250,8 +258,7 @@ public class TranslogTransferManager {
         remoteTranslogTransferTracker.incrementTotalUploadsFailed();
     }
 
-    public boolean downloadTranslog(String primaryTerm, String generation, Path location, int translogMetadataFileVersion)
-        throws IOException {
+    public boolean downloadTranslog(String primaryTerm, String generation, Path location) throws IOException {
         logger.trace(
             "Downloading translog files with: Primary Term = {}, Generation = {}, Location = {}",
             primaryTerm,
@@ -261,17 +268,11 @@ public class TranslogTransferManager {
 
         // Download translog file with object metadata from remote to local FS
         String translogFilename = Translog.getFilename(Long.parseLong(generation));
-        downloadTlogFileToFS(translogFilename, location, primaryTerm, generation, translogMetadataFileVersion);
+        downloadTlogFileToFS(translogFilename, location, primaryTerm, generation);
         return true;
     }
 
-    private void downloadTlogFileToFS(
-        String fileName,
-        Path location,
-        String primaryTerm,
-        String generation,
-        int translogMetadataFileVersion
-    ) throws IOException {
+    private void downloadTlogFileToFS(String fileName, Path location, String primaryTerm, String generation) throws IOException {
         Path filePath = location.resolve(fileName);
         // Here, we always override the existing file if present.
         // We need to change this logic when we introduce incremental download
@@ -306,8 +307,8 @@ public class TranslogTransferManager {
         fileTransferTracker.add(fileName, true);
 
         try {
-            if (translogMetadataFileVersion == 1) {
-                logger.info("translog metadata file version is 1. Download translog.ckp file separately from remote store.");
+            if (!isMetadataContainsCheckpointData(metadata)) {
+                logger.info("metadata does not contain checkpoint file data. Download checkpoint file from remote store separately");
                 String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
                 downloadCkpFileToFS(ckpFileName, location, primaryTerm, generation);
             } else {
@@ -324,10 +325,13 @@ public class TranslogTransferManager {
         }
     }
 
+    private boolean isMetadataContainsCheckpointData(Map<String, String> metadata) {
+        return metadata != null && !metadata.isEmpty() && metadata.containsKey(CHECKPOINT_FILE_DATA_KEY);
+    }
+
     private void downloadCkpFileToFS(String fileName, Path location, String primaryTerm, String generation) throws IOException {
         Path filePath = location.resolve(fileName);
         // Here, we always override the existing file if present.
-        // We need to change this logic when we introduce incremental download
         deleteFileIfExists(filePath);
 
         boolean downloadStatus = false;
@@ -366,8 +370,7 @@ public class TranslogTransferManager {
                     "Checkpoint file data (ckp-data) is expected but not found in metadata for file: " + fileName
                 );
             }
-
-            byte[] ckpFileBytes = getBytesArrayFromBase64String(ckpDataBase64);
+            byte[] ckpFileBytes = Base64.getDecoder().decode(ckpDataBase64);
 
             Files.write(filePath, ckpFileBytes);
 
@@ -384,14 +387,6 @@ public class TranslogTransferManager {
         }
     }
 
-    public void setDownloadedTranslogMetadataFileVersion(int currentVersion) {
-        this.downloadedTranslogMetadataFileVersion = currentVersion;
-    }
-
-    public int getDownloadTranslogMetadataFileVersion() {
-        return downloadedTranslogMetadataFileVersion;
-    }
-
     public TranslogTransferMetadata readMetadata() throws IOException {
         SetOnce<TranslogTransferMetadata> metadataSetOnce = new SetOnce<>();
         SetOnce<IOException> exceptionSetOnce = new SetOnce<>();
@@ -404,7 +399,6 @@ public class TranslogTransferManager {
                     TranslogTransferMetadata::getNodeIdByPrimaryTermAndGen
                 );
                 String filename = blobMetadataList.get(0).name();
-                this.setDownloadedTranslogMetadataFileVersion(TranslogTransferMetadata.getMetadataFileVersion(filename));
                 boolean downloadStatus = false;
                 long downloadStartTime = System.nanoTime(), bytesToRead = 0;
                 try (InputStream inputStream = transferService.downloadBlob(remoteMetadataTransferPath, filename)) {

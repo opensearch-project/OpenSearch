@@ -41,7 +41,7 @@ public class TranslogTransferMetadata {
 
     static final int BUFFER_SIZE = 4096;
 
-    static int CURRENT_VERSION = 1;
+    static final int CURRENT_VERSION = 1;
 
     static final String METADATA_CODEC = "md";
 
@@ -63,12 +63,6 @@ public class TranslogTransferMetadata {
      */
     public TranslogTransferMetadata(long primaryTerm, long generation, long minTranslogGeneration, int count) {
         this(primaryTerm, generation, minTranslogGeneration, count, "");
-    }
-
-    public static void updateMetadataFileVersion(boolean shouldUploadTranslogCkpAsMetadata) {
-        if (shouldUploadTranslogCkpAsMetadata) {
-            CURRENT_VERSION = 2;
-        }
     }
 
     public long getPrimaryTerm() {
@@ -131,11 +125,6 @@ public class TranslogTransferMetadata {
 
         String nodeId = tokens[4];
         return new Tuple<>(primaryTermAndGen, nodeId);
-    }
-
-    public static int getMetadataFileVersion(String fileName) {
-        String[] tokens = fileName.split(METADATA_SEPARATOR);
-        return Integer.parseInt(tokens[tokens.length - 1]);
     }
 
     @Override

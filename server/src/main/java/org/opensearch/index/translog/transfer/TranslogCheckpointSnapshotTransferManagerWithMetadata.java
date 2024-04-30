@@ -53,7 +53,7 @@ public class TranslogCheckpointSnapshotTransferManagerWithMetadata implements Tr
             ex -> {
                 assert ex instanceof FileTransferException;
                 FileTransferException e = (FileTransferException) ex;
-                latchedActionListener.onFailure(new TranslogGenerationTransferException(map.get(e.getFileSnapshot()), ex));
+                latchedActionListener.onFailure(new TranslogGenerationTransferException(map.get(e.getFileSnapshot()), ex, null, null));
             }
         );
         transferService.uploadBlobs(filesToUpload, blobPathMap, actionListener, WritePriority.HIGH);

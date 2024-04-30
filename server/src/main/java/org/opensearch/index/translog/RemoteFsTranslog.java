@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
@@ -95,6 +96,7 @@ public class RemoteFsTranslog extends Translog {
 
     // boolean variable to determine if translog should get upload using new flow i.e. checkpoint file as object metadata to translog file
     private final boolean shouldUploadTranslogCkpAsMetadata;
+    private final Supplier<Version> minNodeVersionSupplier;
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -108,16 +110,16 @@ public class RemoteFsTranslog extends Translog {
         BooleanSupplier startedPrimarySupplier,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
         RemoteStoreSettings remoteStoreSettings,
-        ClusterService clusterService
+        Supplier<Version> minNodeVersionSupplier
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         logger = Loggers.getLogger(getClass(), shardId);
         this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
-        this.shouldUploadTranslogCkpAsMetadata = isReadyForNewTranslogUploadFlow(clusterService, blobStoreRepository);
-        // we need to update the translog metadata file version before building translogTransferManager
-        TranslogTransferMetadata.updateMetadataFileVersion(shouldUploadTranslogCkpAsMetadata);
+        this.minNodeVersionSupplier = minNodeVersionSupplier;
+        this.shouldUploadTranslogCkpAsMetadata = isReadyForNewTranslogUploadFlow(minNodeVersionSupplier, blobStoreRepository);
+
         this.translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
@@ -170,10 +172,9 @@ public class RemoteFsTranslog extends Translog {
         return remoteTranslogTransferTracker;
     }
 
-    private boolean isReadyForNewTranslogUploadFlow(ClusterService clusterService, BlobStoreRepository blobStoreRepository) {
-        Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
+    private boolean isReadyForNewTranslogUploadFlow(Supplier<Version> minNodeVersionSupplier, BlobStoreRepository blobStoreRepository) {
         boolean isBlobMetadataSupported = blobStoreRepository.blobStore().isBlobMetadataSupported();
-        return isBlobMetadataSupported && Version.CURRENT.compareTo(minNodeVersion) <= 0;
+        return isBlobMetadataSupported && Version.CURRENT.compareTo(minNodeVersionSupplier.get()) <= 0;
     }
 
     public static void download(
@@ -245,9 +246,6 @@ public class RemoteFsTranslog extends Translog {
         long prevDownloadBytesSucceeded = statsTracker.getDownloadBytesSucceeded();
         long prevDownloadTimeInMillis = statsTracker.getTotalDownloadTimeInMillis();
         TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
-        int translogMetadataFileVersion = translogTransferManager.getDownloadTranslogMetadataFileVersion();
-
-        assert translogMetadataFileVersion == 1 || translogMetadataFileVersion == 2;
 
         if (translogMetadata != null) {
             if (Files.notExists(location)) {
@@ -262,12 +260,7 @@ public class RemoteFsTranslog extends Translog {
             Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
             for (long i = translogMetadata.getGeneration(); i >= translogMetadata.getMinTranslogGeneration(); i--) {
                 String generation = Long.toString(i);
-                translogTransferManager.downloadTranslog(
-                    generationToPrimaryTermMapper.get(generation),
-                    generation,
-                    location,
-                    translogMetadataFileVersion
-                );
+                translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location);
             }
             logger.info(
                 "Downloaded translog and checkpoint files from={} to={}",

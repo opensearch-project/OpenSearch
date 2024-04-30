@@ -9,7 +9,6 @@
 package org.opensearch.index.translog.transfer;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -25,7 +24,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Translog transfer manager to transfer {@link TranslogCheckpointSnapshot} by transfering {@link TranslogFileSnapshot} and {@link CheckpointFileSnapshot} separately
@@ -76,60 +75,39 @@ public class TranslogCheckpointSnapshotTransferManagerWithoutMetadata implements
             if (!fileTransferTracker.uploaded(ckpFileName)) {
                 filesToUpload.add(checkpointFileSnapshot);
             }
-            if (filesToUpload.isEmpty()) {
-                logger.info("Nothing to upload for transfer");
-                latchedActionListener.onResponse(tlogAndCkpTransferFileSnapshot);
-                return;
-            }
+
+            assert !filesToUpload.isEmpty();
+
+            AtomicBoolean atomicBoolean = new AtomicBoolean();
             final CountDownLatch latch = new CountDownLatch(filesToUpload.size());
-            LatchedActionListener<TransferFileSnapshot> onCompletionLatchedActionListener = new LatchedActionListener<>(
-                ActionListener.wrap(fileSnapshot -> fileTransferTracker.add(fileSnapshot.getName(), true), ex -> {
-                    assert ex instanceof FileTransferException;
-                    logger.error(
-                        () -> new ParameterizedMessage(
-                            "Exception during transfer for file {}",
-                            ((FileTransferException) ex).getFileSnapshot().getName()
-                        ),
-                        ex
-                    );
-                    FileTransferException e = (FileTransferException) ex;
-                    FileSnapshot.TransferFileSnapshot file = e.getFileSnapshot();
-                    fileTransferTracker.add(file.getName(), false);
-                    exceptionList.add(ex);
-                }),
+
+            Set<TransferFileSnapshot> successFiles = new HashSet<>();
+            Set<TransferFileSnapshot> failedFiles = new HashSet<>();
+
+            LatchedActionListener<TransferFileSnapshot> fileUploadListener = new LatchedActionListener<>(
+                ActionListener.wrap(successFiles::add, exceptionList::add),
                 latch
             );
-
-            transferService.uploadBlobs(filesToUpload, blobPathMap, onCompletionLatchedActionListener, writePriority);
-
-            try {
-                if (!latch.await(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout().millis(), TimeUnit.MILLISECONDS)) {
-                    Exception ex = new TranslogUploadFailedException(
-                        "Timed out waiting for transfer of snapshot " + transferSnapshot + " to complete"
-                    );
-                    exceptionList.forEach(ex::addSuppressed);
-                    Exception exception = new TranslogGenerationTransferException(tlogAndCkpTransferFileSnapshot, ex);
-                    latchedActionListener.onFailure(exception);
-                    return;
+            ActionListener<TransferFileSnapshot> actionListener = ActionListener.runAfter(fileUploadListener, () -> {
+                if (latch.getCount() == 0 && atomicBoolean.compareAndSet(false, true)) {
+                    if (exceptionList.isEmpty()) {
+                        latchedActionListener.onResponse(tlogAndCkpTransferFileSnapshot);
+                    } else {
+                        exceptionList.forEach(exception -> {
+                            assert exception instanceof FileTransferException;
+                            FileTransferException fileTransferException = (FileTransferException) exception;
+                            TransferFileSnapshot transferFileSnapshot = fileTransferException.getFileSnapshot();
+                            failedFiles.add(transferFileSnapshot);
+                        });
+                        Exception ex = new TranslogUploadFailedException("Translog upload failed");
+                        exceptionList.forEach(ex::addSuppressed);
+                        latchedActionListener.onFailure(
+                            new TranslogGenerationTransferException(tlogAndCkpTransferFileSnapshot, ex, failedFiles, successFiles)
+                        );
+                    }
                 }
-            } catch (InterruptedException e) {
-                Exception exception = new TranslogUploadFailedException("Failed to upload " + transferSnapshot, e);
-                exceptionList.forEach(exception::addSuppressed);
-                Thread.currentThread().interrupt();
-                Exception ex = new TranslogGenerationTransferException(tlogAndCkpTransferFileSnapshot, exception);
-                latchedActionListener.onFailure(ex);
-                return;
-            }
-
-            if (exceptionList.isEmpty()) {
-                latchedActionListener.onResponse(tlogAndCkpTransferFileSnapshot);
-            } else {
-                Exception ex = new TranslogUploadFailedException("Failed to upload snapshot " + tlogAndCkpTransferFileSnapshot);
-                exceptionList.forEach(ex::addSuppressed);
-                Exception exception = new TranslogGenerationTransferException(tlogAndCkpTransferFileSnapshot, ex);
-                latchedActionListener.onFailure(exception);
-                return;
-            }
+            });
+            transferService.uploadBlobs(filesToUpload, blobPathMap, actionListener, writePriority);
         }
     }
 }
