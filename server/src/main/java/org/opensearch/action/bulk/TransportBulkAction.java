@@ -928,7 +928,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
             },
             bulkRequestModifier::markItemAsDropped,
-            executorName
+            executorName,
+            original
         );
     }
 
