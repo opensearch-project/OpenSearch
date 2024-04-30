@@ -65,8 +65,8 @@ public class RemoteClusterStateCleanupManager implements Closeable {
         Setting.Property.Dynamic
     );
     private static final Logger logger = LogManager.getLogger(RemoteClusterStateCleanupManager.class);
-    private RemoteClusterStateService remoteClusterStateService;
-    private RemotePersistenceStats remoteStateStats;
+    private final RemoteClusterStateService remoteClusterStateService;
+    private final RemotePersistenceStats remoteStateStats;
     private BlobStoreTransferService blobStoreTransferService;
     private volatile TimeValue staleFileCleanupInterval;
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
@@ -239,8 +239,8 @@ public class RemoteClusterStateCleanupManager implements Closeable {
                             deleteClusterMetadata(
                                 clusterName,
                                 clusterUUID,
-                                blobMetadata.subList(0, manifestsToRetain - 1),
-                                blobMetadata.subList(manifestsToRetain - 1, blobMetadata.size())
+                                blobMetadata.subList(0, manifestsToRetain),
+                                blobMetadata.subList(manifestsToRetain, blobMetadata.size())
                             );
                         }
                         deleteStaleMetadataRunning.set(false);
@@ -271,8 +271,8 @@ public class RemoteClusterStateCleanupManager implements Closeable {
      * @param clusterUUIDs clusteUUIDs for which the remote state needs to be purged
      */
     void deleteStaleUUIDsClusterMetadata(String clusterName, List<String> clusterUUIDs) {
-        clusterUUIDs.forEach(clusterUUID -> {
-            getBlobStoreTransferService().deleteAsync(
+        clusterUUIDs.forEach(
+            clusterUUID -> getBlobStoreTransferService().deleteAsync(
                 ThreadPool.Names.REMOTE_PURGE,
                 remoteClusterStateService.getCusterMetadataBasePath(clusterName, clusterUUID),
                 new ActionListener<>() {
@@ -293,8 +293,8 @@ public class RemoteClusterStateCleanupManager implements Closeable {
                         remoteStateStats.cleanUpAttemptFailed();
                     }
                 }
-            );
-        });
+            )
+        );
     }
 
     private void deleteStalePaths(String clusterName, String clusterUUID, List<String> stalePaths) throws IOException {

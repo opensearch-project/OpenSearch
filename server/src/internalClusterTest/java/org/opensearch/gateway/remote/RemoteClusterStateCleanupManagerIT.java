@@ -26,6 +26,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_RE
 import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.CLUSTER_STATE_CLEANUP_INTERVAL_DEFAULT;
 import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.RETAINED_MANIFESTS;
+import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.SKIP_CLEANUP_STATE_CHANGES;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -79,63 +80,47 @@ public class RemoteClusterStateCleanupManagerIT extends RemoteStoreBaseIntegTest
         assertEquals(1, remoteClusterStateCleanupManager.getStaleFileDeletionTask().getInterval().getMinutes());
     }
 
-    public void testRemoteCleanupOnlyAfter10Updates() throws Exception {
+    public void testRemoteCleanupDeleteStale() throws Exception {
         int shardCount = randomIntBetween(1, 2);
-        int replicaCount = 1;
+        int replicaCount = 3;
         int dataNodeCount = shardCount * (replicaCount + 1);
         int clusterManagerNodeCount = 1;
 
         initialTestSetup(shardCount, replicaCount, dataNodeCount, clusterManagerNodeCount);
 
-        // set cleanup interval to 100 ms
+        // set cleanup interval to 100 ms to make the test faster
         ClusterUpdateSettingsResponse response = client().admin()
             .cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING.getKey(), "100ms"))
             .get();
 
-        assertEquals(true, response.isAcknowledged());
+        assertTrue(response.isAcknowledged());
 
-        replicaCount = updateReplicaCountNTimes(9, replicaCount);
-
-        RepositoriesService repositoriesService = internalCluster().getClusterManagerNodeInstance(RepositoriesService.class);
-
-        BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(REPOSITORY_NAME);
-        BlobPath baseMetadataPath = repository.basePath()
-            .add(
-                Base64.getUrlEncoder()
-                    .withoutPadding()
-                    .encodeToString(getClusterState().getClusterName().value().getBytes(StandardCharsets.UTF_8))
-            )
-            .add("cluster-state")
-            .add(getClusterState().metadata().clusterUUID());
-        BlobPath manifestContainerPath = baseMetadataPath.add("manifest");
+        // update replica count to simulate cluster state changes, so that we verify number of manifest files
+        replicaCount = updateReplicaCountNTimes(RETAINED_MANIFESTS + 2 * SKIP_CLEANUP_STATE_CHANGES, replicaCount);
 
         assertBusy(() -> {
-            assertEquals(
-                RETAINED_MANIFESTS - 1,
-                repository.blobStore().blobContainer(manifestContainerPath).listBlobsByPrefix("manifest").size()
+            RepositoriesService repositoriesService = internalCluster().getClusterManagerNodeInstance(RepositoriesService.class);
+            BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(REPOSITORY_NAME);
+            BlobPath baseMetadataPath = repository.basePath()
+                .add(
+                    Base64.getUrlEncoder()
+                        .withoutPadding()
+                        .encodeToString(getClusterState().getClusterName().value().getBytes(StandardCharsets.UTF_8))
+                )
+                .add("cluster-state")
+                .add(getClusterState().metadata().clusterUUID());
+            BlobPath manifestContainerPath = baseMetadataPath.add("manifest");
+            int manifestFiles = repository.blobStore().blobContainer(manifestContainerPath).listBlobsByPrefix("manifest").size();
+            // we can't guarantee that we have same number of manifest as Retained manifest in our repo as there can be other queued task
+            // other than replica count change which can upload new manifest files, that's why we check that number of manifests is between
+            // Retained manifests and Retained manifests + Skip cleanup state changes
+            assertTrue(
+                "Current number of manifest files: " + manifestFiles,
+                manifestFiles >= RETAINED_MANIFESTS && manifestFiles <= RETAINED_MANIFESTS + SKIP_CLEANUP_STATE_CHANGES
             );
-        }, 500, TimeUnit.MILLISECONDS);
-
-        replicaCount = updateReplicaCountNTimes(8, replicaCount);
-
-        // wait for 1 min, to ensure that clean up task ran and didn't clean up stale files because it was less than 10
-        Thread.sleep(100);
-        assertNotEquals(
-            RETAINED_MANIFESTS - 1,
-            repository.blobStore().blobContainer(manifestContainerPath).listBlobsByPrefix("manifest").size()
-        );
-
-        // Do 2 more updates, now since the total successful state changes are more than 10, stale files will be cleaned up
-        replicaCount = updateReplicaCountNTimes(2, replicaCount);
-
-        assertBusy(() -> {
-            assertEquals(
-                RETAINED_MANIFESTS - 1,
-                repository.blobStore().blobContainer(manifestContainerPath).listBlobsByPrefix("manifest").size()
-            );
-        }, 100, TimeUnit.MILLISECONDS);
+        }, 5000, TimeUnit.MILLISECONDS);
 
         RemoteClusterStateService remoteClusterStateService = internalCluster().getClusterManagerNodeInstance(
             RemoteClusterStateService.class
