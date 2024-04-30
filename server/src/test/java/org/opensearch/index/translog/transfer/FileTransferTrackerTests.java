@@ -65,7 +65,7 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
             // idempotent
             remoteTranslogTransferTracker.addUploadBytesStarted(fileSize + ckpFileSize);
             fileTransferTracker.onSuccess(transferFileSnapshot);
-            assertEquals(fileTransferTracker.allUploaded().size(), 1);
+            assertEquals(fileTransferTracker.allUploadedGeneration().size(), 1);
             try {
                 remoteTranslogTransferTracker.addUploadBytesStarted(fileSize + ckpFileSize);
                 fileTransferTracker.onFailure(transferFileSnapshot, new IOException("random exception"));
@@ -109,10 +109,10 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
             fileTransferTracker.onFailure(transferFileSnapshot, new IOException("random exception"));
             remoteTranslogTransferTracker.addUploadBytesStarted(fileSize);
             fileTransferTracker.onSuccess(transferFileSnapshot2);
-            assertEquals(fileTransferTracker.allUploaded().size(), 1);
+            assertEquals(fileTransferTracker.allUploadedGeneration().size(), 1);
             remoteTranslogTransferTracker.addUploadBytesStarted(fileSize);
             fileTransferTracker.onSuccess(transferFileSnapshot);
-            assertEquals(fileTransferTracker.allUploaded().size(), 2);
+            assertEquals(fileTransferTracker.allUploadedGeneration().size(), 2);
         }
     }
 
@@ -142,7 +142,7 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
             localFileTransferTracker.recordBytesForFiles(toUpload);
             localRemoteTranslogTransferTracker.addUploadBytesStarted(2 * fileSize);
             localFileTransferTracker.onSuccess(transferFileSnapshot);
-            assertEquals(localFileTransferTracker.allUploaded().size(), 1);
+            assertEquals(localFileTransferTracker.allUploadedGeneration().size(), 1);
         }
     }
 
@@ -167,8 +167,8 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
             remoteTranslogTransferTracker.addUploadBytesStarted(2 * fileSize);
             fileTransferTracker.onSuccess(transferFileSnapshot);
             String fileName = String.valueOf(testFile.getFileName());
-            assertTrue(fileTransferTracker.uploadedGen(generation));
-            assertFalse(fileTransferTracker.uploadedGen(generation + 2));
+            assertTrue(fileTransferTracker.translogGenerationUploaded(generation));
+            assertFalse(fileTransferTracker.translogGenerationUploaded(generation + 2));
 
             fileTransferTracker.deleteGenerations(Set.of(generation));
             assertFalse(fileTransferTracker.uploaded(fileName));

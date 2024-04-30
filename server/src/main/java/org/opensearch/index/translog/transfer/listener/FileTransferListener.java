@@ -8,26 +8,26 @@
 
 package org.opensearch.index.translog.transfer.listener;
 
-import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
+import org.opensearch.index.translog.transfer.TranslogCheckpointSnapshot;
 
 /**
- * The listener to be invoked on the completion or failure of a {@link TransferFileSnapshot} or deletion of file
+ * The listener to be invoked on the completion or failure of a {@link TranslogCheckpointSnapshot} or deletion of file
  *
  * @opensearch.internal
  */
 public interface FileTransferListener {
 
     /**
-     * Invoked when the transfer of a single {@link TransferFileSnapshot} succeeds
+     * Invoked when the transfer of a single {@link TranslogCheckpointSnapshot} succeeds
      * @param fileSnapshot the corresponding file snapshot
      */
-    void onSuccess(TransferFileSnapshot fileSnapshot);
+    void onSuccess(TranslogCheckpointSnapshot fileSnapshot);
 
     /**
-     * Invoked when the transfer of a single {@link TransferFileSnapshot} fails
+     * Invoked when the transfer of a single {@link TranslogCheckpointSnapshot} fails
      * @param fileSnapshot the corresponding file snapshot
-     * @param e the exception while processing the {@link TransferFileSnapshot}
+     * @param e the exception while processing the {@link TranslogCheckpointSnapshot}
      */
-    void onFailure(TransferFileSnapshot fileSnapshot, Exception e);
+    void onFailure(TranslogCheckpointSnapshot fileSnapshot, Exception e);
 
 }

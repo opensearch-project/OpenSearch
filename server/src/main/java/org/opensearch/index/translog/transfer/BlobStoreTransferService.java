@@ -118,10 +118,7 @@ public class BlobStoreTransferService implements TransferService {
     ) {
 
         try {
-            Map<String, String> metadata = null;
-            if (isBlobMetadataSupported()) {
-                metadata = fileSnapshot.getTransferFileSnapshotMetadata();
-            }
+            Map<String, String> metadata = fileSnapshot.getMetadata();
 
             ChannelFactory channelFactory = FileChannel::open;
             long contentLength;

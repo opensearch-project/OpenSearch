@@ -9,6 +9,7 @@
 package org.opensearch.index.translog;
 
 import org.apache.logging.log4j.Logger;
+import org.opensearch.Version;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobPath;
@@ -92,6 +93,9 @@ public class RemoteFsTranslog extends Translog {
     private final Semaphore syncPermit = new Semaphore(SYNC_PERMIT);
     private final AtomicBoolean pauseSync = new AtomicBoolean(false);
 
+    // boolean variable to determine if translog should get upload using new flow i.e. checkpoint file as object metadata to translog file
+    private final boolean shouldUploadTranslogCkpAsMetadata;
+
     public RemoteFsTranslog(
         TranslogConfig config,
         String translogUUID,
@@ -103,13 +107,17 @@ public class RemoteFsTranslog extends Translog {
         ThreadPool threadPool,
         BooleanSupplier startedPrimarySupplier,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        ClusterService clusterService
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         logger = Loggers.getLogger(getClass(), shardId);
         this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
+        this.shouldUploadTranslogCkpAsMetadata = isReadyForNewTranslogUploadFlow(clusterService, blobStoreRepository);
+        // we need to update the translog metadata file version before building translogTransferManager
+        TranslogTransferMetadata.updateMetadataFileVersion(shouldUploadTranslogCkpAsMetadata);
         this.translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
@@ -117,7 +125,8 @@ public class RemoteFsTranslog extends Translog {
             fileTransferTracker,
             remoteTranslogTransferTracker,
             indexSettings().getRemoteStorePathStrategy(),
-            remoteStoreSettings
+            remoteStoreSettings,
+            shouldUploadTranslogCkpAsMetadata
         );
         try {
             download(translogTransferManager, location, logger, config.shouldSeedRemote());
@@ -161,6 +170,12 @@ public class RemoteFsTranslog extends Translog {
         return remoteTranslogTransferTracker;
     }
 
+    private boolean isReadyForNewTranslogUploadFlow(ClusterService clusterService, BlobStoreRepository blobStoreRepository) {
+        Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
+        boolean isBlobMetadataSupported = blobStoreRepository.blobStore().isBlobMetadataSupported();
+        return isBlobMetadataSupported && Version.CURRENT.compareTo(minNodeVersion) <= 0;
+    }
+
     public static void download(
         Repository repository,
         ShardId shardId,
@@ -188,7 +203,8 @@ public class RemoteFsTranslog extends Translog {
             fileTransferTracker,
             remoteTranslogTransferTracker,
             pathStrategy,
-            remoteStoreSettings
+            remoteStoreSettings,
+            false
         );
         RemoteFsTranslog.download(translogTransferManager, location, logger, seedRemote);
         logger.trace(remoteTranslogTransferTracker.toString());
@@ -229,6 +245,10 @@ public class RemoteFsTranslog extends Translog {
         long prevDownloadBytesSucceeded = statsTracker.getDownloadBytesSucceeded();
         long prevDownloadTimeInMillis = statsTracker.getTotalDownloadTimeInMillis();
         TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
+        int translogMetadataFileVersion = translogTransferManager.getDownloadTranslogMetadataFileVersion();
+
+        assert translogMetadataFileVersion == 1 || translogMetadataFileVersion == 2;
+
         if (translogMetadata != null) {
             if (Files.notExists(location)) {
                 Files.createDirectories(location);
@@ -242,7 +262,12 @@ public class RemoteFsTranslog extends Translog {
             Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
             for (long i = translogMetadata.getGeneration(); i >= translogMetadata.getMinTranslogGeneration(); i--) {
                 String generation = Long.toString(i);
-                translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location);
+                translogTransferManager.downloadTranslog(
+                    generationToPrimaryTermMapper.get(generation),
+                    generation,
+                    location,
+                    translogMetadataFileVersion
+                );
             }
             logger.info(
                 "Downloaded translog and checkpoint files from={} to={}",
@@ -293,7 +318,8 @@ public class RemoteFsTranslog extends Translog {
         FileTransferTracker fileTransferTracker,
         RemoteTranslogTransferTracker tracker,
         RemoteStorePathStrategy pathStrategy,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        boolean shouldUploadTranslogCkpAsMetadata
     ) {
         assert Objects.nonNull(pathStrategy);
         String indexUUID = shardId.getIndex().getUUID();
@@ -315,7 +341,16 @@ public class RemoteFsTranslog extends Translog {
             .build();
         BlobPath mdPath = pathStrategy.generatePath(mdPathInput);
         BlobStoreTransferService transferService = new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool);
-        return new TranslogTransferManager(shardId, transferService, dataPath, mdPath, fileTransferTracker, tracker, remoteStoreSettings);
+        return new TranslogTransferManager(
+            shardId,
+            transferService,
+            dataPath,
+            mdPath,
+            fileTransferTracker,
+            tracker,
+            remoteStoreSettings,
+            shouldUploadTranslogCkpAsMetadata
+        );
     }
 
     @Override
@@ -419,8 +454,8 @@ public class RemoteFsTranslog extends Translog {
     }
 
     // Visible for testing
-    public Set<Long> allUploaded() {
-        return fileTransferTracker.allUploaded();
+    public Set<Long> allUploadedGeneration() {
+        return fileTransferTracker.allUploadedGeneration();
     }
 
     private boolean syncToDisk() throws IOException {
@@ -607,7 +642,8 @@ public class RemoteFsTranslog extends Translog {
             fileTransferTracker,
             remoteTranslogTransferTracker,
             pathStrategy,
-            remoteStoreSettings
+            remoteStoreSettings,
+            false
         );
         // clean up all remote translog files
         translogTransferManager.deleteTranslogFiles();

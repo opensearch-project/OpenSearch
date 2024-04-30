@@ -35,11 +35,12 @@ public class FileSnapshot implements Closeable {
     private final String name;
     @Nullable
     private final FileChannel fileChannel;
-
     @Nullable
     private Path path;
     @Nullable
     private byte[] content;
+    @Nullable
+    private Map<String, String> metadata;
 
     private FileSnapshot(Path path) throws IOException {
         Objects.requireNonNull(path);
@@ -57,6 +58,14 @@ public class FileSnapshot implements Closeable {
 
     public Path getPath() {
         return path;
+    }
+
+    public void setMetadata(Map<String, String> metadata) {
+        this.metadata = metadata;
+    }
+
+    public Map<String, String> getMetadata() {
+        return metadata;
     }
 
     public String getName() {
@@ -112,47 +121,17 @@ public class FileSnapshot implements Closeable {
         private Long checksum;
         @Nullable
         private long generation;
-        @Nullable
-        private long minTranslogGeneration;
-        @Nullable
-        private Path ckpFilePath;
-        @Nullable
-        private Long ckpFileChecksum;
-        @Nullable
-        private Map<String, String> metadata;
 
-        public TransferFileSnapshot(Path path, long primaryTerm, long generation, Long checksum) throws IOException {
+        public TransferFileSnapshot(Path path, long primaryTerm, Long checksum, long generation) throws IOException {
             super(path);
             this.primaryTerm = primaryTerm;
             this.checksum = checksum;
             this.generation = generation;
-        }
-
-        public TransferFileSnapshot(
-            long primaryTerm,
-            long generation,
-            long minTranslogGeneration,
-            Path path,
-            Long checksum,
-            Path ckpFilePath,
-            Long ckpFileChecksum
-        ) throws IOException {
-            super(path);
-            this.primaryTerm = primaryTerm;
-            this.checksum = checksum;
-            this.generation = generation;
-            this.minTranslogGeneration = minTranslogGeneration;
-            this.ckpFilePath = ckpFilePath;
-            this.ckpFileChecksum = ckpFileChecksum;
         }
 
         public TransferFileSnapshot(String name, byte[] content, long primaryTerm) throws IOException {
             super(name, content);
             this.primaryTerm = primaryTerm;
-        }
-
-        public CheckpointFileSnapshot provideCheckpointFileSnapshot() throws IOException {
-            return new CheckpointFileSnapshot(primaryTerm, generation, minTranslogGeneration, ckpFilePath, ckpFileChecksum);
         }
 
         public Long getChecksum() {
@@ -163,39 +142,8 @@ public class FileSnapshot implements Closeable {
             return primaryTerm;
         }
 
-        public Map<String, String> getTransferFileSnapshotMetadata() {
-            return metadata;
-        }
-
         public long getGeneration() {
             return generation;
-        }
-
-        public long getMinTranslogGeneration() {
-            return minTranslogGeneration;
-        }
-
-        public Path getCkpFilePath() {
-            return ckpFilePath;
-        }
-
-        public Long getCkpFileChecksum() {
-            return ckpFileChecksum;
-        }
-
-        public long getCkpFileContentLength() throws IOException {
-            FileChannel fileChannel = FileChannel.open(ckpFilePath, StandardOpenOption.READ);
-            long ckpFileSize = fileChannel.size();
-            fileChannel.close();
-            return ckpFileSize;
-        }
-
-        public String getCkpFileName() {
-            return ckpFilePath.getFileName().toString();
-        }
-
-        public void setTransferFileSnapshotMetadata(Map<String, String> metadata) {
-            this.metadata = metadata;
         }
 
         @Override
@@ -216,6 +164,41 @@ public class FileSnapshot implements Closeable {
     }
 
     /**
+     * Snapshot of a single .tlg file that gets transferred
+     *
+     * @opensearch.internal
+     */
+    public static final class TranslogFileSnapshot extends TransferFileSnapshot {
+
+        private final long generation;
+
+        public TranslogFileSnapshot(long primaryTerm, long generation, Path path, Long checksum) throws IOException {
+            super(path, primaryTerm, checksum, generation);
+            this.generation = generation;
+        }
+
+        public long getGeneration() {
+            return generation;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(generation, super.hashCode());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (super.equals(o)) {
+                if (this == o) return true;
+                if (getClass() != o.getClass()) return false;
+                TranslogFileSnapshot other = (TranslogFileSnapshot) o;
+                return Objects.equals(this.generation, other.generation);
+            }
+            return false;
+        }
+    }
+
+    /**
      * Snapshot of a single .ckp file that gets transferred
      *
      * @opensearch.internal
@@ -228,7 +211,7 @@ public class FileSnapshot implements Closeable {
 
         public CheckpointFileSnapshot(long primaryTerm, long generation, long minTranslogGeneration, Path path, Long checksum)
             throws IOException {
-            super(path, primaryTerm, generation, checksum);
+            super(path, primaryTerm, checksum, generation);
             this.minTranslogGeneration = minTranslogGeneration;
             this.generation = generation;
         }
@@ -258,64 +241,4 @@ public class FileSnapshot implements Closeable {
             return false;
         }
     }
-
-    /**
-     * Single snapshot of combined translog.tlog and translog.ckp files that gets transferred
-     *
-     * @opensearch.internal
-     */
-    public static final class TranslogAndCheckpointFileSnapshot extends TransferFileSnapshot {
-
-        private final long primaryTerm;
-        private final long generation;
-        private final long minTranslogGeneration;
-        private final long ckpGeneration;
-
-        public TranslogAndCheckpointFileSnapshot(
-            long primaryTerm,
-            long generation,
-            long minTranslogGeneration,
-            Path tlogFilePath,
-            Long tlogFilechecksum,
-            Path ckpFilePath,
-            Long ckpFileChecksum,
-            Long ckpGeneration
-        ) throws IOException {
-            super(primaryTerm, generation, minTranslogGeneration, tlogFilePath, tlogFilechecksum, ckpFilePath, ckpFileChecksum);
-            this.primaryTerm = primaryTerm;
-            this.generation = generation;
-            this.minTranslogGeneration = minTranslogGeneration;
-            this.ckpGeneration = ckpGeneration;
-        }
-
-        public long getGeneration() {
-            return generation;
-        }
-
-        public long getMinTranslogGeneration() {
-            return minTranslogGeneration;
-        }
-
-        public long getCkpGeneration() {
-            return ckpGeneration;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(primaryTerm, generation, super.hashCode());
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (super.equals(o)) {
-                if (this == o) return true;
-                if (getClass() != o.getClass()) return false;
-                TranslogAndCheckpointFileSnapshot other = (TranslogAndCheckpointFileSnapshot) o;
-                return Objects.equals(this.primaryTerm, other.primaryTerm) && Objects.equals(this.generation, other.generation);
-            }
-            return false;
-        }
-
-    }
-
 }
