@@ -45,12 +45,12 @@ public interface ICache<K, V> extends Closeable {
 
     void refresh();
 
-    // Return all stats without aggregation.
+    // Return total stats only
     default ImmutableCacheStatsHolder stats() {
         return stats(null);
     }
 
-    // Return stats aggregated by the provided levels. If levels is null, do not aggregate and return all stats.
+    // Return stats aggregated by the provided levels. If levels is null or an empty array, return total stats only.
     ImmutableCacheStatsHolder stats(String[] levels);
 
     /**
