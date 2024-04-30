@@ -59,7 +59,6 @@ public final class OutboundHandler {
 
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
-    private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
     OutboundHandler(StatsTracker statsTracker, ThreadPool threadPool) {
         this.statsTracker = statsTracker;
@@ -69,22 +68,14 @@ public final class OutboundHandler {
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
         SendContext sendContext = new SendContext(statsTracker, channel, () -> bytes, listener);
         try {
-            sendInternalBytes(channel, sendContext);
+            sendBytes(channel, sendContext);
         } catch (IOException e) {
             // This should not happen as the bytes are already serialized
             throw new AssertionError(e);
         }
     }
 
-    // public void setMessageListener(TransportMessageListener listener) {
-    // if (messageListener == TransportMessageListener.NOOP_LISTENER) {
-    // messageListener = listener;
-    // } else {
-    // throw new IllegalStateException("Cannot set message listener twice");
-    // }
-    // }
-
-    public void sendInternalBytes(TcpChannel channel, SendContext sendContext) throws IOException {
+    public void sendBytes(TcpChannel channel, SendContext sendContext) throws IOException {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         BytesReference reference = sendContext.get();
         // stash thread context so that channel event loop is not polluted by thread context

@@ -59,9 +59,9 @@ import java.util.Set;
 
 /**
  * Outbound data handler
-*
-* @opensearch.internal
-*/
+ *
+ * @opensearch.internal
+ */
 public final class NativeOutboundHandler extends ProtocolOutboundHandler {
     private final String nodeName;
     private final Version version;
@@ -92,8 +92,8 @@ public final class NativeOutboundHandler extends ProtocolOutboundHandler {
 
     /**
      * Sends the request to the given channel. This method should be used to send {@link TransportRequest}
-    * objects back to the caller.
-    */
+     * objects back to the caller.
+     */
     @Override
     public void sendRequest(
         final DiscoveryNode node,
@@ -123,10 +123,10 @@ public final class NativeOutboundHandler extends ProtocolOutboundHandler {
 
     /**
      * Sends the response to the given channel. This method should be used to send {@link TransportResponse}
-    * objects back to the caller.
-    *
-    * @see #sendErrorResponse(Version, Set, TcpChannel, long, String, Exception) for sending error responses
-    */
+     * objects back to the caller.
+     *
+     * @see #sendErrorResponse(Version, Set, TcpChannel, long, String, Exception) for sending error responses
+     */
     @Override
     public void sendResponse(
         final Version nodeVersion,
@@ -154,7 +154,7 @@ public final class NativeOutboundHandler extends ProtocolOutboundHandler {
 
     /**
      * Sends back an error response to the caller via the given channel
-    */
+     */
     @Override
     public void sendErrorResponse(
         final Version nodeVersion,
@@ -183,7 +183,7 @@ public final class NativeOutboundHandler extends ProtocolOutboundHandler {
     private void sendMessage(TcpChannel channel, NativeOutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
         MessageSerializer serializer = new MessageSerializer(networkMessage, bigArrays);
         OutboundHandler.SendContext sendContext = new OutboundHandler.SendContext(statsTracker, channel, serializer, listener, serializer);
-        handler.sendInternalBytes(channel, sendContext);
+        handler.sendBytes(channel, sendContext);
     }
 
     public void setMessageListener(TransportMessageListener listener) {
@@ -196,9 +196,9 @@ public final class NativeOutboundHandler extends ProtocolOutboundHandler {
 
     /**
      * Internal message serializer
-    *
-    * @opensearch.internal
-    */
+     *
+     * @opensearch.internal
+     */
     private static class MessageSerializer implements CheckedSupplier<BytesReference, IOException>, Releasable {
 
         private final NativeOutboundMessage message;

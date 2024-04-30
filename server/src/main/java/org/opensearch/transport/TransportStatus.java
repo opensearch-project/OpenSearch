@@ -76,11 +76,11 @@ public final class TransportStatus {
         return value;
     }
 
-    static boolean isHandshake(byte value) { // pkg private since it's only used internally
+    public static boolean isHandshake(byte value) {
         return (value & STATUS_HANDSHAKE) != 0;
     }
 
-    public static byte setHandshake(byte value) { // pkg private since it's only used internally
+    public static byte setHandshake(byte value) {
         value |= STATUS_HANDSHAKE;
         return value;
     }

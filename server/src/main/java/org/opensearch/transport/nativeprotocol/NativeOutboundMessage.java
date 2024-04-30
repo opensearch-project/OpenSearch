@@ -40,9 +40,6 @@ import org.opensearch.core.common.bytes.CompositeBytesReference;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.transport.BytesTransportRequest;
-import org.opensearch.transport.CompressibleBytesOutputStream;
-import org.opensearch.transport.NetworkMessage;
-import org.opensearch.transport.ProtocolOutboundMessage;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TcpHeader;
 import org.opensearch.transport.TransportStatus;
@@ -55,7 +52,7 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public abstract class NativeOutboundMessage extends NetworkMessage implements ProtocolOutboundMessage {
+public abstract class NativeOutboundMessage extends NetworkMessage {
 
     private final Writeable message;
 
@@ -64,7 +61,6 @@ public abstract class NativeOutboundMessage extends NetworkMessage implements Pr
         this.message = message;
     }
 
-    @Override
     public BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
         bytesStream.setVersion(version);
         bytesStream.skip(TcpHeader.headerSize(version));
@@ -101,7 +97,7 @@ public abstract class NativeOutboundMessage extends NetworkMessage implements Pr
         if (message instanceof BytesTransportRequest) {
             BytesTransportRequest bRequest = (BytesTransportRequest) message;
             bRequest.writeThin(stream);
-            zeroCopyBuffer = bRequest.bytes;
+            zeroCopyBuffer = bRequest.bytes();
         } else if (message instanceof RemoteTransportException) {
             stream.writeException((RemoteTransportException) message);
             zeroCopyBuffer = BytesArray.EMPTY;

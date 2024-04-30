@@ -29,11 +29,12 @@
  * GitHub history for details.
  */
 
-package org.opensearch.transport;
+package org.opensearch.transport.nativeprotocol;
 
 import org.opensearch.Version;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.transport.TransportStatus;
 
 /**
  * Represents a transport message sent over the network. Subclasses implement serialization and
@@ -48,7 +49,7 @@ public abstract class NetworkMessage {
     protected final long requestId;
     protected final byte status;
 
-    public NetworkMessage(ThreadContext threadContext, Version version, byte status, long requestId) {
+    NetworkMessage(ThreadContext threadContext, Version version, byte status, long requestId) {
         this.threadContext = threadContext.captureAsWriteable();
         this.version = version;
         this.requestId = requestId;

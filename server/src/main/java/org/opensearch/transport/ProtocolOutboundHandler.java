@@ -23,6 +23,10 @@ import java.util.Set;
  */
 public abstract class ProtocolOutboundHandler {
 
+    /**
+     * Sends the request to the given channel. This method should be used to send {@link TransportRequest}
+     * objects back to the caller.
+     */
     public abstract void sendRequest(
         final DiscoveryNode node,
         final TcpChannel channel,
@@ -35,6 +39,12 @@ public abstract class ProtocolOutboundHandler {
         final boolean isHandshake
     ) throws IOException, TransportException;
 
+    /**
+     * Sends the response to the given channel. This method should be used to send {@link TransportResponse}
+     * objects back to the caller.
+     *
+     * @see #sendErrorResponse(Version, Set, TcpChannel, long, String, Exception) for sending error responses
+     */
     public abstract void sendResponse(
         final Version nodeVersion,
         final Set<String> features,
@@ -46,6 +56,9 @@ public abstract class ProtocolOutboundHandler {
         final boolean isHandshake
     ) throws IOException;
 
+    /**
+     * Sends back an error response to the caller via the given channel
+     */
     public abstract void sendErrorResponse(
         final Version nodeVersion,
         final Set<String> features,

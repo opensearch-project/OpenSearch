@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.transport;
+package org.opensearch.transport.nativeprotocol;
 
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.util.io.IOUtils;
@@ -58,7 +58,7 @@ import java.util.zip.DeflaterOutputStream;
  *
  * @opensearch.internal
  */
-public final class CompressibleBytesOutputStream extends StreamOutput {
+final class CompressibleBytesOutputStream extends StreamOutput {
 
     private final OutputStream stream;
     private final BytesStream bytesStreamOutput;

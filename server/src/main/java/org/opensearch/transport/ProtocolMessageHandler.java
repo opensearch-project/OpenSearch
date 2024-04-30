@@ -17,6 +17,9 @@ import java.io.IOException;
  */
 public interface ProtocolMessageHandler {
 
+    /**
+     * Handles the message received on the channel.
+     */
     public void messageReceived(
         TcpChannel channel,
         ProtocolInboundMessage message,
@@ -25,5 +28,9 @@ public interface ProtocolMessageHandler {
         TransportMessageListener messageListener
     ) throws IOException;
 
+    /**
+     * Sets the message listener to be used by the handler.
+     * @param listener
+     */
     public void setMessageListener(TransportMessageListener listener);
 }
