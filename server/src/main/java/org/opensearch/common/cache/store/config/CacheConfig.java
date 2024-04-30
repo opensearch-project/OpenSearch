@@ -68,7 +68,7 @@ public class CacheConfig<K, V> {
 
     private final ClusterSettings clusterSettings;
 
-    private final boolean useNoopStats;
+    private final boolean statsTrackingEnabled;
 
     private CacheConfig(Builder<K, V> builder) {
         this.keyType = builder.keyType;
@@ -83,7 +83,7 @@ public class CacheConfig<K, V> {
         this.maxSizeInBytes = builder.maxSizeInBytes;
         this.expireAfterAccess = builder.expireAfterAccess;
         this.clusterSettings = builder.clusterSettings;
-        this.useNoopStats = builder.useNoopStats;
+        this.statsTrackingEnabled = builder.statsTrackingEnabled;
     }
 
     public Class<K> getKeyType() {
@@ -134,8 +134,8 @@ public class CacheConfig<K, V> {
         return clusterSettings;
     }
 
-    public boolean getUseNoopStats() {
-        return useNoopStats;
+    public boolean getStatsTrackingEnabled() {
+        return statsTrackingEnabled;
     }
 
     /**
@@ -162,7 +162,7 @@ public class CacheConfig<K, V> {
 
         private TimeValue expireAfterAccess;
         private ClusterSettings clusterSettings;
-        private boolean useNoopStats;
+        private boolean statsTrackingEnabled = true;
 
         public Builder() {}
 
@@ -226,8 +226,8 @@ public class CacheConfig<K, V> {
             return this;
         }
 
-        public Builder<K, V> setUseNoopStats(boolean useNoopStats) {
-            this.useNoopStats = useNoopStats;
+        public Builder<K, V> setStatsTrackingEnabled(boolean statsTrackingEnabled) {
+            this.statsTrackingEnabled = statsTrackingEnabled;
             return this;
         }
 

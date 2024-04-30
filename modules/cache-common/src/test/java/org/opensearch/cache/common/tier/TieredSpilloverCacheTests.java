@@ -49,6 +49,7 @@ import java.util.function.Predicate;
 
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK_CACHE_ENABLED_SETTING_MAP;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_NAME;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
 import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES_KEY;
@@ -1463,7 +1464,10 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
     }
 
     private ImmutableCacheStats getStatsSnapshotForTier(TieredSpilloverCache<?, ?> tsc, String tierValue) throws IOException {
-        ImmutableCacheStatsHolder cacheStats = tsc.stats();
+        List<String> levelsList = new ArrayList<>(dimensionNames);
+        levelsList.add(TIER_DIMENSION_NAME);
+        String[] levels = levelsList.toArray(new String[0]);
+        ImmutableCacheStatsHolder cacheStats = tsc.stats(levels);
         // Since we always use the same list of dimensions from getMockDimensions() in keys for these tests, we can get all the stats values
         // for a given tier with a single node in MDCS
         List<String> mockDimensions = getMockDimensions();

@@ -164,12 +164,12 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         this.ehCacheEventListener = new EhCacheEventListener(builder.getRemovalListener(), builder.getWeigher());
         this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
         List<String> dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
-        if (builder.getUseNoopStats()) {
-            this.cacheStatsHolder = NoopCacheStatsHolder.getInstance();
-        } else {
+        if (builder.getStatsTrackingEnabled()) {
             // If this cache is being used, FeatureFlags.PLUGGABLE_CACHE is already on, so we can always use the DefaultCacheStatsHolder
-            // unless useNoopStats is explicitly set in CacheConfig.
+            // unless statsTrackingEnabled is explicitly set to false in CacheConfig.
             this.cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames, EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME);
+        } else {
+            this.cacheStatsHolder = NoopCacheStatsHolder.getInstance();
         }
     }
 
@@ -420,7 +420,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
 
     /**
      * Gives the current count of keys in disk cache.
-     * If useNoopStats is set to true in the builder, always returns 0.
+     * If enableStatsTracking is set to false in the builder, always returns 0.
      * @return current count of keys
      */
     @Override

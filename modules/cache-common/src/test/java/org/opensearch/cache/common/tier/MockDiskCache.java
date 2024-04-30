@@ -36,17 +36,18 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
     long delay;
 
     private final RemovalListener<ICacheKey<K>, V> removalListener;
-    private final CacheStatsHolder statsHolder; // Only update for number of entries; this is only used to test useNoopStats logic in TSC
+    private final CacheStatsHolder statsHolder; // Only update for number of entries; this is only used to test statsTrackingEnabled logic
+                                                // in TSC
 
-    public MockDiskCache(int maxSize, long delay, RemovalListener<ICacheKey<K>, V> removalListener, boolean useNoopStats) {
+    public MockDiskCache(int maxSize, long delay, RemovalListener<ICacheKey<K>, V> removalListener, boolean statsTrackingEnabled) {
         this.maxSize = maxSize;
         this.delay = delay;
         this.removalListener = removalListener;
         this.cache = new ConcurrentHashMap<ICacheKey<K>, V>();
-        if (useNoopStats) {
-            this.statsHolder = NoopCacheStatsHolder.getInstance();
-        } else {
+        if (statsTrackingEnabled) {
             this.statsHolder = new DefaultCacheStatsHolder(List.of(), "mock_disk_cache");
+        } else {
+            this.statsHolder = NoopCacheStatsHolder.getInstance();
         }
     }
 
@@ -109,8 +110,8 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
 
     @Override
     public ImmutableCacheStatsHolder stats() {
-        // To allow testing of useNoopStats logic in TSC, return a dummy ImmutableCacheStatsHolder with the
-        // right number of entries, unless useNoopStats is true
+        // To allow testing of statsTrackingEnabled logic in TSC, return a dummy ImmutableCacheStatsHolder with the
+        // right number of entries, unless statsTrackingEnabled is false
         return statsHolder.getImmutableCacheStatsHolder(null);
     }
 
@@ -129,12 +130,12 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
         public static final String NAME = "mockDiskCache";
         final long delay;
         final int maxSize;
-        final boolean useNoopStats;
+        final boolean statsTrackingEnabled;
 
-        public MockDiskCacheFactory(long delay, int maxSize, boolean useNoopStats) {
+        public MockDiskCacheFactory(long delay, int maxSize, boolean statsTrackingEnabled) {
             this.delay = delay;
             this.maxSize = maxSize;
-            this.useNoopStats = useNoopStats;
+            this.statsTrackingEnabled = statsTrackingEnabled;
         }
 
         @Override
@@ -145,7 +146,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
                 .setMaxSize(maxSize)
                 .setDeliberateDelay(delay)
                 .setRemovalListener(config.getRemovalListener())
-                .setUseNoopStats(config.getUseNoopStats())
+                .setStatsTrackingEnabled(config.getStatsTrackingEnabled())
                 .build();
         }
 
@@ -164,8 +165,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
 
         @Override
         public ICache<K, V> build() {
-            boolean useNoopStats = getUseNoopStats();
-            return new MockDiskCache<K, V>(this.maxSize, this.delay, this.getRemovalListener(), getUseNoopStats());
+            return new MockDiskCache<K, V>(this.maxSize, this.delay, this.getRemovalListener(), getStatsTrackingEnabled());
         }
 
         public Builder<K, V> setMaxSize(int maxSize) {

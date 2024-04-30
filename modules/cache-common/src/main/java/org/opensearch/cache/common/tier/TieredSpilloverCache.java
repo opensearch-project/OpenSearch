@@ -107,7 +107,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 .setMaxSizeInBytes(builder.cacheConfig.getMaxSizeInBytes())
                 .setExpireAfterAccess(builder.cacheConfig.getExpireAfterAccess())
                 .setClusterSettings(builder.cacheConfig.getClusterSettings())
-                .setUseNoopStats(true)
+                .setStatsTrackingEnabled(false)
                 .build(),
             builder.cacheType,
             builder.cacheFactories
@@ -120,7 +120,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 .setSettings(builder.cacheConfig.getSettings())
                 .setWeigher(builder.cacheConfig.getWeigher())
                 .setDimensionNames(builder.cacheConfig.getDimensionNames())
-                .setUseNoopStats(true)
+                .setStatsTrackingEnabled(false)
                 .build(),
             builder.cacheType,
             builder.cacheFactories

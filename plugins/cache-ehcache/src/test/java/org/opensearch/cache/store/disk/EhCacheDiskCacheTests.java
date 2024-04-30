@@ -850,7 +850,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
-    public void testNoopStats() throws Exception {
+    public void testStatsTrackingDisabled() throws Exception {
         Settings settings = Settings.builder().build();
         MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
@@ -869,7 +869,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
                 .setRemovalListener(removalListener)
                 .setWeigher(weigher)
-                .setUseNoopStats(true)
+                .setStatsTrackingEnabled(false)
                 .build();
             int randomKeys = randomIntBetween(10, 100);
             for (int i = 0; i < randomKeys; i++) {

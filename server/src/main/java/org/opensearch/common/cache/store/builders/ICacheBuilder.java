@@ -37,7 +37,7 @@ public abstract class ICacheBuilder<K, V> {
 
     private RemovalListener<ICacheKey<K>, V> removalListener;
 
-    private boolean useNoopStats;
+    private boolean statsTrackingEnabled = true;
 
     public ICacheBuilder() {}
 
@@ -66,8 +66,8 @@ public abstract class ICacheBuilder<K, V> {
         return this;
     }
 
-    public ICacheBuilder<K, V> setUseNoopStats(boolean useNoopStats) {
-        this.useNoopStats = useNoopStats;
+    public ICacheBuilder<K, V> setStatsTrackingEnabled(boolean statsTrackingEnabled) {
+        this.statsTrackingEnabled = statsTrackingEnabled;
         return this;
     }
 
@@ -91,8 +91,8 @@ public abstract class ICacheBuilder<K, V> {
         return settings;
     }
 
-    public boolean getUseNoopStats() {
-        return useNoopStats;
+    public boolean getStatsTrackingEnabled() {
+        return statsTrackingEnabled;
     }
 
     public abstract ICache<K, V> build();

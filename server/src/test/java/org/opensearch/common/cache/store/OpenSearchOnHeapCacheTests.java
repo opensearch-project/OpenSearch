@@ -39,7 +39,7 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
         MockRemovalListener<String, String> listener = new MockRemovalListener<>();
         int maxKeys = between(10, 50);
         int numEvicted = between(10, 20);
-        OpenSearchOnHeapCache<String, String> cache = getCache(maxKeys, listener, true, false);
+        OpenSearchOnHeapCache<String, String> cache = getCache(maxKeys, listener, true, true);
 
         // When the pluggable caches setting is on, we should get stats as expected from cache.stats().
 
@@ -82,14 +82,14 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
     }
 
     public void testStatsWithoutPluggableCaches() throws Exception {
-        // When the pluggable caches setting is off, or when we manually set useNoopStats = true in the config,
+        // When the pluggable caches setting is off, or when we manually set statsTrackingEnabled = false in the config,
         // we should get all-zero stats from cache.stats(), but count() should still work.
         MockRemovalListener<String, String> listener = new MockRemovalListener<>();
         int maxKeys = between(10, 50);
         int numEvicted = between(10, 20);
 
-        OpenSearchOnHeapCache<String, String> pluggableCachesOffCache = getCache(maxKeys, listener, false, false);
-        OpenSearchOnHeapCache<String, String> manuallySetNoopStatsCache = getCache(maxKeys, listener, true, true);
+        OpenSearchOnHeapCache<String, String> pluggableCachesOffCache = getCache(maxKeys, listener, false, true);
+        OpenSearchOnHeapCache<String, String> manuallySetNoopStatsCache = getCache(maxKeys, listener, true, false);
         List<OpenSearchOnHeapCache<String, String>> caches = List.of(pluggableCachesOffCache, manuallySetNoopStatsCache);
 
         for (OpenSearchOnHeapCache<String, String> cache : caches) {
@@ -113,7 +113,7 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
         int maxSizeKeys,
         MockRemovalListener<String, String> listener,
         boolean pluggableCachesSetting,
-        boolean useNoopStatsInConfig
+        boolean statsTrackingEnabled
     ) {
         ICache.Factory onHeapCacheFactory = new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory();
         Settings settings = Settings.builder()
@@ -133,7 +133,7 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
             .setSettings(settings)
             .setDimensionNames(dimensionNames)
             .setMaxSizeInBytes(maxSizeKeys * keyValueSize)
-            .setUseNoopStats(useNoopStatsInConfig)
+            .setStatsTrackingEnabled(statsTrackingEnabled)
             .build();
         return (OpenSearchOnHeapCache<String, String>) onHeapCacheFactory.create(cacheConfig, CacheType.INDICES_REQUEST_CACHE, null);
     }
@@ -141,7 +141,7 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
     public void testInvalidateWithDropDimensions() throws Exception {
         MockRemovalListener<String, String> listener = new MockRemovalListener<>();
         int maxKeys = 50;
-        OpenSearchOnHeapCache<String, String> cache = getCache(maxKeys, listener, true, false);
+        OpenSearchOnHeapCache<String, String> cache = getCache(maxKeys, listener, true, true);
 
         List<ICacheKey<String>> keysAdded = new ArrayList<>();
 
