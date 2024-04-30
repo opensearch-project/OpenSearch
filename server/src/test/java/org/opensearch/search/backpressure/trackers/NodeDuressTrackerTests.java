@@ -16,8 +16,7 @@ public class NodeDuressTrackerTests extends OpenSearchTestCase {
 
     public void testNodeDuressTracker() {
         AtomicReference<Double> cpuUsage = new AtomicReference<>(0.0);
-        NodeDuressTrackers.NodeDuressTracker tracker = new NodeDuressTrackers.NodeDuressTracker(() -> cpuUsage.get() >= 0.5,
-            () -> 3);
+        NodeDuressTrackers.NodeDuressTracker tracker = new NodeDuressTrackers.NodeDuressTracker(() -> cpuUsage.get() >= 0.5, () -> 3);
 
         // Node not in duress.
         assertFalse(tracker.test());

@@ -68,7 +68,9 @@ public class SearchTaskStats implements ToXContentObject, Writeable {
         builder.startObject();
 
         builder.startObject("resource_tracker_stats");
-        for (Map.Entry<TaskResourceUsageTrackerType, TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats> entry : resourceUsageTrackerStats.entrySet()) {
+        for (Map.Entry<
+            TaskResourceUsageTrackerType,
+            TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats> entry : resourceUsageTrackerStats.entrySet()) {
             builder.field(entry.getKey().getName(), entry.getValue());
         }
         builder.endObject();

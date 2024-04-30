@@ -55,6 +55,43 @@ public class HeapUsageTracker extends TaskResourceUsageTrackers.TaskResourceUsag
         this.heapPercentThresholdSupplier = heapPercentThresholdSupplier;
         this.movingAverageReference = new AtomicReference<>(new MovingAverage(heapMovingAverageWindowSize));
         clusterSettings.addSettingsUpdateConsumer(windowSizeSetting, this::updateWindowSize);
+        setDefaultResourceUsageBreachEvaluator();
+    }
+
+    /**
+     * Had to refactor this method out of the constructor as we can't pass a lambda which references a member variable in constructor
+     * error: cannot reference movingAverageReference before supertype constructor has been called
+     */
+    private void setDefaultResourceUsageBreachEvaluator() {
+        this.resourceUsageBreachEvaluator = (task) -> {
+            MovingAverage movingAverage = movingAverageReference.get();
+
+            // There haven't been enough measurements.
+            if (movingAverage.isReady() == false) {
+                return Optional.empty();
+            }
+
+            double currentUsage = task.getTotalResourceStats().getMemoryInBytes();
+            double averageUsage = movingAverage.getAverage();
+            double variance = heapVarianceSupplier.getAsDouble();
+            double allowedUsage = averageUsage * variance;
+            double threshold = heapPercentThresholdSupplier.getAsDouble() * HEAP_SIZE_BYTES;
+
+            if (isHeapTrackingSupported() == false || currentUsage < threshold || currentUsage < allowedUsage) {
+                return Optional.empty();
+            }
+
+            return Optional.of(
+                new TaskCancellation.Reason(
+                    "heap usage exceeded ["
+                        + new ByteSizeValue((long) currentUsage)
+                        + " >= "
+                        + new ByteSizeValue((long) allowedUsage)
+                        + "]",
+                    (int) (currentUsage / averageUsage)  // TODO: fine-tune the cancellation score/weight
+                )
+            );
+        };
     }
 
     @Override
@@ -65,33 +102,6 @@ public class HeapUsageTracker extends TaskResourceUsageTrackers.TaskResourceUsag
     @Override
     public void update(Task task) {
         movingAverageReference.get().record(task.getTotalResourceStats().getMemoryInBytes());
-    }
-
-    @Override
-    public Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task) {
-        MovingAverage movingAverage = movingAverageReference.get();
-
-        // There haven't been enough measurements.
-        if (movingAverage.isReady() == false) {
-            return Optional.empty();
-        }
-
-        double currentUsage = task.getTotalResourceStats().getMemoryInBytes();
-        double averageUsage = movingAverage.getAverage();
-        double variance = heapVarianceSupplier.getAsDouble();
-        double allowedUsage = averageUsage * variance;
-        double threshold = heapPercentThresholdSupplier.getAsDouble() * HEAP_SIZE_BYTES;
-
-        if (isHeapTrackingSupported() == false || currentUsage < threshold || currentUsage < allowedUsage) {
-            return Optional.empty();
-        }
-
-        return Optional.of(
-            new TaskCancellation.Reason(
-                "heap usage exceeded [" + new ByteSizeValue((long) currentUsage) + " >= " + new ByteSizeValue((long) allowedUsage) + "]",
-                (int) (currentUsage / averageUsage)  // TODO: fine-tune the cancellation score/weight
-            )
-        );
     }
 
     private void updateWindowSize(int heapMovingAverageWindowSize) {

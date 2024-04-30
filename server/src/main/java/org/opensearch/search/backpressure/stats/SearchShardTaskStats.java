@@ -18,8 +18,8 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
 import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
 import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
-import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
+import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers;
 
 import java.io.IOException;
 import java.util.Map;
@@ -67,7 +67,9 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
         builder.startObject();
 
         builder.startObject("resource_tracker_stats");
-        for (Map.Entry<TaskResourceUsageTrackerType, TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats> entry : resourceUsageTrackerStats.entrySet()) {
+        for (Map.Entry<
+            TaskResourceUsageTrackerType,
+            TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats> entry : resourceUsageTrackerStats.entrySet()) {
             builder.field(entry.getKey().getName(), entry.getValue());
         }
         builder.endObject();

@@ -34,34 +34,40 @@ public class ElapsedTimeTracker extends TaskResourceUsageTrackers.TaskResourceUs
     private final LongSupplier timeNanosSupplier;
 
     public ElapsedTimeTracker(LongSupplier thresholdSupplier, LongSupplier timeNanosSupplier) {
+        this(thresholdSupplier, timeNanosSupplier, (Task task) -> {
+            long usage = timeNanosSupplier.getAsLong() - task.getStartTimeNanos();
+            long threshold = thresholdSupplier.getAsLong();
+
+            if (usage < threshold) {
+                return Optional.empty();
+            }
+
+            return Optional.of(
+                new TaskCancellation.Reason(
+                    "elapsed time exceeded ["
+                        + new TimeValue(usage, TimeUnit.NANOSECONDS)
+                        + " >= "
+                        + new TimeValue(threshold, TimeUnit.NANOSECONDS)
+                        + "]",
+                    1  // TODO: fine-tune the cancellation score/weight
+                )
+            );
+        });
+    }
+
+    public ElapsedTimeTracker(
+        LongSupplier thresholdSupplier,
+        LongSupplier timeNanosSupplier,
+        ResourceUsageBreachEvaluator resourceUsageBreachEvaluator
+    ) {
         this.thresholdSupplier = thresholdSupplier;
         this.timeNanosSupplier = timeNanosSupplier;
+        this.resourceUsageBreachEvaluator = resourceUsageBreachEvaluator;
     }
 
     @Override
     public String name() {
         return ELAPSED_TIME_TRACKER.getName();
-    }
-
-    @Override
-    public Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task) {
-        long usage = timeNanosSupplier.getAsLong() - task.getStartTimeNanos();
-        long threshold = thresholdSupplier.getAsLong();
-
-        if (usage < threshold) {
-            return Optional.empty();
-        }
-
-        return Optional.of(
-            new TaskCancellation.Reason(
-                "elapsed time exceeded ["
-                    + new TimeValue(usage, TimeUnit.NANOSECONDS)
-                    + " >= "
-                    + new TimeValue(threshold, TimeUnit.NANOSECONDS)
-                    + "]",
-                1  // TODO: fine-tune the cancellation score/weight
-            )
-        );
     }
 
     @Override

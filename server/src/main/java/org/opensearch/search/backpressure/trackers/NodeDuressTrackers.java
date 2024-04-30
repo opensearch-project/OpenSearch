@@ -28,7 +28,6 @@ public class NodeDuressTrackers {
         this.cpuDuressTracker = cpuDuressTracker;
     }
 
-
     /**
      * Method to check the heap duress
      * @return true if heap is in duress
@@ -36,7 +35,6 @@ public class NodeDuressTrackers {
     public boolean isHeapInDuress() {
         return heapDuressTracker.test();
     }
-
 
     /**
      * Method to check the CPU duress
@@ -53,7 +51,6 @@ public class NodeDuressTrackers {
     public boolean isNodeInDuress() {
         return isCPUInDuress() || isHeapInDuress();
     }
-
 
     /**
      * NodeDuressTracker is used to check if the node is in duress
@@ -75,8 +72,7 @@ public class NodeDuressTrackers {
          */
         private final IntSupplier maxBreachAllowedSupplier;
 
-        public NodeDuressTracker(BooleanSupplier isNodeInDuress,
-                                 IntSupplier maxBreachAllowedSupplier) {
+        public NodeDuressTracker(BooleanSupplier isNodeInDuress, IntSupplier maxBreachAllowedSupplier) {
             this.isNodeInDuress = isNodeInDuress;
             this.maxBreachAllowedSupplier = maxBreachAllowedSupplier;
         }

@@ -29,9 +29,11 @@ public class TaskResourceUsageTrackers {
     private TaskResourceUsageTracker cpuUsageTracker;
     private TaskResourceUsageTracker heapUsageTracker;
     private TaskResourceUsageTracker elapsedTimeTracker;
+    private final List<TaskResourceUsageTracker> all;
 
-    public TaskResourceUsageTrackers() { }
-
+    public TaskResourceUsageTrackers() {
+        all = new ArrayList<>(3);
+    }
 
     /**
      * adds the cpuUsageTracker
@@ -39,8 +41,8 @@ public class TaskResourceUsageTrackers {
      */
     public void addCpuUsageTracker(final TaskResourceUsageTracker cpuUsageTracker) {
         this.cpuUsageTracker = cpuUsageTracker;
+        all.add(cpuUsageTracker);
     }
-
 
     /**
      * adds the heapUsageTracker
@@ -48,8 +50,8 @@ public class TaskResourceUsageTrackers {
      */
     public void addHeapUsageTracker(final TaskResourceUsageTracker heapUsageTracker) {
         this.heapUsageTracker = heapUsageTracker;
+        all.add(heapUsageTracker);
     }
-
 
     /**
      * adds the elapsedTimeTracker
@@ -57,42 +59,39 @@ public class TaskResourceUsageTrackers {
      */
     public void addElapsedTimeTracker(final TaskResourceUsageTracker elapsedTimeTracker) {
         this.elapsedTimeTracker = elapsedTimeTracker;
+        all.add(elapsedTimeTracker);
     }
-
 
     /**
      * getter for cpuUsageTracker
      * @return
      */
-    public TaskResourceUsageTracker getCpuUsageTracker() {
-        return cpuUsageTracker;
+    public Optional<TaskResourceUsageTracker> getCpuUsageTracker() {
+        return Optional.ofNullable(cpuUsageTracker);
     }
-
 
     /**
      * getter for heapUsageTacker
      * @return
      */
-    public TaskResourceUsageTracker getHeapUsageTracker() {
-        return heapUsageTracker;
+    public Optional<TaskResourceUsageTracker> getHeapUsageTracker() {
+        return Optional.ofNullable(heapUsageTracker);
     }
-
 
     /**
      * getter for elapsedTimeTracker
      * @return
      */
-    public TaskResourceUsageTracker getElapsedTimeTracker() {
-        return elapsedTimeTracker;
+    public Optional<TaskResourceUsageTracker> getElapsedTimeTracker() {
+        return Optional.ofNullable(elapsedTimeTracker);
     }
-
 
     /**
      * Method to access all available {@link TaskResourceUsageTracker}
      * @return
      */
     public List<TaskResourceUsageTracker> all() {
-        return List.of(heapUsageTracker, cpuUsageTracker, elapsedTimeTracker);
+        return all;
     }
 
     /**
@@ -104,6 +103,15 @@ public class TaskResourceUsageTrackers {
          * Counts the number of cancellations made due to this tracker.
          */
         private final AtomicLong cancellations = new AtomicLong();
+        protected ResourceUsageBreachEvaluator resourceUsageBreachEvaluator;
+
+        /**
+         * for test purposes only
+         * @param resourceUsageBreachEvaluator
+         */
+        public void setResourceUsageBreachEvaluator(final ResourceUsageBreachEvaluator resourceUsageBreachEvaluator) {
+            this.resourceUsageBreachEvaluator = resourceUsageBreachEvaluator;
+        }
 
         public long incrementCancellations() {
             return cancellations.incrementAndGet();
@@ -126,13 +134,14 @@ public class TaskResourceUsageTrackers {
         /**
          * Returns the cancellation reason for the given task, if it's eligible for cancellation.
          */
-        public abstract Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task);
+        public Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task) {
+            return resourceUsageBreachEvaluator.evaluate(task);
+        }
 
         /**
          * Returns the tracker's state for tasks as seen in the stats API.
          */
         public abstract Stats stats(List<? extends Task> activeTasks);
-
 
         /**
          * Method to get taskCancellations due to this tracker for the given {@link CancellableTask} tasks
@@ -141,9 +150,15 @@ public class TaskResourceUsageTrackers {
          * @return
          */
         public List<TaskCancellation> getTaskCancellations(List<CancellableTask> tasks, Runnable cancellationCallback) {
-            return tasks.stream().map(
-                task -> this.getTaskCancellation(task, cancellationCallback)
-            ).collect(Collectors.toList());
+            return tasks.stream()
+                .map(task -> this.getTaskCancellation(task, cancellationCallback))
+                .filter(TaskCancellation::isEligibleForCancellation)
+                .map(taskCancellation -> {
+                    List<Runnable> onCancelCallbacks = new ArrayList<>(taskCancellation.getOnCancelCallbacks());
+                    onCancelCallbacks.add(this::incrementCancellations);
+                    return new TaskCancellation(taskCancellation.getTask(), taskCancellation.getReasons(), onCancelCallbacks);
+                })
+                .collect(Collectors.toList());
         }
 
         private TaskCancellation getTaskCancellation(final CancellableTask task, final Runnable cancellationCallback) {
@@ -158,5 +173,17 @@ public class TaskResourceUsageTrackers {
          * Represents the tracker's state as seen in the stats API.
          */
         public interface Stats extends ToXContentObject, Writeable {}
+
+        /**
+         * This interface carries the logic to decide whether a task should be cancelled or not
+         */
+        public interface ResourceUsageBreachEvaluator {
+            /**
+             * evaluates whether the task is eligible for cancellation based on {@link TaskResourceUsageTracker} implementation
+             * @param task
+             * @return a {@link TaskCancellation.Reason} why this task should be cancelled otherwise empty
+             */
+            public Optional<TaskCancellation.Reason> evaluate(final Task task);
+        }
     }
 }

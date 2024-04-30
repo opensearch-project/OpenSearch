@@ -34,33 +34,35 @@ public class CpuUsageTracker extends TaskResourceUsageTrackers.TaskResourceUsage
     private final LongSupplier thresholdSupplier;
 
     public CpuUsageTracker(LongSupplier thresholdSupplier) {
+        this(thresholdSupplier, (task) -> {
+            long usage = task.getTotalResourceStats().getCpuTimeInNanos();
+            long threshold = thresholdSupplier.getAsLong();
+
+            if (usage < threshold) {
+                return Optional.empty();
+            }
+
+            return Optional.of(
+                new TaskCancellation.Reason(
+                    "cpu usage exceeded ["
+                        + new TimeValue(usage, TimeUnit.NANOSECONDS)
+                        + " >= "
+                        + new TimeValue(threshold, TimeUnit.NANOSECONDS)
+                        + "]",
+                    1  // TODO: fine-tune the cancellation score/weight
+                )
+            );
+        });
+    }
+
+    public CpuUsageTracker(LongSupplier thresholdSupplier, ResourceUsageBreachEvaluator resourceUsageBreachEvaluator) {
         this.thresholdSupplier = thresholdSupplier;
+        this.resourceUsageBreachEvaluator = resourceUsageBreachEvaluator;
     }
 
     @Override
     public String name() {
         return CPU_USAGE_TRACKER.getName();
-    }
-
-    @Override
-    public Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task) {
-        long usage = task.getTotalResourceStats().getCpuTimeInNanos();
-        long threshold = thresholdSupplier.getAsLong();
-
-        if (usage < threshold) {
-            return Optional.empty();
-        }
-
-        return Optional.of(
-            new TaskCancellation.Reason(
-                "cpu usage exceeded ["
-                    + new TimeValue(usage, TimeUnit.NANOSECONDS)
-                    + " >= "
-                    + new TimeValue(threshold, TimeUnit.NANOSECONDS)
-                    + "]",
-                1  // TODO: fine-tune the cancellation score/weight
-            )
-        );
     }
 
     @Override
