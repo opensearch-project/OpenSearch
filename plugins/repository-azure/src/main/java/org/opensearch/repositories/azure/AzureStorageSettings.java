@@ -60,7 +60,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 final class AzureStorageSettings {
-    private final ClientLogger logger = new ClientLogger(AzureStorageSettings.class);
+    private final ClientLogger logger = new ClientLogger(AzureStorageService.class);
 
     // prefix for azure client settings
     private static final String AZURE_CLIENT_PREFIX_KEY = "azure.client.";
