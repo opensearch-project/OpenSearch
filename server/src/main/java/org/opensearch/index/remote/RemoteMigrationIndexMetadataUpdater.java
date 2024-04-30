@@ -9,8 +9,6 @@
 package org.opensearch.index.remote;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.Version;
-import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
@@ -18,11 +16,9 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.indices.replication.common.ReplicationType;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -32,9 +28,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGME
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
+import static org.opensearch.index.remote.RemoteStoreUtils.determineRemoteStorePathStrategyDuringMigration;
 import static org.opensearch.index.remote.RemoteStoreUtils.getRemoteStoreRepoName;
-import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING;
-import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
@@ -135,33 +130,13 @@ public class RemoteMigrationIndexMetadataUpdater {
     public void maybeUpdateRemoteStorePathStrategy(IndexMetadata.Builder indexMetadataBuilder, String index) {
         if (indexHasRemotePathMetadata(indexMetadata) == false) {
             logger.info("Adding remote store path strategy for index [{}] during migration", index);
-            indexMetadataBuilder.putCustom(REMOTE_STORE_CUSTOM_KEY, createRemoteStorePathTypeMetadata(clusterSettings, discoveryNodes));
+            indexMetadataBuilder.putCustom(
+                REMOTE_STORE_CUSTOM_KEY,
+                determineRemoteStorePathStrategyDuringMigration(clusterSettings, discoveryNodes)
+            );
         } else {
             logger.debug("Index {} already has remote store path strategy", index);
         }
-    }
-
-    /**
-     * Generates the remote store path type information to be added to custom data of index metadata.
-     *
-     * @param clusterSettings Current Cluster settings from {@link ClusterState}
-     * @param discoveryNodes Current {@link DiscoveryNodes} from the cluster state
-     * @return {@link Map} to be added as custom data in index metadata
-     */
-    private Map<String, String> createRemoteStorePathTypeMetadata(Settings clusterSettings, DiscoveryNodes discoveryNodes) {
-        Version minNodeVersion = discoveryNodes.getMinNodeVersion();
-        PathType pathType = Version.CURRENT.compareTo(minNodeVersion) <= 0
-            ? CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.get(clusterSettings)
-            : PathType.FIXED;
-        PathHashAlgorithm pathHashAlgorithm = pathType == PathType.FIXED
-            ? null
-            : CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING.get(clusterSettings);
-        Map<String, String> remoteCustomData = new HashMap<>();
-        remoteCustomData.put(PathType.NAME, pathType.name());
-        if (Objects.nonNull(pathHashAlgorithm)) {
-            remoteCustomData.put(PathHashAlgorithm.NAME, pathHashAlgorithm.name());
-        }
-        return remoteCustomData;
     }
 
     public static boolean indexHasAllRemoteStoreRelatedMetadata(IndexMetadata indexMetadata) {

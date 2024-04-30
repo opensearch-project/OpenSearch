@@ -10,10 +10,13 @@ package org.opensearch.index.remote;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.Version;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 
 import java.nio.ByteBuffer;
@@ -23,9 +26,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
+
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
 
 /**
  * Utils for remote store
@@ -156,20 +162,49 @@ public class RemoteStoreUtils {
         return URL_BASE64_CHARSET[base64DecimalValue] + binaryPart;
     }
 
+    /**
+     * Determines the remote store path strategy by reading the custom data map in IndexMetadata class.
+     */
     public static RemoteStorePathStrategy determineRemoteStorePathStrategy(IndexMetadata indexMetadata) {
         Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
         assert remoteCustomData == null || remoteCustomData.containsKey(RemoteStoreEnums.PathType.NAME);
         if (remoteCustomData != null && remoteCustomData.containsKey(RemoteStoreEnums.PathType.NAME)) {
             RemoteStoreEnums.PathType pathType = RemoteStoreEnums.PathType.parseString(
-                    remoteCustomData.get(RemoteStoreEnums.PathType.NAME)
+                remoteCustomData.get(RemoteStoreEnums.PathType.NAME)
             );
             String hashAlgoStr = remoteCustomData.get(RemoteStoreEnums.PathHashAlgorithm.NAME);
             RemoteStoreEnums.PathHashAlgorithm hashAlgorithm = Objects.nonNull(hashAlgoStr)
-                    ? RemoteStoreEnums.PathHashAlgorithm.parseString(hashAlgoStr)
-                    : null;
+                ? RemoteStoreEnums.PathHashAlgorithm.parseString(hashAlgoStr)
+                : null;
             return new RemoteStorePathStrategy(pathType, hashAlgorithm);
         }
         return new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED);
+    }
+
+    /**
+     * Generates the remote store path type information to be added to custom data of index metadata during migration
+     *
+     * @param clusterSettings Current Cluster settings from {@link ClusterState}
+     * @param discoveryNodes Current {@link DiscoveryNodes} from the cluster state
+     * @return {@link Map} to be added as custom data in index metadata
+     */
+    public static Map<String, String> determineRemoteStorePathStrategyDuringMigration(
+        Settings clusterSettings,
+        DiscoveryNodes discoveryNodes
+    ) {
+        Version minNodeVersion = discoveryNodes.getMinNodeVersion();
+        RemoteStoreEnums.PathType pathType = Version.CURRENT.compareTo(minNodeVersion) <= 0
+            ? CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.get(clusterSettings)
+            : RemoteStoreEnums.PathType.FIXED;
+        RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm = pathType == RemoteStoreEnums.PathType.FIXED
+            ? null
+            : CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING.get(clusterSettings);
+        Map<String, String> remoteCustomData = new HashMap<>();
+        remoteCustomData.put(RemoteStoreEnums.PathType.NAME, pathType.name());
+        if (Objects.nonNull(pathHashAlgorithm)) {
+            remoteCustomData.put(RemoteStoreEnums.PathHashAlgorithm.NAME, pathHashAlgorithm.name());
+        }
+        return remoteCustomData;
     }
 
     /**
@@ -183,10 +218,10 @@ public class RemoteStoreUtils {
      */
     public static Map<String, String> getRemoteStoreRepoName(DiscoveryNodes discoveryNodes) {
         Optional<DiscoveryNode> remoteNode = discoveryNodes.getNodes()
-                .values()
-                .stream()
-                .filter(DiscoveryNode::isRemoteStoreNode)
-                .findFirst();
+            .values()
+            .stream()
+            .filter(DiscoveryNode::isRemoteStoreNode)
+            .findFirst();
         return remoteNode.map(RemoteStoreNodeAttribute::getDataRepoNames).orElseGet(HashMap::new);
     }
 }
