@@ -210,6 +210,10 @@ public class RemoteClusterStateService implements Closeable {
 
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
     private final RemotePersistenceStats remoteStateStats;
+    private final String CLUSTER_STATE_UPLOAD_TIME_LOG_STRING = "writing cluster state for version [{}] took [{}ms]";
+    private final String METADATA_UPDATE_LOG_STRING = "wrote metadata for [{}] indices and skipped [{}] unchanged "
+        + "indices, coordination metadata updated : [{}], settings metadata updated : [{}], templates metadata "
+        + "updated : [{}], custom metadata updated : [{}]";
     public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 1;
     public static final int MANIFEST_CURRENT_CODEC_VERSION = ClusterMetadataManifest.CODEC_V2;
     public static final int GLOBAL_METADATA_CURRENT_CODEC_VERSION = 1;
@@ -442,34 +446,29 @@ public class RemoteClusterStateService implements Closeable {
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
         remoteStateStats.stateSucceeded();
         remoteStateStats.stateTook(durationMillis);
+        ParameterizedMessage clusterStateUploadTimeMessage = new ParameterizedMessage(
+            CLUSTER_STATE_UPLOAD_TIME_LOG_STRING,
+            manifest.getStateVersion(),
+            durationMillis
+        );
+        ParameterizedMessage metadataUpdateMessage = new ParameterizedMessage(
+            METADATA_UPDATE_LOG_STRING,
+            numIndicesUpdated,
+            numIndicesUnchanged,
+            updateCoordinationMetadata,
+            updateSettingsMetadata,
+            updateTemplatesMetadata,
+            customsToUpload.size()
+        );
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(
-                "writing cluster state took [{}ms] which is above the warn threshold of [{}]; "
-                    + "wrote  metadata for [{}] indices and skipped [{}] unchanged indices, coordination metadata updated : [{}], "
-                    + "settings metadata updated : [{}], templates metadata updated : [{}], custom metadata updated : [{}]",
-                durationMillis,
+                "{} which is above the warn threshold of [{}]; {}",
+                clusterStateUploadTimeMessage,
                 slowWriteLoggingThreshold,
-                numIndicesUpdated,
-                numIndicesUnchanged,
-                updateCoordinationMetadata,
-                updateSettingsMetadata,
-                updateTemplatesMetadata,
-                customsToUpload.size()
+                metadataUpdateMessage
             );
         } else {
-            logger.info(
-                "writing cluster state for version [{}] took [{}ms]; "
-                    + "wrote metadata for [{}] indices and skipped [{}] unchanged indices, coordination metadata updated : [{}], "
-                    + "settings metadata updated : [{}], templates metadata updated : [{}], custom metadata updated : [{}]",
-                manifest.getStateVersion(),
-                durationMillis,
-                numIndicesUpdated,
-                numIndicesUnchanged,
-                updateCoordinationMetadata,
-                updateSettingsMetadata,
-                updateTemplatesMetadata,
-                customsToUpload.size()
-            );
+            logger.info("{}; {}", clusterStateUploadTimeMessage, metadataUpdateMessage);
         }
         return manifest;
     }
@@ -549,7 +548,7 @@ public class RemoteClusterStateService implements Closeable {
             );
         });
         indexToUpload.forEach(indexMetadata -> {
-            uploadTasks.put(indexMetadata.getIndexName(), getIndexMetadataAsyncAction(clusterState, indexMetadata, listener));
+            uploadTasks.put(indexMetadata.getIndex().getName(), getIndexMetadataAsyncAction(clusterState, indexMetadata, listener));
         });
 
         // start async upload of all required metadata files

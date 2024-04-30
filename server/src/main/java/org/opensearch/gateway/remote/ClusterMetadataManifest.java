@@ -59,6 +59,56 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     private static final ParseField UPLOADED_TEMPLATES_METADATA = new ParseField("uploaded_templates_metadata");
     private static final ParseField UPLOADED_CUSTOM_METADATA = new ParseField("uploaded_custom_metadata");
 
+    private static ClusterMetadataManifest.Builder manifestV0Builder(Object[] fields) {
+        return ClusterMetadataManifest.builder()
+            .clusterTerm(term(fields))
+            .stateVersion(version(fields))
+            .clusterUUID(clusterUUID(fields))
+            .stateUUID(stateUUID(fields))
+            .opensearchVersion(opensearchVersion(fields))
+            .nodeId(nodeId(fields))
+            .committed(committed(fields))
+            .codecVersion(CODEC_V0)
+            .indices(indices(fields))
+            .previousClusterUUID(previousClusterUUID(fields))
+            .clusterUUIDCommitted(clusterUUIDCommitted(fields));
+    }
+
+    private static ClusterMetadataManifest.Builder manifestV1Builder(Object[] fields) {
+        return ClusterMetadataManifest.builder()
+            .clusterTerm(term(fields))
+            .stateVersion(version(fields))
+            .clusterUUID(clusterUUID(fields))
+            .stateUUID(stateUUID(fields))
+            .opensearchVersion(opensearchVersion(fields))
+            .nodeId(nodeId(fields))
+            .committed(committed(fields))
+            .codecVersion(codecVersion(fields))
+            .globalMetadataFileName(globalMetadataFileName(fields))
+            .indices(indices(fields))
+            .previousClusterUUID(previousClusterUUID(fields))
+            .clusterUUIDCommitted(clusterUUIDCommitted(fields));
+    }
+
+    private static ClusterMetadataManifest.Builder manifestV2Builder(Object[] fields) {
+        return ClusterMetadataManifest.builder()
+            .clusterTerm(term(fields))
+            .stateVersion(version(fields))
+            .clusterUUID(clusterUUID(fields))
+            .stateUUID(stateUUID(fields))
+            .opensearchVersion(opensearchVersion(fields))
+            .nodeId(nodeId(fields))
+            .committed(committed(fields))
+            .codecVersion(codecVersion(fields))
+            .indices(indices(fields))
+            .previousClusterUUID(previousClusterUUID(fields))
+            .clusterUUIDCommitted(clusterUUIDCommitted(fields))
+            .coordinationMetadata(coordinationMetadata(fields))
+            .settingMetadata(settingsMetadata(fields))
+            .templatesMetadata(templatesMetadata(fields))
+            .customMetadataMap(customMetadata(fields));
+    }
+
     private static long term(Object[] fields) {
         return (long) fields[0];
     }
@@ -126,58 +176,17 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
     private static final ConstructingObjectParser<ClusterMetadataManifest, Void> PARSER_V0 = new ConstructingObjectParser<>(
         "cluster_metadata_manifest",
-        fields -> ClusterMetadataManifest.builder()
-            .clusterTerm(term(fields))
-            .stateVersion(version(fields))
-            .clusterUUID(clusterUUID(fields))
-            .stateUUID(stateUUID(fields))
-            .opensearchVersion(opensearchVersion(fields))
-            .nodeId(nodeId(fields))
-            .committed(committed(fields))
-            .codecVersion(CODEC_V0)
-            .indices(indices(fields))
-            .previousClusterUUID(previousClusterUUID(fields))
-            .clusterUUIDCommitted(clusterUUIDCommitted(fields))
-            .build()
+        fields -> manifestV0Builder(fields).build()
     );
 
     private static final ConstructingObjectParser<ClusterMetadataManifest, Void> PARSER_V1 = new ConstructingObjectParser<>(
         "cluster_metadata_manifest",
-        fields -> ClusterMetadataManifest.builder()
-            .clusterTerm(term(fields))
-            .stateVersion(version(fields))
-            .clusterUUID(clusterUUID(fields))
-            .stateUUID(stateUUID(fields))
-            .opensearchVersion(opensearchVersion(fields))
-            .nodeId(nodeId(fields))
-            .committed(committed(fields))
-            .codecVersion(codecVersion(fields))
-            .globalMetadataFileName(globalMetadataFileName(fields))
-            .indices(indices(fields))
-            .previousClusterUUID(previousClusterUUID(fields))
-            .clusterUUIDCommitted(clusterUUIDCommitted(fields))
-            .build()
+        fields -> manifestV1Builder(fields).build()
     );
 
     private static final ConstructingObjectParser<ClusterMetadataManifest, Void> PARSER_V2 = new ConstructingObjectParser<>(
         "cluster_metadata_manifest",
-        fields -> ClusterMetadataManifest.builder()
-            .clusterTerm(term(fields))
-            .stateVersion(version(fields))
-            .clusterUUID(clusterUUID(fields))
-            .stateUUID(stateUUID(fields))
-            .opensearchVersion(opensearchVersion(fields))
-            .nodeId(nodeId(fields))
-            .committed(committed(fields))
-            .codecVersion(codecVersion(fields))
-            .indices(indices(fields))
-            .previousClusterUUID(previousClusterUUID(fields))
-            .clusterUUIDCommitted(clusterUUIDCommitted(fields))
-            .coordinationMetadata(coordinationMetadata(fields))
-            .settingMetadata(settingsMetadata(fields))
-            .templatesMetadata(templatesMetadata(fields))
-            .customMetadataMap(customMetadata(fields))
-            .build()
+        fields -> manifestV2Builder(fields).build()
     );
 
     private static final ConstructingObjectParser<ClusterMetadataManifest, Void> CURRENT_PARSER = PARSER_V2;
