@@ -15,6 +15,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
@@ -29,10 +30,10 @@ public class TaskResourceUsageTrackers {
     private TaskResourceUsageTracker cpuUsageTracker;
     private TaskResourceUsageTracker heapUsageTracker;
     private TaskResourceUsageTracker elapsedTimeTracker;
-    private final List<TaskResourceUsageTracker> all;
+    private final EnumMap<TaskResourceUsageTrackerType, TaskResourceUsageTracker> all;
 
     public TaskResourceUsageTrackers() {
-        all = new ArrayList<>(3);
+        all = new EnumMap<>(TaskResourceUsageTrackerType.class);
     }
 
     /**
@@ -41,7 +42,7 @@ public class TaskResourceUsageTrackers {
      */
     public void addCpuUsageTracker(final TaskResourceUsageTracker cpuUsageTracker) {
         this.cpuUsageTracker = cpuUsageTracker;
-        all.add(cpuUsageTracker);
+        all.put(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, cpuUsageTracker);
     }
 
     /**
@@ -50,7 +51,7 @@ public class TaskResourceUsageTrackers {
      */
     public void addHeapUsageTracker(final TaskResourceUsageTracker heapUsageTracker) {
         this.heapUsageTracker = heapUsageTracker;
-        all.add(heapUsageTracker);
+        all.put(TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER, heapUsageTracker);
     }
 
     /**
@@ -59,7 +60,7 @@ public class TaskResourceUsageTrackers {
      */
     public void addElapsedTimeTracker(final TaskResourceUsageTracker elapsedTimeTracker) {
         this.elapsedTimeTracker = elapsedTimeTracker;
-        all.add(elapsedTimeTracker);
+        all.put(TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER, elapsedTimeTracker);
     }
 
     /**
@@ -91,7 +92,7 @@ public class TaskResourceUsageTrackers {
      * @return
      */
     public List<TaskResourceUsageTracker> all() {
-        return all;
+        return new ArrayList<>(all.values());
     }
 
     /**
