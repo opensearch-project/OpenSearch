@@ -60,7 +60,7 @@ public class TransferManagerTests extends OpenSearchTestCase {
         directory = new MMapDirectory(createTempDir(), SimpleFSLockFactory.INSTANCE);
         blobContainer = mock(BlobContainer.class);
         doAnswer(i -> new ByteArrayInputStream(createData())).when(blobContainer).readBlob(eq("blob"), anyLong(), anyLong());
-        transferManager = new TransferManager(blobContainer, fileCache);
+        transferManager = new TransferManager(blobContainer::readBlob, fileCache);
     }
 
     @After

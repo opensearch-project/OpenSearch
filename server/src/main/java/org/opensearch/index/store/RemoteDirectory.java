@@ -205,7 +205,9 @@ public class RemoteDirectory extends Directory {
                 long position = ((BlockIOContext) context).getBlockStart();
                 long length = ((BlockIOContext) context).getBlockSize();
                 inputStream = blobContainer.readBlob(name, position, length);
+                // TODO - Explore how we can buffer small chunks of data instead of having the whole 8MB block in memory
                 byte[] bytes = downloadRateLimiter.apply(inputStream).readAllBytes();
+                inputStream.close();
                 return new ByteArrayIndexInput(name, bytes);
             } else {
                 inputStream = blobContainer.readBlob(name);

@@ -8,6 +8,8 @@
 
 package org.opensearch.remotestore;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
@@ -19,8 +21,11 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.CompositeDirectory;
+import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.junit.annotations.TestLogging;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
@@ -28,11 +33,21 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANS
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
+@ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+//@TestLogging(reason = "Getting trace logs from composite directory package", value = "org.opensearch.index.store:TRACE")
 public class CompositeDirectoryIT extends RemoteStoreBaseIntegTestCase {
+
+    @Override
+    protected Settings featureFlagSettings() {
+        Settings.Builder featureSettings = Settings.builder();
+        featureSettings.put(FeatureFlags.WRITEABLE_REMOTE_INDEX, true);
+
+        return featureSettings.build();
+    }
+
     public void testCompositeDirectory() throws Exception {
         Settings settings = Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.WRITEABLE_REMOTE_INDEX, "true")
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(), "partial")
@@ -60,7 +75,7 @@ public class CompositeDirectoryIT extends RemoteStoreBaseIntegTestCase {
         assertEquals("true", indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
         assertEquals(REPOSITORY_NAME, indexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
         assertEquals(REPOSITORY_2_NAME, indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
-        assertEquals("partial", indexSettings.get("index.store.locality"));
+        assertEquals("partial", indexSettings.get("index.store.data_locality"));
 
         ensureGreen("test-idx-1");
         indexData(10, false, "test-idx-1");
