@@ -60,7 +60,6 @@ import java.util.Map;
 import java.util.function.Function;
 
 final class AzureStorageSettings {
-    private final ClientLogger logger = new ClientLogger(AzureStorageService.class);
 
     // prefix for azure client settings
     private static final String AZURE_CLIENT_PREFIX_KEY = "azure.client.";
@@ -278,7 +277,7 @@ final class AzureStorageSettings {
         if (usesTokenCredential(tokenCredentialType)) {
             this.connectString = "";
             this.clientBuilder = (builder) -> builder.credential(new ManagedIdentityCredentialBuilder().build())
-                .endpoint(getStorageEndpoint().getPrimaryUri());
+                .endpoint(getStorageEndpoint(null).getPrimaryUri());
         } else {
             this.connectString = buildConnectString(account, key, sasToken, endpointSuffix);
             this.clientBuilder = (builder) -> builder.connectionString(connectString);
@@ -302,7 +301,7 @@ final class AzureStorageSettings {
         return tokenCredential != null && !tokenCredential.isEmpty();
     }
 
-    public StorageEndpoint getStorageEndpoint() {
+    public StorageEndpoint getStorageEndpoint(@Nullable ClientLogger logger) {
         if (usesTokenCredential(tokenCredentialType)) {
             String tokenCredentialEndpointSuffix = endpointSuffix;
             if (!Strings.hasText(tokenCredentialEndpointSuffix)) {
