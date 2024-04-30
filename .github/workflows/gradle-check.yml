@@ -7,6 +7,8 @@ on:
       - 'dependabot/**'
   pull_request_target:
     types: [opened, synchronize, reopened]
+    paths-ignore:
+      - 'release-notes/**'
 
 permissions:
   contents: read # to fetch code (actions/checkout)
