@@ -137,6 +137,7 @@ def lambda_handler(event, context):
     account_id = os.environ['ACCOUNT_ID']
     region = os.environ['AWS_REGION']
     ocsf_bucket = os.environ.get('S3_BUCKET_OCSF')
+    ocsf_class = os.environ.get('OCSF_CLASS', 'SECURITY_FINDING')
 
     # Extract bucket and key from S3 event
     src_bucket = event['Records'][0]['s3']['bucket']['name']
@@ -150,7 +151,7 @@ def lambda_handler(event, context):
     raw_events = get_events(src_bucket, key)
 
     # Transform events to OCSF format
-    ocsf_events = wazuh_ocsf_converter.transform_events(raw_events)
+    ocsf_events = wazuh_ocsf_converter.transform_events(raw_events, ocsf_class)
 
     # Upload event in OCSF format
     ocsf_upload_success = False

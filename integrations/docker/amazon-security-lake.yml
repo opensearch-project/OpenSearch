@@ -123,6 +123,7 @@ services:
       SOURCE_LOCATION: "wazuh"
       ACCOUNT_ID: "111111111111"
       IS_DEV: true
+      OCSF_CLASS: SECURITY_FINDING
     volumes:
       - ../amazon-security-lake/src:/var/task
     ports:

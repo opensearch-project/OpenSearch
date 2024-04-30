@@ -3,7 +3,9 @@ import models
 import logging
 from datetime import datetime
 
+
 timestamp_pattern = "%Y-%m-%dT%H:%M:%S.%f%z"
+
 
 def normalize(level: int) -> int:
     """
@@ -39,7 +41,6 @@ def to_detection_finding(event: models.wazuh.Event) -> models.ocsf.DetectionFind
             analytic=models.ocsf.AnalyticInfo(
                 category=", ".join(event.rule.groups),
                 name=event.decoder.name,
-                type_id=1,
                 uid=event.rule.id
             ),
             attacks=[
@@ -51,24 +52,12 @@ def to_detection_finding(event: models.wazuh.Event) -> models.ocsf.DetectionFind
                     technique=models.ocsf.TechniqueInfo(
                         name=", ".join(event.rule.mitre.technique),
                         uid=", ".join(event.rule.mitre.id)
-                    ),
-                    version="v13.1"
+                    )
                 )
             ],
             title=event.rule.description,
             types=[event.input.type],
             uid=event.id
-        )
-
-        metadata = models.ocsf.Metadata(
-            log_name="Security events",
-            log_provider="Wazuh",
-            product=models.ocsf.ProductInfo(
-                name="Wazuh",
-                lang="en",
-                vendor_name="Wazuh, Inc,."
-            ),
-            version="1.1.0"
         )
 
         resources = [models.ocsf.Resource(
@@ -88,7 +77,6 @@ def to_detection_finding(event: models.wazuh.Event) -> models.ocsf.DetectionFind
             count=event.rule.firedtimes,
             message=event.rule.description,
             finding_info=finding_info,
-            metadata=metadata,
             raw_data=event.full_log,
             resources=resources,
             risk_score=event.rule.level,
@@ -99,6 +87,69 @@ def to_detection_finding(event: models.wazuh.Event) -> models.ocsf.DetectionFind
     except AttributeError as e:
         logging.error(f"Error transforming event: {e}")
         return {}
+
+
+def to_security_finding(event: models.wazuh.Event) -> models.ocsf.SecurityFinding:
+    """
+    Convert Wazuh security event to OCSF's Security Finding class.
+    """
+    try:
+
+        analytic = models.ocsf.Analytic(
+            category=", ".join(event.rule.groups),
+            name=event.decoder.name,
+            uid=event.rule.id
+        )
+
+        attacks = [
+            models.ocsf.AttackInfo(
+                tactic=models.ocsf.TechniqueInfo(
+                    name=", ".join(event.rule.mitre.tactic),
+                    uid=", ".join(event.rule.mitre.id)
+                ),
+                technique=models.ocsf.TechniqueInfo(
+                    name=", ".join(event.rule.mitre.technique),
+                    uid=", ".join(event.rule.mitre.id)
+                )
+            )
+        ]
+
+        finding = models.ocsf.Finding(
+            title=event.rule.description,
+            types=[event.input.type],
+            uid=event.id
+        )
+
+        resources = [models.ocsf.Resource(
+            name=event.agent.name, uid=event.agent.id)]
+
+        severity_id = normalize(event.rule.level)
+
+        unmapped = {
+            "data_sources": [
+                event.location,
+                event.manager.name
+            ],
+            "nist": event.rule.nist_800_53  # Array
+        }
+
+        return models.ocsf.SecurityFinding(
+            analytic=analytic,
+            attacks=attacks,
+            count=event.rule.firedtimes,
+            message=event.rule.description,
+            finding=finding,
+            raw_data=event.full_log,
+            resources=resources,
+            risk_score=event.rule.level,
+            severity_id=severity_id,
+            time=to_epoch(event.timestamp),
+            unmapped=unmapped
+        )
+    except AttributeError as e:
+        logging.error(f"Error transforming event: {e}")
+        return {}
+
 
 def to_epoch(timestamp: str) -> int:
     return int(datetime.strptime(timestamp, timestamp_pattern).timestamp())
@@ -115,7 +166,7 @@ def from_json(json_line: str) -> models.wazuh.Event:
         print(e)
 
 
-def transform_events(events: list) -> list:
+def transform_events(events: list, ocsf_class: str) -> list:
     """
     Transform a list of Wazuh security events (json string) to OCSF format.
     """
@@ -124,7 +175,10 @@ def transform_events(events: list) -> list:
     for event in events:
         try:
             wazuh_event = from_json(event)
-            ocsf_event = to_detection_finding(wazuh_event).model_dump()
+            if ocsf_class == 'DETECTION_FINDING':
+                ocsf_event = to_detection_finding(wazuh_event).model_dump()
+            else:
+                ocsf_event = to_security_finding(wazuh_event).model_dump()
             ocsf_events.append(ocsf_event)
         except Exception as e:
             logging.error(f"Error transforming line to OCSF: {e}")
