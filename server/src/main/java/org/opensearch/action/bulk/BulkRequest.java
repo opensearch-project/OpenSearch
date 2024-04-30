@@ -81,7 +81,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
 
     private static final int REQUEST_OVERHEAD = 50;
-    private static final Version MINIMAL_VERSION_SUPPORT_BATCH = Version.V_2_14_0;
     /**
      * Requests that are part of this request. It is only possible to add things that are both {@link ActionRequest}s and
      * {@link WriteRequest}s to this but java doesn't support syntax to declare that everything in the array has both types so we declare
@@ -109,7 +108,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         requests.addAll(in.readList(i -> DocWriteRequest.readDocumentRequest(null, i)));
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
-        if (in.getVersion().onOrAfter(MINIMAL_VERSION_SUPPORT_BATCH)) {
+        if (in.getVersion().onOrAfter(Version.V_2_14_0)) {
             batchSize = in.readInt();
         }
     }
@@ -358,7 +357,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      */
     public BulkRequest batchSize(int size) {
         if (size < 1) {
-            throw new IllegalArgumentException("batch_size must be larger than 0");
+            throw new IllegalArgumentException("batch_size must be greater than 0");
         }
         this.batchSize = size;
         return this;
