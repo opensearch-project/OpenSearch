@@ -255,95 +255,86 @@ public class RemoteMigrationAllocationDeciderIT extends RemoteStoreMigrationShar
         logger.info("Initialize cluster");
         internalCluster().startClusterManagerOnlyNode();
 
-        logger.info("Add non-remote data node");
-        String nonRemoteNodeName = internalCluster().startDataOnlyNode();
+        logger.info("Add non-remote data nodes");
+        String nonRemoteNodeName1 = internalCluster().startDataOnlyNode();
+        String nonRemoteNodeName2 = internalCluster().startDataOnlyNode();
         internalCluster().validateClusterFormed();
-        DiscoveryNode nonRemoteNode = assertNodeInCluster(nonRemoteNodeName);
+        DiscoveryNode nonRemoteNode1 = assertNodeInCluster(nonRemoteNodeName1);
+        DiscoveryNode nonRemoteNode2 = assertNodeInCluster(nonRemoteNodeName2);
 
-        logger.info("Allocate primary shard on non-remote node");
-        createIndex(TEST_INDEX, 0);
+        logger.info("Allocate primary and replica shard on non-remote nodes");
+        createIndex(TEST_INDEX, 1);
         ensureGreen(TEST_INDEX);
-        assertAllocation(true, nonRemoteNode);
 
         logger.info("Set mixed mode");
         setClusterMode(MIXED.mode);
 
-        logger.info("Add remote data node");
+        logger.info("Add remote data nodes");
         setAddRemote(true);
         String remoteNodeName1 = internalCluster().startDataOnlyNode();
+        String remoteNodeName2 = internalCluster().startDataOnlyNode();
         internalCluster().validateClusterFormed();
         DiscoveryNode remoteNode1 = assertNodeInCluster(remoteNodeName1);
+        DiscoveryNode remoteNode2 = assertNodeInCluster(remoteNodeName2);
 
         logger.info("Set remote_store direction");
         setDirection(REMOTE_STORE.direction);
 
         logger.info("Relocate primary shard to remote node");
-        includeAllNodes();
+        DiscoveryNode initialPrimaryNode = primaryNodeName(TEST_INDEX).equals(nonRemoteNodeName1) ? nonRemoteNode1 : nonRemoteNode2;
+        DiscoveryNode initialReplicaNode = initialPrimaryNode.equals(nonRemoteNode1) ? nonRemoteNode2 : nonRemoteNode1;
         assertAcked(
             internalCluster().client()
                 .admin()
                 .cluster()
                 .prepareReroute()
-                .add(new MoveAllocationCommand(TEST_INDEX, 0, nonRemoteNodeName, remoteNodeName1))
+                .add(new MoveAllocationCommand(TEST_INDEX, 0, initialPrimaryNode.getName(), remoteNodeName1))
                 .get()
         );
         ensureGreen(TEST_INDEX);
         assertAllocation(true, remoteNode1);
 
-        logger.info("Verify expected decision for allocating a replica shard on non-remote node");
-        excludeAllNodes();
-        assertAcked(
-            internalCluster().client()
-                .admin()
-                .indices()
-                .prepareUpdateSettings()
-                .setIndices(TEST_INDEX)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build())
-                .get()
-        );
-        ensureYellowAndNoInitializingShards(TEST_INDEX);
-        Decision decision = getDecisionForTargetNode(nonRemoteNode, false, true, false);
+        logger.info("Verify expected decision for relocating a replica shard on non-remote node");
+        Decision decision = getDecisionForTargetNode(initialPrimaryNode, false, true, true);
         assertEquals(Decision.Type.YES, decision.type());
         assertEquals(
-            "[remote_store migration_direction]: replica shard copy can be allocated to a non-remote node",
+            "[remote_store migration_direction]: replica shard copy can be relocated to a non-remote node",
             decision.getExplanation().toLowerCase(Locale.ROOT)
         );
 
-        logger.info("Attempt free allocation of replica shard");
-        attemptAllocation(null);
+        logger.info("Attempt relocation of replica shard to non-remote node");
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareReroute()
+                .add(new MoveAllocationCommand(TEST_INDEX, 0, initialReplicaNode.getName(), initialPrimaryNode.getName()))
+                .get()
+        );
 
-        logger.info("Verify allocation of replica shard on non-remote node");
+        logger.info("Verify relocation of replica shard to non-remote node");
         ensureGreen(TEST_INDEX);
-        assertAllocation(false, nonRemoteNode);
+        assertAllocation(false, initialPrimaryNode);
 
-        logger.info("Add another remote data node");
-        String remoteNodeName2 = internalCluster().startDataOnlyNode();
-        internalCluster().validateClusterFormed();
-        DiscoveryNode remoteNode2 = assertNodeInCluster(remoteNodeName2);
-
-        logger.info("Verify expected decision for allocating a replica shard on remote node");
-        excludeAllNodes();
-        assertAcked(
-            internalCluster().client()
-                .admin()
-                .indices()
-                .prepareUpdateSettings()
-                .setIndices(TEST_INDEX)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2).build())
-                .get()
-        );
-        ensureYellowAndNoInitializingShards(TEST_INDEX);
-        decision = getDecisionForTargetNode(remoteNode2, false, true, false);
+        logger.info("Verify expected decision for relocating a replica shard on remote node");
+        decision = getDecisionForTargetNode(remoteNode2, false, true, true);
         assertEquals(Decision.Type.YES, decision.type());
         assertEquals(
-            "[remote_store migration_direction]: replica shard copy can be allocated to a remote node since primary shard copy has been migrated to remote",
+            "[remote_store migration_direction]: replica shard copy can be relocated to a remote node since primary shard copy has been migrated to remote",
             decision.getExplanation().toLowerCase(Locale.ROOT)
         );
 
-        logger.info("Attempt free allocation of replica shard");
-        attemptAllocation(null);
+        logger.info("Attempt relocation of replica shard to remote node");
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareReroute()
+                .add(new MoveAllocationCommand(TEST_INDEX, 0, initialPrimaryNode.getName(), remoteNodeName2))
+                .get()
+        );
 
-        logger.info("Verify allocation of replica shard on remote node");
+        logger.info("Verify relocation of replica shard to non-remote node");
         ensureGreen(TEST_INDEX);
         assertAllocation(false, remoteNode2);
     }
