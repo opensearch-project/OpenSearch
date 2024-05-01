@@ -84,10 +84,8 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         boolean hasFilterCollector,
         boolean timeoutSet
     ) throws IOException {
-        if (Objects.nonNull(queryCollectorContext)) {
-            // add the passed collector, the first collector context in the chain
-            collectorContexts.addFirst(queryCollectorContext);
-        }
+        // add the passed collector, the first collector context in the chain
+        collectorContexts.addFirst(Objects.requireNonNull(queryCollectorContext));
 
         final QuerySearchResult queryResult = searchContext.queryResult();
         final CollectorManager<?, ReduceableSearchResult> collectorManager;

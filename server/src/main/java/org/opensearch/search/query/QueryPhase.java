@@ -340,7 +340,7 @@ public class QueryPhase {
         boolean timeoutSet
     ) throws IOException {
         // add passed collector, the first collector context in the chain
-        collectors.addFirst(queryCollectorContext);
+        collectors.addFirst(Objects.requireNonNull(queryCollectorContext));
 
         final Collector queryCollector;
         if (searchContext.getProfilers() != null) {
