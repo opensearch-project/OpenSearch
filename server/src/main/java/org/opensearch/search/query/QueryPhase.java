@@ -335,13 +335,15 @@ public class QueryPhase {
         ContextIndexSearcher searcher,
         Query query,
         LinkedList<QueryCollectorContext> collectors,
+        QueryCollectorContext queryCollectorContext,
         boolean hasFilterCollector,
-        boolean timeoutSet
+        boolean timeoutSet,
+        boolean shouldRescore
     ) throws IOException {
-        // create the top docs collector last when the other collectors are known
-        final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
-        // add the top docs collector, the first collector context in the chain
-        collectors.addFirst(topDocsFactory);
+        if (Objects.nonNull(queryCollectorContext)) {
+            // add passed collector, the first collector context in the chain
+            collectors.addFirst(queryCollectorContext);
+        }
 
         final Collector queryCollector;
         if (searchContext.getProfilers() != null) {
@@ -370,7 +372,7 @@ public class QueryPhase {
         for (QueryCollectorContext ctx : collectors) {
             ctx.postProcess(queryResult);
         }
-        return topDocsFactory.shouldRescore();
+        return shouldRescore;
     }
 
     /**
@@ -440,7 +442,40 @@ public class QueryPhase {
             boolean hasFilterCollector,
             boolean hasTimeout
         ) throws IOException {
-            return QueryPhase.searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+            // create the top docs collector last when the other collectors are known
+            final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
+            return searchWithCollector(
+                searchContext,
+                searcher,
+                query,
+                collectors,
+                topDocsFactory,
+                hasFilterCollector,
+                hasTimeout,
+                topDocsFactory.shouldRescore()
+            );
+        }
+
+        protected boolean searchWithCollector(
+            SearchContext searchContext,
+            ContextIndexSearcher searcher,
+            Query query,
+            LinkedList<QueryCollectorContext> collectors,
+            QueryCollectorContext queryCollectorContext,
+            boolean hasFilterCollector,
+            boolean hasTimeout,
+            boolean shouldRescore
+        ) throws IOException {
+            return QueryPhase.searchWithCollector(
+                searchContext,
+                searcher,
+                query,
+                collectors,
+                queryCollectorContext,
+                hasFilterCollector,
+                hasTimeout,
+                shouldRescore
+            );
         }
     }
 }

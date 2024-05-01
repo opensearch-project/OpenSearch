@@ -54,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_MIN_SCORE;
 import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_MULTI;
@@ -248,7 +249,9 @@ public abstract class QueryCollectorContext {
                 CollectorManager<? extends Collector, ReduceableSearchResult> in
             ) throws IOException {
                 final List<CollectorManager<?, ReduceableSearchResult>> managers = new ArrayList<>();
-                managers.add(in);
+                if (Objects.nonNull(in)) {
+                    managers.add(in);
+                }
                 managers.addAll(subs);
                 return QueryCollectorManagerContext.createMultiCollectorManager(managers);
             }
