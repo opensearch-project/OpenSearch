@@ -12,8 +12,25 @@ permissions:
   contents: read # to fetch code (actions/checkout)
 
 jobs:
-  gradle-check:
+  check-files:
     if: github.repository == 'opensearch-project/OpenSearch'
+    runs-on: ubuntu-latest
+    outputs: 
+      RUN_GRADLE_CHECK: ${{steps.changed-files-specific.outputs.any_changed}}
+    steps: 
+      - uses: actions/checkout@v3
+      - name: Get changed files in the docs folder
+        id: changed-files-specific
+        uses: tj-actions/changed-files@v44
+        with:
+          files_ignore: |
+            release-notes/**
+            .github/**
+            **.md
+    
+  gradle-check:
+    needs: check-files
+    if: github.repository == 'opensearch-project/OpenSearch' && needs.check-files.outputs.RUN_GRADLE_CHECK
     permissions:
       contents: read # to fetch code (actions/checkout)
       pull-requests: write # to create or update comment (peter-evans/create-or-update-comment)
