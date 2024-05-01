@@ -1,0 +1,65 @@
+setup:
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                list_id:
+                  type: integer
+                names:
+                  type: nested
+                  properties:
+                    full_name:
+                      type: text
+
+  - do:
+       bulk:
+         refresh: true
+         body:
+           - index:
+               _index: test_1
+               _id:    1
+           - list_id: 1
+             names:
+               - full_name: John Doe
+               - full_name: John Micheal Doe
+           - index:
+               _index: test_1
+               _id:    2
+           - list_id: 2
+             names:
+               - full_name: Jane Doe
+               - full_name: Jane Michelle Doe
+
+---
+"Include inner hits in top hits":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            nested:
+              path: names
+              query:
+                match:
+                  names.full_name: Doe
+              inner_hits: { }
+          size: 0
+          aggs:
+            lists:
+              terms:
+                field: list_id
+              aggs:
+                top_result:
+                  top_hits:
+                    size: 10
+
+  - length: { hits.hits: 0 }
+  - length: { aggregations.lists.buckets: 2 }
+  - length: { aggregations.lists.buckets.0.top_result.hits.hits: 1 }
+  - length: { aggregations.lists.buckets.0.top_result.hits.hits.0.inner_hits.names.hits.hits: 2 }
+  - length: { aggregations.lists.buckets.1.top_result.hits.hits: 1 }
+  - length: { aggregations.lists.buckets.1.top_result.hits.hits.0.inner_hits.names.hits.hits: 2 }
