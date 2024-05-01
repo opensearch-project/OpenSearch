@@ -31,3 +31,4 @@
 subprojects {
   group = 'org.opensearch.test'
 }
+print('Hello World')
