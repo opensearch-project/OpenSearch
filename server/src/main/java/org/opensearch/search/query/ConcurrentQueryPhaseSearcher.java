@@ -55,6 +55,7 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         return searchWithCollector(searchContext, searcher, query, collectors, topDocsFactory, hasFilterCollector, hasTimeout);
     }
 
+    @Override
     protected boolean searchWithCollector(
         SearchContext searchContext,
         ContextIndexSearcher searcher,
