@@ -96,7 +96,7 @@ public class TranslogTransferManager {
         this.remoteStoreSettings = remoteStoreSettings;
         this.shouldUploadTranslogCkpAsMetadata = shouldUploadTranslogCkpAsMetadata;
 
-        transferManager = new TranslogTransferManagerFactory(transferService, fileTransferTracker, remoteStoreSettings, shardId)
+        transferManager = new TranslogTransferManagerFactory(transferService, fileTransferTracker, shardId)
             .getTranslogCheckpointSnapshotTransferManager(shouldUploadTranslogCkpAsMetadata);
 
     }
@@ -172,13 +172,7 @@ public class TranslogTransferManager {
 
             // If the transferService of enabled blob store supports uploading object metadata, We don't need to transfer checkpoint file
             // snapshots separately. We can provide checkpoint file data as object metadata to tranlsog.tlog files.
-            transferManager.transferTranslogCheckpointSnapshot(
-                transferSnapshot,
-                toUpload,
-                blobPathMap,
-                latchedActionListener,
-                WritePriority.HIGH
-            );
+            transferManager.transferTranslogCheckpointSnapshot(toUpload, blobPathMap, latchedActionListener, WritePriority.HIGH);
 
             try {
                 if (latch.await(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout().millis(), TimeUnit.MILLISECONDS) == false) {

@@ -36,13 +36,19 @@ public class FileTransferTracker implements FileTransferListener {
     private Map<String, Long> bytesForTlogCkpFileToUpload;
     private long fileTransferStartTime = -1;
     private final Logger logger;
+    private final boolean startUploadingTranslogCkpAsMetadata;
 
-    public FileTransferTracker(ShardId shardId, RemoteTranslogTransferTracker remoteTranslogTransferTracker) {
+    public FileTransferTracker(
+        ShardId shardId,
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        boolean startTranslogCkpAsObjectMetadata
+    ) {
         this.shardId = shardId;
         this.fileTransferTracker = new ConcurrentHashMap<>();
         this.generationalFilesTransferTracker = new ConcurrentHashMap<>();
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         this.logger = Loggers.getLogger(getClass(), shardId);
+        this.startUploadingTranslogCkpAsMetadata = startTranslogCkpAsObjectMetadata;
     }
 
     void recordFileTransferStartTime(long uploadStartTime) {
@@ -82,11 +88,11 @@ public class FileTransferTracker implements FileTransferListener {
         } catch (Exception ex) {
             logger.error("Failure to update translog upload success stats", ex);
         }
-
         addGeneration(fileSnapshot.getGeneration(), TransferState.SUCCESS);
-
         add(fileSnapshot.getTranslogFileName(), TransferState.SUCCESS);
-        add(fileSnapshot.getCheckpointFileName(), TransferState.SUCCESS);
+        if (!startUploadingTranslogCkpAsMetadata) {
+            add(fileSnapshot.getCheckpointFileName(), TransferState.SUCCESS);
+        }
     }
 
     void addGeneration(long generation, boolean success) {

@@ -35,7 +35,6 @@ public class TranslogCheckpointSnapshotTransferManagerWithMetadata implements Tr
 
     @Override
     public void transferTranslogCheckpointSnapshot(
-        TransferSnapshot transferSnapshot,
         Set<TranslogCheckpointSnapshot> toUpload,
         Map<Long, BlobPath> blobPathMap,
         LatchedActionListener<TranslogCheckpointSnapshot> latchedActionListener,

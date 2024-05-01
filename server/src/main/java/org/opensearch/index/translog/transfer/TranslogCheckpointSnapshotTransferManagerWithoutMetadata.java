@@ -8,17 +8,13 @@
 
 package org.opensearch.index.translog.transfer;
 
-import org.apache.logging.log4j.Logger;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
-import org.opensearch.indices.RemoteStoreSettings;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -35,33 +31,24 @@ public class TranslogCheckpointSnapshotTransferManagerWithoutMetadata implements
 
     private final TransferService transferService;
     private final FileTransferTracker fileTransferTracker;
-    private final RemoteStoreSettings remoteStoreSettings;
-    private final ShardId shardId;
-    private final Logger logger;
 
     public TranslogCheckpointSnapshotTransferManagerWithoutMetadata(
         TransferService transferService,
-        FileTransferTracker fileTransferTracker,
-        RemoteStoreSettings remoteStoreSettings,
-        ShardId shardId
+        FileTransferTracker fileTransferTracker
     ) {
         this.transferService = transferService;
         this.fileTransferTracker = fileTransferTracker;
-        this.remoteStoreSettings = remoteStoreSettings;
-        this.shardId = shardId;
-        this.logger = Loggers.getLogger(getClass(), shardId);
     }
 
     @Override
     public void transferTranslogCheckpointSnapshot(
-        TransferSnapshot transferSnapshot,
         Set<TranslogCheckpointSnapshot> toUpload,
         Map<Long, BlobPath> blobPathMap,
         LatchedActionListener<TranslogCheckpointSnapshot> latchedActionListener,
         WritePriority writePriority
     ) throws Exception {
         for (TranslogCheckpointSnapshot tlogAndCkpTransferFileSnapshot : toUpload) {
-            Set<FileSnapshot.TransferFileSnapshot> filesToUpload = new HashSet<>(2);
+            Set<TransferFileSnapshot> filesToUpload = new HashSet<>(2);
             Set<Exception> exceptionList = new HashSet<>(2);
 
             TransferFileSnapshot checkpointFileSnapshot = tlogAndCkpTransferFileSnapshot.getCheckpointFileSnapshot();

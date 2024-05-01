@@ -9,7 +9,6 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.indices.RemoteStoreSettings;
 
 /**
  * Factory to provide translog transfer manager to transfer {@link TranslogCheckpointSnapshot}
@@ -20,18 +19,11 @@ public class TranslogTransferManagerFactory {
 
     private final TransferService transferService;
     private final FileTransferTracker fileTransferTracker;
-    private final RemoteStoreSettings remoteStoreSettings;
     private final ShardId shardId;
 
-    public TranslogTransferManagerFactory(
-        TransferService transferService,
-        FileTransferTracker fileTransferTracker,
-        RemoteStoreSettings remoteStoreSettings,
-        ShardId shardId
-    ) {
+    public TranslogTransferManagerFactory(TransferService transferService, FileTransferTracker fileTransferTracker, ShardId shardId) {
         this.transferService = transferService;
         this.fileTransferTracker = fileTransferTracker;
-        this.remoteStoreSettings = remoteStoreSettings;
         this.shardId = shardId;
     }
 
@@ -39,12 +31,7 @@ public class TranslogTransferManagerFactory {
         if (isBlobMetadataSupported) {
             return new TranslogCheckpointSnapshotTransferManagerWithMetadata(transferService);
         } else {
-            return new TranslogCheckpointSnapshotTransferManagerWithoutMetadata(
-                transferService,
-                fileTransferTracker,
-                remoteStoreSettings,
-                shardId
-            );
+            return new TranslogCheckpointSnapshotTransferManagerWithoutMetadata(transferService, fileTransferTracker);
         }
     }
 }

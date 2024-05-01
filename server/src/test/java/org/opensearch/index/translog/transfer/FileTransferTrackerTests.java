@@ -36,7 +36,7 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 20);
-        fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
+        fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker, false);
     }
 
     public void testOnSuccess() throws IOException {
@@ -124,7 +124,7 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
         doAnswer((count) -> { throw new NullPointerException("Error while updating stats"); }).when(localRemoteTranslogTransferTracker)
             .addUploadBytesSucceeded(anyLong());
 
-        FileTransferTracker localFileTransferTracker = new FileTransferTracker(shardId, localRemoteTranslogTransferTracker);
+        FileTransferTracker localFileTransferTracker = new FileTransferTracker(shardId, localRemoteTranslogTransferTracker, false);
 
         Path testFile = createTempFile();
         int fileSize = 128;
@@ -152,6 +152,7 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
 
     public void testUploaded() throws IOException {
         Path testFile = createTempFile();
+        Path ckpFile = createTempFile();
         int fileSize = 128;
         Files.write(testFile, randomByteArrayOfLength(fileSize), StandardOpenOption.APPEND);
         TranslogCheckpointSnapshot transferFileSnapshot = new TranslogCheckpointSnapshot(
@@ -159,7 +160,7 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
             generation,
             minTranslogGeneration,
             testFile,
-            testFile,
+            ckpFile,
             null,
             null,
             null,
@@ -172,12 +173,13 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
         remoteTranslogTransferTracker.addUploadBytesStarted(2 * fileSize);
         fileTransferTracker.onSuccess(transferFileSnapshot);
         String fileName = String.valueOf(testFile.getFileName());
+        String ckpFileName = String.valueOf(ckpFile.getFileName());
         assertTrue(fileTransferTracker.translogGenerationUploaded(generation));
         assertFalse(fileTransferTracker.translogGenerationUploaded(generation + 2));
 
         fileTransferTracker.deleteGenerations(Set.of(generation));
-        assertFalse(fileTransferTracker.uploaded(fileName));
-
+        assertTrue(fileTransferTracker.uploaded(fileName));
+        assertTrue(fileTransferTracker.uploaded(ckpFileName));
     }
 
 }

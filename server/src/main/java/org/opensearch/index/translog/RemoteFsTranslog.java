@@ -95,7 +95,7 @@ public class RemoteFsTranslog extends Translog {
     private final AtomicBoolean pauseSync = new AtomicBoolean(false);
 
     // boolean variable to determine if translog should get upload using new flow i.e. checkpoint file as object metadata to translog file
-    private final boolean shouldUploadTranslogCkpAsMetadata;
+    private final boolean startUploadingTranslogCkpAsMetadata;
     private final Supplier<Version> minNodeVersionSupplier;
 
     public RemoteFsTranslog(
@@ -116,9 +116,9 @@ public class RemoteFsTranslog extends Translog {
         logger = Loggers.getLogger(getClass(), shardId);
         this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
-        fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
         this.minNodeVersionSupplier = minNodeVersionSupplier;
-        this.shouldUploadTranslogCkpAsMetadata = isReadyForNewTranslogUploadFlow(minNodeVersionSupplier, blobStoreRepository);
+        this.startUploadingTranslogCkpAsMetadata = isReadyForNewTranslogUploadFlow(minNodeVersionSupplier, blobStoreRepository);
+        fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker, startUploadingTranslogCkpAsMetadata);
 
         this.translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
@@ -128,7 +128,7 @@ public class RemoteFsTranslog extends Translog {
             remoteTranslogTransferTracker,
             indexSettings().getRemoteStorePathStrategy(),
             remoteStoreSettings,
-            shouldUploadTranslogCkpAsMetadata
+            startUploadingTranslogCkpAsMetadata
         );
         try {
             download(translogTransferManager, location, logger, config.shouldSeedRemote());
@@ -196,7 +196,7 @@ public class RemoteFsTranslog extends Translog {
         // We use a dummy stats tracker to ensure the flow doesn't break.
         // TODO: To be revisited as part of https://github.com/opensearch-project/OpenSearch/issues/7567
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 1000);
-        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker, false);
         TranslogTransferManager translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
@@ -626,7 +626,7 @@ public class RemoteFsTranslog extends Translog {
         // We use a dummy stats tracker to ensure the flow doesn't break.
         // TODO: To be revisited as part of https://github.com/opensearch-project/OpenSearch/issues/7567
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 1000);
-        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker, false);
         TranslogTransferManager translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
