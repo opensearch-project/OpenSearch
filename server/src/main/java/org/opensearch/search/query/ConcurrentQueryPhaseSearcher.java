@@ -52,16 +52,7 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
     ) throws IOException {
         // create the top docs collector
         final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
-        return searchWithCollector(
-            searchContext,
-            searcher,
-            query,
-            collectors,
-            topDocsFactory,
-            hasFilterCollector,
-            hasTimeout,
-            topDocsFactory.shouldRescore()
-        );
+        return searchWithCollector(searchContext, searcher, query, collectors, topDocsFactory, hasFilterCollector, hasTimeout);
     }
 
     protected boolean searchWithCollector(
@@ -71,8 +62,7 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         LinkedList<QueryCollectorContext> collectors,
         QueryCollectorContext queryCollectorContext,
         boolean hasFilterCollector,
-        boolean hasTimeout,
-        boolean shouldRescore
+        boolean hasTimeout
     ) throws IOException {
         return searchWithCollectorManager(
             searchContext,
@@ -81,8 +71,7 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
             collectors,
             queryCollectorContext,
             hasFilterCollector,
-            hasTimeout,
-            shouldRescore
+            hasTimeout
         );
     }
 
@@ -93,8 +82,7 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         LinkedList<QueryCollectorContext> collectorContexts,
         QueryCollectorContext queryCollectorContext,
         boolean hasFilterCollector,
-        boolean timeoutSet,
-        boolean shouldRescore
+        boolean timeoutSet
     ) throws IOException {
         if (Objects.nonNull(queryCollectorContext)) {
             // add the passed collector, the first collector context in the chain
@@ -131,7 +119,10 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
             queryResult.terminatedEarly(false);
         }
 
-        return shouldRescore;
+        if (queryCollectorContext instanceof RescoringQueryCollectorContext) {
+            return ((RescoringQueryCollectorContext) queryCollectorContext).shouldRescore();
+        }
+        return false;
     }
 
     @Override

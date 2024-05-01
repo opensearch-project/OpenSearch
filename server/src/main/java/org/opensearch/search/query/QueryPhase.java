@@ -337,13 +337,10 @@ public class QueryPhase {
         LinkedList<QueryCollectorContext> collectors,
         QueryCollectorContext queryCollectorContext,
         boolean hasFilterCollector,
-        boolean timeoutSet,
-        boolean shouldRescore
+        boolean timeoutSet
     ) throws IOException {
-        if (Objects.nonNull(queryCollectorContext)) {
-            // add passed collector, the first collector context in the chain
-            collectors.addFirst(queryCollectorContext);
-        }
+        // add passed collector, the first collector context in the chain
+        collectors.addFirst(queryCollectorContext);
 
         final Collector queryCollector;
         if (searchContext.getProfilers() != null) {
@@ -372,7 +369,10 @@ public class QueryPhase {
         for (QueryCollectorContext ctx : collectors) {
             ctx.postProcess(queryResult);
         }
-        return shouldRescore;
+        if (queryCollectorContext instanceof RescoringQueryCollectorContext) {
+            return ((RescoringQueryCollectorContext) queryCollectorContext).shouldRescore();
+        }
+        return false;
     }
 
     /**
@@ -444,16 +444,7 @@ public class QueryPhase {
         ) throws IOException {
             // create the top docs collector last when the other collectors are known
             final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
-            return searchWithCollector(
-                searchContext,
-                searcher,
-                query,
-                collectors,
-                topDocsFactory,
-                hasFilterCollector,
-                hasTimeout,
-                topDocsFactory.shouldRescore()
-            );
+            return searchWithCollector(searchContext, searcher, query, collectors, topDocsFactory, hasFilterCollector, hasTimeout);
         }
 
         protected boolean searchWithCollector(
@@ -463,8 +454,7 @@ public class QueryPhase {
             LinkedList<QueryCollectorContext> collectors,
             QueryCollectorContext queryCollectorContext,
             boolean hasFilterCollector,
-            boolean hasTimeout,
-            boolean shouldRescore
+            boolean hasTimeout
         ) throws IOException {
             return QueryPhase.searchWithCollector(
                 searchContext,
@@ -473,8 +463,7 @@ public class QueryPhase {
                 collectors,
                 queryCollectorContext,
                 hasFilterCollector,
-                hasTimeout,
-                shouldRescore
+                hasTimeout
             );
         }
     }

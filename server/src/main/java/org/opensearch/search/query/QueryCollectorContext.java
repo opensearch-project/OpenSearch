@@ -54,7 +54,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_MIN_SCORE;
 import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_MULTI;
@@ -75,6 +74,29 @@ public abstract class QueryCollectorContext {
         @Override
         public ScoreMode scoreMode() {
             return ScoreMode.COMPLETE_NO_SCORES;
+        }
+    };
+
+    public static final QueryCollectorContext EMPTY_CONTEXT = new QueryCollectorContext("empty") {
+
+        @Override
+        Collector create(Collector in) throws IOException {
+            return EMPTY_COLLECTOR;
+        }
+
+        @Override
+        CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException {
+            return new CollectorManager<Collector, ReduceableSearchResult>() {
+                @Override
+                public Collector newCollector() throws IOException {
+                    return EMPTY_COLLECTOR;
+                }
+
+                @Override
+                public ReduceableSearchResult reduce(Collection<Collector> collectors) throws IOException {
+                    return result -> {};
+                }
+            };
         }
     };
 
@@ -249,9 +271,7 @@ public abstract class QueryCollectorContext {
                 CollectorManager<? extends Collector, ReduceableSearchResult> in
             ) throws IOException {
                 final List<CollectorManager<?, ReduceableSearchResult>> managers = new ArrayList<>();
-                if (Objects.nonNull(in)) {
-                    managers.add(in);
-                }
+                managers.add(in);
                 managers.addAll(subs);
                 return QueryCollectorManagerContext.createMultiCollectorManager(managers);
             }
