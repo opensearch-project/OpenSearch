@@ -120,17 +120,17 @@ public class TranslogTransferManager {
         try {
             int totalFilesCount = transferSnapshot.getTranslogTransferMetadata().getCount();
             List<Exception> exceptionList = new ArrayList<>(totalFilesCount);
-            Set<TranslogCheckpointSnapshot> toUpload = new HashSet<>(totalFilesCount);
-            toUpload.addAll(fileTransferTracker.exclusionFilter(transferSnapshot.getTranslogCheckpointSnapshots()));
+            Set<TranslogCheckpointSnapshot> generationalSnapshotList = new HashSet<>(totalFilesCount);
+            generationalSnapshotList.addAll(fileTransferTracker.exclusionFilter(transferSnapshot.getTranslogCheckpointSnapshots()));
 
-            if (toUpload.isEmpty()) {
+            if (generationalSnapshotList.isEmpty()) {
                 logger.trace("Nothing to upload for transfer");
                 return true;
             }
 
-            fileTransferTracker.recordBytesForFiles(toUpload);
+            fileTransferTracker.recordBytesForFiles(generationalSnapshotList);
             captureStatsBeforeUpload();
-            final CountDownLatch latch = new CountDownLatch(toUpload.size());
+            final CountDownLatch latch = new CountDownLatch(generationalSnapshotList.size());
             LatchedActionListener<TranslogCheckpointSnapshot> latchedActionListener = new LatchedActionListener<>(
                 ActionListener.wrap(fileTransferTracker::onSuccess, ex -> {
                     assert ex instanceof TranslogGenerationTransferException;
@@ -146,7 +146,7 @@ public class TranslogTransferManager {
                     fileTransferTracker.onFailure(file, ex);
                     exceptionList.add(ex);
 
-                    Set<TransferFileSnapshot> failedFiles = e.getExceptionList();
+                    Set<TransferFileSnapshot> failedFiles = e.getFailedFiles();
                     Set<TransferFileSnapshot> successFiles = e.getSuccessFiles();
                     if (!failedFiles.isEmpty()) {
                         failedFiles.forEach(failedFile -> { fileTransferTracker.add(failedFile.getName(), false); });
@@ -158,7 +158,7 @@ public class TranslogTransferManager {
                 latch
             );
             Map<Long, BlobPath> blobPathMap = new HashMap<>();
-            toUpload.forEach(
+            generationalSnapshotList.forEach(
                 fileSnapshot -> blobPathMap.put(
                     fileSnapshot.getPrimaryTerm(),
                     remoteDataTransferPath.add(String.valueOf(fileSnapshot.getPrimaryTerm()))
@@ -172,7 +172,12 @@ public class TranslogTransferManager {
 
             // If the transferService of enabled blob store supports uploading object metadata, We don't need to transfer checkpoint file
             // snapshots separately. We can provide checkpoint file data as object metadata to tranlsog.tlog files.
-            transferManager.transferTranslogCheckpointSnapshot(toUpload, blobPathMap, latchedActionListener, WritePriority.HIGH);
+            transferManager.transferTranslogCheckpointSnapshot(
+                generationalSnapshotList,
+                blobPathMap,
+                latchedActionListener,
+                WritePriority.HIGH
+            );
 
             try {
                 if (latch.await(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout().millis(), TimeUnit.MILLISECONDS) == false) {

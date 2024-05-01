@@ -21,18 +21,18 @@ import java.util.Set;
 public class TranslogGenerationTransferException extends RuntimeException {
 
     private final TranslogCheckpointSnapshot fileSnapshot;
-    private final Set<TransferFileSnapshot> exceptionList;
+    private final Set<TransferFileSnapshot> failedFiles;
     private final Set<TransferFileSnapshot> successFiles;
 
     public TranslogGenerationTransferException(
         TranslogCheckpointSnapshot fileSnapshot,
         Throwable cause,
-        Set<TransferFileSnapshot> exceptionList,
+        Set<TransferFileSnapshot> failedFiles,
         Set<TransferFileSnapshot> successFiles
     ) {
         super(cause);
         this.fileSnapshot = fileSnapshot;
-        this.exceptionList = exceptionList;
+        this.failedFiles = failedFiles;
         this.successFiles = successFiles;
     }
 
@@ -40,8 +40,8 @@ public class TranslogGenerationTransferException extends RuntimeException {
         return fileSnapshot;
     }
 
-    public Set<TransferFileSnapshot> getExceptionList() {
-        return exceptionList == null ? new HashSet<>() : exceptionList;
+    public Set<TransferFileSnapshot> getFailedFiles() {
+        return failedFiles == null ? new HashSet<>() : failedFiles;
     }
 
     public Set<TransferFileSnapshot> getSuccessFiles() {
