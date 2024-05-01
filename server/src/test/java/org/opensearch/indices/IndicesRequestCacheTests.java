@@ -51,6 +51,7 @@ import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.module.CacheModule;
 import org.opensearch.common.cache.stats.ImmutableCacheStats;
+import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
@@ -88,7 +89,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.opensearch.indices.IndicesRequestCache.INDEX_DIMENSION_NAME;
 import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING;
+import static org.opensearch.indices.IndicesRequestCache.SHARD_ID_DIMENSION_NAME;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -798,6 +801,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
     public void testClosingIndexWipesStats() throws Exception {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        String[] levels = { INDEX_DIMENSION_NAME, SHARD_ID_DIMENSION_NAME };
         // Create two indices each with multiple shards
         int numShards = 3;
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
@@ -812,8 +816,12 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             assertNotNull(indexToKeep.getShard(i));
             assertNotNull(indexToClose.getShard(i));
         }
+
         threadPool = getThreadPool();
-        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.001%").build();
+        Settings settings = Settings.builder()
+            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.001%")
+            .put(FeatureFlags.PLUGGABLE_CACHE, true)
+            .build();
         cache = new IndicesRequestCache(settings, (shardId -> {
             IndexService indexService = null;
             try {
@@ -868,11 +876,12 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 ShardId shardId = indexService.getShard(i).shardId();
                 List<String> dimensionValues = List.of(shardId.getIndexName(), shardId.toString());
                 initialDimensionValues.add(dimensionValues);
-                ImmutableCacheStats snapshot = cache.stats().getStatsForDimensionValues(dimensionValues);
+                ImmutableCacheStatsHolder holder = cache.stats(levels);
+                ImmutableCacheStats snapshot = cache.stats(levels).getStatsForDimensionValues(dimensionValues);
                 assertNotNull(snapshot);
                 // check the values are not empty by confirming entries != 0, this should always be true since the missed value is loaded
                 // into the cache
-                assertNotEquals(0, snapshot.getEntries());
+                assertNotEquals(0, snapshot.getItems());
             }
         }
 
@@ -889,20 +898,54 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
         // Now stats for the closed index should be gone
         for (List<String> dimensionValues : initialDimensionValues) {
-            ImmutableCacheStats snapshot = cache.stats().getStatsForDimensionValues(dimensionValues);
+            ImmutableCacheStats snapshot = cache.stats(levels).getStatsForDimensionValues(dimensionValues);
             if (dimensionValues.get(0).equals(indexToCloseName)) {
                 assertNull(snapshot);
             } else {
                 assertNotNull(snapshot);
                 // check the values are not empty by confirming entries != 0, this should always be true since the missed value is loaded
                 // into the cache
-                assertNotEquals(0, snapshot.getEntries());
+                assertNotEquals(0, snapshot.getItems());
             }
         }
 
         for (DirectoryReader reader : readersToKeep) {
             IOUtils.close(reader);
         }
+        IOUtils.close(secondReader);
+    }
+
+    public void testCacheCleanupBasedOnStaleThreshold_thresholdUpdate() throws Exception {
+        threadPool = getThreadPool();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%").build();
+        cache = getIndicesRequestCache(settings);
+
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+
+        // Get 2 entries into the cache
+        cache.getOrCompute(getEntity(indexShard), getLoader(reader), reader, getTermBytes());
+        cache.getOrCompute(getEntity(indexShard), getLoader(secondReader), secondReader, getTermBytes());
+        assertEquals(2, cache.count());
+
+        // Close the reader, to be enqueued for cleanup
+        // 1 out of 2 keys ie 50% are now stale.
+        reader.close();
+        // cache count should not be affected
+        assertEquals(2, cache.count());
+
+        // clean cache with 51% staleness threshold
+        cache.cacheCleanupManager.cleanCache();
+        // cleanup should have been ignored
+        assertEquals(2, cache.count());
+
+        cache.setStalenessThreshold("49%");
+        // clean cache with 49% staleness threshold
+        cache.cacheCleanupManager.cleanCache();
+        // cleanup should NOT have been ignored
+        assertEquals(1, cache.count());
+
         IOUtils.close(secondReader);
     }
 
@@ -920,13 +963,14 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             assertEquals("foo", value1.streamInput().readString());
             BytesReference value2 = cache.getOrCompute(getEntity(indexShard), getLoader(secondReader), secondReader, getTermBytes());
             assertEquals("bar", value2.streamInput().readString());
-            size = new ByteSizeValue(cache.getSizeInBytes());
+            size = indexShard.requestCache().stats().getMemorySize(); // Value from old API
             IOUtils.close(reader, secondReader, writer, dir, cache);
         }
         indexShard = createIndex("test1").getShard(0);
         IndicesRequestCache cache = new IndicesRequestCache(
-            // Add 5 instead of 1; the key size now depends on the length of dimension names and values so there's more variation
-            Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.getBytes() + 5 + "b").build(),
+            // TODO: Add wiggle room to max size to allow for overhead of ICacheKey. This can be removed once API PR goes in, as it updates
+            // the old API to account for the ICacheKey overhead.
+            Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), (int) (size.getBytes() * 1.2) + "b").build(),
             (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard))),
             new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
             threadPool,
