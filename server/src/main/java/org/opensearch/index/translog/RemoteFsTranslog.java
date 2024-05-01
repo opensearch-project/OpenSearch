@@ -426,7 +426,7 @@ public class RemoteFsTranslog extends Translog {
 
     private boolean upload(long primaryTerm, long generation, long maxSeqNo) throws IOException {
         logger.trace("uploading translog for primary term {} generation {}", primaryTerm, generation);
-        try (
+        try {
             TranslogCheckpointTransferSnapshot transferSnapshotProvider = new TranslogCheckpointTransferSnapshot.Builder(
                 primaryTerm,
                 generation,
@@ -434,8 +434,7 @@ public class RemoteFsTranslog extends Translog {
                 readers,
                 Translog::getCommitCheckpointFileName,
                 config.getNodeId()
-            ).build()
-        ) {
+            ).build();
             return translogTransferManager.transferSnapshot(
                 transferSnapshotProvider,
                 new RemoteFsTranslogTransferListener(generation, primaryTerm, maxSeqNo)
@@ -447,8 +446,8 @@ public class RemoteFsTranslog extends Translog {
     }
 
     // Visible for testing
-    public Set<Long> allUploadedGeneration() {
-        return fileTransferTracker.allUploadedGeneration();
+    public Set<String> allUploaded() {
+        return fileTransferTracker.allUploaded();
     }
 
     private boolean syncToDisk() throws IOException {

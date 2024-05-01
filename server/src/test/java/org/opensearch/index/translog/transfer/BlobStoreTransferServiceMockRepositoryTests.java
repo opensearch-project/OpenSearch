@@ -57,7 +57,6 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
         FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
             testFile,
             randomNonNegativeLong(),
-            randomNonNegativeLong(),
             0L
         );
 
@@ -105,7 +104,6 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
         FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
             testFile,
             randomNonNegativeLong(),
-            randomNonNegativeLong(),
             0L
         );
 
@@ -144,7 +142,6 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
         Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
         FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
             testFile,
-            randomNonNegativeLong(),
             randomNonNegativeLong(),
             0L
         );

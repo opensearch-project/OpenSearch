@@ -84,6 +84,9 @@ public class FileTransferTracker implements FileTransferListener {
         }
 
         addGeneration(fileSnapshot.getGeneration(), TransferState.SUCCESS);
+
+        add(fileSnapshot.getTranslogFileName(), TransferState.SUCCESS);
+        add(fileSnapshot.getCheckpointFileName(), TransferState.SUCCESS);
     }
 
     void addGeneration(long generation, boolean success) {
@@ -157,6 +160,16 @@ public class FileTransferTracker implements FileTransferListener {
             }
         });
         return successGenFileTransferTracker;
+    }
+
+    public Set<String> allUploaded() {
+        Set<String> successFileTransferTracker = new HashSet<>();
+        fileTransferTracker.forEach((k, v) -> {
+            if (v == TransferState.SUCCESS) {
+                successFileTransferTracker.add(k);
+            }
+        });
+        return successFileTransferTracker;
     }
 
     /**
