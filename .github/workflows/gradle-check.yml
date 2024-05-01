@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   check-files:
-    if: github.repository == 'opensearch-project/OpenSearch'
+    if: github.repository == 'gaiksaya/OpenSearch'
     runs-on: ubuntu-latest
     outputs: 
       RUN_GRADLE_CHECK: ${{steps.changed-files-specific.outputs.any_changed}}
@@ -33,7 +33,7 @@ jobs:
     
   gradle-check:
     needs: check-files
-    if: github.repository == 'opensearch-project/OpenSearch' && ${{needs.check-files}} == true
+    if: github.repository == 'gaiksaya/OpenSearch' && ${{needs.check-files}} == true
     permissions:
       contents: read # to fetch code (actions/checkout)
       pull-requests: write # to create or update comment (peter-evans/create-or-update-comment)
