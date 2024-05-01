@@ -27,6 +27,7 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.junit.annotations.TestIssueLogging;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -91,6 +92,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
      * Simulates all data restored using Remote Translog Store.
      * @throws IOException IO Exception.
      */
+    @TestIssueLogging(value = "_root:TRACE", issueUrl = "https://github.com/elastic/elasticsearch/issues/11085")
     public void testRTSRestoreWithNoDataPostRefreshPrimaryReplicaDown() throws Exception {
         testRestoreFlowBothPrimaryReplicasDown(1, false, true, randomIntBetween(1, 5));
     }
