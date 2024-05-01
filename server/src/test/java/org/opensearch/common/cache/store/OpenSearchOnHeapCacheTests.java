@@ -145,8 +145,8 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
         }
 
         ICacheKey<String> keyToDrop = keysAdded.get(0);
-
-        ImmutableCacheStats snapshot = cache.stats().getStatsForDimensionValues(keyToDrop.dimensions);
+        String[] levels = dimensionNames.toArray(new String[0]);
+        ImmutableCacheStats snapshot = cache.stats(levels).getStatsForDimensionValues(keyToDrop.dimensions);
         assertNotNull(snapshot);
 
         keyToDrop.setDropStatsForDimensions(true);
@@ -154,7 +154,7 @@ public class OpenSearchOnHeapCacheTests extends OpenSearchTestCase {
 
         // Now assert the stats are gone for any key that has this combination of dimensions, but still there otherwise
         for (ICacheKey<String> keyAdded : keysAdded) {
-            snapshot = cache.stats().getStatsForDimensionValues(keyAdded.dimensions);
+            snapshot = cache.stats(levels).getStatsForDimensionValues(keyAdded.dimensions);
             if (keyAdded.dimensions.equals(keyToDrop.dimensions)) {
                 assertNull(snapshot);
             } else {
