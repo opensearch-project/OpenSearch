@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
@@ -23,6 +24,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.IndexMetadataUploadListener;
 import org.opensearch.gateway.remote.RemoteClusterStateService.RemoteStateTransferException;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
@@ -47,6 +49,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateService.INDEX_META
 import static org.opensearch.index.remote.RemoteIndexPath.COMBINED_PATH;
 import static org.opensearch.index.remote.RemoteIndexPath.SEGMENT_PATH;
 import static org.opensearch.index.remote.RemoteIndexPath.TRANSLOG_PATH;
+import static org.opensearch.index.remote.RemoteStoreUtils.determineRemoteStorePathStrategy;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
@@ -59,6 +62,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteS
 @ExperimentalApi
 public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
 
+    public static final String DELIMITER = "#";
     public static final ConfigBlobStoreFormat<RemoteIndexPath> REMOTE_INDEX_PATH_FORMAT = new ConfigBlobStoreFormat<>(
         RemoteIndexPath.FILE_NAME_FORMAT
     );
@@ -99,7 +103,11 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
     }
 
     @Override
-    protected void doOnNewIndexUpload(List<IndexMetadata> indexMetadataList, ActionListener<Void> actionListener) {
+    protected void doOnUpload(
+        List<IndexMetadata> indexMetadataList,
+        Map<String, IndexMetadata> prevIndexMetadataByName,
+        ActionListener<Void> actionListener
+    ) {
         if (isRemoteDataAttributePresent == false) {
             logger.trace("Skipping beforeNewIndexUpload as there are no remote indexes");
             actionListener.onResponse(null);
@@ -108,7 +116,9 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
 
         long startTime = System.nanoTime();
         boolean success = false;
-        List<IndexMetadata> eligibleList = indexMetadataList.stream().filter(this::requiresPathUpload).collect(Collectors.toList());
+        List<IndexMetadata> eligibleList = indexMetadataList.stream()
+            .filter(idxMd -> requiresPathUpload(idxMd, prevIndexMetadataByName.get(idxMd.getIndex().getName())))
+            .collect(Collectors.toList());
         String indexNames = eligibleList.stream().map(IndexMetadata::getIndex).map(Index::toString).collect(Collectors.joining(","));
         int latchCount = eligibleList.size() * (isTranslogSegmentRepoSame ? 1 : 2);
         CountDownLatch latch = new CountDownLatch(latchCount);
@@ -182,7 +192,7 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
         Map<RemoteStoreEnums.DataCategory, List<RemoteStoreEnums.DataType>> pathCreationMap
     ) {
         Map<String, String> remoteCustomData = idxMD.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
-        RemoteStoreEnums.PathType pathType = RemoteStoreEnums.PathType.valueOf(remoteCustomData.get(RemoteStoreEnums.PathType.NAME));
+        PathType pathType = PathType.valueOf(remoteCustomData.get(PathType.NAME));
         RemoteStoreEnums.PathHashAlgorithm hashAlgorithm = RemoteStoreEnums.PathHashAlgorithm.valueOf(
             remoteCustomData.get(RemoteStoreEnums.PathHashAlgorithm.NAME)
         );
@@ -192,17 +202,22 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
         BlobContainer blobContainer = repository.blobStore().blobContainer(basePath.add(RemoteIndexPath.DIR));
         ActionListener<Void> actionListener = getUploadPathLatchedActionListener(idxMD, latch, exceptionList, pathCreationMap);
         try {
-            REMOTE_INDEX_PATH_FORMAT.writeAsyncWithUrgentPriority(
-                new RemoteIndexPath(indexUUID, shardCount, basePath, pathType, hashAlgorithm, pathCreationMap),
-                blobContainer,
+            RemoteIndexPath remoteIndexPath = new RemoteIndexPath(
                 indexUUID,
-                actionListener
+                shardCount,
+                basePath,
+                pathType,
+                hashAlgorithm,
+                pathCreationMap
             );
+            String fileName = generateFileName(indexUUID, idxMD.getVersion(), remoteIndexPath.getVersion());
+            REMOTE_INDEX_PATH_FORMAT.writeAsyncWithUrgentPriority(remoteIndexPath, blobContainer, fileName, actionListener);
         } catch (IOException ioException) {
             RemoteStateTransferException ex = new RemoteStateTransferException(
-                String.format(Locale.ROOT, UPLOAD_EXCEPTION_MSG, List.of(idxMD.getIndex().getName()))
+                String.format(Locale.ROOT, UPLOAD_EXCEPTION_MSG, List.of(idxMD.getIndex().getName())),
+                ioException
             );
-            actionListener.onFailure(ioException);
+            actionListener.onFailure(ex);
         }
     }
 
@@ -225,6 +240,8 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
     }
 
     private boolean isTranslogSegmentRepoSame() {
+        // TODO - The current comparison checks the repository name. But it is also possible that the repository are same
+        // by attributes, but different by name. We need to handle this.
         String translogRepoName = settings.get(TRANSLOG_REPO_NAME_KEY);
         String segmentRepoName = settings.get(SEGMENT_REPO_NAME_KEY);
         return Objects.equals(translogRepoName, segmentRepoName);
@@ -261,21 +278,29 @@ public class RemoteIndexPathUploader extends IndexMetadataUploadListener {
      * This method checks if the index metadata has attributes that calls for uploading the index path for remote store
      * uploads. It checks if the remote store path type is {@code HASHED_PREFIX} and returns true if so.
      */
-    private boolean requiresPathUpload(IndexMetadata indexMetadata) {
-        // A cluster will have remote custom metadata only if the cluster is remote store enabled from data side.
-        Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
-        if (Objects.isNull(remoteCustomData) || remoteCustomData.isEmpty()) {
-            return false;
-        }
-        String pathTypeStr = remoteCustomData.get(RemoteStoreEnums.PathType.NAME);
-        if (Objects.isNull(pathTypeStr)) {
-            return false;
-        }
-        // We need to upload the path only if the path type for an index is hashed_prefix
-        return RemoteStoreEnums.PathType.HASHED_PREFIX == RemoteStoreEnums.PathType.parseString(pathTypeStr);
+    private boolean requiresPathUpload(IndexMetadata indexMetadata, IndexMetadata prevIndexMetadata) {
+        PathType pathType = determineRemoteStorePathStrategy(indexMetadata).getType();
+        PathType prevPathType = Objects.nonNull(prevIndexMetadata) ? determineRemoteStorePathStrategy(prevIndexMetadata).getType() : null;
+        // If previous metadata is null or previous path type is not hashed_prefix, and along with new path type being
+        // hashed_prefix, then this can mean any of the following -
+        // 1. This is creation of remote index with hashed_prefix
+        // 2. We are enabling cluster state for the very first time with multiple indexes having hashed_prefix path type.
+        // 3. A docrep index is being migrated to being remote store index.
+        return pathType == PathType.HASHED_PREFIX && (Objects.isNull(prevPathType) || prevPathType != PathType.HASHED_PREFIX);
     }
 
     private void setIndexMetadataUploadTimeout(TimeValue newIndexMetadataUploadTimeout) {
         this.indexMetadataUploadTimeout = newIndexMetadataUploadTimeout;
+    }
+
+    /**
+     * Creates a file name by combining index uuid, index metadata version and file version. # has been chosen as the
+     * delimiter since it does not collide with any possible letters in file name. The random base64 uuid is added to
+     * ensure that the file does not get overwritten. We do check if translog and segment repo are same by name, but
+     * it is possible that a user configures same repo by different name for translog and segment in which case, this
+     * will lead to file not being overwritten.
+     */
+    private String generateFileName(String indexUUID, long indexMetadataVersion, String fileVersion) {
+        return String.join(DELIMITER, indexUUID, Long.toString(indexMetadataVersion), fileVersion, UUIDs.randomBase64UUID());
     }
 }
