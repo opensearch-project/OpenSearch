@@ -67,7 +67,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     private boolean includeOnlyTopIndexingPressureMetrics = false;
     // Used for metric CACHE_STATS, to determine which caches to report stats for
     private EnumSet<CacheType> includeCaches = EnumSet.noneOf(CacheType.class);
-    private String[] levels;
+    private String[] levels = new String[0];
 
     /**
      * @param flags flags to set. If no flags are supplied, default flags will be set.
@@ -150,7 +150,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         includeAllShardIndexingPressureTrackers = false;
         includeOnlyTopIndexingPressureMetrics = false;
         includeCaches = EnumSet.noneOf(CacheType.class);
-        levels = null;
+        levels = new String[0];
         return this;
     }
 
@@ -167,7 +167,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         includeAllShardIndexingPressureTrackers = false;
         includeOnlyTopIndexingPressureMetrics = false;
         includeCaches = EnumSet.noneOf(CacheType.class);
-        levels = null;
+        levels = new String[0];
         return this;
     }
 
