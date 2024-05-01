@@ -7,10 +7,6 @@ on:
       - 'dependabot/**'
   pull_request_target:
     types: [opened, synchronize, reopened]
-    paths-ignore:
-      - 'release-notes/**'
-      - '.github/**'
-      - '**.md'
 
 permissions:
   contents: read # to fetch code (actions/checkout)
@@ -31,6 +27,7 @@ jobs:
             release-notes/**
             .github/**
             **.md
+      - run: echo "Value is :${{steps.changed-files-specific.outputs.any_changed}}"
     
   gradle-check:
     needs: check-files
