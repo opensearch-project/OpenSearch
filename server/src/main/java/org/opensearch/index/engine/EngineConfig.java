@@ -159,8 +159,6 @@ public final class EngineConfig {
         }
     }, Property.IndexScope, Property.NodeScope);
 
-
-
     /**
      * Index setting to change the compression level of zstd and zstd_no_dict lucene codecs.
      * Compression Level gives a trade-off between compression ratio and speed. The higher compression level results in higher compression ratio but slower compression and decompression speeds.
@@ -241,8 +239,7 @@ public final class EngineConfig {
     public static final Setting<Boolean> INDEX_USE_COMPOUND_FILE = Setting.boolSetting(
         "index.use_compound_file",
         true,
-        Property.IndexScope,
-        Property.Dynamic
+        Property.IndexScope
     );
 
     private final TranslogConfig translogConfig;
@@ -503,7 +500,7 @@ public final class EngineConfig {
         return indexSettings.isSegRepEnabledOrRemoteNode() && isReadOnlyReplica;
     }
 
-    public boolean isUseCompoundFile() {
+    public boolean useCompoundFile() {
         return indexSettings.getValue(INDEX_USE_COMPOUND_FILE);
     }
 

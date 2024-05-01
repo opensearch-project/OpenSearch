@@ -36,7 +36,7 @@ public class EngineConfigTests extends OpenSearchTestCase {
         EngineConfig config = new EngineConfig.Builder().indexSettings(defaultIndexSettings)
             .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
             .build();
-        assertTrue(config.isUseCompoundFile());
+        assertTrue(config.useCompoundFile());
     }
 
     public void testEngineConfig_DefaultValueForReadOnlyEngine() {

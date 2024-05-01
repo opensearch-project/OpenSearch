@@ -349,7 +349,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.index(index);
             engine.flush();
             final List<Segment> segments = engine.segments(false);
-            assertThat(segments.size(), equalTo(1));
+            assertThat(segments, hasSize(1));
             assertTrue(segments.get(0).compound);
             boolean cfeCompoundFileFound = false;
             boolean cfsCompoundFileFound = false;
@@ -369,10 +369,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testSegmentsWithUseCompoundFileFlag_false() throws IOException {
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
             "test",
-            Settings.builder()
-                .put(defaultSettings.getSettings())
-                .put(EngineConfig.INDEX_USE_COMPOUND_FILE.getKey(), false)
-                .build()
+            Settings.builder().put(defaultSettings.getSettings()).put(EngineConfig.INDEX_USE_COMPOUND_FILE.getKey(), false).build()
         );
         try (Store store = createStore(); Engine engine = createEngine(indexSettings, store, createTempDir(), new TieredMergePolicy())) {
             ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
@@ -380,7 +377,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.index(index);
             engine.flush();
             final List<Segment> segments = engine.segments(false);
-            assertThat(segments.size(), equalTo(1));
+            assertThat(segments, hasSize(1));
             assertFalse(segments.get(0).compound);
             boolean cfeCompoundFileFound = false;
             boolean cfsCompoundFileFound = false;
