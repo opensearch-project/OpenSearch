@@ -211,8 +211,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             if (fileCacheReserved != -1) {
                 builder.humanReadableField(Fields.CACHE_RESERVED_IN_BYTES, Fields.CACHE_RESERVED, getFileCacheReserved());
             }
-            if (fileCacheReserved != 0) {
-                builder.humanReadableField(Fields.CACHE_UTILIZED, Fields.CACHE_UTILIZED_IN_BYTES, getFileCacheUtilized());
+            if (fileCacheUtilized != 0) {
+                builder.humanReadableField(Fields.CACHE_UTILIZED_IN_BYTES, Fields.CACHE_UTILIZED, getFileCacheUtilized());
             }
 
             builder.endObject();
