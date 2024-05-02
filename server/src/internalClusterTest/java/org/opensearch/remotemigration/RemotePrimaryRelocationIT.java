@@ -91,6 +91,10 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         int finalCurrentDoc1 = currentDoc;
         waitUntil(() -> numAutoGenDocs.get() > finalCurrentDoc1 + 5);
 
+        // Change direction to remote store
+        updateSettingsRequest.persistentSettings(Settings.builder().put(MIGRATION_DIRECTION_SETTING.getKey(), "remote_store"));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
         logger.info("-->  relocating from {} to {} ", docRepNodes, remoteNode);
         client().admin()
             .cluster()
@@ -178,6 +182,10 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder().put(RecoverySettings.INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.getKey(), "10s"))
             .get();
+
+        // Change direction to remote store
+        updateSettingsRequest.persistentSettings(Settings.builder().put(MIGRATION_DIRECTION_SETTING.getKey(), "remote_store"));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         logger.info("--> relocating from {} to {} ", docRepNode, remoteNode);
         client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, docRepNode, remoteNode)).execute().actionGet();
