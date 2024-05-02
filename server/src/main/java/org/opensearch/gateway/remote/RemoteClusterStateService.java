@@ -630,7 +630,10 @@ public class RemoteClusterStateService implements Closeable {
             previousManifest.getGlobalMetadataFileName(),
             true
         );
-        remoteClusterStateCleanupManager.deleteStaleClusterUUIDs(clusterState, committedManifest);
+        if (!previousManifest.isClusterUUIDCommitted() && committedManifest.isClusterUUIDCommitted()) {
+            remoteClusterStateCleanupManager.deleteStaleClusterUUIDs(clusterState, committedManifest);
+        }
+
         return committedManifest;
     }
 
