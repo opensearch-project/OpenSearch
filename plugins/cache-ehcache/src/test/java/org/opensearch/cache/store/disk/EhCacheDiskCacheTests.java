@@ -93,7 +93,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 String value = ehcacheTest.get(getICacheKey(entry.getKey()));
                 assertEquals(entry.getValue(), value);
             }
-            assertEquals(randomKeys, ehcacheTest.stats().getTotalEntries());
+            assertEquals(randomKeys, ehcacheTest.stats().getTotalItems());
             assertEquals(randomKeys, ehcacheTest.stats().getTotalHits());
             assertEquals(expectedSize, ehcacheTest.stats().getTotalSizeInBytes());
             assertEquals(randomKeys, ehcacheTest.count());
@@ -217,7 +217,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 assertEquals(entry.getValue(), value);
             }
             assertEquals(randomKeys, ehcacheTest.count());
-            assertEquals(randomKeys, ehcacheTest.stats().getTotalEntries());
+            assertEquals(randomKeys, ehcacheTest.stats().getTotalItems());
             ehcacheTest.close();
         }
     }
@@ -416,7 +416,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             assertEquals(1, numberOfTimesValueLoaded);
             assertEquals(0, ((EhcacheDiskCache) ehcacheTest).getCompletableFutureMap().size());
             assertEquals(1, ehcacheTest.stats().getTotalMisses());
-            assertEquals(1, ehcacheTest.stats().getTotalEntries());
+            assertEquals(1, ehcacheTest.stats().getTotalItems());
             assertEquals(numberOfRequest - 1, ehcacheTest.stats().getTotalHits());
             assertEquals(1, ehcacheTest.count());
             ehcacheTest.close();
@@ -829,7 +829,8 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
             ICacheKey<String> keyToDrop = keysAdded.get(0);
 
-            ImmutableCacheStats snapshot = ehCacheDiskCachingTier.stats().getStatsForDimensionValues(keyToDrop.dimensions);
+            String[] levels = dimensionNames.toArray(new String[0]);
+            ImmutableCacheStats snapshot = ehCacheDiskCachingTier.stats(levels).getStatsForDimensionValues(keyToDrop.dimensions);
             assertNotNull(snapshot);
 
             keyToDrop.setDropStatsForDimensions(true);
@@ -837,7 +838,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
             // Now assert the stats are gone for any key that has this combination of dimensions, but still there otherwise
             for (ICacheKey<String> keyAdded : keysAdded) {
-                snapshot = ehCacheDiskCachingTier.stats().getStatsForDimensionValues(keyAdded.dimensions);
+                snapshot = ehCacheDiskCachingTier.stats(levels).getStatsForDimensionValues(keyAdded.dimensions);
                 if (keyAdded.dimensions.equals(keyToDrop.dimensions)) {
                     assertNull(snapshot);
                 } else {
