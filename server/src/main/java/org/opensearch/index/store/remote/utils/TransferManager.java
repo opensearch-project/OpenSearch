@@ -61,12 +61,15 @@ public class TransferManager {
     public IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws IOException {
 
         final Path key = blobFetchRequest.getFilePath();
+        logger.trace("fetchBlob called for {}", key.toString());
 
         final CachedIndexInput cacheEntry = fileCache.compute(key, (path, cachedIndexInput) -> {
             if (cachedIndexInput == null || cachedIndexInput.isClosed()) {
+                logger.trace("Transfer Manager - IndexInput closed or not in cache");
                 // Doesn't exist or is closed, either way create a new one
                 return new DelayedCreationCachedIndexInput(fileCache, blobStreamReader, blobFetchRequest);
             } else {
+                logger.trace("Transfer Manager - Already in cache");
                 // already in the cache and ready to be used (open)
                 return cachedIndexInput;
             }
@@ -91,6 +94,7 @@ public class TransferManager {
         return AccessController.doPrivileged((PrivilegedAction<FileCachedIndexInput>) () -> {
             try {
                 if (Files.exists(request.getFilePath()) == false) {
+                    logger.trace("Fetching from Remote in createIndexInput of Transfer Manager");
                     try (
                         OutputStream fileOutputStream = Files.newOutputStream(request.getFilePath());
                         OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream)
