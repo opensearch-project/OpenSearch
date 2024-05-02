@@ -8,9 +8,12 @@
 
 package org.opensearch.index.store.remote.file;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.TransferManager;
 
@@ -26,6 +29,7 @@ import java.util.List;
  * @opensearch.internal
  */
 public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
+    private static final Logger logger = LogManager.getLogger(OnDemandBlockSnapshotIndexInput.class);
     /**
      * Where this class fetches IndexInput parts from
      */
@@ -133,10 +137,12 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
 
     @Override
     protected IndexInput fetchBlock(int blockId) throws IOException {
-        final String blockFileName = fileName + "." + blockId;
+        logger.trace("fetchBlock called with blockId -> {}", blockId);
+        final String blockFileName = fileName + "_block_" + blockId;
 
         final long blockStart = getBlockStart(blockId);
         final long blockEnd = blockStart + getActualBlockSize(blockId);
+        logger.trace("File: {} , Block File: {} , BlockStart: {} , BlockEnd: {} , OriginalFileSize: {}", fileName, blockFileName, blockStart, blockEnd, originalFileSize);
 
         // Block may be present on multiple chunks of a file, so we need
         // to fetch each chunk/blob part separately to fetch an entire block.

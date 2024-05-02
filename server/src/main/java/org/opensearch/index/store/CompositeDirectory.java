@@ -17,11 +17,15 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.Version;
 import org.opensearch.common.lucene.store.FilterIndexOutput;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
+import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 import org.opensearch.index.store.remote.file.OnDemandCompositeBlockIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.WrappedCachedIndexInput;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.BlockIOContext;
 import org.opensearch.index.store.remote.utils.FileType;
@@ -29,6 +33,7 @@ import org.opensearch.index.store.remote.utils.TransferManager;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -54,6 +59,7 @@ public class CompositeDirectory extends FilterDirectory {
     private final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     private final ReentrantReadWriteLock.WriteLock writeLock = readWriteLock.writeLock();
     private final ReentrantReadWriteLock.ReadLock readLock = readWriteLock.readLock();
+    private final RemoteDirectoryBlobStreamReader remoteDirectoryBlobStreamReader;
 
     /**
      * Constructor to initialise the composite directory
@@ -66,8 +72,9 @@ public class CompositeDirectory extends FilterDirectory {
         this.localDirectory = localDirectory;
         this.remoteDirectory = remoteDirectory;
         this.fileCache = fileCache;
+        remoteDirectoryBlobStreamReader = new RemoteDirectoryBlobStreamReader(IOContext.DEFAULT, remoteDirectory);
         transferManager = new TransferManager(
-            (name, position, length) -> new InputStreamIndexInput(remoteDirectory.openInput(name, new BlockIOContext(IOContext.DEFAULT, position, length)), length),
+            remoteDirectoryBlobStreamReader,
             fileCache);
     }
 
@@ -252,6 +259,7 @@ public class CompositeDirectory extends FilterDirectory {
         logger.trace("openInput() called {}", name);
         writeLock.lock();
         try {
+            remoteDirectoryBlobStreamReader.setContext(context);
             /**
              * We aren't tracking temporary files (created via createTempOutput) currently in FileCache as these are created and then deleted within a very short span of time
              * We will be reading them directory from the local directory
@@ -277,7 +285,19 @@ public class CompositeDirectory extends FilterDirectory {
              */
             else {
                 logger.trace("Complete file not in FileCache, to be fetched in Blocks from Remote");
-                return new OnDemandCompositeBlockIndexInput(remoteDirectory, name, localDirectory, fileCache, context);
+                RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.readLatestMetadataFile();
+                RemoteSegmentStoreDirectory.UploadedSegmentMetadata uploadedSegmentMetadata = remoteSegmentMetadata.getMetadata().get(name);
+                /**
+                 * TODO : Refactor FileInfo and OnDemandBlockSnapshotIndexInput to more generic names as they are not Remote Snapshot specific
+                 */
+                BlobStoreIndexShardSnapshot.FileInfo fileInfo = new BlobStoreIndexShardSnapshot.FileInfo(
+                    name,
+                    new StoreFileMetadata(name, uploadedSegmentMetadata.getLength(),
+                        uploadedSegmentMetadata.getChecksum(), Version.LATEST),
+                    null
+                );
+                return new OnDemandBlockSnapshotIndexInput(fileInfo, localDirectory, transferManager);
+                //return new OnDemandCompositeBlockIndexInput(remoteDirectory, name, localDirectory, fileCache, context);
             }
         } finally {
             writeLock.unlock();
@@ -350,7 +370,7 @@ public class CompositeDirectory extends FilterDirectory {
                  * Uncomment the below commented line(to remove the file from cache once uploaded) to test block based functionality
                  */
                 logger.trace("File {} uploaded to Remote Store and now can be eligible for eviction in FileCache", fileName);
-                // fileCache.remove(localDirectory.getDirectory().resolve(fileName));
+                fileCache.remove(localDirectory.getDirectory().resolve(fileName));
             } finally {
                 writeLock.unlock();
             }
@@ -369,7 +389,7 @@ public class CompositeDirectory extends FilterDirectory {
         try {
             remoteFiles = remoteDirectory.listAll();
         } catch (NullPointerException e) {
-            /**
+            /*
              * There are two scenarios where the listAll() call on remote directory returns NullPointerException:
              * - When remote directory is not set
              * - When init() of remote directory has not yet been called
@@ -399,6 +419,25 @@ public class CompositeDirectory extends FilterDirectory {
         public void close() throws IOException {
             super.close();
             cacheFile(fileName);
+        }
+    }
+
+    private class RemoteDirectoryBlobStreamReader implements TransferManager.BlobStreamReader {
+        private IOContext context;
+        private final RemoteSegmentStoreDirectory remoteDirectory;
+
+        RemoteDirectoryBlobStreamReader(IOContext context, RemoteSegmentStoreDirectory remoteDirectory) {
+            this.context = context;
+            this.remoteDirectory = remoteDirectory;
+        }
+
+        void setContext(IOContext context) {
+            this.context = context;
+        }
+
+        @Override
+        public InputStream read(String name, long position, long length) throws IOException {
+            return new InputStreamIndexInput(remoteDirectory.openInput(name, new BlockIOContext(context, position, length)), length);
         }
     }
 }
