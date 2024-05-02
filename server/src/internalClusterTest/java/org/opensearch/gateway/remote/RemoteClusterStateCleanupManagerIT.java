@@ -9,7 +9,6 @@
 package org.opensearch.gateway.remote;
 
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
@@ -22,7 +21,6 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.CLUSTER_STATE_CLEANUP_INTERVAL_DEFAULT;
 import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.RETAINED_MANIFESTS;
@@ -129,16 +127,12 @@ public class RemoteClusterStateCleanupManagerIT extends RemoteStoreBaseIntegTest
 
     private void updateClusterStateNTimes(int n) {
         int newReplicaCount = randomIntBetween(0, 3);
-        for (int i = n; i>0; i--) {
-            ClusterUpdateSettingsResponse response = client().admin().cluster()
+        for (int i = n; i > 0; i--) {
+            ClusterUpdateSettingsResponse response = client().admin()
+                .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(
-                            CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING.getKey(),
-                            i, TimeUnit.SECONDS
-                        )
-                ).get();
+                .setPersistentSettings(Settings.builder().put(CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING.getKey(), i, TimeUnit.SECONDS))
+                .get();
             assertTrue(response.isAcknowledged());
         }
     }
