@@ -94,17 +94,6 @@ public class TransportLoggerTests extends OpenSearchTestCase {
     private BytesReference buildRequest() throws IOException {
         boolean compress = randomBoolean();
         try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
-            // NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
-            // new ThreadContext(Settings.EMPTY),
-            // new String[0],
-            // new ClusterStatsRequest(),
-            // Version.CURRENT,
-            // ClusterStatsAction.NAME,
-            // randomInt(30),
-            // false,
-            // compress
-            // );
-            // return request.serialize(bytesStreamOutput);
             return NativeOutboundMessageTests.serializeNativeOutboundRequest(
                 new ThreadContext(Settings.EMPTY),
                 new ClusterStatsRequest(),

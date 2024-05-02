@@ -57,7 +57,6 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.nativeprotocol.InboundDecoder;
 import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
-import org.opensearch.transport.nativeprotocol.NativeOutboundHandler;
 import org.opensearch.transport.nativeprotocol.NativeOutboundMessageTests;
 import org.junit.After;
 import org.junit.Before;
@@ -87,7 +86,6 @@ public class InboundHandlerTests extends OpenSearchTestCase {
     private Transport.RequestHandlers requestHandlers;
     private InboundHandler handler;
     private OutboundHandler outboundHandler;
-    private NativeOutboundHandler nativeOutboundHandler;
     private FakeTcpChannel channel;
 
     @Before
@@ -122,15 +120,6 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             requestHandlers,
             responseHandlers,
             NoopTracer.INSTANCE
-        );
-        nativeOutboundHandler = new NativeOutboundHandler(
-            "node",
-            version,
-            new String[0],
-            new StatsTracker(),
-            threadPool,
-            BigArrays.NON_RECYCLING_INSTANCE,
-            outboundHandler
         );
     }
 
@@ -205,16 +194,6 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        // NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
-        // threadPool.getThreadContext(),
-        // new String[0],
-        // new TestRequest(requestValue),
-        // version,
-        // action,
-        // requestId,
-        // false,
-        // false
-        // );
 
         BytesReference fullRequestBytes = NativeOutboundMessageTests.serializeNativeOutboundRequest(
             threadPool.getThreadContext(),
@@ -410,16 +389,6 @@ public class InboundHandlerTests extends OpenSearchTestCase {
 
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        // NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
-        // threadPool.getThreadContext(),
-        // new String[0],
-        // new TestRequest(requestValue),
-        // version,
-        // action,
-        // requestId,
-        // false,
-        // false
-        // );
 
         handler.setMessageListener(new TransportMessageListener() {
             @Override
@@ -493,16 +462,6 @@ public class InboundHandlerTests extends OpenSearchTestCase {
 
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        // NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
-        // threadPool.getThreadContext(),
-        // new String[0],
-        // new TestRequest(requestValue),
-        // version,
-        // action,
-        // requestId,
-        // false,
-        // false
-        // );
 
         handler.setMessageListener(new TransportMessageListener() {
             @Override
@@ -578,16 +537,6 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        // NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
-        // threadPool.getThreadContext(),
-        // new String[0],
-        // new TestRequest(requestValue),
-        // version,
-        // action,
-        // requestId,
-        // false,
-        // false
-        // );
 
         BytesReference fullRequestBytes = NativeOutboundMessageTests.serializeNativeOutboundRequest(
             threadPool.getThreadContext(),
@@ -681,16 +630,6 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        // NativeOutboundMessage.Request request = new NativeOutboundMessage.Request(
-        // threadPool.getThreadContext(),
-        // new String[0],
-        // new TestRequest(requestValue),
-        // version,
-        // action,
-        // requestId,
-        // false,
-        // false
-        // );
 
         BytesReference fullRequestBytes = NativeOutboundMessageTests.serializeNativeOutboundRequest(
             threadPool.getThreadContext(),

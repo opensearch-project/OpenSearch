@@ -123,12 +123,12 @@ abstract class NativeOutboundMessage extends NetworkMessage {
      *
      * @opensearch.internal
      */
-    public static class Request extends NativeOutboundMessage {
+    static class Request extends NativeOutboundMessage {
 
         private final String[] features;
         private final String action;
 
-        public Request(
+        Request(
             ThreadContext threadContext,
             String[] features,
             Writeable message,
@@ -169,11 +169,11 @@ abstract class NativeOutboundMessage extends NetworkMessage {
      *
      * @opensearch.internal
      */
-    public static class Response extends NativeOutboundMessage {
+    static class Response extends NativeOutboundMessage {
 
         private final Set<String> features;
 
-        public Response(
+        Response(
             ThreadContext threadContext,
             Set<String> features,
             Writeable message,
