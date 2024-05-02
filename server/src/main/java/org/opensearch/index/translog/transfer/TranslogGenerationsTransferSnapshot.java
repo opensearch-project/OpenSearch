@@ -21,11 +21,11 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
 /**
- * Implementation for a {@link TransferSnapshot} which builds the snapshot from the translog and checkpoint files present on the local-disk
+ * Implementation for a {@link TransferSnapshot} which builds the snapshot from the multiple generations of translog and checkpoint files present on the local-disk
  *
  * @opensearch.internal
  */
-public class TranslogCheckpointTransferSnapshot implements TransferSnapshot {
+public class TranslogGenerationsTransferSnapshot implements TransferSnapshot {
 
     private final Set<TranslogCheckpointSnapshot> translogCheckpointSnapshotSet;
     private final int size;
@@ -35,7 +35,7 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot {
 
     private String nodeId;
 
-    TranslogCheckpointTransferSnapshot(long primaryTerm, long generation, int size, String nodeId) {
+    TranslogGenerationsTransferSnapshot(long primaryTerm, long generation, int size, String nodeId) {
         translogCheckpointSnapshotSet = new HashSet<>(size);
         this.size = size;
         this.generation = generation;
@@ -73,7 +73,7 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot {
     }
 
     /**
-     * Builder for {@link TranslogCheckpointTransferSnapshot}
+     * Builder for {@link TranslogGenerationsTransferSnapshot}
      */
     public static class Builder {
         private final long primaryTerm;
@@ -99,13 +99,13 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot {
             this.nodeId = nodeId;
         }
 
-        public TranslogCheckpointTransferSnapshot build() throws IOException {
+        public TranslogGenerationsTransferSnapshot build() throws IOException {
             final List<Long> generations = new LinkedList<>();
             long highestGeneration = Long.MIN_VALUE;
             long highestGenPrimaryTerm = Long.MIN_VALUE;
             long lowestGeneration = Long.MAX_VALUE;
             long highestGenMinTranslogGeneration = Long.MIN_VALUE;
-            TranslogCheckpointTransferSnapshot translogTransferSnapshot = new TranslogCheckpointTransferSnapshot(
+            TranslogGenerationsTransferSnapshot translogTransferSnapshot = new TranslogGenerationsTransferSnapshot(
                 primaryTerm,
                 generation,
                 readers.size(),

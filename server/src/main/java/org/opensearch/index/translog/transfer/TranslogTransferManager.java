@@ -294,7 +294,6 @@ public class TranslogTransferManager {
             Files.copy(inputStream, filePath);
             downloadStatus = true;
 
-            logger.info("downloaded translog for fileName = {}, with metadata = {}", fileName, metadata);
         } finally {
             remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
             if (downloadStatus) {
@@ -307,7 +306,10 @@ public class TranslogTransferManager {
 
         try {
             if (!isMetadataContainsCheckpointData(metadata)) {
-                logger.info("metadata does not contain checkpoint file data. Download checkpoint file from remote store separately");
+                logger.debug(
+                    "{} file object metadata does not contain checkpoint file data. Try downloading checkpoint file from remote store separately",
+                    fileName
+                );
                 String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
                 downloadCkpFileToFS(ckpFileName, location, primaryTerm, generation);
             } else {
@@ -316,16 +318,6 @@ public class TranslogTransferManager {
         } catch (Exception e) {
             throw new IOException("Failed to download translog file from remote", e);
         }
-    }
-
-    private void deleteFileIfExists(Path filePath) throws IOException {
-        if (Files.exists(filePath)) {
-            Files.delete(filePath);
-        }
-    }
-
-    private boolean isMetadataContainsCheckpointData(Map<String, String> metadata) {
-        return metadata != null && !metadata.isEmpty() && metadata.containsKey(CHECKPOINT_FILE_DATA_KEY);
     }
 
     private void downloadCkpFileToFS(String fileName, Path location, String primaryTerm, String generation) throws IOException {
@@ -356,34 +348,47 @@ public class TranslogTransferManager {
     private void writeCkpFileFromMetadata(Map<String, String> metadata, Path location, String generation, String fileName)
         throws IOException {
 
+        boolean downloadStatus = false;
+        long bytesToRead = 0;
         try {
             String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
             Path filePath = location.resolve(ckpFileName);
-
             // Here, we always override the existing file if present.
             deleteFileIfExists(filePath);
 
             String ckpDataBase64 = metadata.get(CHECKPOINT_FILE_DATA_KEY);
             if (ckpDataBase64 == null) {
                 throw new IllegalStateException(
-                    "Checkpoint file data (ckp-data) is expected but not found in metadata for file: " + fileName
+                    "Checkpoint file data (key - ckp-data) is expected but not found in metadata for file: " + fileName
                 );
             }
             byte[] ckpFileBytes = Base64.getDecoder().decode(ckpDataBase64);
+            bytesToRead = ckpFileBytes.length;
 
             Files.write(filePath, ckpFileBytes);
+            downloadStatus = true;
 
-            // Mark in FileTransferTracker that translog for the given generation is downloaded
+            // Mark in FileTransferTracker that translog files for the generation is recovered
             fileTransferTracker.addGeneration(Long.parseLong(generation), true);
-
-            logger.info("Written checkpoint file of translog file: {}", fileName);
-        } catch (IOException e) {
-            logger.error("Error writing checkpoint file for translog file: {}", fileName);
-            throw e;
         } catch (IllegalStateException e) {
             logger.error("Error processing metadata for translog file: {}", fileName);
             throw e;
+        } finally {
+            remoteTranslogTransferTracker.addDownloadTimeInMillis(0);
+            if (downloadStatus) {
+                remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
+            }
         }
+    }
+
+    private void deleteFileIfExists(Path filePath) throws IOException {
+        if (Files.exists(filePath)) {
+            Files.delete(filePath);
+        }
+    }
+
+    private boolean isMetadataContainsCheckpointData(Map<String, String> metadata) {
+        return metadata != null && !metadata.isEmpty() && metadata.containsKey(CHECKPOINT_FILE_DATA_KEY);
     }
 
     public TranslogTransferMetadata readMetadata() throws IOException {

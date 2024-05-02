@@ -111,7 +111,6 @@ public class TranslogCheckpointSnapshot {
     }
 
     private Map<String, String> createCheckpointDataAsObjectMetadata() throws IOException {
-        Map<String, String> metadata = new HashMap<>();
 
         byte[] fileBytes = Checkpoint.createCheckpointBytes(checkpointPath, checkpoint);
 
@@ -123,10 +122,14 @@ public class TranslogCheckpointSnapshot {
             throw new TranslogUploadFailedException("Checksum validation of checkpoint file failed for translog file:");
         }
 
-        // Set the file data value
-        String fileDataBase64String = Base64.getEncoder().encodeToString(fileBytes);
-        metadata.put(CHECKPOINT_FILE_DATA_KEY, fileDataBase64String);
+        return prepareMetadata(fileBytes);
+    }
 
+    public static Map<String, String> prepareMetadata(byte[] ckpBytes) {
+        Map<String, String> metadata = new HashMap<>();
+        // Set the file data value
+        String fileDataBase64String = Base64.getEncoder().encodeToString(ckpBytes);
+        metadata.put(CHECKPOINT_FILE_DATA_KEY, fileDataBase64String);
         return metadata;
     }
 

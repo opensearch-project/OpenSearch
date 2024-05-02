@@ -25,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
- * FileTransferTracker keeps track of generational translog files uploaded to the remote translog
+ * FileTransferTracker keeps track of generational translog files uploaded to the remote translog store
  */
 public class FileTransferTracker implements FileTransferListener {
 

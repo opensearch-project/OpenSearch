@@ -103,7 +103,6 @@ public class BlobStoreTransferService implements TransferService {
             if (!(blobStore.blobContainer(blobPath) instanceof AsyncMultiStreamBlobContainer)) {
                 uploadBlob(ThreadPool.Names.TRANSLOG_TRANSFER, fileSnapshot, blobPath, listener, writePriority);
             } else {
-                logger.info("uploading file = {}", fileSnapshot.getName());
                 uploadBlob(fileSnapshot, listener, blobPath, writePriority);
             }
         });

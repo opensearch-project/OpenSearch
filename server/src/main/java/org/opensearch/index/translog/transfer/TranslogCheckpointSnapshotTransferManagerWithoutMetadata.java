@@ -51,21 +51,19 @@ public class TranslogCheckpointSnapshotTransferManagerWithoutMetadata implements
             Set<TransferFileSnapshot> filesToUpload = new HashSet<>(2);
             Set<Exception> exceptionList = new HashSet<>(2);
 
-            TransferFileSnapshot checkpointFileSnapshot = tlogAndCkpTransferFileSnapshot.getCheckpointFileSnapshot();
-            TransferFileSnapshot translogFileSnapshot = tlogAndCkpTransferFileSnapshot.getTranslogFileSnapshot();
-            String tlogFileName = translogFileSnapshot.getName();
-            String ckpFileName = checkpointFileSnapshot.getName();
+            String tlogFileName = tlogAndCkpTransferFileSnapshot.getTranslogFileName();
+            String ckpFileName = tlogAndCkpTransferFileSnapshot.getCheckpointFileName();
 
             if (!fileTransferTracker.uploaded(tlogFileName)) {
-                filesToUpload.add(translogFileSnapshot);
+                filesToUpload.add(tlogAndCkpTransferFileSnapshot.getTranslogFileSnapshot());
             }
             if (!fileTransferTracker.uploaded(ckpFileName)) {
-                filesToUpload.add(checkpointFileSnapshot);
+                filesToUpload.add(tlogAndCkpTransferFileSnapshot.getCheckpointFileSnapshot());
             }
 
             assert !filesToUpload.isEmpty();
 
-            AtomicBoolean atomicBoolean = new AtomicBoolean();
+            AtomicBoolean listenerProcessed = new AtomicBoolean();
             final CountDownLatch latch = new CountDownLatch(filesToUpload.size());
 
             Set<TransferFileSnapshot> successFiles = new HashSet<>();
@@ -76,7 +74,7 @@ public class TranslogCheckpointSnapshotTransferManagerWithoutMetadata implements
                 latch
             );
             ActionListener<TransferFileSnapshot> actionListener = ActionListener.runAfter(fileUploadListener, () -> {
-                if (latch.getCount() == 0 && atomicBoolean.compareAndSet(false, true)) {
+                if (latch.getCount() == 0 && listenerProcessed.compareAndSet(false, true)) {
                     if (exceptionList.isEmpty()) {
                         latchedActionListener.onResponse(tlogAndCkpTransferFileSnapshot);
                     } else {

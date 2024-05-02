@@ -26,7 +26,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
 import org.opensearch.index.translog.transfer.TransferSnapshot;
-import org.opensearch.index.translog.transfer.TranslogCheckpointTransferSnapshot;
+import org.opensearch.index.translog.transfer.TranslogGenerationsTransferSnapshot;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
@@ -94,7 +94,8 @@ public class RemoteFsTranslog extends Translog {
     private final Semaphore syncPermit = new Semaphore(SYNC_PERMIT);
     private final AtomicBoolean pauseSync = new AtomicBoolean(false);
 
-    // boolean variable to determine if translog should get upload using new flow i.e. checkpoint file as object metadata to translog file
+    // Indicates whether the translog should be uploaded using the new flow, where the checkpoint file is treated as object metadata
+    // associated with the translog file.
     private final boolean startUploadingTranslogCkpAsMetadata;
     private final Supplier<Version> minNodeVersionSupplier;
 
@@ -427,7 +428,7 @@ public class RemoteFsTranslog extends Translog {
     private boolean upload(long primaryTerm, long generation, long maxSeqNo) throws IOException {
         logger.trace("uploading translog for primary term {} generation {}", primaryTerm, generation);
         try {
-            TranslogCheckpointTransferSnapshot transferSnapshotProvider = new TranslogCheckpointTransferSnapshot.Builder(
+            TranslogGenerationsTransferSnapshot transferSnapshotProvider = new TranslogGenerationsTransferSnapshot.Builder(
                 primaryTerm,
                 generation,
                 location,
