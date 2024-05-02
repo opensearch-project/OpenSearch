@@ -613,7 +613,6 @@ public final class FastFilterRewriteHelper {
 
             private boolean pointCompare(byte[] lower, byte[] upper, byte[] packedValue) {
                 if (compareByteValue(packedValue, lower) < 0) {
-
                     return false;
                 }
                 return compareByteValue(packedValue, upper) <= 0;
@@ -633,7 +632,6 @@ public final class FastFilterRewriteHelper {
                     if (collector.iterateRangeEnd(minPackedValue, this::compareByteValue)) {
                         throw new CollectionTerminatedException();
                     }
-
                     // compare the next range with this node's min max again
                     // new rangeMin = previous rangeMax + 1 <= min
                     rangeMax = collector.activeRangeAsByteArray[1];

@@ -38,12 +38,15 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.common.time.DateFormatters;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
@@ -1461,7 +1464,6 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     }
 
     public void testMultiRangeTraversal() throws IOException {
-
         Map<String, Integer> dataset = new HashMap<>();
         dataset.put("2017-02-01T09:02:00.000Z", randomIntBetween(100, 2000));
         dataset.put("2017-02-01T09:59:59.999Z", randomIntBetween(100, 2000));
@@ -1508,8 +1510,67 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 assertEquals(expected, bucket.getDocCount());
             },
             false,
-            collectorCount -> assertEquals(0, (int) collectorCount)
+            collectorCount -> assertEquals(0, (int) collectorCount),
+            true
         );
+    }
+
+    public void testMultiRangeTraversalFixedData() throws IOException {
+        Map<String, Integer> dataset = new HashMap<>();
+        dataset.put("2017-02-01T09:02:00.000Z", 512);
+        dataset.put("2017-02-01T09:59:59.999Z", 256);
+        dataset.put("2017-02-01T10:00:00.001Z", 256);
+        dataset.put("2017-02-01T13:06:00.000Z", 512);
+        dataset.put("2017-02-01T14:04:00.000Z", 256);
+        dataset.put("2017-02-01T14:05:00.000Z", 256);
+        dataset.put("2017-02-01T15:59:00.000Z", 768);
+
+        testFilterRewriteCase(
+            LongPoint.newRangeQuery(AGGREGABLE_DATE, asLong("2017-01-01T09:00:00.000Z"), asLong("2017-02-01T14:04:01.000Z")),
+            dataset,
+            aggregation -> aggregation.fixedInterval(new DateHistogramInterval("60m")).field(AGGREGABLE_DATE).minDocCount(1L),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(4, buckets.size());
+
+                Histogram.Bucket bucket = buckets.get(0);
+                assertEquals("2017-02-01T09:00:00.000Z", bucket.getKeyAsString());
+                int expected = dataset.get("2017-02-01T09:02:00.000Z") + dataset.get("2017-02-01T09:59:59.999Z");
+                assertEquals(expected, bucket.getDocCount());
+
+                bucket = buckets.get(1);
+                assertEquals("2017-02-01T10:00:00.000Z", bucket.getKeyAsString());
+                expected = dataset.get("2017-02-01T10:00:00.001Z");
+                assertEquals(expected, bucket.getDocCount());
+
+                bucket = buckets.get(2);
+                assertEquals("2017-02-01T13:00:00.000Z", bucket.getKeyAsString());
+                expected = dataset.get("2017-02-01T13:06:00.000Z");
+                assertEquals(expected, bucket.getDocCount());
+
+                bucket = buckets.get(3);
+                assertEquals("2017-02-01T14:00:00.000Z", bucket.getKeyAsString());
+                expected = dataset.get("2017-02-01T14:04:00.000Z");
+                assertEquals(expected, bucket.getDocCount());
+            },
+            false,
+            collectorCount -> assertEquals(0, (int) collectorCount),
+            false
+        );
+    }
+
+    public void testMultiRangeTraversalNotApplicable() throws IOException {
+        Map<String, Integer> dataset = new HashMap<>();
+        dataset.put("2017-02-01T09:02:00.000Z", randomIntBetween(100, 2000));
+        dataset.put("2017-02-01T09:59:59.999Z", randomIntBetween(100, 2000));
+        dataset.put("2017-02-01T10:00:00.001Z", randomIntBetween(100, 2000));
+        dataset.put("2017-02-01T13:06:00.000Z", randomIntBetween(100, 2000));
+        dataset.put("2017-02-01T14:04:00.000Z", randomIntBetween(100, 2000));
+        dataset.put("2017-02-01T14:05:00.000Z", randomIntBetween(100, 2000));
+        dataset.put("2017-02-01T15:59:00.000Z", randomIntBetween(100, 2000));
+        dataset.put("2017-02-01T16:06:00.000Z", randomIntBetween(100, 2000));
+        dataset.put("2017-02-01T16:48:00.000Z", randomIntBetween(100, 2000));
+        dataset.put("2017-02-01T16:59:00.000Z", randomIntBetween(100, 2000));
 
         testFilterRewriteCase(
             new MatchAllDocsQuery(),
@@ -1552,7 +1613,8 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 assertEquals(expected, bucket.getDocCount());
             },
             true,
-            collectCount -> assertTrue(collectCount > 0)
+            collectCount -> assertTrue(collectCount > 0),
+            true
         );
     }
 
@@ -1562,25 +1624,48 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         Consumer<DateHistogramAggregationBuilder> configure,
         Consumer<InternalDateHistogram> verify,
         boolean useDocCountField,
-        Consumer<Integer> verifyCollectCount
+        Consumer<Integer> verifyCollectCount,
+        boolean randomWrite
     ) throws IOException {
         DateFieldMapper.DateFieldType fieldType = aggregableDateFieldType(false, true);
 
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                Document document = new Document();
-                if (useDocCountField) {
-                    // add the doc count field to the first document
-                    document.add(new NumericDocValuesField(DocCountFieldMapper.NAME, 5));
-                }
-                for (Map.Entry<String, Integer> date : dataset.entrySet()) {
-                    for (int i = 0; i < date.getValue(); i++) {
-                        long instant = asLong(date.getKey(), fieldType);
-                        document.add(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant));
-                        document.add(new LongPoint(AGGREGABLE_DATE, instant));
-                        indexWriter.addDocument(document);
-                        document.clear();
+            if (randomWrite) {
+                try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                    Document document = new Document();
+                    if (useDocCountField) {
+                        // add the doc count field to the first document
+                        document.add(new NumericDocValuesField(DocCountFieldMapper.NAME, 5));
                     }
+                    for (Map.Entry<String, Integer> date : dataset.entrySet()) {
+                        for (int i = 0; i < date.getValue(); i++) {
+                            long instant = asLong(date.getKey(), fieldType);
+                            document.add(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant));
+                            document.add(new LongPoint(AGGREGABLE_DATE, instant));
+                            indexWriter.addDocument(document);
+                            document.clear();
+                        }
+                    }
+                }
+            } else {
+                // use default codec so max points in leaf is fixed to 512, to cover the node level visit and compare logic
+                try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()))) {
+                    List<Document> documents = new ArrayList<>();
+                    for (Map.Entry<String, Integer> date : dataset.entrySet()) {
+                        for (int i = 0; i < date.getValue(); i++) {
+                            Document document = new Document();
+                            if (useDocCountField) {
+                                // add the doc count field once
+                                document.add(new NumericDocValuesField(DocCountFieldMapper.NAME, 5));
+                                useDocCountField = false;
+                            }
+                            long instant = asLong(date.getKey(), fieldType);
+                            document.add(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant));
+                            document.add(new LongPoint(AGGREGABLE_DATE, instant));
+                            documents.add(document);
+                        }
+                    }
+                    indexWriter.addDocuments(documents);
                 }
             }
 
