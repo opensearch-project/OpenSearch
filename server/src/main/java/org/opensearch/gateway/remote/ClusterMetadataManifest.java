@@ -75,34 +75,14 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     }
 
     private static ClusterMetadataManifest.Builder manifestV1Builder(Object[] fields) {
-        return ClusterMetadataManifest.builder()
-            .clusterTerm(term(fields))
-            .stateVersion(version(fields))
-            .clusterUUID(clusterUUID(fields))
-            .stateUUID(stateUUID(fields))
-            .opensearchVersion(opensearchVersion(fields))
-            .nodeId(nodeId(fields))
-            .committed(committed(fields))
+        return manifestV0Builder(fields)
             .codecVersion(codecVersion(fields))
-            .globalMetadataFileName(globalMetadataFileName(fields))
-            .indices(indices(fields))
-            .previousClusterUUID(previousClusterUUID(fields))
-            .clusterUUIDCommitted(clusterUUIDCommitted(fields));
+            .globalMetadataFileName(globalMetadataFileName(fields));
     }
 
     private static ClusterMetadataManifest.Builder manifestV2Builder(Object[] fields) {
-        return ClusterMetadataManifest.builder()
-            .clusterTerm(term(fields))
-            .stateVersion(version(fields))
-            .clusterUUID(clusterUUID(fields))
-            .stateUUID(stateUUID(fields))
-            .opensearchVersion(opensearchVersion(fields))
-            .nodeId(nodeId(fields))
-            .committed(committed(fields))
+        return manifestV0Builder(fields)
             .codecVersion(codecVersion(fields))
-            .indices(indices(fields))
-            .previousClusterUUID(previousClusterUUID(fields))
-            .clusterUUIDCommitted(clusterUUIDCommitted(fields))
             .coordinationMetadata(coordinationMetadata(fields))
             .settingMetadata(settingsMetadata(fields))
             .templatesMetadata(templatesMetadata(fields))
