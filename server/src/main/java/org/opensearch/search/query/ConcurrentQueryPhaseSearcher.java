@@ -26,8 +26,6 @@ import java.util.LinkedList;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 
-import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
-
 /**
  * The implementation of the {@link QueryPhaseSearcher} which attempts to use concurrent
  * search of Apache Lucene segments if it has been enabled.
@@ -40,20 +38,6 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
      * Default constructor
      */
     public ConcurrentQueryPhaseSearcher() {}
-
-    @Override
-    protected boolean searchWithCollector(
-        SearchContext searchContext,
-        ContextIndexSearcher searcher,
-        Query query,
-        LinkedList<QueryCollectorContext> collectors,
-        boolean hasFilterCollector,
-        boolean hasTimeout
-    ) throws IOException {
-        // create the top docs collector
-        final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
-        return searchWithCollector(searchContext, searcher, query, collectors, topDocsFactory, hasFilterCollector, hasTimeout);
-    }
 
     @Override
     protected boolean searchWithCollector(
