@@ -131,7 +131,7 @@ jobs:
             :white_check_mark: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }})
 
       - name: Extract Test Failure
-        if: ${{ github.event_name == 'pull_request_target' && env.result != 'SUCCESS' }} && steps.changed-files-specific.outputs.any_changed == 'true'
+        if: ${{ github.event_name == 'pull_request_target' && env.result != 'SUCCESS' && steps.changed-files-specific.outputs.any_changed == 'true' }}
         run: |
           TEST_FAILURES=`curl -s "${{ env.workflow_url }}/testReport/api/json?tree=suites\[cases\[status,className,name\]\]" | jq -r '.. | objects | select(.status=="FAILED",.status=="REGRESSION") | (.className + "." +  .name)' | uniq -c | sort -n -r | head -n 10`
           if [[ "$TEST_FAILURES" != "" ]]
