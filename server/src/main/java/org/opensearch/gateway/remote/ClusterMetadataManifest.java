@@ -75,14 +75,11 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     }
 
     private static ClusterMetadataManifest.Builder manifestV1Builder(Object[] fields) {
-        return manifestV0Builder(fields)
-            .codecVersion(codecVersion(fields))
-            .globalMetadataFileName(globalMetadataFileName(fields));
+        return manifestV0Builder(fields).codecVersion(codecVersion(fields)).globalMetadataFileName(globalMetadataFileName(fields));
     }
 
     private static ClusterMetadataManifest.Builder manifestV2Builder(Object[] fields) {
-        return manifestV0Builder(fields)
-            .codecVersion(codecVersion(fields))
+        return manifestV0Builder(fields).codecVersion(codecVersion(fields))
             .coordinationMetadata(coordinationMetadata(fields))
             .settingMetadata(settingsMetadata(fields))
             .templatesMetadata(templatesMetadata(fields))
