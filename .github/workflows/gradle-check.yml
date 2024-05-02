@@ -12,30 +12,13 @@ permissions:
   contents: read # to fetch code (actions/checkout)
 
 jobs:
-  check-files:
-    if: github.repository == 'opensearch-project/OpenSearch'
-    runs-on: ubuntu-latest
-    outputs: 
-      RUN_GRADLE_CHECK: ${{steps.changed-files-specific.outputs.any_changed}}
-    steps: 
-      - uses: actions/checkout@v3
-      - name: Get changed files in the docs folder
-        id: changed-files-specific
-        uses: tj-actions/changed-files@v44
-        with:
-          files_ignore: |
-            release-notes/**
-            .github/**
-            **.md
     
   gradle-check:
-    needs: check-files
-    if: github.repository == 'opensearch-project/OpenSearch' && needs.check-files.outputs.RUN_GRADLE_CHECK
+    if: github.repository == 'opensearch-project/OpenSearch'
     permissions:
       contents: read # to fetch code (actions/checkout)
       pull-requests: write # to create or update comment (peter-evans/create-or-update-comment)
       issues: write # To create an issue if check fails on push.
-
     runs-on: ubuntu-latest
     timeout-minutes: 130
     steps:
@@ -44,8 +27,17 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
+      - name: Get changed files
+        id: changed-files-specific
+        uses: tj-actions/changed-files@v44
+        with:
+          files_ignore: |
+            release-notes/**
+            .github/**
+            **.md
+
       - name: Setup environment variables (PR)
-        if: github.event_name == 'pull_request_target'
+        if: github.event_name == 'pull_request_target' && steps.changed-files-specific.outputs.any_changed == 'true'
         run: |
           echo "event_name=pull_request_target" >> $GITHUB_ENV
           echo "branch_name=$(jq --raw-output .pull_request.base.ref $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
@@ -74,7 +66,7 @@ jobs:
             ).data[0];
 
       - name: Setup environment variables (Push)
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && steps.changed-files-specific.outputs.any_changed == 'true'
         run: |
           repo_url="https://github.com/opensearch-project/OpenSearch"
           ref_id=$(git rev-parse HEAD)
@@ -91,6 +83,7 @@ jobs:
           echo "post_merge_action=true" >> $GITHUB_ENV
 
       - name: Checkout opensearch-build repo
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
         uses: actions/checkout@v4
         with:
           repository: opensearch-project/opensearch-build
@@ -98,13 +91,14 @@ jobs:
           path: opensearch-build
 
       - name: Trigger jenkins workflow to run gradle check
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
         run: |
           set -e
           set -o pipefail
           bash opensearch-build/scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} | tee -a gradle-check.log
 
       - name: Setup Result Status
-        if: always()
+        if: always() && steps.changed-files-specific.outputs.any_changed == 'true'
         run: |
           WORKFLOW_URL=`cat gradle-check.log | grep 'WORKFLOW_URL' | awk '{print $2}'`
           RESULT=`cat gradle-check.log | grep 'Result:' | awk '{print $2}'`
@@ -112,13 +106,13 @@ jobs:
           echo "result=$RESULT" >> $GITHUB_ENV
 
       - name: Upload Coverage Report
-        if: success()
+        if: success() && steps.changed-files-specific.outputs.any_changed == 'true'
         uses: codecov/codecov-action@v4
         with:
           files: ./codeCoverage.xml
 
       - name: Create Comment Success
-        if: ${{ github.event_name == 'pull_request_target' && success() && env.result == 'SUCCESS' }}
+        if: ${{ github.event_name == 'pull_request_target' && success() && env.result == 'SUCCESS' && steps.changed-files-specific.outputs.any_changed == 'true' }}
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ env.pr_number }}
@@ -126,7 +120,7 @@ jobs:
             :white_check_mark: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }})
 
       - name: Extract Test Failure
-        if: ${{ github.event_name == 'pull_request_target' && env.result != 'SUCCESS' }}
+        if: ${{ github.event_name == 'pull_request_target' && env.result != 'SUCCESS' }} && steps.changed-files-specific.outputs.any_changed == 'true'
         run: |
           TEST_FAILURES=`curl -s "${{ env.workflow_url }}/testReport/api/json?tree=suites\[cases\[status,className,name\]\]" | jq -r '.. | objects | select(.status=="FAILED",.status=="REGRESSION") | (.className + "." +  .name)' | uniq -c | sort -n -r | head -n 10`
           if [[ "$TEST_FAILURES" != "" ]]
@@ -141,7 +135,7 @@ jobs:
           fi
 
       - name: Create Comment Flaky
-        if: ${{ github.event_name == 'pull_request_target' && success() && env.result != 'SUCCESS' }}
+        if: ${{ github.event_name == 'pull_request_target' && success() && env.result != 'SUCCESS' && steps.changed-files-specific.outputs.any_changed == 'true' }}
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ env.pr_number }}
@@ -151,7 +145,7 @@ jobs:
             Please review all [flaky tests](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) that succeeded after retry and create an issue if one does not already exist to track the flaky failure.
 
       - name: Create Comment Failure
-        if: ${{ github.event_name == 'pull_request_target' && failure() }}
+        if: ${{ github.event_name == 'pull_request_target' && failure() && steps.changed-files-specific.outputs.any_changed == 'true' }}
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ env.pr_number }}
@@ -161,7 +155,7 @@ jobs:
             Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green. Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
 
       - name: Create Issue On Push Failure
-        if: ${{ github.event_name == 'push' && failure() }}
+        if: ${{ github.event_name == 'push' && failure() && steps.changed-files-specific.outputs.any_changed == 'true' }}
         uses: dblock/create-a-github-issue@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
