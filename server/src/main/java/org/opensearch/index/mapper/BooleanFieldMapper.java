@@ -37,8 +37,11 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
@@ -55,8 +58,10 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -175,6 +180,10 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             this(name, searchable, false, true, false, Collections.emptyMap());
         }
 
+        public BooleanFieldType(String name, boolean searchable, boolean hasDocValues) {
+            this(name, searchable, false, hasDocValues, false, Collections.emptyMap());
+        }
+
         @Override
         public String typeName() {
             return CONTENT_TYPE;
@@ -258,15 +267,80 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
+            if (!isSearchable()) {
+                return SortedNumericDocValuesField.newSlowExactQuery(name(), Values.TRUE.bytesEquals(indexedValueForSearch(value)) ? 1 : 0);
+            }
+            Query query = new TermQuery(new Term(name(), indexedValueForSearch(value)));
+            if (boost() != 1f) {
+                query = new BoostQuery(query, boost());
+            }
+            return query;
+        }
+
+        @Override
+        public Query termsQuery(List<?> values, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
+            int distinct = 0;
+            Set<?> distinctValues = new HashSet<>(values);
+            for (Object value : distinctValues) {
+                if (Values.TRUE.equals(indexedValueForSearch(value))) {
+                    distinct |= 2;
+                } else if (Values.FALSE.equals(indexedValueForSearch(value))) {
+                    distinct |= 1;
+                }
+                if (distinct == 3) {
+                    return this.existsQuery(context);
+                }
+            }
+            switch (distinct) {
+                case 1:
+                    return termQuery("false", context);
+                case 2:
+                    return termQuery("true", context);
+            }
+
+            return new MatchNoDocsQuery("Values did not contain True or False");
+        }
+
+        @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            failIfNotIndexed();
-            return new TermRangeQuery(
-                name(),
-                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                includeLower,
-                includeUpper
-            );
+            failIfNotIndexedAndNoDocValues();
+            if (lowerTerm == null) {
+                lowerTerm = false;
+                includeLower = true;
+
+            }
+            if (upperTerm == null) {
+                upperTerm = true;
+                includeUpper = true;
+
+            }
+
+            lowerTerm = indexedValueForSearch(lowerTerm);
+            upperTerm = indexedValueForSearch(upperTerm);
+
+            if (lowerTerm == upperTerm) {
+                if (!includeLower || !includeUpper) {
+                    return new MatchNoDocsQuery();
+                }
+                return termQuery(lowerTerm.equals(Values.TRUE), context);
+            }
+
+            if (lowerTerm.equals(Values.TRUE)) {
+                return new MatchNoDocsQuery();
+            }
+            if (!includeLower && !includeUpper) {
+                return new MatchNoDocsQuery();
+            } else if (!includeLower) {
+                return termQuery(true, context);
+            } else if (!includeUpper) {
+                return termQuery(false, context);
+            } else {
+                return this.existsQuery(context);
+            }
+
         }
     }
 
