@@ -32,9 +32,20 @@ jobs:
         uses: tj-actions/changed-files@v44
         with:
           files_ignore: |
-            release-notes/**
+            release-notes/*.md
             .github/**
-            **.md
+            ADMINS.md
+            CHANGELOG-3.0.md
+            CHANGELOG.md
+            CODE_OF_CONDUCT.md
+            CONTRIBUTING.md
+            DEVELOPER_GUIDE.md
+            MAINTAINERS.md
+            README.md
+            RELEASING.md
+            SECURITY.md
+            TESTING.md
+            TRIAGING.md
 
       - name: Setup environment variables (PR)
         if: github.event_name == 'pull_request_target' && steps.changed-files-specific.outputs.any_changed == 'true'
