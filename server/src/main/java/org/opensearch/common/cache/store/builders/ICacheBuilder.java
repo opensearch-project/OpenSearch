@@ -37,6 +37,8 @@ public abstract class ICacheBuilder<K, V> {
 
     private RemovalListener<ICacheKey<K>, V> removalListener;
 
+    private boolean statsTrackingEnabled = true;
+
     public ICacheBuilder() {}
 
     public ICacheBuilder<K, V> setMaximumWeightInBytes(long sizeInBytes) {
@@ -64,6 +66,11 @@ public abstract class ICacheBuilder<K, V> {
         return this;
     }
 
+    public ICacheBuilder<K, V> setStatsTrackingEnabled(boolean statsTrackingEnabled) {
+        this.statsTrackingEnabled = statsTrackingEnabled;
+        return this;
+    }
+
     public long getMaxWeightInBytes() {
         return maxWeightInBytes;
     }
@@ -82,6 +89,10 @@ public abstract class ICacheBuilder<K, V> {
 
     public Settings getSettings() {
         return settings;
+    }
+
+    public boolean getStatsTrackingEnabled() {
+        return statsTrackingEnabled;
     }
 
     public abstract ICache<K, V> build();
