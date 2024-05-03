@@ -32,6 +32,7 @@
 
 package org.opensearch.repositories.azure;
 
+import com.azure.core.credential.TokenCredential;
 import com.azure.core.http.HttpPipelineCallContext;
 import com.azure.core.http.HttpPipelineNextPolicy;
 import com.azure.core.http.HttpPipelinePosition;
@@ -40,11 +41,15 @@ import com.azure.core.http.HttpResponse;
 import com.azure.core.http.ProxyOptions;
 import com.azure.core.http.netty.NettyAsyncHttpClientBuilder;
 import com.azure.core.http.policy.HttpPipelinePolicy;
+import com.azure.core.util.ClientOptions;
 import com.azure.core.util.Configuration;
 import com.azure.core.util.Context;
 import com.azure.core.util.logging.ClientLogger;
+import com.azure.identity.WorkloadIdentityCredential;
+import com.azure.identity.WorkloadIdentityCredentialBuilder;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.blob.models.ParallelTransferOptions;
 import com.azure.storage.blob.specialized.BlockBlobAsyncClient;
 import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
@@ -61,12 +66,17 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.net.Authenticator;
 import java.net.PasswordAuthentication;
+import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.AccessController;
 import java.security.InvalidKeyException;
+import java.security.PrivilegedExceptionAction;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -216,8 +226,12 @@ public class AzureStorageService implements AutoCloseable {
      * <a href="https://github.com/Azure/azure-sdk-for-java/blob/main/sdk/storage/azure-storage-blob/migrationGuides/V8_V12.md#miscellaneous">migration guide</a> for mode details:
      */
     private BlobServiceClientBuilder applyLocationMode(final BlobServiceClientBuilder builder, final AzureStorageSettings settings) {
-        final StorageConnectionString storageConnectionString = StorageConnectionString.create(settings.getConnectString(), logger);
-        final StorageEndpoint endpoint = storageConnectionString.getBlobEndpoint();
+        StorageEndpoint endpoint;
+        if (settings.useWorkloadIdentity()) {
+            endpoint = new StorageEndpoint(URI.create(settings.getEndpoint()));
+        } else {
+            endpoint = StorageConnectionString.create(settings.getConnectString(), logger).getBlobEndpoint();
+        }
 
         if (endpoint == null || endpoint.getPrimaryUri() == null) {
             throw new IllegalArgumentException("connectionString missing required settings to derive blob service primary endpoint.");
@@ -247,9 +261,31 @@ public class AzureStorageService implements AutoCloseable {
         return builder;
     }
 
-    private static BlobServiceClientBuilder createClientBuilder(AzureStorageSettings settings) throws InvalidKeyException,
-        URISyntaxException {
-        return SocketAccess.doPrivilegedException(() -> new BlobServiceClientBuilder().connectionString(settings.getConnectString()));
+    private static BlobServiceClientBuilder createClientBuilder(AzureStorageSettings settings)
+          throws InvalidKeyException,
+                 URISyntaxException {
+        return SocketAccess.doPrivilegedException(() -> {
+                                                      PrivilegedExceptionAction<ExecutorService> privilegedAction = Executors::newSingleThreadExecutor;
+                                                      ExecutorService executorService = AccessController.doPrivileged(privilegedAction);
+                                                      BlobServiceClientBuilder b =
+                                                            new BlobServiceClientBuilder()
+                                                                  .credential(new DefaultAzureCredentialBuilder().executorService(executorService).build());
+
+                                                      if (settings.useWorkloadIdentity()) {
+                                                          TokenCredential workloadIdentityCredential =
+                                                                new WorkloadIdentityCredentialBuilder()
+                                                                      .tokenFilePath(settings.getFederatedTokenFile())
+                                                                      .executorService(executorService)
+                                                                      .build();
+                                                          b.endpoint(settings.getEndpoint())
+                                                           .credential(workloadIdentityCredential);
+                                                      } else if (!settings.getConnectString().isEmpty()) {
+                                                          b.connectionString(settings.getConnectString());
+                                                      }
+
+                                                      return b;
+                                                  }
+        );
     }
 
     /**

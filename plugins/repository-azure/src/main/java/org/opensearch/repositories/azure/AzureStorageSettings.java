@@ -70,11 +70,19 @@ final class AzureStorageSettings {
         key -> SecureSetting.secureString(key, null)
     );
 
+    /** Azure web identity token */
+    public static final AffixSetting<String> FEDERATED_TOKEN_FILE_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "federated_token_file",
+        key -> Setting.simpleString(key, Property.NodeScope),
+        () -> ACCOUNT_SETTING
+    );
+
     /** Azure SAS token */
     public static final AffixSetting<SecureString> SAS_TOKEN_SETTING = Setting.affixKeySetting(
-        AZURE_CLIENT_PREFIX_KEY,
-        "sas_token",
-        key -> SecureSetting.secureString(key, null)
+          AZURE_CLIENT_PREFIX_KEY,
+          "sas_token",
+          key -> SecureSetting.secureString(key, null)
     );
 
     /** max_retries: Number of retries in case of Azure errors. Defaults to 3 (RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT). */
@@ -82,8 +90,7 @@ final class AzureStorageSettings {
         AZURE_CLIENT_PREFIX_KEY,
         "max_retries",
         (key) -> Setting.intSetting(key, 3, Setting.Property.NodeScope),
-        () -> ACCOUNT_SETTING,
-        () -> KEY_SETTING
+        () -> ACCOUNT_SETTING
     );
     /**
      * Azure endpoint suffix. Default to core.windows.net (CloudStorageAccount.DEFAULT_DNS).
@@ -100,8 +107,7 @@ final class AzureStorageSettings {
         AZURE_CLIENT_PREFIX_KEY,
         "timeout",
         (key) -> Setting.timeSetting(key, TimeValue.timeValueMinutes(-1), Property.NodeScope),
-        () -> ACCOUNT_SETTING,
-        () -> KEY_SETTING
+        () -> ACCOUNT_SETTING
     );
 
     // See please NettyAsyncHttpClientBuilder#DEFAULT_CONNECT_TIMEOUT
@@ -109,8 +115,7 @@ final class AzureStorageSettings {
         AZURE_CLIENT_PREFIX_KEY,
         "connect.timeout",
         (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(10), Property.NodeScope),
-        () -> ACCOUNT_SETTING,
-        () -> KEY_SETTING
+        () -> ACCOUNT_SETTING
     );
 
     // See please NettyAsyncHttpClientBuilder#DEFAULT_WRITE_TIMEOUT
@@ -118,8 +123,7 @@ final class AzureStorageSettings {
         AZURE_CLIENT_PREFIX_KEY,
         "write.timeout",
         (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.NodeScope),
-        () -> ACCOUNT_SETTING,
-        () -> KEY_SETTING
+        () -> ACCOUNT_SETTING
     );
 
     // See please NettyAsyncHttpClientBuilder#DEFAULT_READ_TIMEOUT
@@ -127,8 +131,7 @@ final class AzureStorageSettings {
         AZURE_CLIENT_PREFIX_KEY,
         "read.timeout",
         (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.NodeScope),
-        () -> ACCOUNT_SETTING,
-        () -> KEY_SETTING
+        () -> ACCOUNT_SETTING
     );
 
     // See please NettyAsyncHttpClientBuilder#DEFAULT_RESPONSE_TIMEOUT
@@ -136,8 +139,7 @@ final class AzureStorageSettings {
         AZURE_CLIENT_PREFIX_KEY,
         "response.timeout",
         (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.NodeScope),
-        () -> ACCOUNT_SETTING,
-        () -> KEY_SETTING
+        () -> ACCOUNT_SETTING
     );
 
     /** The type of the proxy to connect to azure through. Can be direct (no proxy, default), http or socks */
@@ -145,8 +147,7 @@ final class AzureStorageSettings {
         AZURE_CLIENT_PREFIX_KEY,
         "proxy.type",
         (key) -> new Setting<>(key, "direct", s -> ProxySettings.ProxyType.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope),
-        () -> ACCOUNT_SETTING,
-        () -> KEY_SETTING
+        () -> ACCOUNT_SETTING
     );
 
     /** The host name of a proxy to connect to azure through. */
@@ -154,7 +155,6 @@ final class AzureStorageSettings {
         AZURE_CLIENT_PREFIX_KEY,
         "proxy.host",
         (key) -> Setting.simpleString(key, Property.NodeScope),
-        () -> KEY_SETTING,
         () -> ACCOUNT_SETTING,
         () -> PROXY_TYPE_SETTING
     );
@@ -164,7 +164,6 @@ final class AzureStorageSettings {
         AZURE_CLIENT_PREFIX_KEY,
         "proxy.port",
         (key) -> Setting.intSetting(key, 0, 0, 65535, Setting.Property.NodeScope),
-        () -> KEY_SETTING,
         () -> ACCOUNT_SETTING,
         () -> PROXY_TYPE_SETTING,
         () -> PROXY_HOST_SETTING
@@ -175,7 +174,6 @@ final class AzureStorageSettings {
         AZURE_CLIENT_PREFIX_KEY,
         "proxy.username",
         key -> SecureSetting.secureString(key, null),
-        () -> KEY_SETTING,
         () -> ACCOUNT_SETTING,
         () -> PROXY_TYPE_SETTING,
         () -> PROXY_HOST_SETTING
@@ -186,7 +184,6 @@ final class AzureStorageSettings {
         AZURE_CLIENT_PREFIX_KEY,
         "proxy.password",
         key -> SecureSetting.secureString(key, null),
-        () -> KEY_SETTING,
         () -> ACCOUNT_SETTING,
         () -> PROXY_TYPE_SETTING,
         () -> PROXY_HOST_SETTING,
@@ -195,6 +192,7 @@ final class AzureStorageSettings {
 
     private final String account;
     private final String connectString;
+    private final String federatedTokenFile;
     private final String endpointSuffix;
     private final TimeValue timeout;
     private final int maxRetries;
@@ -207,20 +205,22 @@ final class AzureStorageSettings {
 
     // copy-constructor
     private AzureStorageSettings(
-        String account,
-        String connectString,
-        String endpointSuffix,
-        TimeValue timeout,
-        int maxRetries,
-        LocationMode locationMode,
-        TimeValue connectTimeout,
-        TimeValue writeTimeout,
-        TimeValue readTimeout,
-        TimeValue responseTimeout,
-        ProxySettings proxySettings
+          String account,
+          String connectString,
+          String federatedTokenFile,
+          String endpointSuffix,
+          TimeValue timeout,
+          int maxRetries,
+          LocationMode locationMode,
+          TimeValue connectTimeout,
+          TimeValue writeTimeout,
+          TimeValue readTimeout,
+          TimeValue responseTimeout,
+          ProxySettings proxySettings
     ) {
         this.account = account;
         this.connectString = connectString;
+        this.federatedTokenFile = federatedTokenFile;
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.maxRetries = maxRetries;
@@ -235,6 +235,7 @@ final class AzureStorageSettings {
     private AzureStorageSettings(
         String account,
         String key,
+        String federatedTokenFile,
         String sasToken,
         String endpointSuffix,
         TimeValue timeout,
@@ -246,7 +247,8 @@ final class AzureStorageSettings {
         ProxySettings proxySettings
     ) {
         this.account = account;
-        this.connectString = buildConnectString(account, key, sasToken, endpointSuffix);
+        this.connectString = buildConnectString(account, key, sasToken, federatedTokenFile, endpointSuffix);
+        this.federatedTokenFile = federatedTokenFile;
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.maxRetries = maxRetries;
@@ -278,26 +280,42 @@ final class AzureStorageSettings {
         return connectString;
     }
 
-    private static String buildConnectString(String account, @Nullable String key, @Nullable String sasToken, String endpointSuffix) {
+    public String getFederatedTokenFile() {
+        return federatedTokenFile;
+    }
+
+    public Boolean useWorkloadIdentity() {
+        return !federatedTokenFile.isEmpty();
+    }
+
+    private static String buildConnectString(String account, @Nullable String key, @Nullable String sasToken, @Nullable String federatedTokenFile, String endpointSuffix) {
         final boolean hasSasToken = Strings.hasText(sasToken);
         final boolean hasKey = Strings.hasText(key);
-        if (hasSasToken == false && hasKey == false) {
-            throw new SettingsException("Neither a secret key nor a shared access token was set.");
-        }
+        final boolean hasFederatedTokenFile = Strings.hasText(federatedTokenFile);
         if (hasSasToken && hasKey) {
             throw new SettingsException("Both a secret as well as a shared access token were set.");
+        } else if (hasSasToken && hasFederatedTokenFile) {
+            throw new SettingsException("Both a shared access token as well as an azure federated token file were set.");
+        } else if (hasKey && hasFederatedTokenFile) {
+            throw new SettingsException("Both a secret as well as an azure federated token file were set.");
         }
         final StringBuilder connectionStringBuilder = new StringBuilder();
-        connectionStringBuilder.append("DefaultEndpointsProtocol=https").append(";AccountName=").append(account);
+        if (hasSasToken || hasKey) {
+            connectionStringBuilder.append("DefaultEndpointsProtocol=https").append(";AccountName=").append(account);
+        }
         if (hasKey) {
             connectionStringBuilder.append(";AccountKey=").append(key);
-        } else {
+        } else if (hasSasToken) {
             connectionStringBuilder.append(";SharedAccessSignature=").append(sasToken);
         }
         if (Strings.hasText(endpointSuffix)) {
             connectionStringBuilder.append(";EndpointSuffix=").append(endpointSuffix);
         }
         return connectionStringBuilder.toString();
+    }
+
+    public String getEndpoint() {
+        return "https://" + account + ".blob." + endpointSuffix;
     }
 
     public LocationMode getLocationMode() {
@@ -369,6 +387,7 @@ final class AzureStorageSettings {
             return new AzureStorageSettings(
                 account.toString(),
                 key.toString(),
+                getValue(settings, clientName, FEDERATED_TOKEN_FILE_SETTING),
                 sasToken.toString(),
                 getValue(settings, clientName, ENDPOINT_SUFFIX_SETTING),
                 getValue(settings, clientName, TIMEOUT_SETTING),
@@ -377,8 +396,7 @@ final class AzureStorageSettings {
                 getValue(settings, clientName, WRITE_TIMEOUT_SETTING),
                 getValue(settings, clientName, READ_TIMEOUT_SETTING),
                 getValue(settings, clientName, RESPONSE_TIMEOUT_SETTING),
-                validateAndCreateProxySettings(settings, clientName)
-            );
+                validateAndCreateProxySettings(settings, clientName));
         }
     }
 
@@ -431,6 +449,7 @@ final class AzureStorageSettings {
                 new AzureStorageSettings(
                     entry.getValue().account,
                     entry.getValue().connectString,
+                    entry.getValue().federatedTokenFile,
                     entry.getValue().endpointSuffix,
                     entry.getValue().timeout,
                     entry.getValue().maxRetries,
@@ -439,8 +458,7 @@ final class AzureStorageSettings {
                     entry.getValue().writeTimeout,
                     entry.getValue().readTimeout,
                     entry.getValue().responseTimeout,
-                    entry.getValue().getProxySettings()
-                )
+                    entry.getValue().getProxySettings())
             );
         }
         return mapBuilder.immutableMap();
