@@ -20,6 +20,7 @@ import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.cache.store.config.CacheConfig;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -34,12 +35,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.ToLongBiFunction;
 
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK_CACHE_ENABLED_SETTING_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
 
 /**
  * This cache spillover the evicted items from heap tier to disk tier. All the new items are first cached on heap
@@ -60,9 +65,17 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     private final ICache<K, V> diskCache;
     private final ICache<K, V> onHeapCache;
 
-    // The listener for removals from the spillover cache as a whole
-    // TODO: In TSC stats PR, each tier will have its own separate removal listener.
+    // Removal listeners for the individual tiers
+    private final RemovalListener<ICacheKey<K>, V> onDiskRemovalListener;
+    private final RemovalListener<ICacheKey<K>, V> onHeapRemovalListener;
+
+    // Removal listener from the spillover cache as a whole
     private final RemovalListener<ICacheKey<K>, V> removalListener;
+
+    // In future we want to just read the stats from the individual tiers' statsHolder objects, but this isn't
+    // possible right now because of the way computeIfAbsent is implemented.
+    private final TieredSpilloverCacheStatsHolder statsHolder;
+    private ToLongBiFunction<ICacheKey<K>, V> weigher;
     private final List<String> dimensionNames;
     ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     ReleasableLock readLock = new ReleasableLock(readWriteLock.readLock());
@@ -70,7 +83,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     /**
      * Maintains caching tiers in ascending order of cache latency.
      */
-    private final Map<ICache<K, V>, Boolean> caches;
+    private final Map<ICache<K, V>, TierInfo> caches;
     private final List<Predicate<V>> policies;
 
     TieredSpilloverCache(Builder<K, V> builder) {
@@ -80,21 +93,12 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         Objects.requireNonNull(builder.cacheConfig.getClusterSettings(), "cluster settings can't be null");
         this.removalListener = Objects.requireNonNull(builder.removalListener, "Removal listener can't be null");
 
+        this.onHeapRemovalListener = new HeapTierRemovalListener(this);
+        this.onDiskRemovalListener = new DiskTierRemovalListener(this);
+        this.weigher = Objects.requireNonNull(builder.cacheConfig.getWeigher(), "Weigher can't be null");
+
         this.onHeapCache = builder.onHeapCacheFactory.create(
-            new CacheConfig.Builder<K, V>().setRemovalListener(new RemovalListener<ICacheKey<K>, V>() {
-                @Override
-                public void onRemoval(RemovalNotification<ICacheKey<K>, V> notification) {
-                    try (ReleasableLock ignore = writeLock.acquire()) {
-                        if (caches.get(diskCache)
-                            && SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason())
-                            && evaluatePolicies(notification.getValue())) {
-                            diskCache.put(notification.getKey(), notification.getValue());
-                        } else {
-                            removalListener.onRemoval(notification);
-                        }
-                    }
-                }
-            })
+            new CacheConfig.Builder<K, V>().setRemovalListener(onHeapRemovalListener)
                 .setKeyType(builder.cacheConfig.getKeyType())
                 .setValueType(builder.cacheConfig.getValueType())
                 .setSettings(builder.cacheConfig.getSettings())
@@ -103,18 +107,33 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 .setMaxSizeInBytes(builder.cacheConfig.getMaxSizeInBytes())
                 .setExpireAfterAccess(builder.cacheConfig.getExpireAfterAccess())
                 .setClusterSettings(builder.cacheConfig.getClusterSettings())
+                .setStatsTrackingEnabled(false)
                 .build(),
             builder.cacheType,
             builder.cacheFactories
 
         );
-        this.diskCache = builder.diskCacheFactory.create(builder.cacheConfig, builder.cacheType, builder.cacheFactories);
+        this.diskCache = builder.diskCacheFactory.create(
+            new CacheConfig.Builder<K, V>().setRemovalListener(onDiskRemovalListener)
+                .setKeyType(builder.cacheConfig.getKeyType())
+                .setValueType(builder.cacheConfig.getValueType())
+                .setSettings(builder.cacheConfig.getSettings())
+                .setWeigher(builder.cacheConfig.getWeigher())
+                .setDimensionNames(builder.cacheConfig.getDimensionNames())
+                .setStatsTrackingEnabled(false)
+                .build(),
+            builder.cacheType,
+            builder.cacheFactories
+        );
         Boolean isDiskCacheEnabled = DISK_CACHE_ENABLED_SETTING_MAP.get(builder.cacheType).get(builder.cacheConfig.getSettings());
-        LinkedHashMap<ICache<K, V>, Boolean> cacheListMap = new LinkedHashMap<>();
-        cacheListMap.put(onHeapCache, true);
-        cacheListMap.put(diskCache, isDiskCacheEnabled);
+        LinkedHashMap<ICache<K, V>, TierInfo> cacheListMap = new LinkedHashMap<>();
+        cacheListMap.put(onHeapCache, new TierInfo(true, TIER_DIMENSION_VALUE_ON_HEAP));
+        cacheListMap.put(diskCache, new TierInfo(isDiskCacheEnabled, TIER_DIMENSION_VALUE_DISK));
         this.caches = Collections.synchronizedMap(cacheListMap);
+
         this.dimensionNames = builder.cacheConfig.getDimensionNames();
+        // Pass "tier" as the innermost dimension name, in addition to whatever dimensions are specified for the cache as a whole
+        this.statsHolder = new TieredSpilloverCacheStatsHolder(dimensionNames, isDiskCacheEnabled);
         this.policies = builder.policies; // Will never be null; builder initializes it to an empty list
         builder.cacheConfig.getClusterSettings()
             .addSettingsUpdateConsumer(DISK_CACHE_ENABLED_SETTING_MAP.get(builder.cacheType), this::enableDisableDiskCache);
@@ -134,25 +153,38 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     void enableDisableDiskCache(Boolean isDiskCacheEnabled) {
         // When disk cache is disabled, we are not clearing up the disk cache entries yet as that should be part of
         // separate cache/clear API.
-        this.caches.put(diskCache, isDiskCacheEnabled);
+        this.caches.put(diskCache, new TierInfo(isDiskCacheEnabled, TIER_DIMENSION_VALUE_DISK));
+        this.statsHolder.setDiskCacheEnabled(isDiskCacheEnabled);
     }
 
     @Override
     public V get(ICacheKey<K> key) {
-        return getValueFromTieredCache().apply(key);
+        Tuple<V, String> cacheValueTuple = getValueFromTieredCache(true).apply(key);
+        if (cacheValueTuple == null) {
+            return null;
+        }
+        return cacheValueTuple.v1();
     }
 
     @Override
     public void put(ICacheKey<K> key, V value) {
         try (ReleasableLock ignore = writeLock.acquire()) {
             onHeapCache.put(key, value);
+            updateStatsOnPut(TIER_DIMENSION_VALUE_ON_HEAP, key, value);
         }
     }
 
     @Override
     public V computeIfAbsent(ICacheKey<K> key, LoadAwareCacheLoader<ICacheKey<K>, V> loader) throws Exception {
-        V cacheValue = getValueFromTieredCache().apply(key);
-        if (cacheValue == null) {
+        // Don't capture stats in the initial getValueFromTieredCache(). If we have concurrent requests for the same key,
+        // and it only has to be loaded one time, we should report one miss and the rest hits. But, if we do stats in
+        // getValueFromTieredCache(),
+        // we will see all misses. Instead, handle stats in computeIfAbsent().
+        Tuple<V, String> cacheValueTuple = getValueFromTieredCache(false).apply(key);
+        List<String> heapDimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, TIER_DIMENSION_VALUE_ON_HEAP);
+        List<String> diskDimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, TIER_DIMENSION_VALUE_DISK);
+
+        if (cacheValueTuple == null) {
             // Add the value to the onHeap cache. We are calling computeIfAbsent which does another get inside.
             // This is needed as there can be many requests for the same key at the same time and we only want to load
             // the value once.
@@ -160,19 +192,49 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             try (ReleasableLock ignore = writeLock.acquire()) {
                 value = onHeapCache.computeIfAbsent(key, loader);
             }
+            // Handle stats
+            if (loader.isLoaded()) {
+                // The value was just computed and added to the cache by this thread. Register a miss for the heap cache, and the disk cache
+                // if present
+                updateStatsOnPut(TIER_DIMENSION_VALUE_ON_HEAP, key, value);
+                statsHolder.incrementMisses(heapDimensionValues);
+                if (caches.get(diskCache).isEnabled()) {
+                    statsHolder.incrementMisses(diskDimensionValues);
+                }
+            } else {
+                // Another thread requesting this key already loaded the value. Register a hit for the heap cache
+                statsHolder.incrementHits(heapDimensionValues);
+            }
             return value;
+        } else {
+            // Handle stats for an initial hit from getValueFromTieredCache()
+            if (cacheValueTuple.v2().equals(TIER_DIMENSION_VALUE_ON_HEAP)) {
+                // A hit for the heap tier
+                statsHolder.incrementHits(heapDimensionValues);
+            } else if (cacheValueTuple.v2().equals(TIER_DIMENSION_VALUE_DISK)) {
+                // Miss for the heap tier, hit for the disk tier
+                statsHolder.incrementMisses(heapDimensionValues);
+                statsHolder.incrementHits(diskDimensionValues);
+            }
         }
-        return cacheValue;
+        return cacheValueTuple.v1();
     }
 
     @Override
     public void invalidate(ICacheKey<K> key) {
         // We are trying to invalidate the key from all caches though it would be present in only of them.
         // Doing this as we don't know where it is located. We could do a get from both and check that, but what will
-        // also count hits/misses stats, so ignoring it for now.
-        try (ReleasableLock ignore = writeLock.acquire()) {
-            for (Map.Entry<ICache<K, V>, Boolean> cacheEntry : caches.entrySet()) {
-                cacheEntry.getKey().invalidate(key);
+        // also trigger a hit/miss listener event, so ignoring it for now.
+        // We don't update stats here, as this is handled by the removal listeners for the tiers.
+        for (Map.Entry<ICache<K, V>, TierInfo> cacheEntry : caches.entrySet()) {
+            if (key.getDropStatsForDimensions()) {
+                List<String> dimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, cacheEntry.getValue().tierName);
+                statsHolder.removeDimensions(dimensionValues);
+            }
+            if (key.key != null) {
+                try (ReleasableLock ignore = writeLock.acquire()) {
+                    cacheEntry.getKey().invalidate(key);
+                }
             }
         }
     }
@@ -180,10 +242,11 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     @Override
     public void invalidateAll() {
         try (ReleasableLock ignore = writeLock.acquire()) {
-            for (Map.Entry<ICache<K, V>, Boolean> cacheEntry : caches.entrySet()) {
+            for (Map.Entry<ICache<K, V>, TierInfo> cacheEntry : caches.entrySet()) {
                 cacheEntry.getKey().invalidateAll();
             }
         }
+        statsHolder.reset();
     }
 
     /**
@@ -194,7 +257,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     @Override
     public Iterable<ICacheKey<K>> keys() {
         List<Iterable<ICacheKey<K>>> iterableList = new ArrayList<>();
-        for (Map.Entry<ICache<K, V>, Boolean> cacheEntry : caches.entrySet()) {
+        for (Map.Entry<ICache<K, V>, TierInfo> cacheEntry : caches.entrySet()) {
             iterableList.add(cacheEntry.getKey().keys());
         }
         Iterable<ICacheKey<K>>[] iterables = (Iterable<ICacheKey<K>>[]) iterableList.toArray(new Iterable<?>[0]);
@@ -203,19 +266,15 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
     @Override
     public long count() {
-        long count = 0;
-        for (Map.Entry<ICache<K, V>, Boolean> cacheEntry : caches.entrySet()) {
-            // Count for all the tiers irrespective of whether they are enabled or not. As eventually
-            // this will turn to zero once cache is cleared up either via invalidation or manually.
-            count += cacheEntry.getKey().count();
-        }
-        return count;
+        // Count for all the tiers irrespective of whether they are enabled or not. As eventually
+        // this will turn to zero once cache is cleared up either via invalidation or manually.
+        return statsHolder.count();
     }
 
     @Override
     public void refresh() {
         try (ReleasableLock ignore = writeLock.acquire()) {
-            for (Map.Entry<ICache<K, V>, Boolean> cacheEntry : caches.entrySet()) {
+            for (Map.Entry<ICache<K, V>, TierInfo> cacheEntry : caches.entrySet()) {
                 cacheEntry.getKey().refresh();
             }
         }
@@ -223,7 +282,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
     @Override
     public void close() throws IOException {
-        for (Map.Entry<ICache<K, V>, Boolean> cacheEntry : caches.entrySet()) {
+        for (Map.Entry<ICache<K, V>, TierInfo> cacheEntry : caches.entrySet()) {
             // Close all the caches here irrespective of whether they are enabled or not.
             cacheEntry.getKey().close();
         }
@@ -231,23 +290,74 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
     @Override
     public ImmutableCacheStatsHolder stats(String[] levels) {
-        return null; // TODO: in TSC stats PR
+        return statsHolder.getImmutableCacheStatsHolder(levels);
     }
 
-    private Function<ICacheKey<K>, V> getValueFromTieredCache() {
+    /**
+     * Get a value from the tiered cache, and the name of the tier it was found in.
+     * @param captureStats Whether to record hits/misses for this call of the function
+     * @return A tuple of the value and the name of the tier it was found in.
+     */
+    private Function<ICacheKey<K>, Tuple<V, String>> getValueFromTieredCache(boolean captureStats) {
         return key -> {
             try (ReleasableLock ignore = readLock.acquire()) {
-                for (Map.Entry<ICache<K, V>, Boolean> cacheEntry : caches.entrySet()) {
-                    if (cacheEntry.getValue()) {
+                for (Map.Entry<ICache<K, V>, TierInfo> cacheEntry : caches.entrySet()) {
+                    if (cacheEntry.getValue().isEnabled()) {
                         V value = cacheEntry.getKey().get(key);
+                        // Get the tier value corresponding to this cache
+                        String tierValue = cacheEntry.getValue().tierName;
+                        List<String> dimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, tierValue);
                         if (value != null) {
-                            return value;
+                            if (captureStats) {
+                                statsHolder.incrementHits(dimensionValues);
+                            }
+                            return new Tuple<>(value, tierValue);
+                        } else if (captureStats) {
+                            statsHolder.incrementMisses(dimensionValues);
                         }
                     }
                 }
+                return null;
             }
-            return null;
         };
+    }
+
+    void handleRemovalFromHeapTier(RemovalNotification<ICacheKey<K>, V> notification) {
+        ICacheKey<K> key = notification.getKey();
+        boolean wasEvicted = SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason());
+        if (caches.get(diskCache).isEnabled() && wasEvicted && evaluatePolicies(notification.getValue())) {
+            try (ReleasableLock ignore = writeLock.acquire()) {
+                diskCache.put(key, notification.getValue()); // spill over to the disk tier and increment its stats
+            }
+            updateStatsOnPut(TIER_DIMENSION_VALUE_DISK, key, notification.getValue());
+        } else {
+            // If the value is not going to the disk cache, send this notification to the TSC's removal listener
+            // as the value is leaving the TSC entirely
+            removalListener.onRemoval(notification);
+        }
+        updateStatsOnRemoval(TIER_DIMENSION_VALUE_ON_HEAP, wasEvicted, key, notification.getValue());
+    }
+
+    void handleRemovalFromDiskTier(RemovalNotification<ICacheKey<K>, V> notification) {
+        // Values removed from the disk tier leave the TSC entirely
+        removalListener.onRemoval(notification);
+        boolean wasEvicted = SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason());
+        updateStatsOnRemoval(TIER_DIMENSION_VALUE_DISK, wasEvicted, notification.getKey(), notification.getValue());
+    }
+
+    void updateStatsOnRemoval(String removedFromTierValue, boolean wasEvicted, ICacheKey<K> key, V value) {
+        List<String> dimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, removedFromTierValue);
+        if (wasEvicted) {
+            statsHolder.incrementEvictions(dimensionValues);
+        }
+        statsHolder.decrementItems(dimensionValues);
+        statsHolder.decrementSizeInBytes(dimensionValues, weigher.applyAsLong(key, value));
+    }
+
+    void updateStatsOnPut(String destinationTierValue, ICacheKey<K> key, V value) {
+        List<String> dimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, destinationTierValue);
+        statsHolder.incrementItems(dimensionValues);
+        statsHolder.incrementSizeInBytes(dimensionValues, weigher.applyAsLong(key, value));
     }
 
     boolean evaluatePolicies(V value) {
@@ -257,6 +367,38 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             }
         }
         return true;
+    }
+
+    /**
+     * A class which receives removal events from the heap tier.
+     */
+    private class HeapTierRemovalListener implements RemovalListener<ICacheKey<K>, V> {
+        private final TieredSpilloverCache<K, V> tsc;
+
+        HeapTierRemovalListener(TieredSpilloverCache<K, V> tsc) {
+            this.tsc = tsc;
+        }
+
+        @Override
+        public void onRemoval(RemovalNotification<ICacheKey<K>, V> notification) {
+            tsc.handleRemovalFromHeapTier(notification);
+        }
+    }
+
+    /**
+     * A class which receives removal events from the disk tier.
+     */
+    private class DiskTierRemovalListener implements RemovalListener<ICacheKey<K>, V> {
+        private final TieredSpilloverCache<K, V> tsc;
+
+        DiskTierRemovalListener(TieredSpilloverCache<K, V> tsc) {
+            this.tsc = tsc;
+        }
+
+        @Override
+        public void onRemoval(RemovalNotification<ICacheKey<K>, V> notification) {
+            tsc.handleRemovalFromDiskTier(notification);
+        }
     }
 
     /**
@@ -317,6 +459,20 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             public void remove() {
                 currentIterator.remove();
             }
+        }
+    }
+
+    private class TierInfo {
+        AtomicBoolean isEnabled;
+        final String tierName;
+
+        TierInfo(boolean isEnabled, String tierName) {
+            this.isEnabled = new AtomicBoolean(isEnabled);
+            this.tierName = tierName;
+        }
+
+        boolean isEnabled() {
+            return isEnabled.get();
         }
     }
 
