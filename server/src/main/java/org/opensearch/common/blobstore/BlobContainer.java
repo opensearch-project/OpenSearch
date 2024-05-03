@@ -80,7 +80,7 @@ public interface BlobContainer {
     InputStream readBlob(String blobName) throws IOException;
 
     /**
-     * Creates a new {@link InputStreamWithMetadata} for the given blob name.
+     * Creates a new {@link InputStreamWithMetadata} for the given blob name. The default implementation is null; the implementing class should provide its own implementation.
      *
      * @param   blobName
      *          The name of the blob to get an {@link InputStreamWithMetadata} for.
@@ -90,8 +90,7 @@ public interface BlobContainer {
      */
     @ExperimentalApi
     default InputStreamWithMetadata readBlobWithMetadata(String blobName) throws IOException {
-        InputStream inputStream = readBlob(blobName);
-        return new InputStreamWithMetadata(inputStream, null);
+        return null;
     };
 
     /**

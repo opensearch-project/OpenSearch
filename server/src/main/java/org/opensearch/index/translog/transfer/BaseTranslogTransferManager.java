@@ -113,12 +113,17 @@ public abstract class BaseTranslogTransferManager {
      * @param latchedActionListener    A latched action listener for listening the transfer progress.
      * @param writePriority            The write priority for the transfer operation.
      */
-    public abstract void transferTranslogCheckpointSnapshot(
+    abstract void transferTranslogCheckpointSnapshot(
         Set<TranslogCheckpointSnapshot> generationalSnapshotList,
         Map<Long, BlobPath> blobPathMap,
         LatchedActionListener<TranslogCheckpointSnapshot> latchedActionListener,
         WritePriority writePriority
     ) throws Exception;
+
+    /**
+     * @return true if fileName based tracker needs to be updated, false otherwise
+     */
+    abstract boolean updateFileNameTransferTracker();
 
     public boolean transferSnapshot(TransferSnapshot transferSnapshot, TranslogTransferListener translogTransferListener)
         throws IOException {
@@ -156,11 +161,13 @@ public abstract class BaseTranslogTransferManager {
                     fileTransferTracker.onFailure(file, ex);
                     exceptionList.add(ex);
 
-                    Set<TransferFileSnapshot> failedFiles = e.getFailedFiles();
-                    Set<TransferFileSnapshot> successFiles = e.getSuccessFiles();
-                    assert failedFiles.isEmpty() == false;
-                    failedFiles.forEach(failedFile -> { fileTransferTracker.add(failedFile.getName(), false); });
-                    successFiles.forEach(successFile -> { fileTransferTracker.add(successFile.getName(), true); });
+                    if (updateFileNameTransferTracker()) {
+                        Set<TransferFileSnapshot> failedFiles = e.getFailedFiles();
+                        Set<TransferFileSnapshot> successFiles = e.getSuccessFiles();
+                        assert failedFiles.isEmpty() == false;
+                        failedFiles.forEach(failedFile -> fileTransferTracker.add(failedFile.getName(), false));
+                        successFiles.forEach(successFile -> fileTransferTracker.add(successFile.getName(), true));
+                    }
                 }),
                 latch
             );

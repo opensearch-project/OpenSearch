@@ -79,4 +79,9 @@ public class TranslogCkpAsMetadataFileTransferManager extends BaseTranslogTransf
         );
         transferService.uploadBlobs(filesToUpload, blobPathMap, actionListener, WritePriority.HIGH);
     }
+
+    @Override
+    public boolean updateFileNameTransferTracker() {
+        return false;
+    }
 }

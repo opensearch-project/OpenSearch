@@ -31,12 +31,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * @opensearch.internal
  */
-public class TranslogCheckpointFilesTransferManager extends BaseTranslogTransferManager {
+public class TranslogCkpFilesTransferManager extends BaseTranslogTransferManager {
 
     TransferService transferService;
     FileTransferTracker fileTransferTracker;
 
-    public TranslogCheckpointFilesTransferManager(
+    public TranslogCkpFilesTransferManager(
         ShardId shardId,
         TransferService transferService,
         BlobPath remoteDataTransferPath,
@@ -78,19 +78,15 @@ public class TranslogCheckpointFilesTransferManager extends BaseTranslogTransfer
             if (!fileTransferTracker.uploaded(ckpFileName)) {
                 filesToUpload.add(tlogAndCkpTransferFileSnapshot.getCheckpointFileSnapshot());
             }
-
             assert !filesToUpload.isEmpty();
-
             AtomicBoolean listenerProcessed = new AtomicBoolean();
             final CountDownLatch latch = new CountDownLatch(filesToUpload.size());
-
             if (latch.getCount() == 0) {
                 latchedActionListener.onResponse(tlogAndCkpTransferFileSnapshot);
             }
 
             Set<TransferFileSnapshot> succeededFiles = ConcurrentCollections.newConcurrentSet();
             Set<TransferFileSnapshot> failedFiles = new HashSet<>();
-
             LatchedActionListener<TransferFileSnapshot> fileUploadListener = new LatchedActionListener<>(
                 ActionListener.wrap(succeededFiles::add, exceptionList::add),
                 latch
@@ -117,5 +113,10 @@ public class TranslogCheckpointFilesTransferManager extends BaseTranslogTransfer
             });
             transferService.uploadBlobs(filesToUpload, blobPathMap, actionListener, writePriority);
         }
+    }
+
+    @Override
+    public boolean updateFileNameTransferTracker() {
+        return true;
     }
 }

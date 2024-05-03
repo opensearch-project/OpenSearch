@@ -41,7 +41,7 @@ public class TranslogTransferManagerFactory {
                 remoteStoreSettings
             );
         } else {
-            return new TranslogCheckpointFilesTransferManager(
+            return new TranslogCkpFilesTransferManager(
                 shardId,
                 transferService,
                 remoteDataTransferPath,
