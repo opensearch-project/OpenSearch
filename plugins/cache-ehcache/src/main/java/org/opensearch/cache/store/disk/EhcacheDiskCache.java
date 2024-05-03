@@ -27,6 +27,7 @@ import org.opensearch.common.cache.serializer.Serializer;
 import org.opensearch.common.cache.stats.CacheStatsHolder;
 import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
+import org.opensearch.common.cache.stats.NoopCacheStatsHolder;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.collect.Tuple;
@@ -163,8 +164,13 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         this.ehCacheEventListener = new EhCacheEventListener(builder.getRemovalListener(), builder.getWeigher());
         this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
         List<String> dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
-        // If this cache is being used, FeatureFlags.PLUGGABLE_CACHE is already on, so we can always use the DefaultCacheStatsHolder.
-        this.cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames, EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME);
+        if (builder.getStatsTrackingEnabled()) {
+            // If this cache is being used, FeatureFlags.PLUGGABLE_CACHE is already on, so we can always use the DefaultCacheStatsHolder
+            // unless statsTrackingEnabled is explicitly set to false in CacheConfig.
+            this.cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames, EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME);
+        } else {
+            this.cacheStatsHolder = NoopCacheStatsHolder.getInstance();
+        }
     }
 
     @SuppressWarnings({ "rawtypes" })
@@ -414,6 +420,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
 
     /**
      * Gives the current count of keys in disk cache.
+     * If enableStatsTracking is set to false in the builder, always returns 0.
      * @return current count of keys
      */
     @Override
