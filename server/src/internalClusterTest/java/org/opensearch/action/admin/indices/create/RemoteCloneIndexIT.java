@@ -129,7 +129,9 @@ public class RemoteCloneIndexIT extends RemoteStoreBaseIntegTestCase {
                 .cluster()
                 .prepareUpdateSettings()
                 .setTransientSettings(
-                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String) null)
+                    Settings.builder()
+                        .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String) null)
+                        .put(RecoverySettings.INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.getKey(), (String) null)
                 )
                 .get();
         }
