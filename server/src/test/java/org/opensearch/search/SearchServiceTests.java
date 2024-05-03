@@ -582,11 +582,12 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             try (SearchContext context = service.createContext(reader, request, null, randomBoolean())) {
                 assertNotNull(context);
                 for (int i = 0; i < 5; i++) {
-                    DerivedFieldType derivedFieldType = (DerivedFieldType) context.getQueryShardContext().getDerivedFieldType("field" + i);
+                    DerivedFieldType derivedFieldType = (DerivedFieldType) context.getQueryShardContext()
+                        .resolveDerivedFieldType("field" + i);
                     assertEquals("field" + i, derivedFieldType.name());
                     assertEquals("date", derivedFieldType.getType());
                 }
-                assertNull(context.getQueryShardContext().getDerivedFieldType("field" + 5));
+                assertNull(context.getQueryShardContext().resolveDerivedFieldType("field" + 5));
             }
         }
     }

@@ -16,6 +16,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
@@ -34,6 +35,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -76,18 +78,19 @@ public class DerivedFieldQueryTests extends OpenSearchTestCase {
 
         // Create ValueFetcher from mocked DerivedFieldScript.Factory
         DerivedFieldScript.LeafFactory leafFactory = factory.newFactory((new Script("")).getParams(), searchLookup);
-        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(
-            leafFactory,
-            null,
-            DerivedFieldSupportedTypes.getIndexableFieldGeneratorType("keyword", "ip_from_raw_request")
+        Function<Object, IndexableField> indexableFieldFunction = DerivedFieldSupportedTypes.getIndexableFieldGeneratorType(
+            "keyword",
+            "ip_from_raw_request"
         );
+        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(leafFactory, null);
 
         // Create DerivedFieldQuery
         DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             new TermQuery(new Term("ip_from_raw_request", "247.37.0.0")),
             valueFetcher,
             searchLookup,
-            Lucene.STANDARD_ANALYZER
+            Lucene.STANDARD_ANALYZER,
+            indexableFieldFunction
         );
 
         // Index and Search

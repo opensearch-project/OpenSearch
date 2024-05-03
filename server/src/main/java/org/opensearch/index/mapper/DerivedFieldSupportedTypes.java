@@ -11,24 +11,27 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.FloatField;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.TriFunction;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.network.InetAddresses;
+import org.opensearch.index.analysis.IndexAnalyzers;
 
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -39,7 +42,7 @@ import java.util.stream.Collectors;
  */
 public enum DerivedFieldSupportedTypes {
 
-    BOOLEAN("boolean", (name, context) -> {
+    BOOLEAN("boolean", (name, context, indexAnalyzers) -> {
         BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder(name);
         return builder.build(context);
     }, name -> o -> {
@@ -53,7 +56,7 @@ public enum DerivedFieldSupportedTypes {
         }
         return new Field(name, value ? "T" : "F", BooleanFieldMapper.Defaults.FIELD_TYPE);
     }, o -> o),
-    DATE("date", (name, context) -> {
+    DATE("date", (name, context, indexAnalyzers) -> {
         // TODO: should we support mapping settings exposed by a given field type from derived fields too?
         // for example, support `format` for date type?
         DateFieldMapper.Builder builder = new DateFieldMapper.Builder(
@@ -65,7 +68,7 @@ public enum DerivedFieldSupportedTypes {
         );
         return builder.build(context);
     }, name -> o -> new LongPoint(name, (long) o), o -> DateFieldMapper.getDefaultDateTimeFormatter().formatMillis((long) o)),
-    GEO_POINT("geo_point", (name, context) -> {
+    GEO_POINT("geo_point", (name, context, indexAnalyzers) -> {
         GeoPointFieldMapper.Builder builder = new GeoPointFieldMapper.Builder(name);
         return builder.build(context);
     }, name -> o -> {
@@ -75,7 +78,7 @@ public enum DerivedFieldSupportedTypes {
         }
         return new LatLonPoint(name, (double) ((Tuple<?, ?>) o).v1(), (double) ((Tuple<?, ?>) o).v2());
     }, o -> new GeoPoint((double) ((Tuple) o).v1(), (double) ((Tuple) o).v2())),
-    IP("ip", (name, context) -> {
+    IP("ip", (name, context, indexAnalyzers) -> {
         IpFieldMapper.Builder builder = new IpFieldMapper.Builder(name, false, Version.CURRENT);
         return builder.build(context);
     }, name -> o -> {
@@ -87,7 +90,7 @@ public enum DerivedFieldSupportedTypes {
         }
         return new InetAddressPoint(name, address);
     }, o -> o),
-    KEYWORD("keyword", (name, context) -> {
+    KEYWORD("keyword", (name, context, indexAnalyzers) -> {
         FieldType dummyFieldType = new FieldType();
         dummyFieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
         KeywordFieldMapper.Builder keywordBuilder = new KeywordFieldMapper.Builder(name);
@@ -102,17 +105,28 @@ public enum DerivedFieldSupportedTypes {
             keywordBuilder
         );
     }, name -> o -> new KeywordField(name, (String) o, Field.Store.NO), o -> o),
-    LONG("long", (name, context) -> {
+    TEXT("text", (name, context, indexAnalyzers) -> {
+        FieldType dummyFieldType = new FieldType();
+        dummyFieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
+        TextFieldMapper.Builder textBuilder = new TextFieldMapper.Builder(name, indexAnalyzers);
+        return textBuilder.build(context);
+    }, name -> o -> new TextField(name, (String) o, Field.Store.NO), o -> o),
+    LONG("long", (name, context, indexAnalyzers) -> {
         NumberFieldMapper.Builder longBuilder = new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG, false, false);
         return longBuilder.build(context);
     }, name -> o -> new LongField(name, Long.parseLong(o.toString()), Field.Store.NO), o -> o),
-    DOUBLE("double", (name, context) -> {
+    DOUBLE("double", (name, context, indexAnalyzers) -> {
         NumberFieldMapper.Builder doubleBuilder = new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.DOUBLE, false, false);
         return doubleBuilder.build(context);
-    }, name -> o -> new DoubleField(name, Double.parseDouble(o.toString()), Field.Store.NO), o -> o);
+    }, name -> o -> new DoubleField(name, Double.parseDouble(o.toString()), Field.Store.NO), o -> o),
+    FLOAT("float", (name, context, indexAnalyzers) -> {
+        NumberFieldMapper.Builder floatBuilder = new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT, false, false);
+        return floatBuilder.build(context);
+    }, name -> o -> new FloatField(name, Float.parseFloat(o.toString()), Field.Store.NO), o -> o),
+    OBJECT("object", KEYWORD::getFieldMapper, name -> o -> new KeywordField(name, (String) o, Field.Store.NO), o -> o);
 
     final String name;
-    private final BiFunction<String, Mapper.BuilderContext, FieldMapper> builder;
+    private final TriFunction<String, Mapper.BuilderContext, IndexAnalyzers, FieldMapper> builder;
 
     private final Function<String, Function<Object, IndexableField>> indexableFieldBuilder;
 
@@ -120,7 +134,7 @@ public enum DerivedFieldSupportedTypes {
 
     DerivedFieldSupportedTypes(
         String name,
-        BiFunction<String, Mapper.BuilderContext, FieldMapper> builder,
+        TriFunction<String, Mapper.BuilderContext, IndexAnalyzers, FieldMapper> builder,
         Function<String, Function<Object, IndexableField>> indexableFieldBuilder,
         Function<Object, Object> valueForDisplay
     ) {
@@ -134,8 +148,8 @@ public enum DerivedFieldSupportedTypes {
         return name;
     }
 
-    private FieldMapper getFieldMapper(String name, Mapper.BuilderContext context) {
-        return builder.apply(name, context);
+    private FieldMapper getFieldMapper(String name, Mapper.BuilderContext context, IndexAnalyzers indexAnalyzers) {
+        return builder.apply(name, context, indexAnalyzers);
     }
 
     private Function<Object, IndexableField> getIndexableFieldGenerator(String name) {
@@ -149,11 +163,16 @@ public enum DerivedFieldSupportedTypes {
     private static final Map<String, DerivedFieldSupportedTypes> enumMap = Arrays.stream(DerivedFieldSupportedTypes.values())
         .collect(Collectors.toMap(DerivedFieldSupportedTypes::getName, enumValue -> enumValue));
 
-    public static FieldMapper getFieldMapperFromType(String type, String name, Mapper.BuilderContext context) {
+    public static FieldMapper getFieldMapperFromType(
+        String type,
+        String name,
+        Mapper.BuilderContext context,
+        IndexAnalyzers indexAnalyzers
+    ) {
         if (!enumMap.containsKey(type)) {
             throw new IllegalArgumentException("Type [" + type + "] isn't supported in Derived field context.");
         }
-        return enumMap.get(type).getFieldMapper(name, context);
+        return enumMap.get(type).getFieldMapper(name, context, indexAnalyzers);
     }
 
     public static Function<Object, IndexableField> getIndexableFieldGeneratorType(String type, String name) {

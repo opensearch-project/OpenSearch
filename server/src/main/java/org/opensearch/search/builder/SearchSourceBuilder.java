@@ -997,10 +997,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * @param script script associated with derived field
      */
     public SearchSourceBuilder derivedField(String name, String type, Script script) {
+        return derivedField(name, type, script, null);
+    }
+
+    public SearchSourceBuilder derivedField(String name, String type, Script script, String sourceIndexedField) {
         if (derivedFields == null) {
             derivedFields = new ArrayList<>();
         }
-        derivedFields.add(new DerivedField(name, type, script));
+        derivedFields.add(new DerivedField(name, type, script, sourceIndexedField));
         return this;
     }
 

@@ -10,13 +10,12 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.script.Script;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -28,6 +27,8 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "derived";
 
+    protected final IndexAnalyzers indexAnalyzers;
+
     private static DerivedFieldMapper toType(FieldMapper in) {
         return (DerivedFieldMapper) in;
     }
@@ -38,8 +39,9 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
      * @opensearch.internal
      */
     public static class Builder extends ParametrizedFieldMapper.Builder {
-        // TODO: The type of parameter may change here if the actual underlying FieldType object is needed
         private final Parameter<String> type = Parameter.stringParam("type", false, m -> toType(m).type, "");
+
+        private final IndexAnalyzers indexAnalyzers;
 
         private final Parameter<Script> script = new Parameter<>(
             "script",
@@ -49,51 +51,66 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
             m -> toType(m).script
         ).setSerializerCheck((id, ic, value) -> value != null);
 
-        public Builder(String name) {
+        private final Parameter<String> sourceIndexedField = Parameter.stringParam(
+            "source_indexed_field",
+            true,
+            m -> toType(m).sourceIndexedField,
+            ""
+        );
+
+        public Builder(String name, IndexAnalyzers indexAnalyzers) {
             super(name);
+            this.indexAnalyzers = indexAnalyzers;
         }
 
-        public Builder(DerivedField derivedField) {
+        public Builder(DerivedField derivedField, IndexAnalyzers indexAnalyzers) {
             super(derivedField.getName());
             this.type.setValue(derivedField.getType());
             this.script.setValue(derivedField.getScript());
+            this.sourceIndexedField.setValue(derivedField.getSourceIndexedField());
+            this.indexAnalyzers = indexAnalyzers;
         }
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(type, script);
+            return Arrays.asList(type, script, sourceIndexedField);
         }
 
         @Override
         public DerivedFieldMapper build(BuilderContext context) {
-            FieldMapper fieldMapper = DerivedFieldSupportedTypes.getFieldMapperFromType(type.getValue(), name, context);
+            FieldMapper fieldMapper = DerivedFieldSupportedTypes.getFieldMapperFromType(type.getValue(), name, context, indexAnalyzers);
             Function<Object, IndexableField> fieldFunction = DerivedFieldSupportedTypes.getIndexableFieldGeneratorType(
                 type.getValue(),
                 name
             );
             DerivedFieldType ft = new DerivedFieldType(
-                new DerivedField(buildFullName(context), type.getValue(), script.getValue()),
+                new DerivedField(buildFullName(context), type.getValue(), script.getValue(), sourceIndexedField.getValue()),
                 fieldMapper,
-                fieldFunction
+                fieldFunction,
+                indexAnalyzers
             );
-            return new DerivedFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new DerivedFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this, indexAnalyzers);
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
     private final String type;
     private final Script script;
+    private final String sourceIndexedField;
 
     protected DerivedFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
-        Builder builder
+        Builder builder,
+        IndexAnalyzers indexAnalyzers
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.type = builder.type.getValue();
         this.script = builder.script.getValue();
+        this.sourceIndexedField = builder.sourceIndexedField.getValue();
+        this.indexAnalyzers = indexAnalyzers;
     }
 
     @Override
@@ -110,7 +127,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(simpleName(), this.indexAnalyzers).init(this);
     }
 
     @Override
@@ -133,26 +150,4 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
         return script;
     }
 
-    public static Map<String, DerivedFieldType> getAllDerivedFieldTypeFromObject(
-        Map<String, Object> derivedFieldObject,
-        MapperService mapperService
-    ) {
-        Map<String, DerivedFieldType> derivedFieldTypes = new HashMap<>();
-        DocumentMapper documentMapper = mapperService.documentMapperParser().parse(DerivedFieldMapper.CONTENT_TYPE, derivedFieldObject);
-        if (documentMapper != null && documentMapper.mappers() != null) {
-            for (Mapper mapper : documentMapper.mappers()) {
-                if (mapper instanceof DerivedFieldMapper) {
-                    DerivedFieldType derivedFieldType = ((DerivedFieldMapper) mapper).fieldType();
-                    derivedFieldTypes.put(derivedFieldType.name(), derivedFieldType);
-                }
-            }
-        }
-        return derivedFieldTypes;
-    }
-
-    public static DerivedFieldType getDerivedFieldType(DerivedField derivedField, MapperService mapperService) {
-        BuilderContext builderContext = new Mapper.BuilderContext(mapperService.getIndexSettings().getSettings(), new ContentPath(1));
-        Builder builder = new Builder(derivedField);
-        return builder.build(builderContext).fieldType();
-    }
 }

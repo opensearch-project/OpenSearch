@@ -67,6 +67,7 @@ import org.opensearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DerivedField;
 import org.opensearch.index.mapper.DerivedFieldMapper;
+import org.opensearch.index.mapper.DerivedFieldResolver;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -130,12 +131,13 @@ public class QueryShardContextTests extends OpenSearchTestCase {
     public void testDerivedFieldMapping() {
         QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         assertNull(context.failIfFieldMappingNotFound("test_derived", null));
-        context.setDerivedFieldTypes(null);
         assertNull(context.failIfFieldMappingNotFound("test_derived", null));
         DocumentMapper documentMapper = mock(DocumentMapper.class);
         Mapper.BuilderContext builderContext = new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0));
-        DerivedFieldMapper derivedFieldMapper = new DerivedFieldMapper.Builder(new DerivedField("test_derived", "keyword", new Script("")))
-            .build(builderContext);
+        DerivedFieldMapper derivedFieldMapper = new DerivedFieldMapper.Builder(
+            new DerivedField("test_derived", "keyword", new Script("")),
+            context.getIndexAnalyzers()
+        ).build(builderContext);
         MappingLookup mappingLookup = new MappingLookup(
             Collections.singletonList(derivedFieldMapper),
             Collections.emptyList(),
@@ -144,7 +146,9 @@ public class QueryShardContextTests extends OpenSearchTestCase {
             new StandardAnalyzer()
         );
         when(documentMapper.mappers()).thenReturn(mappingLookup);
-        context.setDerivedFieldTypes(Map.of("test_derived", derivedFieldMapper.fieldType()));
+        context.setDerivedFieldResolver(
+            new DerivedFieldResolver(null, Map.of("test_derived", derivedFieldMapper.fieldType()), Collections.emptyList())
+        );
         context.setAllowUnmappedFields(false);
         assertEquals(derivedFieldMapper.fieldType(), context.failIfFieldMappingNotFound("test_derived", null));
     }

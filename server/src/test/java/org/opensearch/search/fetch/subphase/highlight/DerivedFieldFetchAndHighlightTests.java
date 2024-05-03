@@ -28,6 +28,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DerivedField;
+import org.opensearch.index.mapper.DerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedFieldSupportedTypes;
 import org.opensearch.index.mapper.DerivedFieldType;
 import org.opensearch.index.mapper.Mapper;
@@ -219,12 +220,16 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
                 mockShardContext.lookup().source().setSegmentAndDocument(context, docId);
 
                 // This mock behavior is similar to adding derived fields in search request
-                mockShardContext.setDerivedFieldTypes(
-                    Map.of(
-                        DERIVED_FIELD_1,
-                        createDerivedFieldType(DERIVED_FIELD_1, "keyword", DERIVED_FIELD_SCRIPT_1),
-                        DERIVED_FIELD_2,
-                        createDerivedFieldType(DERIVED_FIELD_2, "keyword", DERIVED_FIELD_SCRIPT_2)
+                mockShardContext.setDerivedFieldResolver(
+                    new DerivedFieldResolver(
+                        mockShardContext,
+                        Map.of(
+                            DERIVED_FIELD_1,
+                            createDerivedFieldType(DERIVED_FIELD_1, "keyword", DERIVED_FIELD_SCRIPT_1),
+                            DERIVED_FIELD_2,
+                            createDerivedFieldType(DERIVED_FIELD_2, "keyword", DERIVED_FIELD_SCRIPT_2)
+                        ),
+                        null
                     )
                 );
 
@@ -359,8 +364,9 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
         when(context.path()).thenReturn(new ContentPath());
         return new DerivedFieldType(
             new DerivedField(name, type, new Script(ScriptType.INLINE, "mockscript", script, emptyMap())),
-            DerivedFieldSupportedTypes.getFieldMapperFromType(type, name, context),
-            DerivedFieldSupportedTypes.getIndexableFieldGeneratorType(type, name)
+            DerivedFieldSupportedTypes.getFieldMapperFromType(type, name, context, null),
+            DerivedFieldSupportedTypes.getIndexableFieldGeneratorType(type, name),
+            null
         );
     }
 }
