@@ -78,7 +78,8 @@ public interface BlobStore extends Closeable {
         REQUEST_SUCCESS("request_success_total"),
         REQUEST_FAILURE("request_failures_total"),
         REQUEST_LATENCY("request_time_in_millis"),
-        RETRY_COUNT("request_retry_count_total");
+        RETRY_COUNT("request_retry_count_total"),
+        GENERIC_STATS("generic_stats");
 
         private String metricName;
 

@@ -159,6 +159,15 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
+     * Whether large uploads need to be redirected to slow sync s3 client.
+     */
+    static final Setting<Boolean> PERMIT_BACKED_TRANSFER_ENABLED = Setting.boolSetting(
+        "permit_backed_transfer_enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Whether retry on uploads are enabled. This setting wraps inputstream with buffered stream to enable retries.
      */
     static final Setting<Boolean> UPLOAD_RETRY_ENABLED = Setting.boolSetting("s3_upload_retry_enabled", true, Setting.Property.NodeScope);
@@ -287,6 +296,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     private final Path pluginConfigPath;
     private final SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ;
     private final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
+    private final GenericStatsMetricPublisher genericStatsMetricPublisher;
 
     private volatile int bulkDeletesSize;
 
@@ -320,7 +330,8 @@ class S3Repository extends MeteredBlobStoreRepository {
             multipartUploadEnabled,
             Path.of(""),
             normalPrioritySizeBasedBlockingQ,
-            lowPrioritySizeBasedBlockingQ
+            lowPrioritySizeBasedBlockingQ,
+            new GenericStatsMetricPublisher()
         );
     }
 
@@ -341,7 +352,8 @@ class S3Repository extends MeteredBlobStoreRepository {
         final boolean multipartUploadEnabled,
         Path pluginConfigPath,
         final SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ,
-        final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ
+        final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ,
+        final GenericStatsMetricPublisher genericStatsMetricPublisher
     ) {
         super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.service = service;
@@ -354,6 +366,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         this.normalExecutorBuilder = normalExecutorBuilder;
         this.normalPrioritySizeBasedBlockingQ = normalPrioritySizeBasedBlockingQ;
         this.lowPrioritySizeBasedBlockingQ = lowPrioritySizeBasedBlockingQ;
+        this.genericStatsMetricPublisher = genericStatsMetricPublisher;
 
         validateRepositoryMetadata(metadata);
         readRepositoryMetadata();
@@ -418,7 +431,8 @@ class S3Repository extends MeteredBlobStoreRepository {
             priorityExecutorBuilder,
             normalExecutorBuilder,
             normalPrioritySizeBasedBlockingQ,
-            lowPrioritySizeBasedBlockingQ
+            lowPrioritySizeBasedBlockingQ,
+            genericStatsMetricPublisher
         );
     }
 

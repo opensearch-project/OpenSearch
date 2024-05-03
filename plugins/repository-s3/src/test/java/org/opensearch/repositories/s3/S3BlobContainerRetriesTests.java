@@ -137,15 +137,20 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         remoteTransferRetry = Executors.newFixedThreadPool(20);
         transferQueueConsumerService = Executors.newFixedThreadPool(2);
         scheduler = new ScheduledThreadPoolExecutor(1);
+        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher();
         normalPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
             new ByteSizeValue(Runtime.getRuntime().availableProcessors() * 5L, ByteSizeUnit.GB),
             transferQueueConsumerService,
-            2
+            2,
+            genericStatsMetricPublisher,
+            SizeBasedBlockingQ.QueueEventType.NORMAL
         );
         lowPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
             new ByteSizeValue(Runtime.getRuntime().availableProcessors() * 5L, ByteSizeUnit.GB),
             transferQueueConsumerService,
-            2
+            2,
+            genericStatsMetricPublisher,
+            SizeBasedBlockingQ.QueueEventType.LOW
         );
         normalPrioritySizeBasedBlockingQ.start();
         lowPrioritySizeBasedBlockingQ.start();
@@ -252,13 +257,20 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     asyncExecutorContainer.getStreamReader(),
                     asyncExecutorContainer.getStreamReader(),
                     asyncExecutorContainer.getStreamReader(),
-                    new TransferSemaphoresHolder(3, Math.max(Runtime.getRuntime().availableProcessors() * 5, 10), 5, TimeUnit.MINUTES)
+                    new TransferSemaphoresHolder(
+                        3,
+                        Math.max(Runtime.getRuntime().availableProcessors() * 5, 10),
+                        5,
+                        TimeUnit.MINUTES,
+                        new GenericStatsMetricPublisher()
+                    )
                 ),
                 asyncExecutorContainer,
                 asyncExecutorContainer,
                 asyncExecutorContainer,
                 normalPrioritySizeBasedBlockingQ,
-                lowPrioritySizeBasedBlockingQ
+                lowPrioritySizeBasedBlockingQ,
+                new GenericStatsMetricPublisher()
             )
         ) {
             @Override

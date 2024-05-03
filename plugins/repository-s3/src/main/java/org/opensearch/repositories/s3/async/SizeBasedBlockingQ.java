@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.repositories.s3.GenericStatsMetricPublisher;
 import org.opensearch.repositories.s3.S3TransferRejectedException;
 
 import java.util.concurrent.ExecutorService;
@@ -39,11 +40,19 @@ public class SizeBasedBlockingQ extends AbstractLifecycleComponent {
     protected final AtomicBoolean closed;
     protected final ExecutorService executorService;
     protected final int consumers;
+    private final GenericStatsMetricPublisher genericStatsMetricPublisher;
+    private final QueueEventType queueEventType;
 
     /**
      * Constructor to create sized based blocking queue.
      */
-    public SizeBasedBlockingQ(ByteSizeValue capacity, ExecutorService executorService, int consumers) {
+    public SizeBasedBlockingQ(
+        ByteSizeValue capacity,
+        ExecutorService executorService,
+        int consumers,
+        GenericStatsMetricPublisher genericStatsMetricPublisher,
+        QueueEventType queueEventType
+    ) {
         this.queue = new LinkedBlockingQueue<>();
         this.lock = new ReentrantLock();
         this.notEmpty = lock.newCondition();
@@ -52,12 +61,19 @@ public class SizeBasedBlockingQ extends AbstractLifecycleComponent {
         this.closed = new AtomicBoolean();
         this.executorService = executorService;
         this.consumers = consumers;
+        this.genericStatsMetricPublisher = genericStatsMetricPublisher;
+        this.queueEventType = queueEventType;
+    }
+
+    public enum QueueEventType {
+        NORMAL,
+        LOW;
     }
 
     @Override
     protected void doStart() {
         for (int worker = 0; worker < consumers; worker++) {
-            Thread consumer = new Consumer(queue, currentSize, lock, notEmpty, closed);
+            Thread consumer = new Consumer(queue, currentSize, lock, notEmpty, closed, genericStatsMetricPublisher, queueEventType);
             executorService.submit(consumer);
         }
     }
@@ -88,8 +104,18 @@ public class SizeBasedBlockingQ extends AbstractLifecycleComponent {
             queue.put(item);
             currentSize.addAndGet(item.size);
             notEmpty.signalAll();
+            updateStats(item.size, queueEventType, genericStatsMetricPublisher);
         } finally {
             lock.unlock();
+        }
+
+    }
+
+    private static void updateStats(long itemSize, QueueEventType queueEventType, GenericStatsMetricPublisher genericStatsMetricPublisher) {
+        if (queueEventType == QueueEventType.NORMAL) {
+            genericStatsMetricPublisher.updateNormalPriorityQSize(itemSize);
+        } else if (queueEventType == QueueEventType.LOW) {
+            genericStatsMetricPublisher.updateLowPriorityQSize(itemSize);
         }
     }
 
@@ -97,7 +123,7 @@ public class SizeBasedBlockingQ extends AbstractLifecycleComponent {
         return queue.size();
     }
 
-    public boolean isBelowCapacity(long contentLength) {
+    public boolean isMaxCapacityBelowContentLength(long contentLength) {
         return contentLength < capacity.getBytes();
     }
 
@@ -107,13 +133,25 @@ public class SizeBasedBlockingQ extends AbstractLifecycleComponent {
         private final Condition notEmpty;
         private final AtomicLong currentSize;
         private final AtomicBoolean closed;
+        private final GenericStatsMetricPublisher genericStatsMetricPublisher;
+        private final QueueEventType queueEventType;
 
-        public Consumer(LinkedBlockingQueue<Item> queue, AtomicLong currentSize, Lock lock, Condition notEmpty, AtomicBoolean closed) {
+        public Consumer(
+            LinkedBlockingQueue<Item> queue,
+            AtomicLong currentSize,
+            Lock lock,
+            Condition notEmpty,
+            AtomicBoolean closed,
+            GenericStatsMetricPublisher genericStatsMetricPublisher,
+            QueueEventType queueEventType
+        ) {
             this.queue = queue;
             this.lock = lock;
             this.notEmpty = notEmpty;
             this.currentSize = currentSize;
             this.closed = closed;
+            this.genericStatsMetricPublisher = genericStatsMetricPublisher;
+            this.queueEventType = queueEventType;
         }
 
         @Override
@@ -147,6 +185,7 @@ public class SizeBasedBlockingQ extends AbstractLifecycleComponent {
 
                 item = queue.take();
                 currentSize.addAndGet(-item.size);
+                updateStats(-item.size, queueEventType, genericStatsMetricPublisher);
             } finally {
                 lock.unlock();
             }

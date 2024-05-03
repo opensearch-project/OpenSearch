@@ -33,6 +33,7 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.blobstore.ZeroInputStream;
+import org.opensearch.repositories.s3.GenericStatsMetricPublisher;
 import org.opensearch.repositories.s3.StatsMetricPublisher;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -69,7 +70,13 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
             Executors.newSingleThreadExecutor(),
             Executors.newSingleThreadExecutor(),
             Executors.newSingleThreadExecutor(),
-            new TransferSemaphoresHolder(3, Math.max(Runtime.getRuntime().availableProcessors() * 5, 10), 5, TimeUnit.MINUTES)
+            new TransferSemaphoresHolder(
+                3,
+                Math.max(Runtime.getRuntime().availableProcessors() * 5, 10),
+                5,
+                TimeUnit.MINUTES,
+                new GenericStatsMetricPublisher()
+            )
         );
         super.setUp();
     }

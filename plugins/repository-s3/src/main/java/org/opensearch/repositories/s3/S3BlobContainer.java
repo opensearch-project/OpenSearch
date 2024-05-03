@@ -222,10 +222,11 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             // If file size is greater than the queue capacity than SizeBasedBlockingQ will always reject the upload.
             // Therefore, redirecting it to slow client.
             if ((uploadRequest.getWritePriority() == WritePriority.LOW
-                && blobStore.getLowPrioritySizeBasedBlockingQ().isBelowCapacity(uploadRequest.getContentLength()) == false)
+                && blobStore.getLowPrioritySizeBasedBlockingQ().isMaxCapacityBelowContentLength(uploadRequest.getContentLength()) == false)
                 || (uploadRequest.getWritePriority() != WritePriority.HIGH
                     && uploadRequest.getWritePriority() != WritePriority.URGENT
-                    && blobStore.getNormalPrioritySizeBasedBlockingQ().isBelowCapacity(uploadRequest.getContentLength()) == false)) {
+                    && blobStore.getNormalPrioritySizeBasedBlockingQ()
+                        .isMaxCapacityBelowContentLength(uploadRequest.getContentLength()) == false)) {
                 StreamContext streamContext = SocketAccess.doPrivileged(
                     () -> writeContext.getStreamProvider(uploadRequest.getContentLength())
                 );
@@ -266,7 +267,9 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     s3AsyncClient = amazonS3Reference.get().client();
                 }
 
-                if (writeContext.getWritePriority() == WritePriority.URGENT || writeContext.getWritePriority() == WritePriority.HIGH) {
+                if (writeContext.getWritePriority() == WritePriority.URGENT
+                    || writeContext.getWritePriority() == WritePriority.HIGH
+                    || blobStore.isPermitBackedTransferEnabled() == false) {
                     createFileCompletableFuture(s3AsyncClient, uploadRequest, streamContext, completionListener);
                 } else if (writeContext.getWritePriority() == WritePriority.LOW) {
                     blobStore.getLowPrioritySizeBasedBlockingQ()

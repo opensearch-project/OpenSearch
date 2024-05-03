@@ -11,10 +11,12 @@ package org.opensearch.repositories.s3.async;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.repositories.s3.GenericStatsMetricPublisher;
 
 import java.util.Objects;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * Transfer semaphore holder for controlled transfer of data to remote.
@@ -23,8 +25,8 @@ public class TransferSemaphoresHolder {
     private static final Logger log = LogManager.getLogger(TransferSemaphoresHolder.class);
     // For tests
     protected TypeSemaphore lowPrioritySemaphore;
-    protected TypeSemaphore highPrioritySemaphore;
-    private final int highPriorityPermits;
+    protected TypeSemaphore normalPrioritySemaphore;
+    private final int normalPriorityPermits;
     private final int lowPriorityPermits;
     private final int acquireWaitDuration;
     private final TimeUnit acquireWaitDurationUnit;
@@ -32,12 +34,26 @@ public class TransferSemaphoresHolder {
     /**
      * Constructor to create semaphores holder.
      */
-    public TransferSemaphoresHolder(int availablePermits, double priorityPermitAllocation, int acquireWaitDuration, TimeUnit timeUnit) {
+    public TransferSemaphoresHolder(
+        int availablePermits,
+        double priorityPermitAllocation,
+        int acquireWaitDuration,
+        TimeUnit timeUnit,
+        GenericStatsMetricPublisher genericStatsPublisher
+    ) {
 
-        this.highPriorityPermits = (int) (priorityPermitAllocation * availablePermits);
-        this.highPrioritySemaphore = new TypeSemaphore(highPriorityPermits, "high");
-        this.lowPriorityPermits = availablePermits - highPriorityPermits;
-        this.lowPrioritySemaphore = new TypeSemaphore(lowPriorityPermits, "low");
+        this.normalPriorityPermits = (int) (priorityPermitAllocation * availablePermits);
+        this.normalPrioritySemaphore = new TypeSemaphore(
+            normalPriorityPermits,
+            TypeSemaphore.PermitType.NORMAL,
+            genericStatsPublisher::updateNormalPermits
+        );
+        this.lowPriorityPermits = availablePermits - normalPriorityPermits;
+        this.lowPrioritySemaphore = new TypeSemaphore(
+            lowPriorityPermits,
+            TypeSemaphore.PermitType.LOW,
+            genericStatsPublisher::updateLowPermits
+        );
         this.acquireWaitDuration = acquireWaitDuration;
         this.acquireWaitDurationUnit = timeUnit;
     }
@@ -46,15 +62,46 @@ public class TransferSemaphoresHolder {
      * Overridden semaphore to identify transfer semaphores among all other semaphores for triaging.
      */
     public static class TypeSemaphore extends Semaphore {
-        private final String type;
+        private final PermitType permitType;
+        private final Consumer<Boolean> permitChangeConsumer;
 
-        public TypeSemaphore(int permits, String type) {
-            super(permits);
-            this.type = type;
+        public enum PermitType {
+            NORMAL,
+            LOW;
         }
 
-        public String getType() {
-            return type;
+        public TypeSemaphore(int permits, PermitType permitType, Consumer<Boolean> permitChangeConsumer) {
+            super(permits);
+            this.permitType = permitType;
+            this.permitChangeConsumer = permitChangeConsumer;
+        }
+
+        public PermitType getType() {
+            return permitType;
+        }
+
+        @Override
+        public boolean tryAcquire() {
+            boolean acquired = super.tryAcquire();
+            if (acquired) {
+                permitChangeConsumer.accept(true);
+            }
+            return acquired;
+        }
+
+        @Override
+        public boolean tryAcquire(long timeout, TimeUnit unit) throws InterruptedException {
+            boolean acquired = super.tryAcquire(timeout, unit);
+            if (acquired) {
+                permitChangeConsumer.accept(true);
+            }
+            return acquired;
+        }
+
+        @Override
+        public void release() {
+            super.release();
+            permitChangeConsumer.accept(false);
         }
     }
 
@@ -94,7 +141,7 @@ public class TransferSemaphoresHolder {
             () -> "Acquire permit request for transfer type: "
                 + writePriority
                 + ". Available high priority permits: "
-                + highPrioritySemaphore.availablePermits()
+                + normalPrioritySemaphore.availablePermits()
                 + " and low priority permits: "
                 + lowPrioritySemaphore.availablePermits()
         );
@@ -103,8 +150,8 @@ public class TransferSemaphoresHolder {
         if (Objects.requireNonNull(writePriority) == WritePriority.LOW) {
             if (lowPrioritySemaphore.tryAcquire()) {
                 return lowPrioritySemaphore;
-            } else if (highPrioritySemaphore.availablePermits() > 0.4 * highPriorityPermits && highPrioritySemaphore.tryAcquire()) {
-                return highPrioritySemaphore;
+            } else if (normalPrioritySemaphore.availablePermits() > 0.4 * normalPriorityPermits && normalPrioritySemaphore.tryAcquire()) {
+                return normalPrioritySemaphore;
             } else if (lowPrioritySemaphore.tryAcquire(acquireWaitDuration, acquireWaitDurationUnit)) {
                 return lowPrioritySemaphore;
             }
@@ -113,12 +160,12 @@ public class TransferSemaphoresHolder {
 
         // Try acquiring high priority permit or low priority permit immediately if available.
         // Otherwise, we wait for high priority permit.
-        if (highPrioritySemaphore.tryAcquire()) {
-            return highPrioritySemaphore;
+        if (normalPrioritySemaphore.tryAcquire()) {
+            return normalPrioritySemaphore;
         } else if (requestContext.lowPriorityPermitsConsumable && lowPrioritySemaphore.tryAcquire()) {
             return lowPrioritySemaphore;
-        } else if (highPrioritySemaphore.tryAcquire(acquireWaitDuration, acquireWaitDurationUnit)) {
-            return highPrioritySemaphore;
+        } else if (normalPrioritySemaphore.tryAcquire(acquireWaitDuration, acquireWaitDurationUnit)) {
+            return normalPrioritySemaphore;
         }
         return null;
     }
@@ -126,8 +173,8 @@ public class TransferSemaphoresHolder {
     /**
      * Used in tests.
      */
-    public int getHighPriorityPermits() {
-        return highPriorityPermits;
+    public int getNormalPriorityPermits() {
+        return normalPriorityPermits;
     }
 
     /**
@@ -135,19 +182,5 @@ public class TransferSemaphoresHolder {
      */
     public int getLowPriorityPermits() {
         return lowPriorityPermits;
-    }
-
-    /**
-     * Used in tests.
-     */
-    public int getAvailableHighPriorityPermits() {
-        return highPrioritySemaphore.availablePermits();
-    }
-
-    /**
-     * Used in tests.
-     */
-    public int getAvailableLowPriorityPermits() {
-        return lowPrioritySemaphore.availablePermits();
     }
 }

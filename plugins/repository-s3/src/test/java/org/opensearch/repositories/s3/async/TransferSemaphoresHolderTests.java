@@ -9,6 +9,7 @@
 package org.opensearch.repositories.s3.async;
 
 import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.repositories.s3.GenericStatsMetricPublisher;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -19,39 +20,47 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.mockito.Mockito;
 
+import static org.opensearch.repositories.s3.async.TransferSemaphoresHolder.TypeSemaphore.PermitType;
+
 public class TransferSemaphoresHolderTests extends OpenSearchTestCase {
 
     public void testAllocation() {
         int availablePermits = randomIntBetween(5, 20);
         double priorityAllocation = randomDoubleBetween(0.1, 0.9, true);
-        int highPermits = (int) (availablePermits * priorityAllocation);
-        int lowPermits = availablePermits - highPermits;
+        int normalPermits = (int) (availablePermits * priorityAllocation);
+        int lowPermits = availablePermits - normalPermits;
+        GenericStatsMetricPublisher genericStatsPublisher = new GenericStatsMetricPublisher();
         TransferSemaphoresHolder transferSemaphoresHolder = new TransferSemaphoresHolder(
             availablePermits,
             priorityAllocation,
             1,
-            TimeUnit.NANOSECONDS
+            TimeUnit.NANOSECONDS,
+            genericStatsPublisher
         );
-        assertEquals(highPermits, transferSemaphoresHolder.getHighPriorityPermits());
+        assertEquals(normalPermits, transferSemaphoresHolder.getNormalPriorityPermits());
         assertEquals(lowPermits, transferSemaphoresHolder.getLowPriorityPermits());
+        assertEquals(0, genericStatsPublisher.getAcquiredNormalPriorityPermits());
+        assertEquals(0, genericStatsPublisher.getAcquiredLowPriorityPermits());
     }
 
     public void testLowPriorityEventPermitAcquisition() throws InterruptedException {
         int availablePermits = randomIntBetween(5, 50);
         double priorityAllocation = randomDoubleBetween(0.1, 0.9, true);
-        int highPermits = (int) (availablePermits * priorityAllocation);
-        int lowPermits = availablePermits - highPermits;
+        int normalPermits = (int) (availablePermits * priorityAllocation);
+        int lowPermits = availablePermits - normalPermits;
+        GenericStatsMetricPublisher genericStatsPublisher = new GenericStatsMetricPublisher();
         TransferSemaphoresHolder transferSemaphoresHolder = new TransferSemaphoresHolder(
             availablePermits,
             priorityAllocation,
             1,
-            TimeUnit.NANOSECONDS
+            TimeUnit.NANOSECONDS,
+            genericStatsPublisher
         );
 
         List<TransferSemaphoresHolder.TypeSemaphore> semaphores = new ArrayList<>();
-        int highPermitsEligibleForLowEvents = highPermits - (int) (highPermits * 0.4);
+        int normalPermitsEligibleForLowEvents = normalPermits - (int) (normalPermits * 0.4);
 
-        int lowAcquisitionsExpected = (highPermitsEligibleForLowEvents + lowPermits);
+        int lowAcquisitionsExpected = (normalPermitsEligibleForLowEvents + lowPermits);
         for (int i = 0; i < lowAcquisitionsExpected; i++) {
             TransferSemaphoresHolder.RequestContext requestContext = transferSemaphoresHolder.createRequestContext();
             TransferSemaphoresHolder.TypeSemaphore acquiredSemaphore = transferSemaphoresHolder.acquirePermit(
@@ -60,19 +69,19 @@ public class TransferSemaphoresHolderTests extends OpenSearchTestCase {
             );
             semaphores.add(acquiredSemaphore);
             if (i >= lowPermits) {
-                assertEquals("high", acquiredSemaphore.getType());
+                assertEquals(PermitType.NORMAL, acquiredSemaphore.getType());
             } else {
-                assertEquals("low", acquiredSemaphore.getType());
+                assertEquals(PermitType.LOW, acquiredSemaphore.getType());
             }
         }
 
-        for (int i = 0; i < highPermits - highPermitsEligibleForLowEvents; i++) {
+        for (int i = 0; i < normalPermits - normalPermitsEligibleForLowEvents; i++) {
             TransferSemaphoresHolder.RequestContext requestContext = transferSemaphoresHolder.createRequestContext();
             TransferSemaphoresHolder.TypeSemaphore acquiredSemaphore = transferSemaphoresHolder.acquirePermit(
-                WritePriority.HIGH,
+                WritePriority.NORMAL,
                 requestContext
             );
-            assertEquals("high", acquiredSemaphore.getType());
+            assertEquals(PermitType.NORMAL, acquiredSemaphore.getType());
             semaphores.add(acquiredSemaphore);
         }
 
@@ -85,44 +94,51 @@ public class TransferSemaphoresHolderTests extends OpenSearchTestCase {
 
         assertEquals(availablePermits, semaphores.size());
         semaphores.forEach(Semaphore::release);
-        assertEquals(highPermits, transferSemaphoresHolder.getHighPriorityPermits());
+        assertEquals(normalPermits, transferSemaphoresHolder.getNormalPriorityPermits());
         assertEquals(lowPermits, transferSemaphoresHolder.getLowPriorityPermits());
+        assertEquals(0, genericStatsPublisher.getAcquiredNormalPriorityPermits());
+        assertEquals(0, genericStatsPublisher.getAcquiredLowPriorityPermits());
 
     }
 
-    public void testHighPermitEventAcquisition() throws InterruptedException {
+    public void testNormalPermitEventAcquisition() throws InterruptedException {
         int availablePermits = randomIntBetween(5, 50);
         double priorityAllocation = randomDoubleBetween(0.1, 0.9, true);
-        int highPermits = (int) (availablePermits * priorityAllocation);
-        int lowPermits = availablePermits - highPermits;
+        int normalPermits = (int) (availablePermits * priorityAllocation);
+        int lowPermits = availablePermits - normalPermits;
+        GenericStatsMetricPublisher genericStatsPublisher = new GenericStatsMetricPublisher();
         TransferSemaphoresHolder transferSemaphoresHolder = new TransferSemaphoresHolder(
             availablePermits,
             priorityAllocation,
             1,
-            TimeUnit.NANOSECONDS
+            TimeUnit.NANOSECONDS,
+            genericStatsPublisher
         );
 
         List<TransferSemaphoresHolder.TypeSemaphore> semaphores = new ArrayList<>();
         List<TransferSemaphoresHolder.TypeSemaphore> lowSemaphores = new ArrayList<>();
-        int highAcquisitionsExpected = highPermits + lowPermits;
+        int normalAcquisitionsExpected = normalPermits + lowPermits;
         TransferSemaphoresHolder.RequestContext requestContext = transferSemaphoresHolder.createRequestContext();
-        for (int i = 0; i < highAcquisitionsExpected; i++) {
+        for (int i = 0; i < normalAcquisitionsExpected; i++) {
             TransferSemaphoresHolder.TypeSemaphore acquiredSemaphore = transferSemaphoresHolder.acquirePermit(
-                WritePriority.HIGH,
+                WritePriority.NORMAL,
                 requestContext
             );
             semaphores.add(acquiredSemaphore);
-            if (i >= highPermits) {
-                assertEquals("low", acquiredSemaphore.getType());
+            if (i >= normalPermits) {
+                assertEquals(PermitType.LOW, acquiredSemaphore.getType());
                 lowSemaphores.add(acquiredSemaphore);
             } else {
-                assertEquals("high", acquiredSemaphore.getType());
+                assertEquals(PermitType.NORMAL, acquiredSemaphore.getType());
             }
         }
         assertEquals(availablePermits, semaphores.size());
 
         int lowAcquired = lowPermits;
-        lowSemaphores.get(0).release();
+
+        Semaphore removedLowSemaphore = lowSemaphores.remove(0);
+        removedLowSemaphore.release();
+        semaphores.remove(removedLowSemaphore);
 
         requestContext = transferSemaphoresHolder.createRequestContext();
         TransferSemaphoresHolder.TypeSemaphore acquiredSemaphore = transferSemaphoresHolder.acquirePermit(
@@ -133,18 +149,20 @@ public class TransferSemaphoresHolderTests extends OpenSearchTestCase {
         lowSemaphores.add(acquiredSemaphore);
         while (lowAcquired > 1) {
             requestContext = transferSemaphoresHolder.createRequestContext();
-            acquiredSemaphore = transferSemaphoresHolder.acquirePermit(WritePriority.HIGH, requestContext);
+            acquiredSemaphore = transferSemaphoresHolder.acquirePermit(WritePriority.NORMAL, requestContext);
             assertNull(acquiredSemaphore);
             lowAcquired--;
         }
 
         semaphores.forEach(Semaphore::release);
-        assertEquals(highPermits, transferSemaphoresHolder.getHighPriorityPermits());
+        assertEquals(normalPermits, transferSemaphoresHolder.getNormalPriorityPermits());
         assertEquals(lowPermits, transferSemaphoresHolder.getLowPriorityPermits());
+        assertEquals(0, genericStatsPublisher.getAcquiredNormalPriorityPermits());
+        assertEquals(0, genericStatsPublisher.getAcquiredLowPriorityPermits());
     }
 
     private static class TestTransferSemaphoresHolder extends TransferSemaphoresHolder {
-        AtomicInteger highWaitCount = new AtomicInteger();
+        AtomicInteger normalWaitCount = new AtomicInteger();
         AtomicInteger lowWaitCount = new AtomicInteger();
 
         /**
@@ -154,20 +172,21 @@ public class TransferSemaphoresHolderTests extends OpenSearchTestCase {
             int availablePermits,
             double priorityPermitAllocation,
             int acquireWaitDuration,
-            TimeUnit timeUnit
+            TimeUnit timeUnit,
+            GenericStatsMetricPublisher genericStatsMetricPublisher
         ) throws InterruptedException {
-            super(availablePermits, priorityPermitAllocation, acquireWaitDuration, timeUnit);
-            TypeSemaphore executingHighSemaphore = highPrioritySemaphore;
+            super(availablePermits, priorityPermitAllocation, acquireWaitDuration, timeUnit, genericStatsMetricPublisher);
+            TypeSemaphore executingNormalSemaphore = normalPrioritySemaphore;
             TypeSemaphore executingLowSemaphore = lowPrioritySemaphore;
 
-            this.highPrioritySemaphore = Mockito.spy(highPrioritySemaphore);
+            this.normalPrioritySemaphore = Mockito.spy(normalPrioritySemaphore);
             this.lowPrioritySemaphore = Mockito.spy(lowPrioritySemaphore);
             Mockito.doAnswer(invocation -> {
-                highWaitCount.incrementAndGet();
+                normalWaitCount.incrementAndGet();
                 return false;
-            }).when(highPrioritySemaphore).tryAcquire(Mockito.anyLong(), Mockito.any(TimeUnit.class));
-            Mockito.doAnswer(invocation -> executingHighSemaphore.availablePermits()).when(highPrioritySemaphore).availablePermits();
-            Mockito.doAnswer(invocation -> executingHighSemaphore.tryAcquire()).when(highPrioritySemaphore).tryAcquire();
+            }).when(normalPrioritySemaphore).tryAcquire(Mockito.anyLong(), Mockito.any(TimeUnit.class));
+            Mockito.doAnswer(invocation -> executingNormalSemaphore.availablePermits()).when(normalPrioritySemaphore).availablePermits();
+            Mockito.doAnswer(invocation -> executingNormalSemaphore.tryAcquire()).when(normalPrioritySemaphore).tryAcquire();
 
             Mockito.doAnswer(invocation -> {
                 lowWaitCount.incrementAndGet();
@@ -178,58 +197,60 @@ public class TransferSemaphoresHolderTests extends OpenSearchTestCase {
         }
     }
 
-    public void testHighSemaphoreAcquiredWait() throws InterruptedException {
+    public void testNormalSemaphoreAcquiredWait() throws InterruptedException {
         int availablePermits = randomIntBetween(10, 50);
         double priorityAllocation = randomDoubleBetween(0.1, 0.9, true);
-        int highPermits = (int) (availablePermits * priorityAllocation);
+        int normalPermits = (int) (availablePermits * priorityAllocation);
         TestTransferSemaphoresHolder transferSemaphoresHolder = new TestTransferSemaphoresHolder(
             availablePermits,
             priorityAllocation,
             5,
-            TimeUnit.MINUTES
+            TimeUnit.MINUTES,
+            new GenericStatsMetricPublisher()
         );
 
         TransferSemaphoresHolder.RequestContext requestContext = transferSemaphoresHolder.createRequestContext();
         TransferSemaphoresHolder.TypeSemaphore lowSemaphore = transferSemaphoresHolder.acquirePermit(WritePriority.LOW, requestContext);
-        assertEquals("low", lowSemaphore.getType());
-        for (int i = 0; i < highPermits; i++) {
+        assertEquals(PermitType.LOW, lowSemaphore.getType());
+        for (int i = 0; i < normalPermits; i++) {
             requestContext = transferSemaphoresHolder.createRequestContext();
             TransferSemaphoresHolder.TypeSemaphore acquiredSemaphore = transferSemaphoresHolder.acquirePermit(
-                WritePriority.HIGH,
+                WritePriority.NORMAL,
                 requestContext
             );
-            assertEquals("high", acquiredSemaphore.getType());
+            assertEquals(PermitType.NORMAL, acquiredSemaphore.getType());
         }
 
         TransferSemaphoresHolder.TypeSemaphore acquiredSemaphore = transferSemaphoresHolder.acquirePermit(
-            WritePriority.HIGH,
+            WritePriority.NORMAL,
             requestContext
         );
         assertNull(acquiredSemaphore);
-        assertEquals(1, transferSemaphoresHolder.highWaitCount.get());
+        assertEquals(1, transferSemaphoresHolder.normalWaitCount.get());
         assertEquals(0, transferSemaphoresHolder.lowWaitCount.get());
     }
 
     public void testLowSemaphoreAcquiredWait() throws InterruptedException {
         int availablePermits = randomIntBetween(10, 50);
         double priorityAllocation = randomDoubleBetween(0.1, 0.9, true);
-        int highPermits = (int) (availablePermits * priorityAllocation);
-        int lowPermits = availablePermits - highPermits;
+        int normalPermits = (int) (availablePermits * priorityAllocation);
+        int lowPermits = availablePermits - normalPermits;
         TestTransferSemaphoresHolder transferSemaphoresHolder = new TestTransferSemaphoresHolder(
             availablePermits,
             priorityAllocation,
             5,
-            TimeUnit.MINUTES
+            TimeUnit.MINUTES,
+            new GenericStatsMetricPublisher()
         );
 
         TransferSemaphoresHolder.RequestContext requestContext = transferSemaphoresHolder.createRequestContext();
-        int highPermitsEligibleForLowEvents = highPermits - (int) (highPermits * 0.4);
-        for (int i = 0; i < highPermitsEligibleForLowEvents; i++) {
+        int normalPermitsEligibleForLowEvents = normalPermits - (int) (normalPermits * 0.4);
+        for (int i = 0; i < normalPermitsEligibleForLowEvents; i++) {
             TransferSemaphoresHolder.TypeSemaphore lowSemaphore = transferSemaphoresHolder.acquirePermit(
-                WritePriority.HIGH,
+                WritePriority.NORMAL,
                 requestContext
             );
-            assertEquals("high", lowSemaphore.getType());
+            assertEquals(PermitType.NORMAL, lowSemaphore.getType());
         }
 
         for (int i = 0; i < lowPermits; i++) {
@@ -238,7 +259,7 @@ public class TransferSemaphoresHolderTests extends OpenSearchTestCase {
                 WritePriority.LOW,
                 requestContext
             );
-            assertEquals("low", acquiredSemaphore.getType());
+            assertEquals(PermitType.LOW, acquiredSemaphore.getType());
         }
 
         TransferSemaphoresHolder.TypeSemaphore acquiredSemaphore = transferSemaphoresHolder.acquirePermit(
@@ -247,7 +268,7 @@ public class TransferSemaphoresHolderTests extends OpenSearchTestCase {
         );
         assertNull(acquiredSemaphore);
         assertEquals(1, transferSemaphoresHolder.lowWaitCount.get());
-        assertEquals(0, transferSemaphoresHolder.highWaitCount.get());
+        assertEquals(0, transferSemaphoresHolder.normalWaitCount.get());
     }
 
 }

@@ -105,6 +105,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     private SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ;
     private SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
     private TransferSemaphoresHolder transferSemaphoresHolder;
+    private GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher();
 
     public S3RepositoryPlugin(final Settings settings, final Path configPath) {
         this(settings, configPath, new S3Service(configPath), new S3AsyncService(configPath));
@@ -236,13 +237,16 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         this.normalPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
             new ByteSizeValue(normalPriorityConsumers * 10L, ByteSizeUnit.GB),
             normalTransferQConsumerService,
-            normalPriorityConsumers
+            normalPriorityConsumers,
+            genericStatsMetricPublisher,
+            SizeBasedBlockingQ.QueueEventType.NORMAL
         );
         int lowPriorityConsumers = lowPriorityTransferQConsumers(clusterService.getSettings());
         LowPrioritySizeBasedBlockingQ lowPrioritySizeBasedBlockingQ = new LowPrioritySizeBasedBlockingQ(
             new ByteSizeValue(lowPriorityConsumers * 20L, ByteSizeUnit.GB),
             lowTransferQConsumerService,
-            lowPriorityConsumers
+            lowPriorityConsumers,
+            genericStatsMetricPublisher
         );
         this.lowPrioritySizeBasedBlockingQ = lowPrioritySizeBasedBlockingQ;
         this.transferSemaphoresHolder = new TransferSemaphoresHolder(
@@ -250,7 +254,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             Math.max(allocatedProcessors(clusterService.getSettings()) * 4, 10),
             ((double) S3Repository.S3_PRIORITY_PERMIT_ALLOCATION_PERCENT.get(clusterService.getSettings())) / 100,
             S3Repository.S3_PERMIT_WAIT_DURATION_MIN.get(clusterService.getSettings()),
-            TimeUnit.MINUTES
+            TimeUnit.MINUTES,
+            genericStatsMetricPublisher
         );
 
         return CollectionUtils.arrayAsArrayList(this.normalPrioritySizeBasedBlockingQ, lowPrioritySizeBasedBlockingQ);
@@ -259,8 +264,13 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     // New class because in core, components are injected via guice only by instance creation due to which
     // same binding types fail.
     private static final class LowPrioritySizeBasedBlockingQ extends SizeBasedBlockingQ {
-        public LowPrioritySizeBasedBlockingQ(ByteSizeValue capacity, ExecutorService executorService, int consumers) {
-            super(capacity, executorService, consumers);
+        public LowPrioritySizeBasedBlockingQ(
+            ByteSizeValue capacity,
+            ExecutorService executorService,
+            int consumers,
+            GenericStatsMetricPublisher genericStatsMetricPublisher
+        ) {
+            super(capacity, executorService, consumers, genericStatsMetricPublisher, QueueEventType.LOW);
         }
     }
 
@@ -293,7 +303,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING.get(clusterService.getSettings()),
             configPath,
             normalPrioritySizeBasedBlockingQ,
-            lowPrioritySizeBasedBlockingQ
+            lowPrioritySizeBasedBlockingQ,
+            genericStatsMetricPublisher
         );
     }
 
@@ -339,7 +350,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING,
             S3Repository.REDIRECT_LARGE_S3_UPLOAD,
             S3Repository.UPLOAD_RETRY_ENABLED,
-            S3Repository.S3_PRIORITY_PERMIT_ALLOCATION_PERCENT
+            S3Repository.S3_PRIORITY_PERMIT_ALLOCATION_PERCENT,
+            S3Repository.PERMIT_BACKED_TRANSFER_ENABLED
         );
     }
 

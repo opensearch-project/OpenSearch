@@ -377,15 +377,20 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         transferQueueConsumerService = Executors.newFixedThreadPool(20);
         scheduler = new Scheduler.SafeScheduledThreadPoolExecutor(1);
         transferNIOGroup = new AsyncTransferEventLoopGroup(1);
+        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher();
         normalPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
             new ByteSizeValue(Runtime.getRuntime().availableProcessors() * 10L, ByteSizeUnit.GB),
             transferQueueConsumerService,
-            10
+            10,
+            genericStatsMetricPublisher,
+            SizeBasedBlockingQ.QueueEventType.NORMAL
         );
         lowPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
             new ByteSizeValue(Runtime.getRuntime().availableProcessors() * 20L, ByteSizeUnit.GB),
             transferQueueConsumerService,
-            5
+            5,
+            genericStatsMetricPublisher,
+            SizeBasedBlockingQ.QueueEventType.NORMAL
         );
         normalPrioritySizeBasedBlockingQ.start();
         lowPrioritySizeBasedBlockingQ.start();
@@ -443,13 +448,20 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
                 asyncExecutorContainer.getStreamReader(),
                 asyncExecutorContainer.getStreamReader(),
                 asyncExecutorContainer.getStreamReader(),
-                new TransferSemaphoresHolder(3, Math.max(Runtime.getRuntime().availableProcessors() * 5, 10), 5, TimeUnit.MINUTES)
+                new TransferSemaphoresHolder(
+                    3,
+                    Math.max(Runtime.getRuntime().availableProcessors() * 5, 10),
+                    5,
+                    TimeUnit.MINUTES,
+                    new GenericStatsMetricPublisher()
+                )
             ),
             asyncExecutorContainer,
             asyncExecutorContainer,
             asyncExecutorContainer,
             normalPrioritySizeBasedBlockingQ,
-            lowPrioritySizeBasedBlockingQ
+            lowPrioritySizeBasedBlockingQ,
+            new GenericStatsMetricPublisher()
         );
     }
 
@@ -625,7 +637,14 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         int numberOfParts = 20;
         final ByteSizeValue partSize = new ByteSizeValue(capacity.getBytes() / numberOfParts + 1, ByteSizeUnit.BYTES);
 
-        SizeBasedBlockingQ sizeBasedBlockingQ = new SizeBasedBlockingQ(capacity, transferQueueConsumerService, 10);
+        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher();
+        SizeBasedBlockingQ sizeBasedBlockingQ = new SizeBasedBlockingQ(
+            capacity,
+            transferQueueConsumerService,
+            10,
+            genericStatsMetricPublisher,
+            SizeBasedBlockingQ.QueueEventType.NORMAL
+        );
 
         final long lastPartSize = new ByteSizeValue(200, ByteSizeUnit.MB).getBytes();
         final long blobSize = ((numberOfParts - 1) * partSize.getBytes()) + lastPartSize;

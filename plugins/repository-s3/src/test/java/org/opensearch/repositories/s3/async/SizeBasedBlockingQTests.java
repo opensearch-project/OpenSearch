@@ -10,6 +10,7 @@ package org.opensearch.repositories.s3.async;
 
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.repositories.s3.GenericStatsMetricPublisher;
 import org.opensearch.repositories.s3.S3TransferRejectedException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
@@ -40,11 +41,16 @@ public class SizeBasedBlockingQTests extends OpenSearchTestCase {
     }
 
     public void testProducerConsumerOfBulkItems() throws InterruptedException {
-
+        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher();
+        SizeBasedBlockingQ.QueueEventType queueEventType = randomBoolean()
+            ? SizeBasedBlockingQ.QueueEventType.NORMAL
+            : SizeBasedBlockingQ.QueueEventType.LOW;
         SizeBasedBlockingQ sizeBasedBlockingQ = new SizeBasedBlockingQ(
             new ByteSizeValue(ByteSizeUnit.BYTES.toBytes(10)),
             consumerService,
-            10
+            10,
+            genericStatsMetricPublisher,
+            queueEventType
         );
         sizeBasedBlockingQ.start();
         int numOfItems = randomIntBetween(100, 1000);
@@ -76,6 +82,8 @@ public class SizeBasedBlockingQTests extends OpenSearchTestCase {
         latch.await();
         sizeBasedBlockingQ.close();
         assertFalse(unknownError.get());
+        assertEquals(0L, genericStatsMetricPublisher.getNormalPriorityQSize());
+        assertEquals(0L, genericStatsMetricPublisher.getLowPriorityQSize());
     }
 
     static class TestItemToStr extends SizeBasedBlockingQ.Item {
