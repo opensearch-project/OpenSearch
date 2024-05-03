@@ -8,30 +8,48 @@
 
 package org.opensearch.index.translog.transfer;
 
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.indices.RemoteStoreSettings;
 
 /**
- * Factory to provide translog transfer manager to transfer {@link TranslogCheckpointSnapshot}
+ * Factory to provide translog transfer manager to transfer Set of {@link TranslogCheckpointSnapshot}
  *
  * @opensearch.internal
  */
 public class TranslogTransferManagerFactory {
 
-    private final TransferService transferService;
-    private final FileTransferTracker fileTransferTracker;
-    private final ShardId shardId;
-
-    public TranslogTransferManagerFactory(TransferService transferService, FileTransferTracker fileTransferTracker, ShardId shardId) {
-        this.transferService = transferService;
-        this.fileTransferTracker = fileTransferTracker;
-        this.shardId = shardId;
-    }
-
-    public TranslogCheckpointSnapshotTransferManager getTranslogCheckpointSnapshotTransferManager(boolean isBlobMetadataSupported) {
-        if (isBlobMetadataSupported) {
-            return new TranslogCheckpointSnapshotTransferManagerWithMetadata(transferService);
+    public static BaseTranslogTransferManager getTranslogTransferManager(
+        ShardId shardId,
+        TransferService transferService,
+        BlobPath remoteDataTransferPath,
+        BlobPath remoteMetadataTransferPath,
+        FileTransferTracker fileTransferTracker,
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        RemoteStoreSettings remoteStoreSettings,
+        boolean shouldUploadTranslogCkpAsMetadata
+    ) {
+        if (shouldUploadTranslogCkpAsMetadata) {
+            return new TranslogCkpAsMetadataFileTransferManager(
+                shardId,
+                transferService,
+                remoteDataTransferPath,
+                remoteMetadataTransferPath,
+                fileTransferTracker,
+                remoteTranslogTransferTracker,
+                remoteStoreSettings
+            );
         } else {
-            return new TranslogCheckpointSnapshotTransferManagerWithoutMetadata(transferService, fileTransferTracker);
+            return new TranslogCheckpointFilesTransferManager(
+                shardId,
+                transferService,
+                remoteDataTransferPath,
+                remoteMetadataTransferPath,
+                fileTransferTracker,
+                remoteTranslogTransferTracker,
+                remoteStoreSettings
+            );
         }
     }
 }

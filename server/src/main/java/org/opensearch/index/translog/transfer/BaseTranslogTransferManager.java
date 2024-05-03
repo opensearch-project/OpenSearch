@@ -54,7 +54,7 @@ import static org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSn
  *
  * @opensearch.internal
  */
-public class TranslogTransferManager {
+public abstract class BaseTranslogTransferManager {
 
     private final ShardId shardId;
     private final TransferService transferService;
@@ -65,8 +65,6 @@ public class TranslogTransferManager {
     private final RemoteStoreSettings remoteStoreSettings;
     private static final int METADATA_FILES_TO_FETCH = 10;
     final static String CHECKPOINT_FILE_DATA_KEY = "ckp-data";
-    private final boolean shouldUploadTranslogCkpAsMetadata;
-    private final TranslogCheckpointSnapshotTransferManager transferManager;
 
     private final Logger logger;
 
@@ -76,15 +74,14 @@ public class TranslogTransferManager {
         TranslogTransferMetadata.METADATA_CODEC
     );
 
-    public TranslogTransferManager(
+    public BaseTranslogTransferManager(
         ShardId shardId,
         TransferService transferService,
         BlobPath remoteDataTransferPath,
         BlobPath remoteMetadataTransferPath,
         FileTransferTracker fileTransferTracker,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
-        RemoteStoreSettings remoteStoreSettings,
-        boolean shouldUploadTranslogCkpAsMetadata
+        RemoteStoreSettings remoteStoreSettings
     ) {
         this.shardId = shardId;
         this.transferService = transferService;
@@ -94,11 +91,6 @@ public class TranslogTransferManager {
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         this.remoteStoreSettings = remoteStoreSettings;
-        this.shouldUploadTranslogCkpAsMetadata = shouldUploadTranslogCkpAsMetadata;
-
-        transferManager = new TranslogTransferManagerFactory(transferService, fileTransferTracker, shardId)
-            .getTranslogCheckpointSnapshotTransferManager(shouldUploadTranslogCkpAsMetadata);
-
     }
 
     public RemoteTranslogTransferTracker getRemoteTranslogTransferTracker() {
@@ -109,6 +101,25 @@ public class TranslogTransferManager {
         return this.shardId;
     }
 
+    /**
+     * Transfers the translog checkpoint snapshots to a remote store.
+     *
+     * <p>This method starts the transfer of the translog checkpoint snapshots, which includes the translog
+     * and checkpoint files, to a remote store location. The snapshot is represented by a list of generational
+     * snapshots, and the destination paths are specified in a map of blob paths.
+     *
+     * @param generationalSnapshotList A list of generational snapshots representing the translog checkpoint snapshot.
+     * @param blobPathMap              A map containing the blob paths for the remote storage destinations.
+     * @param latchedActionListener    A latched action listener for listening the transfer progress.
+     * @param writePriority            The write priority for the transfer operation.
+     */
+    public abstract void transferTranslogCheckpointSnapshot(
+        Set<TranslogCheckpointSnapshot> generationalSnapshotList,
+        Map<Long, BlobPath> blobPathMap,
+        LatchedActionListener<TranslogCheckpointSnapshot> latchedActionListener,
+        WritePriority writePriority
+    ) throws Exception;
+
     public boolean transferSnapshot(TransferSnapshot transferSnapshot, TranslogTransferListener translogTransferListener)
         throws IOException {
         long metadataBytesToUpload;
@@ -116,13 +127,12 @@ public class TranslogTransferManager {
         long uploadStartTime;
         long prevUploadBytesSucceeded = remoteTranslogTransferTracker.getUploadBytesSucceeded();
         long prevUploadTimeInMillis = remoteTranslogTransferTracker.getTotalUploadTimeInMillis();
+        int totalFilesCount = transferSnapshot.getTranslogTransferMetadata().getCount();
+        List<Exception> exceptionList = new ArrayList<>(totalFilesCount);
+        Set<TranslogCheckpointSnapshot> generationalSnapshotList = new HashSet<>(totalFilesCount);
 
         try {
-            int totalFilesCount = transferSnapshot.getTranslogTransferMetadata().getCount();
-            List<Exception> exceptionList = new ArrayList<>(totalFilesCount);
-            Set<TranslogCheckpointSnapshot> generationalSnapshotList = new HashSet<>(totalFilesCount);
             generationalSnapshotList.addAll(fileTransferTracker.exclusionFilter(transferSnapshot.getTranslogCheckpointSnapshots()));
-
             if (generationalSnapshotList.isEmpty()) {
                 logger.trace("Nothing to upload for transfer");
                 return true;
@@ -133,27 +143,24 @@ public class TranslogTransferManager {
             final CountDownLatch latch = new CountDownLatch(generationalSnapshotList.size());
             LatchedActionListener<TranslogCheckpointSnapshot> latchedActionListener = new LatchedActionListener<>(
                 ActionListener.wrap(fileTransferTracker::onSuccess, ex -> {
-                    assert ex instanceof TranslogGenerationTransferException;
+                    assert ex instanceof TranslogTransferException;
                     logger.error(
                         () -> new ParameterizedMessage(
                             "Exception during transfer for translog generation {}",
-                            ((TranslogGenerationTransferException) ex).getFileSnapshot().getGeneration()
+                            ((TranslogTransferException) ex).getFileSnapshot().getGeneration()
                         ),
                         ex
                     );
-                    TranslogGenerationTransferException e = (TranslogGenerationTransferException) ex;
+                    TranslogTransferException e = (TranslogTransferException) ex;
                     TranslogCheckpointSnapshot file = e.getFileSnapshot();
                     fileTransferTracker.onFailure(file, ex);
                     exceptionList.add(ex);
 
                     Set<TransferFileSnapshot> failedFiles = e.getFailedFiles();
                     Set<TransferFileSnapshot> successFiles = e.getSuccessFiles();
-                    if (!failedFiles.isEmpty()) {
-                        failedFiles.forEach(failedFile -> { fileTransferTracker.add(failedFile.getName(), false); });
-                    }
-                    if (!successFiles.isEmpty()) {
-                        successFiles.forEach(successFile -> { fileTransferTracker.add(successFile.getName(), true); });
-                    }
+                    assert failedFiles.isEmpty() == false;
+                    failedFiles.forEach(failedFile -> { fileTransferTracker.add(failedFile.getName(), false); });
+                    successFiles.forEach(successFile -> { fileTransferTracker.add(successFile.getName(), true); });
                 }),
                 latch
             );
@@ -170,14 +177,7 @@ public class TranslogTransferManager {
             // https://github.com/opensearch-project/OpenSearch/issues/9729
             fileTransferTracker.recordFileTransferStartTime(uploadStartTime);
 
-            // If the transferService of enabled blob store supports uploading object metadata, We don't need to transfer checkpoint file
-            // snapshots separately. We can provide checkpoint file data as object metadata to tranlsog.tlog files.
-            transferManager.transferTranslogCheckpointSnapshot(
-                generationalSnapshotList,
-                blobPathMap,
-                latchedActionListener,
-                WritePriority.HIGH
-            );
+            transferTranslogCheckpointSnapshot(generationalSnapshotList, blobPathMap, latchedActionListener, WritePriority.HIGH);
 
             try {
                 if (latch.await(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
@@ -267,11 +267,26 @@ public class TranslogTransferManager {
 
         // Download translog file with object metadata from remote to local FS
         String translogFilename = Translog.getFilename(Long.parseLong(generation));
-        downloadTlogFileToFS(translogFilename, location, primaryTerm, generation);
+        downloadTranslogFilesToFS(translogFilename, location, primaryTerm, generation);
         return true;
     }
 
-    private void downloadTlogFileToFS(String fileName, Path location, String primaryTerm, String generation) throws IOException {
+    /**
+     * Retrieves and processes translog files from a remote store.
+     *
+     * <p>This method first attempts to download the "translog.tlog" file from the remote store
+     * and copy it to the FS. If the downloaded file does not contain specific
+     * metadata, it then tries to download the "translog.ckp" file from the remote store and
+     * copy it to the local FS. If the "translog.tlog" file contains the required
+     * metadata, its content is used to write the "translog.ckp" file to FS.
+     *
+     * @param fileName     The name of the translog file (e.g., "translog.tlog").
+     * @param location     The local file system path where the translog files will be stored.
+     * @param primaryTerm  The primary term associated with the translog files.
+     * @param generation   The generation associated with the translog files.
+     * @throws IOException If an I/O error occurs during the file operations.
+     */
+    private void downloadTranslogFilesToFS(String fileName, Path location, String primaryTerm, String generation) throws IOException {
         Path filePath = location.resolve(fileName);
         // Here, we always override the existing file if present.
         // We need to change this logic when we introduce incremental download
@@ -315,11 +330,25 @@ public class TranslogTransferManager {
             } else {
                 writeCkpFileFromMetadata(metadata, location, generation, fileName);
             }
+            // Mark in FileTransferTracker that translog files for the generation is downloaded from remote
+            fileTransferTracker.addGeneration(Long.parseLong(generation), true);
         } catch (Exception e) {
             throw new IOException("Failed to download translog file from remote", e);
         }
     }
 
+    /**
+     * Downloads the checkpoint (ckp) file from a remote source and saves it to the local FS.
+     *
+     * <p>This method retrieves the checkpoint file "translog.ckp", from a remote
+     * storage location and copies it to the specified local file system path.
+     *
+     * @param fileName     The name of the checkpoint file (e.g., "translog.ckp").
+     * @param location     The local file system path where the checkpoint file will be stored.
+     * @param primaryTerm  The primary term associated with the checkpoint file.
+     * @param generation   The generation associated with the checkpoint file.
+     * @throws IOException If an I/O error occurs during the file download or copy operation.
+     */
     private void downloadCkpFileToFS(String fileName, Path location, String primaryTerm, String generation) throws IOException {
         Path filePath = location.resolve(fileName);
         // Here, we always override the existing file if present.
@@ -341,10 +370,20 @@ public class TranslogTransferManager {
 
         // Mark file download status as success in FileTransferTracker, this also gives us information to delete this file from remote
         fileTransferTracker.add(fileName, true);
-        // Mark in forTransferTracker that translog files for generation is downloaded from remote
-        fileTransferTracker.addGeneration(Long.parseLong(generation), true);
     }
 
+    /**
+     * Process the provided metadata and tries to write the content of the checkpoint (ckp) file to the FS.
+     *
+     * <p>This method takes the metadata from the translog file download and uses it to generate the content
+     * of the checkpoint file. The checkpoint file is then written to the specified local file system path
+     * with the given file name and generation.
+     *
+     * @param metadata   A map containing the metadata extracted from the translog file.
+     * @param location   The local file system path where the checkpoint file will be written.
+     * @param generation The generation associated with the checkpoint file.
+     * @param fileName   The name of the checkpoint file (e.g., "translog.ckp").
+     */
     private void writeCkpFileFromMetadata(Map<String, String> metadata, Path location, String generation, String fileName)
         throws IOException {
 
@@ -358,6 +397,7 @@ public class TranslogTransferManager {
 
             String ckpDataBase64 = metadata.get(CHECKPOINT_FILE_DATA_KEY);
             if (ckpDataBase64 == null) {
+                logger.error("Error processing metadata for translog file: {}", fileName);
                 throw new IllegalStateException(
                     "Checkpoint file data (key - ckp-data) is expected but not found in metadata for file: " + fileName
                 );
@@ -367,12 +407,6 @@ public class TranslogTransferManager {
 
             Files.write(filePath, ckpFileBytes);
             downloadStatus = true;
-
-            // Mark in FileTransferTracker that translog files for the generation is recovered
-            fileTransferTracker.addGeneration(Long.parseLong(generation), true);
-        } catch (IllegalStateException e) {
-            logger.error("Error processing metadata for translog file: {}", fileName);
-            throw e;
         } finally {
             remoteTranslogTransferTracker.addDownloadTimeInMillis(0);
             if (downloadStatus) {
@@ -451,10 +485,8 @@ public class TranslogTransferManager {
     }
 
     private TransferFileSnapshot prepareMetadata(TransferSnapshot transferSnapshot) throws IOException {
-        Map<String, String> generationPrimaryTermMap = transferSnapshot.getTranslogCheckpointSnapshots().stream().map(s -> {
-            assert s != null;
-            return s;
-        })
+        Map<String, String> generationPrimaryTermMap = transferSnapshot.getTranslogCheckpointSnapshots()
+            .stream()
             .collect(
                 Collectors.toMap(
                     snapshot -> String.valueOf(snapshot.getGeneration()),

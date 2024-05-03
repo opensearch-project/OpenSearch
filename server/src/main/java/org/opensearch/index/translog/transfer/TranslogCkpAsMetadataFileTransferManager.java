@@ -12,8 +12,11 @@ import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
+import org.opensearch.indices.RemoteStoreSettings;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -25,34 +28,53 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public class TranslogCheckpointSnapshotTransferManagerWithMetadata implements TranslogCheckpointSnapshotTransferManager {
+public class TranslogCkpAsMetadataFileTransferManager extends BaseTranslogTransferManager {
 
-    private final TransferService transferService;
+    TransferService transferService;
 
-    public TranslogCheckpointSnapshotTransferManagerWithMetadata(TransferService transferService) {
+    public TranslogCkpAsMetadataFileTransferManager(
+        ShardId shardId,
+        TransferService transferService,
+        BlobPath remoteDataTransferPath,
+        BlobPath remoteMetadataTransferPath,
+        FileTransferTracker fileTransferTracker,
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        RemoteStoreSettings remoteStoreSettings
+    ) {
+        super(
+            shardId,
+            transferService,
+            remoteDataTransferPath,
+            remoteMetadataTransferPath,
+            fileTransferTracker,
+            remoteTranslogTransferTracker,
+            remoteStoreSettings
+        );
         this.transferService = transferService;
     }
 
     @Override
     public void transferTranslogCheckpointSnapshot(
-        Set<TranslogCheckpointSnapshot> toUpload,
+        Set<TranslogCheckpointSnapshot> generationalSnapshotList,
         Map<Long, BlobPath> blobPathMap,
         LatchedActionListener<TranslogCheckpointSnapshot> latchedActionListener,
         WritePriority writePriority
     ) throws Exception {
         Set<TransferFileSnapshot> filesToUpload = new HashSet<>();
-        Map<TransferFileSnapshot, TranslogCheckpointSnapshot> map = new HashMap<>();
-        for (TranslogCheckpointSnapshot translogCheckpointSnapshot : toUpload) {
+        Map<TransferFileSnapshot, TranslogCheckpointSnapshot> fileToGenerationSnapshotMap = new HashMap<>();
+        for (TranslogCheckpointSnapshot translogCheckpointSnapshot : generationalSnapshotList) {
             TransferFileSnapshot transferFileSnapshot = translogCheckpointSnapshot.getTranslogFileSnapshotWithMetadata();
-            map.put(transferFileSnapshot, translogCheckpointSnapshot);
+            fileToGenerationSnapshotMap.put(transferFileSnapshot, translogCheckpointSnapshot);
             filesToUpload.add(transferFileSnapshot);
         }
         ActionListener<TransferFileSnapshot> actionListener = ActionListener.wrap(
-            res -> { latchedActionListener.onResponse(map.get(res)); },
+            res -> latchedActionListener.onResponse(fileToGenerationSnapshotMap.get(res)),
             ex -> {
                 assert ex instanceof FileTransferException;
                 FileTransferException e = (FileTransferException) ex;
-                latchedActionListener.onFailure(new TranslogGenerationTransferException(map.get(e.getFileSnapshot()), ex, null, null));
+                latchedActionListener.onFailure(
+                    new TranslogTransferException(fileToGenerationSnapshotMap.get(e.getFileSnapshot()), ex, null, null)
+                );
             }
         );
         transferService.uploadBlobs(filesToUpload, blobPathMap, actionListener, WritePriority.HIGH);

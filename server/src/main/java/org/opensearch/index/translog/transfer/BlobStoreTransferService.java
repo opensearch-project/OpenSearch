@@ -57,11 +57,6 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
-    public boolean isBlobMetadataSupported() {
-        return blobStore.isBlobMetadataSupported();
-    }
-
-    @Override
     public void uploadBlob(
         String threadPoolName,
         final TransferFileSnapshot fileSnapshot,

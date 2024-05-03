@@ -11,10 +11,14 @@ package org.opensearch.index.translog.transfer;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
+import org.opensearch.indices.RemoteStoreSettings;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -27,29 +31,43 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * @opensearch.internal
  */
-public class TranslogCheckpointSnapshotTransferManagerWithoutMetadata implements TranslogCheckpointSnapshotTransferManager {
+public class TranslogCheckpointFilesTransferManager extends BaseTranslogTransferManager {
 
-    private final TransferService transferService;
-    private final FileTransferTracker fileTransferTracker;
+    TransferService transferService;
+    FileTransferTracker fileTransferTracker;
 
-    public TranslogCheckpointSnapshotTransferManagerWithoutMetadata(
+    public TranslogCheckpointFilesTransferManager(
+        ShardId shardId,
         TransferService transferService,
-        FileTransferTracker fileTransferTracker
+        BlobPath remoteDataTransferPath,
+        BlobPath remoteMetadataTransferPath,
+        FileTransferTracker fileTransferTracker,
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        RemoteStoreSettings remoteStoreSettings
     ) {
+        super(
+            shardId,
+            transferService,
+            remoteDataTransferPath,
+            remoteMetadataTransferPath,
+            fileTransferTracker,
+            remoteTranslogTransferTracker,
+            remoteStoreSettings
+        );
         this.transferService = transferService;
         this.fileTransferTracker = fileTransferTracker;
     }
 
     @Override
     public void transferTranslogCheckpointSnapshot(
-        Set<TranslogCheckpointSnapshot> toUpload,
+        Set<TranslogCheckpointSnapshot> generationalSnapshotList,
         Map<Long, BlobPath> blobPathMap,
         LatchedActionListener<TranslogCheckpointSnapshot> latchedActionListener,
         WritePriority writePriority
     ) throws Exception {
-        for (TranslogCheckpointSnapshot tlogAndCkpTransferFileSnapshot : toUpload) {
-            Set<TransferFileSnapshot> filesToUpload = new HashSet<>(2);
-            Set<Exception> exceptionList = new HashSet<>(2);
+        for (TranslogCheckpointSnapshot tlogAndCkpTransferFileSnapshot : generationalSnapshotList) {
+            Set<TransferFileSnapshot> filesToUpload = new HashSet<>();
+            Set<Exception> exceptionList = ConcurrentCollections.newConcurrentSet();
 
             String tlogFileName = tlogAndCkpTransferFileSnapshot.getTranslogFileName();
             String ckpFileName = tlogAndCkpTransferFileSnapshot.getCheckpointFileName();
@@ -66,16 +84,21 @@ public class TranslogCheckpointSnapshotTransferManagerWithoutMetadata implements
             AtomicBoolean listenerProcessed = new AtomicBoolean();
             final CountDownLatch latch = new CountDownLatch(filesToUpload.size());
 
-            Set<TransferFileSnapshot> successFiles = new HashSet<>();
+            if (latch.getCount() == 0) {
+                latchedActionListener.onResponse(tlogAndCkpTransferFileSnapshot);
+            }
+
+            Set<TransferFileSnapshot> succeededFiles = ConcurrentCollections.newConcurrentSet();
             Set<TransferFileSnapshot> failedFiles = new HashSet<>();
 
             LatchedActionListener<TransferFileSnapshot> fileUploadListener = new LatchedActionListener<>(
-                ActionListener.wrap(successFiles::add, exceptionList::add),
+                ActionListener.wrap(succeededFiles::add, exceptionList::add),
                 latch
             );
             ActionListener<TransferFileSnapshot> actionListener = ActionListener.runAfter(fileUploadListener, () -> {
                 if (latch.getCount() == 0 && listenerProcessed.compareAndSet(false, true)) {
                     if (exceptionList.isEmpty()) {
+                        assert succeededFiles.size() == filesToUpload.size();
                         latchedActionListener.onResponse(tlogAndCkpTransferFileSnapshot);
                     } else {
                         exceptionList.forEach(exception -> {
@@ -87,7 +110,7 @@ public class TranslogCheckpointSnapshotTransferManagerWithoutMetadata implements
                         Exception ex = new TranslogUploadFailedException("Translog upload failed");
                         exceptionList.forEach(ex::addSuppressed);
                         latchedActionListener.onFailure(
-                            new TranslogGenerationTransferException(tlogAndCkpTransferFileSnapshot, ex, failedFiles, successFiles)
+                            new TranslogTransferException(tlogAndCkpTransferFileSnapshot, ex, failedFiles, succeededFiles)
                         );
                     }
                 }

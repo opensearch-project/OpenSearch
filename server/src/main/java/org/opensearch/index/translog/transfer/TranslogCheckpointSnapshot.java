@@ -9,7 +9,6 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.index.translog.Checkpoint;
-import org.opensearch.index.translog.TranslogCheckedContainer;
 import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
@@ -22,7 +21,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.opensearch.index.translog.transfer.TranslogTransferManager.CHECKPOINT_FILE_DATA_KEY;
+import static org.opensearch.index.translog.transfer.BaseTranslogTransferManager.CHECKPOINT_FILE_DATA_KEY;
 
 /**
  * Snapshot of a single translog generational files that gets transferred
@@ -63,35 +62,35 @@ public class TranslogCheckpointSnapshot {
         this.checkpointGeneration = checkpointGeneration;
     }
 
-    public String getTranslogFileName() {
+    String getTranslogFileName() {
         return translogPath.getFileName().toString();
     }
 
-    public String getCheckpointFileName() {
+    String getCheckpointFileName() {
         return checkpointPath.getFileName().toString();
     }
 
-    public long getTranslogFileContentLength() throws IOException {
+    long getTranslogFileContentLength() throws IOException {
         try (FileChannel fileChannel = FileChannel.open(translogPath, StandardOpenOption.READ)) {
             return fileChannel.size();
         }
     }
 
-    public long getCheckpointFileContentLength() throws IOException {
+    long getCheckpointFileContentLength() throws IOException {
         try (FileChannel fileChannel = FileChannel.open(checkpointPath, StandardOpenOption.READ)) {
             return fileChannel.size();
         }
     }
 
-    public long getGeneration() {
+    long getGeneration() {
         return generation;
     }
 
-    public long getPrimaryTerm() {
+    long getPrimaryTerm() {
         return primaryTerm;
     }
 
-    public long getCheckpointGeneration() {
+    long getCheckpointGeneration() {
         return checkpointGeneration;
     }
 
@@ -105,27 +104,15 @@ public class TranslogCheckpointSnapshot {
 
     TransferFileSnapshot getTranslogFileSnapshotWithMetadata() throws IOException {
         Map<String, String> metadata = createCheckpointDataAsObjectMetadata();
-        TransferFileSnapshot translogFileSnapshot = getTranslogFileSnapshot();
-        translogFileSnapshot.setMetadata(metadata);
-        return translogFileSnapshot;
+        return new TranslogFileSnapshot(primaryTerm, generation, translogPath, translogChecksum, metadata);
     }
 
     private Map<String, String> createCheckpointDataAsObjectMetadata() throws IOException {
-
         byte[] fileBytes = Checkpoint.createCheckpointBytes(checkpointPath, checkpoint);
-
-        // Do checksum validation here.
-        TranslogCheckedContainer translogCheckedContainer = new TranslogCheckedContainer(fileBytes);
-        Long calculatedChecksum = translogCheckedContainer.getChecksum();
-
-        if (checkpointChecksum != null && !checkpointChecksum.equals(calculatedChecksum)) {
-            throw new TranslogUploadFailedException("Checksum validation of checkpoint file failed for translog file:");
-        }
-
-        return prepareMetadata(fileBytes);
+        return createMetadata(fileBytes);
     }
 
-    public static Map<String, String> prepareMetadata(byte[] ckpBytes) {
+    static Map<String, String> createMetadata(byte[] ckpBytes) {
         Map<String, String> metadata = new HashMap<>();
         // Set the file data value
         String fileDataBase64String = Base64.getEncoder().encodeToString(ckpBytes);

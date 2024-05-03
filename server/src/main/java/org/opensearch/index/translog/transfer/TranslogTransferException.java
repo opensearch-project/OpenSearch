@@ -18,13 +18,13 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public class TranslogGenerationTransferException extends RuntimeException {
+public class TranslogTransferException extends RuntimeException {
 
     private final TranslogCheckpointSnapshot fileSnapshot;
     private final Set<TransferFileSnapshot> failedFiles;
     private final Set<TransferFileSnapshot> successFiles;
 
-    public TranslogGenerationTransferException(
+    public TranslogTransferException(
         TranslogCheckpointSnapshot fileSnapshot,
         Throwable cause,
         Set<TransferFileSnapshot> failedFiles,
@@ -32,8 +32,8 @@ public class TranslogGenerationTransferException extends RuntimeException {
     ) {
         super(cause);
         this.fileSnapshot = fileSnapshot;
-        this.failedFiles = failedFiles;
-        this.successFiles = successFiles;
+        this.failedFiles = failedFiles == null ? new HashSet<>() : failedFiles;
+        this.successFiles = successFiles == null ? new HashSet<>() : successFiles;
     }
 
     public TranslogCheckpointSnapshot getFileSnapshot() {
@@ -41,10 +41,10 @@ public class TranslogGenerationTransferException extends RuntimeException {
     }
 
     public Set<TransferFileSnapshot> getFailedFiles() {
-        return failedFiles == null ? new HashSet<>() : failedFiles;
+        return failedFiles;
     }
 
     public Set<TransferFileSnapshot> getSuccessFiles() {
-        return successFiles == null ? new HashSet<>() : successFiles;
+        return successFiles;
     }
 }

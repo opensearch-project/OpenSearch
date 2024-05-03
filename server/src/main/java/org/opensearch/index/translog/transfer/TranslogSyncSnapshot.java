@@ -25,19 +25,17 @@ import java.util.stream.LongStream;
  *
  * @opensearch.internal
  */
-public class TranslogGenerationsTransferSnapshot implements TransferSnapshot {
+public class TranslogSyncSnapshot implements TransferSnapshot {
 
     private final Set<TranslogCheckpointSnapshot> translogCheckpointSnapshotSet;
-    private final int size;
     private final long generation;
     private final long primaryTerm;
     private long minTranslogGeneration;
 
-    private String nodeId;
+    private final String nodeId;
 
-    TranslogGenerationsTransferSnapshot(long primaryTerm, long generation, int size, String nodeId) {
+    TranslogSyncSnapshot(long primaryTerm, long generation, int size, String nodeId) {
         translogCheckpointSnapshotSet = new HashSet<>(size);
-        this.size = size;
         this.generation = generation;
         this.primaryTerm = primaryTerm;
         this.nodeId = nodeId;
@@ -73,7 +71,7 @@ public class TranslogGenerationsTransferSnapshot implements TransferSnapshot {
     }
 
     /**
-     * Builder for {@link TranslogGenerationsTransferSnapshot}
+     * Builder for {@link TranslogSyncSnapshot}
      */
     public static class Builder {
         private final long primaryTerm;
@@ -99,18 +97,13 @@ public class TranslogGenerationsTransferSnapshot implements TransferSnapshot {
             this.nodeId = nodeId;
         }
 
-        public TranslogGenerationsTransferSnapshot build() throws IOException {
+        public TranslogSyncSnapshot build() throws IOException {
             final List<Long> generations = new LinkedList<>();
             long highestGeneration = Long.MIN_VALUE;
             long highestGenPrimaryTerm = Long.MIN_VALUE;
             long lowestGeneration = Long.MAX_VALUE;
             long highestGenMinTranslogGeneration = Long.MIN_VALUE;
-            TranslogGenerationsTransferSnapshot translogTransferSnapshot = new TranslogGenerationsTransferSnapshot(
-                primaryTerm,
-                generation,
-                readers.size(),
-                nodeId
-            );
+            TranslogSyncSnapshot translogTransferSnapshot = new TranslogSyncSnapshot(primaryTerm, generation, readers.size(), nodeId);
             for (TranslogReader reader : readers) {
                 final long readerGeneration = reader.getGeneration();
                 final long readerPrimaryTerm = reader.getPrimaryTerm();

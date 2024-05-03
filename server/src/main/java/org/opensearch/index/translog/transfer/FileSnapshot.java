@@ -49,6 +49,14 @@ public class FileSnapshot implements Closeable {
         this.fileChannel = FileChannel.open(path, StandardOpenOption.READ);
     }
 
+    private FileSnapshot(Path path, Map<String, String> metadata) throws IOException {
+        Objects.requireNonNull(path);
+        this.name = path.getFileName().toString();
+        this.path = path;
+        this.fileChannel = FileChannel.open(path, StandardOpenOption.READ);
+        this.metadata = metadata;
+    }
+
     private FileSnapshot(String name, byte[] content) {
         Objects.requireNonNull(name);
         this.name = name;
@@ -58,10 +66,6 @@ public class FileSnapshot implements Closeable {
 
     public Path getPath() {
         return path;
-    }
-
-    public void setMetadata(Map<String, String> metadata) {
-        this.metadata = metadata;
     }
 
     public Map<String, String> getMetadata() {
@@ -126,6 +130,12 @@ public class FileSnapshot implements Closeable {
             this.checksum = checksum;
         }
 
+        private TransferFileSnapshot(Path path, long primaryTerm, Long checksum, Map<String, String> metadata) throws IOException {
+            super(path, metadata);
+            this.primaryTerm = primaryTerm;
+            this.checksum = checksum;
+        }
+
         public TransferFileSnapshot(String name, byte[] content, long primaryTerm) throws IOException {
             super(name, content);
             this.primaryTerm = primaryTerm;
@@ -167,6 +177,12 @@ public class FileSnapshot implements Closeable {
 
         public TranslogFileSnapshot(long primaryTerm, long generation, Path path, Long checksum) throws IOException {
             super(path, primaryTerm, checksum);
+            this.generation = generation;
+        }
+
+        public TranslogFileSnapshot(long primaryTerm, long generation, Path path, Long checksum, Map<String, String> metadata)
+            throws IOException {
+            super(path, primaryTerm, checksum, metadata);
             this.generation = generation;
         }
 
