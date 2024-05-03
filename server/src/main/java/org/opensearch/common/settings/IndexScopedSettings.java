@@ -198,6 +198,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 EngineConfig.INDEX_CODEC_SETTING,
                 EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING,
                 EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
+                EngineConfig.INDEX_USE_COMPOUND_FILE,
                 IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS,
                 IndexSettings.DEFAULT_PIPELINE,
                 IndexSettings.FINAL_PIPELINE,
