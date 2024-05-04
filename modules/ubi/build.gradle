@@ -1,0 +1,12 @@
+apply plugin: 'opensearch.yaml-rest-test'
+
+opensearchplugin {
+  description 'Integrates OpenSearch with systemd'
+  classname 'org.opensearch.ubi.UbiModulePlugin'
+}
+
+dependencies {
+  // required for the yaml test to run
+  yamlRestTestImplementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  runtimeOnly "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+}

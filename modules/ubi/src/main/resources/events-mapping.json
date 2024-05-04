@@ -1,0 +1,114 @@
+{
+  "properties": {
+    "action_name": {
+      "type": "keyword"
+    },
+    "user_id": {
+      "type": "keyword"
+    },
+    "query_id": {
+      "type": "keyword"
+    },
+    "page_id": {
+      "type": "keyword"
+    },
+    "message": {
+      "type": "keyword"
+    },
+    "message_type": {
+      "type": "keyword"
+    },
+    "timestamp": {
+      "type": "date",
+      "doc_values": true
+    },
+    "event_attributes": {
+      "properties": {
+        "user_name": {
+          "type": "keyword"
+        },
+        "user_id": {
+          "type": "keyword"
+        },
+        "email": {
+          "type": "keyword"
+        },
+        "price": {
+          "type": "float"
+        },
+        "ip": {
+          "type": "ip",
+          "ignore_malformed": true
+        },
+        "browser": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword"
+            }
+          }
+        },
+        "position": {
+          "properties": {
+            "ordinal": {
+              "type": "integer"
+            },
+            "x": {
+              "type": "integer"
+            },
+            "y": {
+              "type": "integer"
+            },
+            "page_depth": {
+              "type": "integer"
+            },
+            "scroll_depth": {
+              "type": "integer"
+            },
+            "trail": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+        },
+        "object": {
+          "properties": {
+            "key_value": {
+              "type": "keyword"
+            },
+            "object_id": {
+              "type": "keyword"
+            },
+            "object_type": {
+              "type": "keyword"
+            },
+            "transaction_id": {
+              "type": "keyword"
+            },
+            "name": {
+              "type": "keyword"
+            },
+            "description": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "to_user_id": {
+              "type": "keyword"
+            },
+            "object_detail": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    }
+  }
+}

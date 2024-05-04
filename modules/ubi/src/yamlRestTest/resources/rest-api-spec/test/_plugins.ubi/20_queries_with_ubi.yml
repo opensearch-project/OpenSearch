@@ -1,0 +1,54 @@
+---
+"Query":
+
+  - do:
+      indices.create:
+        index: ecommerce
+        body:
+          mappings:
+            { "properties": { "category": { "type": "text" } } }
+
+  - match: { acknowledged: true }
+  - match: { index: "ecommerce"}
+
+  - do:
+      index:
+        index: ecommerce
+        id: 1
+        body: { category: notebook }
+
+  - match: { result: created }
+
+  - do:
+      indices.refresh:
+        index: [ "ecommerce" ]
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: ecommerce
+        body: "{\"query\": {\"match\": {\"category\": \"notebook\"}}, \"ext\": {\"ubi\": {\"query_id\": \"1234512345\", \"client_id\": \"abcabc\", \"user_query\": \"notebook\"}}}"
+
+  - gte: { hits.total: 1 }
+
+  - do:
+      cluster.health:
+        index: [ubi_queries]
+        wait_for_no_initializing_shards: true
+
+  - do:
+      indices.exists:
+        index: ubi_queries
+
+  - is_true: ''
+
+  - do:
+      indices.refresh:
+        index: [ "ubi_queries" ]
+
+  - do:
+      count:
+        index: ubi_queries
+        body: {}
+
+  - match: {count : 1}
