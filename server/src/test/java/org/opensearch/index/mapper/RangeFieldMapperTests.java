@@ -37,6 +37,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.network.InetAddresses;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -51,8 +52,10 @@ import static org.opensearch.index.query.RangeQueryBuilder.GTE_FIELD;
 import static org.opensearch.index.query.RangeQueryBuilder.GT_FIELD;
 import static org.opensearch.index.query.RangeQueryBuilder.LTE_FIELD;
 import static org.opensearch.index.query.RangeQueryBuilder.LT_FIELD;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.Assume.assumeThat;
 
 public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     private static final String FROM_DATE = "2016-10-31";
@@ -351,7 +354,30 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertThat(e.getMessage(), containsString("should not define a dateTimeFormatter"));
     }
 
+    public void testSerializeDefaultsLegacy() throws Exception {
+        assumeThat("Using legacy datetime format as default", FeatureFlags.isEnabled(FeatureFlags.DATETIME_FORMATTER_CACHING), is(false));
+
+        for (String type : types()) {
+            DocumentMapper docMapper = createDocumentMapper(fieldMapping(b -> b.field("type", type)));
+            RangeFieldMapper mapper = (RangeFieldMapper) docMapper.root().getMapper("field");
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            mapper.doXContentBody(builder, true, ToXContent.EMPTY_PARAMS);
+            String got = builder.endObject().toString();
+
+            // if type is date_range we check that the mapper contains the default format and locale
+            // otherwise it should not contain a locale or format
+            assertTrue(got, got.contains("\"format\":\"strict_date_optional_time||epoch_millis\"") == type.equals("date_range"));
+            assertTrue(got, got.contains("\"locale\":" + "\"" + Locale.ROOT + "\"") == type.equals("date_range"));
+        }
+    }
+
     public void testSerializeDefaults() throws Exception {
+        assumeThat(
+            "Using experimental datetime format as default",
+            FeatureFlags.isEnabled(FeatureFlags.DATETIME_FORMATTER_CACHING),
+            is(true)
+        );
+
         for (String type : types()) {
             DocumentMapper docMapper = createDocumentMapper(fieldMapping(b -> b.field("type", type)));
             RangeFieldMapper mapper = (RangeFieldMapper) docMapper.root().getMapper("field");
