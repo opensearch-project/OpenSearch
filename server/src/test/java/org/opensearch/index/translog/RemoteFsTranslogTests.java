@@ -47,8 +47,8 @@ import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.LocalCheckpointTrackerTests;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.translog.transfer.BaseTranslogTransferManager;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
+import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
@@ -1693,18 +1693,18 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         generationToPrimaryTermMapper.put(String.valueOf(generation), String.valueOf(primaryTerm));
         translogTransferMetadata.setGenerationToPrimaryTermMapper(generationToPrimaryTermMapper);
 
-        BaseTranslogTransferManager mockTransfer = mock(BaseTranslogTransferManager.class);
+        TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = mock(RemoteTranslogTransferTracker.class);
         when(mockTransfer.readMetadata()).thenReturn(translogTransferMetadata);
         when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
 
         // Always File not found
         when(mockTransfer.downloadTranslog(any(), any(), any())).thenThrow(new NoSuchFileException("File not found"));
-        BaseTranslogTransferManager finalMockTransfer = mockTransfer;
+        TranslogTransferManager finalMockTransfer = mockTransfer;
         assertThrows(NoSuchFileException.class, () -> RemoteFsTranslog.download(finalMockTransfer, location, logger, false));
 
         // File not found in first attempt . File found in second attempt.
-        mockTransfer = mock(BaseTranslogTransferManager.class);
+        mockTransfer = mock(TranslogTransferManager.class);
         when(mockTransfer.readMetadata()).thenReturn(translogTransferMetadata);
         when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
         String msg = "File not found";
@@ -1729,7 +1729,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     public void testDownloadWithNoTranslogInLocalAndRemote() throws IOException {
         Path location = createTempDir();
 
-        BaseTranslogTransferManager mockTransfer = mock(BaseTranslogTransferManager.class);
+        TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = mock(RemoteTranslogTransferTracker.class);
         when(mockTransfer.readMetadata()).thenReturn(null);
         when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
@@ -1742,7 +1742,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     // No translog data in remote but non-empty translog is present in local. In this case, we delete all the files
     // from local file system and create empty translog
     public void testDownloadWithTranslogOnlyInLocal() throws IOException {
-        BaseTranslogTransferManager mockTransfer = mock(BaseTranslogTransferManager.class);
+        TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = mock(RemoteTranslogTransferTracker.class);
         when(mockTransfer.readMetadata()).thenReturn(null);
         when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
@@ -1754,7 +1754,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
         Checkpoint existingCheckpoint = Translog.readCheckpoint(location);
 
-        BaseTranslogTransferManager finalMockTransfer = mockTransfer;
+        TranslogTransferManager finalMockTransfer = mockTransfer;
         RemoteFsTranslog.download(finalMockTransfer, location, logger, false);
 
         Path[] filesPostDownload = FileSystemUtils.files(location);
@@ -1778,7 +1778,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
     // No translog data in remote and empty translog in local. We skip creating another empty translog
     public void testDownloadWithEmptyTranslogOnlyInLocal() throws IOException {
-        BaseTranslogTransferManager mockTransfer = mock(BaseTranslogTransferManager.class);
+        TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = mock(RemoteTranslogTransferTracker.class);
         when(mockTransfer.readMetadata()).thenReturn(null);
         when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
@@ -1788,7 +1788,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             Files.copy(file, location.resolve(file.getFileName()));
         }
 
-        BaseTranslogTransferManager finalMockTransfer = mockTransfer;
+        TranslogTransferManager finalMockTransfer = mockTransfer;
 
         // download first time will ensure creating empty translog
         RemoteFsTranslog.download(finalMockTransfer, location, logger, false);

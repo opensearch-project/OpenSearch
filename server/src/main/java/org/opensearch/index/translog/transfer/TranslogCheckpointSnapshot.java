@@ -21,7 +21,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.opensearch.index.translog.transfer.BaseTranslogTransferManager.CHECKPOINT_FILE_DATA_KEY;
+import static org.opensearch.index.translog.transfer.TranslogTransferManager.CHECKPOINT_FILE_DATA_KEY;
 
 /**
  * Snapshot of a single translog generational files that gets transferred
@@ -70,15 +70,19 @@ public class TranslogCheckpointSnapshot {
         return checkpointPath.getFileName().toString();
     }
 
-    long getTranslogFileContentLength() throws IOException {
+    long getTranslogFileContentLength() {
         try (FileChannel fileChannel = FileChannel.open(translogPath, StandardOpenOption.READ)) {
             return fileChannel.size();
+        } catch (IOException ignore) {
+            return 0L;
         }
     }
 
-    long getCheckpointFileContentLength() throws IOException {
+    long getCheckpointFileContentLength() {
         try (FileChannel fileChannel = FileChannel.open(checkpointPath, StandardOpenOption.READ)) {
             return fileChannel.size();
+        } catch (IOException ignore) {
+            return 0L;
         }
     }
 

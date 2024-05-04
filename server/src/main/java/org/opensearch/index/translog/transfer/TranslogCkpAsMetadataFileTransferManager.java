@@ -28,7 +28,7 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public class TranslogCkpAsMetadataFileTransferManager extends BaseTranslogTransferManager {
+public class TranslogCkpAsMetadataFileTransferManager extends TranslogTransferManager {
 
     TransferService transferService;
 
@@ -55,14 +55,13 @@ public class TranslogCkpAsMetadataFileTransferManager extends BaseTranslogTransf
 
     @Override
     public void transferTranslogCheckpointSnapshot(
-        Set<TranslogCheckpointSnapshot> generationalSnapshotList,
+        Set<TranslogCheckpointSnapshot> toUpload,
         Map<Long, BlobPath> blobPathMap,
-        LatchedActionListener<TranslogCheckpointSnapshot> latchedActionListener,
-        WritePriority writePriority
+        LatchedActionListener<TranslogCheckpointSnapshot> latchedActionListener
     ) throws Exception {
         Set<TransferFileSnapshot> filesToUpload = new HashSet<>();
         Map<TransferFileSnapshot, TranslogCheckpointSnapshot> fileToGenerationSnapshotMap = new HashMap<>();
-        for (TranslogCheckpointSnapshot translogCheckpointSnapshot : generationalSnapshotList) {
+        for (TranslogCheckpointSnapshot translogCheckpointSnapshot : toUpload) {
             TransferFileSnapshot transferFileSnapshot = translogCheckpointSnapshot.getTranslogFileSnapshotWithMetadata();
             fileToGenerationSnapshotMap.put(transferFileSnapshot, translogCheckpointSnapshot);
             filesToUpload.add(transferFileSnapshot);
@@ -72,16 +71,12 @@ public class TranslogCkpAsMetadataFileTransferManager extends BaseTranslogTransf
             ex -> {
                 assert ex instanceof FileTransferException;
                 FileTransferException e = (FileTransferException) ex;
+                TransferFileSnapshot failedSnapshot = e.getFileSnapshot();
                 latchedActionListener.onFailure(
-                    new TranslogTransferException(fileToGenerationSnapshotMap.get(e.getFileSnapshot()), ex, null, null)
+                    new TranslogTransferException(fileToGenerationSnapshotMap.get(failedSnapshot), ex, Set.of(failedSnapshot), null)
                 );
             }
         );
         transferService.uploadBlobs(filesToUpload, blobPathMap, actionListener, WritePriority.HIGH);
-    }
-
-    @Override
-    public boolean updateFileNameTransferTracker() {
-        return false;
     }
 }

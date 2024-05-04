@@ -82,10 +82,10 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
     byte[] tlogBytes;
     byte[] ckpBytes;
     FileTransferTracker tracker;
-    BaseTranslogTransferManager translogTransferManager;
-    BaseTranslogTransferManager translogTransferManager2;
+    TranslogTransferManager translogTransferManager;
+    TranslogTransferManager translogTransferManager2;
     long delayForBlobDownload;
-    private final boolean shouldUploadTranslogCkpAsMetadata = false;
+    private final boolean ckpAsTranslogMetadata = false;
 
     @Override
     public void setUp() throws Exception {
@@ -110,7 +110,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
             tracker,
             remoteTranslogTransferTracker,
             DefaultRemoteStoreSettings.INSTANCE,
-            shouldUploadTranslogCkpAsMetadata
+            ckpAsTranslogMetadata
         );
 
         translogTransferManager2 = TranslogTransferManagerFactory.getTranslogTransferManager(
@@ -181,7 +181,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
 
         };
 
-        BaseTranslogTransferManager translogTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
+        TranslogTransferManager translogTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
             shardId,
             transferService,
             remoteBaseTransferPath.add(TRANSLOG.getName()),
@@ -189,7 +189,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
             fileTransferTracker,
             remoteTranslogTransferTracker,
             DefaultRemoteStoreSettings.INSTANCE,
-            shouldUploadTranslogCkpAsMetadata
+            ckpAsTranslogMetadata
         );
 
         assertTrue(translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
@@ -235,7 +235,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
         );
         RemoteStoreSettings remoteStoreSettings = mock(RemoteStoreSettings.class);
         when(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout()).thenReturn(new TimeValue(1));
-        BaseTranslogTransferManager translogTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
+        TranslogTransferManager translogTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
             shardId,
             transferService,
             remoteBaseTransferPath.add(TRANSLOG.getName()),
@@ -243,7 +243,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
             fileTransferTracker,
             remoteTranslogTransferTracker,
             remoteStoreSettings,
-            shouldUploadTranslogCkpAsMetadata
+            ckpAsTranslogMetadata
         );
         SetOnce<Exception> exception = new SetOnce<>();
         translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
@@ -283,7 +283,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
             remoteTranslogTransferTracker,
             false
         );
-        BaseTranslogTransferManager translogTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
+        TranslogTransferManager translogTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
             shardId,
             transferService,
             remoteBaseTransferPath.add(TRANSLOG.getName()),
@@ -291,7 +291,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
             fileTransferTracker,
             remoteTranslogTransferTracker,
             DefaultRemoteStoreSettings.INSTANCE,
-            shouldUploadTranslogCkpAsMetadata
+            ckpAsTranslogMetadata
         );
         SetOnce<Exception> exception = new SetOnce<>();
 
@@ -573,7 +573,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
         BlobStoreTransferService blobStoreTransferService = new BlobStoreTransferService(blobStore, threadPool);
-        BaseTranslogTransferManager translogTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
+        TranslogTransferManager translogTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
             shardId,
             blobStoreTransferService,
             remoteBaseTransferPath.add(TRANSLOG.getName()),
@@ -581,7 +581,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
             tracker,
             remoteTranslogTransferTracker,
             DefaultRemoteStoreSettings.INSTANCE,
-            shouldUploadTranslogCkpAsMetadata
+            ckpAsTranslogMetadata
         );
         String translogFile = "translog-19.tlog", checkpointFile = "translog-19.ckp";
         tracker.addGeneration(19, true);
@@ -602,7 +602,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
         BlobStoreTransferService blobStoreTransferService = new BlobStoreTransferService(blobStore, threadPool);
-        BaseTranslogTransferManager translogTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
+        TranslogTransferManager translogTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
             shardId,
             blobStoreTransferService,
             remoteBaseTransferPath.add(TRANSLOG.getName()),
@@ -610,7 +610,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
             tracker,
             remoteTranslogTransferTracker,
             DefaultRemoteStoreSettings.INSTANCE,
-            shouldUploadTranslogCkpAsMetadata
+            ckpAsTranslogMetadata
         );
         String translogFile = "translog-19.tlog", checkpointFile = "translog-19.ckp";
         tracker.addGeneration(19, true);
@@ -673,7 +673,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
         doAnswer(invocation -> { throw new IOException("test exception"); }).when(blobStore).blobContainer(any(BlobPath.class));
         // when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
         BlobStoreTransferService blobStoreTransferService = new BlobStoreTransferService(blobStore, threadPool);
-        BaseTranslogTransferManager translogTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
+        TranslogTransferManager translogTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
             shardId,
             blobStoreTransferService,
             remoteBaseTransferPath.add(TRANSLOG.getName()),
@@ -681,7 +681,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
             tracker,
             remoteTranslogTransferTracker,
             DefaultRemoteStoreSettings.INSTANCE,
-            shouldUploadTranslogCkpAsMetadata
+            ckpAsTranslogMetadata
         );
         String translogFile = "translog-19.tlog", checkpointFile = "translog-19.ckp";
         tracker.add(translogFile, true);
@@ -771,7 +771,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
             latch
         );
 
-        translogTransferManager.transferTranslogCheckpointSnapshot(toUpload, blobPathMap, listener, WritePriority.HIGH);
+        translogTransferManager.transferTranslogCheckpointSnapshot(toUpload, blobPathMap, listener);
         assertEquals(successCount.get(), 2);
     }
 
@@ -811,7 +811,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
             latch
         );
 
-        translogTransferManager.transferTranslogCheckpointSnapshot(toUpload, blobPathMap, listener, WritePriority.HIGH);
+        translogTransferManager.transferTranslogCheckpointSnapshot(toUpload, blobPathMap, listener);
         assertEquals(successCount.get(), 0);
         assertEquals(failedCount.get(), 1);
     }

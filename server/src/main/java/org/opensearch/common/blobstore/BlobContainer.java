@@ -90,7 +90,7 @@ public interface BlobContainer {
      */
     @ExperimentalApi
     default InputStreamWithMetadata readBlobWithMetadata(String blobName) throws IOException {
-        return null;
+        throw new UnsupportedOperationException("readBlobWithMetadata is not implemented yet");
     };
 
     /**

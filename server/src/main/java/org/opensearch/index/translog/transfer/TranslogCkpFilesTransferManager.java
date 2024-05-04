@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * @opensearch.internal
  */
-public class TranslogCkpFilesTransferManager extends BaseTranslogTransferManager {
+public class TranslogCkpFilesTransferManager extends TranslogTransferManager {
 
     TransferService transferService;
     FileTransferTracker fileTransferTracker;
@@ -60,12 +60,11 @@ public class TranslogCkpFilesTransferManager extends BaseTranslogTransferManager
 
     @Override
     public void transferTranslogCheckpointSnapshot(
-        Set<TranslogCheckpointSnapshot> generationalSnapshotList,
+        Set<TranslogCheckpointSnapshot> toUpload,
         Map<Long, BlobPath> blobPathMap,
-        LatchedActionListener<TranslogCheckpointSnapshot> latchedActionListener,
-        WritePriority writePriority
+        LatchedActionListener<TranslogCheckpointSnapshot> latchedActionListener
     ) throws Exception {
-        for (TranslogCheckpointSnapshot tlogAndCkpTransferFileSnapshot : generationalSnapshotList) {
+        for (TranslogCheckpointSnapshot tlogAndCkpTransferFileSnapshot : toUpload) {
             Set<TransferFileSnapshot> filesToUpload = new HashSet<>();
             Set<Exception> exceptionList = ConcurrentCollections.newConcurrentSet();
 
@@ -111,12 +110,7 @@ public class TranslogCkpFilesTransferManager extends BaseTranslogTransferManager
                     }
                 }
             });
-            transferService.uploadBlobs(filesToUpload, blobPathMap, actionListener, writePriority);
+            transferService.uploadBlobs(filesToUpload, blobPathMap, actionListener, WritePriority.HIGH);
         }
-    }
-
-    @Override
-    public boolean updateFileNameTransferTracker() {
-        return true;
     }
 }

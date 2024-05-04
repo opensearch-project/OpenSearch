@@ -42,13 +42,6 @@ public class FileSnapshot implements Closeable {
     @Nullable
     private Map<String, String> metadata;
 
-    private FileSnapshot(Path path) throws IOException {
-        Objects.requireNonNull(path);
-        this.name = path.getFileName().toString();
-        this.path = path;
-        this.fileChannel = FileChannel.open(path, StandardOpenOption.READ);
-    }
-
     private FileSnapshot(Path path, Map<String, String> metadata) throws IOException {
         Objects.requireNonNull(path);
         this.name = path.getFileName().toString();
@@ -125,9 +118,7 @@ public class FileSnapshot implements Closeable {
         private Long checksum;
 
         public TransferFileSnapshot(Path path, long primaryTerm, Long checksum) throws IOException {
-            super(path);
-            this.primaryTerm = primaryTerm;
-            this.checksum = checksum;
+            this(path, primaryTerm, checksum, null);
         }
 
         private TransferFileSnapshot(Path path, long primaryTerm, Long checksum, Map<String, String> metadata) throws IOException {

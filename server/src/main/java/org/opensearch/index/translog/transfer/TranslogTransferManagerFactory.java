@@ -20,7 +20,7 @@ import org.opensearch.indices.RemoteStoreSettings;
  */
 public class TranslogTransferManagerFactory {
 
-    public static BaseTranslogTransferManager getTranslogTransferManager(
+    public static TranslogTransferManager getTranslogTransferManager(
         ShardId shardId,
         TransferService transferService,
         BlobPath remoteDataTransferPath,
@@ -28,9 +28,9 @@ public class TranslogTransferManagerFactory {
         FileTransferTracker fileTransferTracker,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
         RemoteStoreSettings remoteStoreSettings,
-        boolean shouldUploadTranslogCkpAsMetadata
+        boolean ckpAsTranslogMetadata
     ) {
-        if (shouldUploadTranslogCkpAsMetadata) {
+        if (ckpAsTranslogMetadata) {
             return new TranslogCkpAsMetadataFileTransferManager(
                 shardId,
                 transferService,

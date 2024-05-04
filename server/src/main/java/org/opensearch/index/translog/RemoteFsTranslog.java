@@ -23,11 +23,11 @@ import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.translog.transfer.BaseTranslogTransferManager;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
 import org.opensearch.index.translog.transfer.TransferSnapshot;
 import org.opensearch.index.translog.transfer.TranslogSyncSnapshot;
+import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferManagerFactory;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
@@ -70,7 +70,7 @@ import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 public class RemoteFsTranslog extends Translog {
 
     private final Logger logger;
-    private final BaseTranslogTransferManager translogTransferManager;
+    private final TranslogTransferManager translogTransferManager;
     private final FileTransferTracker fileTransferTracker;
     private final BooleanSupplier startedPrimarySupplier;
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
@@ -169,8 +169,7 @@ public class RemoteFsTranslog extends Translog {
     }
 
     private boolean isCkpAsTranslogMetadata(Supplier<Version> minNodeVersionSupplier, BlobStoreRepository blobStoreRepository) {
-        boolean isBlobMetadataSupported = blobStoreRepository.blobStore().isBlobMetadataSupported();
-        return isBlobMetadataSupported && Version.CURRENT.compareTo(minNodeVersionSupplier.get()) <= 0;
+        return blobStoreRepository.blobStore().isBlobMetadataSupported() && Version.CURRENT.compareTo(minNodeVersionSupplier.get()) <= 0;
     }
 
     public static void download(
@@ -193,7 +192,7 @@ public class RemoteFsTranslog extends Translog {
         // TODO: To be revisited as part of https://github.com/opensearch-project/OpenSearch/issues/7567
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 1000);
         FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker, false);
-        BaseTranslogTransferManager translogTransferManager = buildTranslogTransferManager(
+        TranslogTransferManager translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
             shardId,
@@ -207,7 +206,7 @@ public class RemoteFsTranslog extends Translog {
         logger.trace(remoteTranslogTransferTracker.toString());
     }
 
-    static void download(BaseTranslogTransferManager translogTransferManager, Path location, Logger logger, boolean seedRemote)
+    static void download(TranslogTransferManager translogTransferManager, Path location, Logger logger, boolean seedRemote)
         throws IOException {
         /*
         In Primary to Primary relocation , there can be concurrent upload and download of translog.
@@ -235,7 +234,7 @@ public class RemoteFsTranslog extends Translog {
         throw ex;
     }
 
-    private static void downloadOnce(BaseTranslogTransferManager translogTransferManager, Path location, Logger logger, boolean seedRemote)
+    private static void downloadOnce(TranslogTransferManager translogTransferManager, Path location, Logger logger, boolean seedRemote)
         throws IOException {
         logger.debug("Downloading translog files from remote");
         RemoteTranslogTransferTracker statsTracker = translogTransferManager.getRemoteTranslogTransferTracker();
@@ -300,7 +299,7 @@ public class RemoteFsTranslog extends Translog {
             && checkpoint.numOps == 0;
     }
 
-    public static BaseTranslogTransferManager buildTranslogTransferManager(
+    public static TranslogTransferManager buildTranslogTransferManager(
         BlobStoreRepository blobStoreRepository,
         ThreadPool threadPool,
         ShardId shardId,
@@ -308,7 +307,7 @@ public class RemoteFsTranslog extends Translog {
         RemoteTranslogTransferTracker tracker,
         RemoteStorePathStrategy pathStrategy,
         RemoteStoreSettings remoteStoreSettings,
-        boolean shouldUploadTranslogCkpAsMetadata
+        boolean ckpAsTranslogMetadata
     ) {
         assert Objects.nonNull(pathStrategy);
         String indexUUID = shardId.getIndex().getUUID();
@@ -338,7 +337,7 @@ public class RemoteFsTranslog extends Translog {
             fileTransferTracker,
             tracker,
             remoteStoreSettings,
-            shouldUploadTranslogCkpAsMetadata
+            ckpAsTranslogMetadata
         );
     }
 
@@ -423,7 +422,7 @@ public class RemoteFsTranslog extends Translog {
     private boolean upload(long primaryTerm, long generation, long maxSeqNo) throws IOException {
         logger.trace("uploading translog for primary term {} generation {}", primaryTerm, generation);
         try {
-            TranslogSyncSnapshot transferSnapshotProvider = new TranslogSyncSnapshot.Builder(
+            TranslogSyncSnapshot translogSyncSnapshot = new TranslogSyncSnapshot.Builder(
                 primaryTerm,
                 generation,
                 location,
@@ -432,7 +431,7 @@ public class RemoteFsTranslog extends Translog {
                 config.getNodeId()
             ).build();
             return translogTransferManager.transferSnapshot(
-                transferSnapshotProvider,
+                translogSyncSnapshot,
                 new RemoteFsTranslogTransferListener(generation, primaryTerm, maxSeqNo)
             );
         } finally {
@@ -623,7 +622,7 @@ public class RemoteFsTranslog extends Translog {
         // TODO: To be revisited as part of https://github.com/opensearch-project/OpenSearch/issues/7567
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 1000);
         FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker, false);
-        BaseTranslogTransferManager translogTransferManager = buildTranslogTransferManager(
+        TranslogTransferManager translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
             shardId,

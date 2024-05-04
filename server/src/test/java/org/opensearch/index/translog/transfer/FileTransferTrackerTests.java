@@ -103,20 +103,24 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
             null,
             generation + 1
         );
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot1 = transferFileSnapshot.getCheckpointFileSnapshot();
 
         Set<TranslogCheckpointSnapshot> toUpload = new HashSet<>(2);
         toUpload.add(transferFileSnapshot);
         toUpload.add(transferFileSnapshot2);
         fileTransferTracker.recordBytesForFiles(toUpload);
         remoteTranslogTransferTracker.addUploadBytesStarted(fileSize);
-        fileTransferTracker.onFailure(transferFileSnapshot, new IOException("random exception"));
+        fileTransferTracker.onFailure(
+            transferFileSnapshot,
+            new TranslogTransferException(transferFileSnapshot, new IOException("random exception"), Set.of(transferFileSnapshot1), null)
+        );
         remoteTranslogTransferTracker.addUploadBytesStarted(fileSize);
         fileTransferTracker.onSuccess(transferFileSnapshot2);
         assertEquals(fileTransferTracker.allUploadedGeneration().size(), 1);
         remoteTranslogTransferTracker.addUploadBytesStarted(fileSize);
         fileTransferTracker.onSuccess(transferFileSnapshot);
         assertEquals(fileTransferTracker.allUploadedGeneration().size(), 2);
-
+        transferFileSnapshot1.close();
     }
 
     public void testOnSuccessStatsFailure() throws IOException {
