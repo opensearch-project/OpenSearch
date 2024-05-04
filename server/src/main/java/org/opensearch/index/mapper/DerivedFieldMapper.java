@@ -83,12 +83,22 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
                 type.getValue(),
                 name
             );
-            DerivedFieldType ft = new DerivedFieldType(
-                new DerivedField(buildFullName(context), type.getValue(), script.getValue(), sourceIndexedField.getValue()),
-                fieldMapper,
-                fieldFunction,
-                indexAnalyzers
-            );
+            DerivedFieldType ft;
+            if (name.contains(".")) {
+                ft = new DerivedObjectFieldType(
+                    new DerivedField(buildFullName(context), type.getValue(), script.getValue(), sourceIndexedField.getValue()),
+                    fieldMapper,
+                    fieldFunction,
+                    indexAnalyzers
+                );
+            } else {
+                ft = new DerivedFieldType(
+                    new DerivedField(buildFullName(context), type.getValue(), script.getValue(), sourceIndexedField.getValue()),
+                    fieldMapper,
+                    fieldFunction,
+                    indexAnalyzers
+                );
+            }
             return new DerivedFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this, indexAnalyzers);
         }
     }

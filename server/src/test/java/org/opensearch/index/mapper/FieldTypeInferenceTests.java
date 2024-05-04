@@ -126,7 +126,6 @@ public class FieldTypeInferenceTests extends MapperServiceTestCase {
                     }
                 });
                 assertNull(mapper);
-                // assertEquals(leaves, docsEvaluated.size());
                 assertEquals(typeInference.getSampleSize(), totalDocsEvaluated[0]);
                 for (List<Integer> docsPerLeaf : docsEvaluated) {
                     for (int j = 0; j < docsPerLeaf.size() - 1; j++) {

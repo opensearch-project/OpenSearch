@@ -24,7 +24,7 @@ import java.util.function.Function;
 
 public class DerivedObjectFieldType extends DerivedFieldType {
 
-    public DerivedObjectFieldType(
+    DerivedObjectFieldType(
         DerivedField derivedField,
         FieldMapper typeFieldMapper,
         Function<Object, IndexableField> fieldFunction,
