@@ -223,13 +223,19 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
                 mockShardContext.setDerivedFieldResolver(
                     new DerivedFieldResolver(
                         mockShardContext,
-                        Map.of(
-                            DERIVED_FIELD_1,
-                            createDerivedFieldType(DERIVED_FIELD_1, "keyword", DERIVED_FIELD_SCRIPT_1),
-                            DERIVED_FIELD_2,
-                            createDerivedFieldType(DERIVED_FIELD_2, "keyword", DERIVED_FIELD_SCRIPT_2)
-                        ),
-                        null
+                        null,
+                        List.of(
+                            new DerivedField(
+                                DERIVED_FIELD_1,
+                                "keyword",
+                                new Script(ScriptType.INLINE, "mockscript", DERIVED_FIELD_SCRIPT_1, emptyMap())
+                            ),
+                            new DerivedField(
+                                DERIVED_FIELD_2,
+                                "keyword",
+                                new Script(ScriptType.INLINE, "mockscript", DERIVED_FIELD_SCRIPT_2, emptyMap())
+                            )
+                        )
                     )
                 );
 

@@ -53,8 +53,9 @@ public class DerivedObjectFieldType extends DerivedFieldType {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
         Function<Object, Object> valueForDisplay = DerivedFieldSupportedTypes.getValueForDisplayGenerator(getType());
+        String subFieldName = name().substring(name().indexOf(".") + 1);
         return new DerivedObjectFieldValueFetcher(
-            getSubField(),
+            subFieldName,
             getDerivedFieldLeafFactory(derivedField.getScript(), context, searchLookup == null ? context.lookup() : searchLookup),
             valueForDisplay
         );
@@ -80,13 +81,23 @@ public class DerivedObjectFieldType extends DerivedFieldType {
             List<Object> result = new ArrayList<>();
             for (Object o : jsonObjects) {
                 Map<String, Object> s = XContentHelper.convertToMap(JsonXContent.jsonXContent, (String) o, false);
-                result.add(s.get(subField));
+                result.add(getNestedField(s, subField));
             }
             return result;
         }
-    }
 
-    private String getSubField() {
-        return name().split("\\.")[1];
+        private static Object getNestedField(Map<String, Object> obj, String key) {
+            String[] keyParts = key.split("\\.");
+            Map<String, Object> currentObj = obj;
+            for (int i = 0; i < keyParts.length - 1; i++) {
+                Object value = currentObj.get(keyParts[i]);
+                if (value instanceof Map) {
+                    currentObj = (Map<String, Object>) value;
+                } else {
+                    return null;
+                }
+            }
+            return currentObj.get(keyParts[keyParts.length - 1]);
+        }
     }
 }
