@@ -92,7 +92,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
      * Simulates all data restored using Remote Translog Store.
      * @throws IOException IO Exception.
      */
-    @TestIssueLogging(value = "_root:TRACE", issueUrl = "https://github.com/elastic/elasticsearch/issues/11085")
+    @TestIssueLogging(value = "_root:TRACE", issueUrl = "https://github.com/opensearch-project/OpenSearch/issues/11085")
     public void testRTSRestoreWithNoDataPostRefreshPrimaryReplicaDown() throws Exception {
         testRestoreFlowBothPrimaryReplicasDown(1, false, true, randomIntBetween(1, 5));
     }
