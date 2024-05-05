@@ -12,8 +12,10 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,7 +66,7 @@ public class FileTransferTracker implements FileTransferListener {
     }
 
     private void recordFileContentLength(String fileName, LongSupplier contentLengthSupplier) {
-        if (!uploaded(fileName)) {
+        if (uploaded(fileName) == false) {
             bytesForTlogCkpFileToUpload.put(fileName, contentLengthSupplier.getAsLong());
         }
     }
@@ -120,37 +122,52 @@ public class FileTransferTracker implements FileTransferListener {
     public void onFailure(TranslogCheckpointSnapshot fileSnapshot, Exception e) {
         long durationInMillis = (System.nanoTime() - fileTransferStartTime) / 1_000_000L;
         remoteTranslogTransferTracker.addUploadTimeInMillis(durationInMillis);
-        updateTransferStats(fileSnapshot, false);
         addGeneration(fileSnapshot.getGeneration(), TransferState.FAILED);
 
-        if (!ckpAsTranslogMetadata) {
+        if (ckpAsTranslogMetadata) {
+            updateTransferStats(fileSnapshot, false);
+        } else {
             assert e instanceof TranslogTransferException;
             TranslogTransferException exception = (TranslogTransferException) e;
-            Set<FileSnapshot.TransferFileSnapshot> failedFiles = exception.getFailedFiles();
-            Set<FileSnapshot.TransferFileSnapshot> successFiles = exception.getSuccessFiles();
+            Set<TransferFileSnapshot> failedFiles = exception.getFailedFiles();
+            Set<TransferFileSnapshot> successFiles = exception.getSuccessFiles();
             assert failedFiles.isEmpty() == false;
-            failedFiles.forEach(failedFile -> add(failedFile.getName(), false));
-            successFiles.forEach(successFile -> add(successFile.getName(), true));
+            failedFiles.forEach(failedFile -> {
+                add(failedFile.getName(), false);
+                long failedBytes = 0;
+                try {
+                    failedBytes = failedFile.getContentLength();
+                } catch (IOException ignore) {}
+                updateBytesInRemoteTranslogTransferTracker(failedBytes, false);
+            });
+            successFiles.forEach(successFile -> {
+                add(successFile.getName(), true);
+                long succededBytes = 0;
+                try {
+                    succededBytes = successFile.getContentLength();
+                } catch (IOException ignore) {}
+                updateBytesInRemoteTranslogTransferTracker(succededBytes, true);
+            });
         }
     }
 
     private void updateTransferStats(TranslogCheckpointSnapshot fileSnapshot, boolean isSuccess) {
         Long translogFileBytes = bytesForTlogCkpFileToUpload.get(fileSnapshot.getTranslogFileName());
         if (translogFileBytes != null) {
-            if (isSuccess) {
-                remoteTranslogTransferTracker.addUploadBytesSucceeded(translogFileBytes);
-            } else {
-                remoteTranslogTransferTracker.addUploadBytesFailed(translogFileBytes);
-            }
+            updateBytesInRemoteTranslogTransferTracker(translogFileBytes, isSuccess);
         }
 
         Long checkpointFileBytes = bytesForTlogCkpFileToUpload.get(fileSnapshot.getCheckpointFileName());
         if (checkpointFileBytes != null) {
-            if (isSuccess) {
-                remoteTranslogTransferTracker.addUploadBytesSucceeded(checkpointFileBytes);
-            } else {
-                remoteTranslogTransferTracker.addUploadBytesFailed(checkpointFileBytes);
-            }
+            updateBytesInRemoteTranslogTransferTracker(checkpointFileBytes, isSuccess);
+        }
+    }
+
+    private void updateBytesInRemoteTranslogTransferTracker(long bytes, boolean isSuccess) {
+        if (isSuccess) {
+            remoteTranslogTransferTracker.addUploadBytesSucceeded(bytes);
+        } else {
+            remoteTranslogTransferTracker.addUploadBytesFailed(bytes);
         }
     }
 

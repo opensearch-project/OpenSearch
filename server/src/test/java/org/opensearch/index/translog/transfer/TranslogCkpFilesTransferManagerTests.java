@@ -64,12 +64,11 @@ import static org.mockito.Mockito.anyMap;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @LuceneTestCase.SuppressFileSystems("*")
-public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
+public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
 
     private TransferService transferService;
     private ShardId shardId;
@@ -82,8 +81,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
     byte[] tlogBytes;
     byte[] ckpBytes;
     FileTransferTracker tracker;
-    TranslogTransferManager translogTransferManager;
-    TranslogTransferManager translogTransferManager2;
+    TranslogTransferManager translogCkpFilesTransferManager;
     long delayForBlobDownload;
     private final boolean ckpAsTranslogMetadata = false;
 
@@ -101,8 +99,8 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
         remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 20);
         tlogBytes = "Hello Translog".getBytes(StandardCharsets.UTF_8);
         ckpBytes = "Hello Checkpoint".getBytes(StandardCharsets.UTF_8);
-        tracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0), remoteTranslogTransferTracker, false);
-        translogTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
+        tracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0), remoteTranslogTransferTracker, ckpAsTranslogMetadata);
+        translogCkpFilesTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
             shardId,
             transferService,
             remoteBaseTransferPath.add(TRANSLOG.getName()),
@@ -111,17 +109,6 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
             remoteTranslogTransferTracker,
             DefaultRemoteStoreSettings.INSTANCE,
             ckpAsTranslogMetadata
-        );
-
-        translogTransferManager2 = TranslogTransferManagerFactory.getTranslogTransferManager(
-            shardId,
-            transferService,
-            remoteBaseTransferPath.add(TRANSLOG.getName()),
-            remoteBaseTransferPath.add(METADATA.getName()),
-            tracker,
-            remoteTranslogTransferTracker,
-            DefaultRemoteStoreSettings.INSTANCE,
-            true
         );
 
         delayForBlobDownload = 1;
@@ -261,7 +248,6 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
     }
 
     public void testTransferSnapshotOnThreadInterrupt() throws Exception {
-
         List<Thread> uploadThreadList = new ArrayList<>();
         doAnswer(invocationOnMock -> {
             SetOnce<Thread> uploadThread = new SetOnce<>();
@@ -378,7 +364,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
         }).when(transferService)
             .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
 
-        assertNull(translogTransferManager.readMetadata());
+        assertNull(translogCkpFilesTransferManager.readMetadata());
         assertNoDownloadStats(false);
     }
 
@@ -403,12 +389,15 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
         long delayForMdDownload = 1;
         when(transferService.downloadBlob(any(BlobPath.class), eq(mdFilename1))).thenAnswer(invocation -> {
             Thread.sleep(delayForMdDownload);
-            return new ByteArrayInputStream(translogTransferManager.getMetadataBytes(metadata));
+            return new ByteArrayInputStream(translogCkpFilesTransferManager.getMetadataBytes(metadata));
         });
 
-        assertEquals(metadata, translogTransferManager.readMetadata());
+        assertEquals(metadata, translogCkpFilesTransferManager.readMetadata());
 
-        assertEquals(translogTransferManager.getMetadataBytes(metadata).length, remoteTranslogTransferTracker.getDownloadBytesSucceeded());
+        assertEquals(
+            translogCkpFilesTransferManager.getMetadataBytes(metadata).length,
+            remoteTranslogTransferTracker.getDownloadBytesSucceeded()
+        );
         assertTrue(remoteTranslogTransferTracker.getTotalDownloadTimeInMillis() >= delayForMdDownload);
     }
 
@@ -427,7 +416,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
 
         when(transferService.downloadBlob(any(BlobPath.class), eq(mdFilename))).thenThrow(new IOException("Something went wrong"));
 
-        assertThrows(IOException.class, translogTransferManager::readMetadata);
+        assertThrows(IOException.class, translogCkpFilesTransferManager::readMetadata);
         assertNoDownloadStats(true);
     }
 
@@ -451,53 +440,27 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
 
         when(transferService.downloadBlob(any(BlobPath.class), any(String.class))).thenThrow(new IOException("Something went wrong"));
 
-        assertThrows(IOException.class, translogTransferManager::readMetadata);
+        assertThrows(IOException.class, translogCkpFilesTransferManager::readMetadata);
         assertNoDownloadStats(false);
     }
 
     public void testDownloadTranslog() throws IOException {
         Path location = createTempDir();
-        mockResponseDownloadBlobWithMetadata_WithNULLMetadata();
+        mockDownloadBlobWithMetadataResponse_WithNULLMetadataValue();
         assertFalse(Files.exists(location.resolve("translog-23.tlog")));
         assertFalse(Files.exists(location.resolve("translog-23.ckp")));
-        translogTransferManager.downloadTranslog("12", "23", location);
+        translogCkpFilesTransferManager.downloadTranslog("12", "23", location);
         assertTrue(Files.exists(location.resolve("translog-23.tlog")));
         assertTrue(Files.exists(location.resolve("translog-23.ckp")));
         assertTlogCkpDownloadStats();
-    }
-
-    public void mockResponseDownloadBlobWithMetadata_WithNULLMetadata() throws IOException {
-        when(transferService.downloadBlobWithMetadata(any(BlobPath.class), eq("translog-23.tlog"))).thenAnswer(invocation -> {
-            Thread.sleep(delayForBlobDownload);
-            return new InputStreamWithMetadata(new ByteArrayInputStream(tlogBytes), null);
-        });
-    }
-
-    public void testDownloadTranslog_When_CkpFileStoredAsMetadata() throws IOException {
-        Path location = createTempDir();
-        mockResponseDownloadBlobWithMetadata_WithCkpFileStoredAsMetadata();
-        assertFalse(Files.exists(location.resolve("translog-23.tlog")));
-        assertFalse(Files.exists(location.resolve("translog-23.ckp")));
-        translogTransferManager.downloadTranslog("12", "23", location);
-        assertTrue(Files.exists(location.resolve("translog-23.tlog")));
-        assertTrue(Files.exists(location.resolve("translog-23.ckp")));
-        assertTlogCkpDownloadStats_when_CkpFileStoredAsMetadata();
-    }
-
-    public void mockResponseDownloadBlobWithMetadata_WithCkpFileStoredAsMetadata() throws IOException {
-        Map<String, String> metadata = TranslogCheckpointSnapshot.createMetadata(ckpBytes);
-        when(transferService.downloadBlobWithMetadata(any(BlobPath.class), eq("translog-23.tlog"))).thenAnswer(invocation -> {
-            Thread.sleep(delayForBlobDownload);
-            return new InputStreamWithMetadata(new ByteArrayInputStream(tlogBytes), metadata);
-        });
     }
 
     public void testDownloadTranslogAlreadyExists() throws IOException {
         Path location = createTempDir();
         Files.createFile(location.resolve("translog-23.tlog"));
         Files.createFile(location.resolve("translog-23.ckp"));
-        mockResponseDownloadBlobWithMetadata_WithNULLMetadata();
-        translogTransferManager.downloadTranslog("12", "23", location);
+        mockDownloadBlobWithMetadataResponse_WithNULLMetadataValue();
+        translogCkpFilesTransferManager.downloadTranslog("12", "23", location);
         verify(transferService).downloadBlobWithMetadata(any(BlobPath.class), eq("translog-23.tlog"));
         verify(transferService).downloadBlob(any(BlobPath.class), eq("translog-23.ckp"));
         assertTrue(Files.exists(location.resolve("translog-23.tlog")));
@@ -505,26 +468,13 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
         assertTlogCkpDownloadStats();
     }
 
-    public void testDownloadTranslogAlreadyExists_When_CkpFileStoredAsMetadata() throws IOException {
-        Path location = createTempDir();
-        Files.createFile(location.resolve("translog-23.tlog"));
-        Files.createFile(location.resolve("translog-23.ckp"));
-        mockResponseDownloadBlobWithMetadata_WithCkpFileStoredAsMetadata();
-        translogTransferManager.downloadTranslog("12", "23", location);
-        verify(transferService, times(1)).downloadBlobWithMetadata(any(BlobPath.class), eq("translog-23.tlog"));
-        verify(transferService, times(0)).downloadBlob(any(BlobPath.class), eq("translog-23.ckp"));
-        assertTrue(Files.exists(location.resolve("translog-23.tlog")));
-        assertTrue(Files.exists(location.resolve("translog-23.ckp")));
-        assertTlogCkpDownloadStats_when_CkpFileStoredAsMetadata();
-    }
-
     public void testDownloadTranslogWithTrackerUpdated() throws IOException {
         Path location = createTempDir();
         String translogFile = "translog-23.tlog", checkpointFile = "translog-23.ckp";
         Files.createFile(location.resolve(translogFile));
         Files.createFile(location.resolve(checkpointFile));
-        mockResponseDownloadBlobWithMetadata_WithNULLMetadata();
-        translogTransferManager.downloadTranslog("12", "23", location);
+        mockDownloadBlobWithMetadataResponse_WithNULLMetadataValue();
+        translogCkpFilesTransferManager.downloadTranslog("12", "23", location);
         verify(transferService).downloadBlobWithMetadata(any(BlobPath.class), eq(translogFile));
         verify(transferService).downloadBlob(any(BlobPath.class), eq(checkpointFile));
         assertTrue(Files.exists(location.resolve(translogFile)));
@@ -533,39 +483,20 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
         // Since the tracker already holds the files with success state, adding them with failed state would throw exception
         assertThrows(IllegalStateException.class, () -> tracker.add(translogFile, false));
         assertThrows(IllegalStateException.class, () -> tracker.add(checkpointFile, false));
+        assertThrows(IllegalStateException.class, () -> tracker.addGeneration(23, false));
 
         // Since the tracker already holds the files with success state, adding them with success state is allowed
         tracker.add(translogFile, true);
         tracker.add(checkpointFile, true);
+        tracker.addGeneration(23, true);
         assertTlogCkpDownloadStats();
     }
 
-    public void testDownloadTranslogWithTrackerUpdated_When_CkpFileStoredAsMetadata() throws IOException {
-        Path location = createTempDir();
-        String translogFile = "translog-23.tlog", checkpointFile = "translog-23.ckp";
-        Files.createFile(location.resolve(translogFile));
-        Files.createFile(location.resolve(checkpointFile));
-        mockResponseDownloadBlobWithMetadata_WithCkpFileStoredAsMetadata();
-        translogTransferManager.downloadTranslog("12", "23", location);
-
-        verify(transferService, times(1)).downloadBlobWithMetadata(any(BlobPath.class), eq(translogFile));
-        verify(transferService, times(0)).downloadBlob(any(BlobPath.class), eq(checkpointFile));
-        assertTrue(Files.exists(location.resolve(translogFile)));
-        assertTrue(Files.exists(location.resolve(checkpointFile)));
-
-        // Since the tracker already holds the translog.tlog file, and generation with success state, adding them with failed state would
-        // throw exception
-        assertThrows(IllegalStateException.class, () -> tracker.add(translogFile, false));
-        assertThrows(IllegalStateException.class, () -> tracker.addGeneration(23, false));
-
-        // Since the tracker doesn't have translog.ckp file status updated. adding it Failed is allowed
-        tracker.add(checkpointFile, false);
-
-        // Since the tracker already holds the translog.tlog file, and generation with success state, adding them with success state is
-        // allowed
-        tracker.add(translogFile, true);
-        tracker.addGeneration(23, true);
-        assertTlogCkpDownloadStats_when_CkpFileStoredAsMetadata();
+    public void mockDownloadBlobWithMetadataResponse_WithNULLMetadataValue() throws IOException {
+        when(transferService.downloadBlobWithMetadata(any(BlobPath.class), eq("translog-23.tlog"))).thenAnswer(invocation -> {
+            Thread.sleep(delayForBlobDownload);
+            return new InputStreamWithMetadata(new ByteArrayInputStream(tlogBytes), null);
+        });
     }
 
     public void testDeleteTranslogSuccess() throws Exception {
@@ -597,37 +528,6 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
         verify(blobContainer).deleteBlobsIgnoringIfNotExists(eq(files));
     }
 
-    public void testDeleteTranslogSuccess_when_ckpStoredAsMetadata() throws Exception {
-        BlobStore blobStore = mock(BlobStore.class);
-        BlobContainer blobContainer = mock(BlobContainer.class);
-        when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
-        BlobStoreTransferService blobStoreTransferService = new BlobStoreTransferService(blobStore, threadPool);
-        TranslogTransferManager translogTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
-            shardId,
-            blobStoreTransferService,
-            remoteBaseTransferPath.add(TRANSLOG.getName()),
-            remoteBaseTransferPath.add(METADATA.getName()),
-            tracker,
-            remoteTranslogTransferTracker,
-            DefaultRemoteStoreSettings.INSTANCE,
-            ckpAsTranslogMetadata
-        );
-        String translogFile = "translog-19.tlog", checkpointFile = "translog-19.ckp";
-        tracker.addGeneration(19, true);
-        tracker.add(translogFile, true);
-        // tracker.add(checkpointFile, true);
-        assertEquals(1, tracker.allUploadedGeneration().size());
-        assertEquals(1, tracker.allUploaded().size());
-
-        List<String> files = List.of(checkpointFile, translogFile);
-        List<String> verifyDeleteFilesList = List.of(translogFile);
-        translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
-        assertBusy(() -> assertEquals(0, tracker.allUploadedGeneration().size()));
-        assertBusy(() -> assertEquals(0, tracker.allUploaded().size()));
-        // only translog.tlog file will be sent for delete.
-        verify(blobContainer).deleteBlobsIgnoringIfNotExists(eq(verifyDeleteFilesList));
-    }
-
     public void testDeleteStaleTranslogMetadata() {
         String tm1 = new TranslogTransferMetadata(1, 1, 1, 2).getFileName();
         String tm2 = new TranslogTransferMetadata(1, 2, 1, 2).getFileName();
@@ -649,7 +549,7 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
                 any(ActionListener.class)
             );
         List<String> files = List.of(tm2, tm3);
-        translogTransferManager.deleteStaleTranslogMetadataFilesAsync(() -> {
+        translogCkpFilesTransferManager.deleteStaleTranslogMetadataFilesAsync(() -> {
             verify(transferService).listAllInSortedOrderAsync(
                 eq(ThreadPool.Names.REMOTE_PURGE),
                 any(BlobPath.class),
@@ -710,12 +610,6 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
         assertTrue(remoteTranslogTransferTracker.getTotalDownloadTimeInMillis() >= 2 * delayForBlobDownload);
     }
 
-    private void assertTlogCkpDownloadStats_when_CkpFileStoredAsMetadata() {
-        assertEquals(tlogBytes.length + ckpBytes.length, remoteTranslogTransferTracker.getDownloadBytesSucceeded());
-        // Expect delay for both tlog and ckp file
-        assertTrue(remoteTranslogTransferTracker.getTotalDownloadTimeInMillis() >= delayForBlobDownload);
-    }
-
     public void testGetPrimaryTermAndGeneration() {
         String nodeId = UUID.randomUUID().toString();
         String tm = new TranslogTransferMetadata(1, 2, 1, 2, nodeId).getFileName();
@@ -745,15 +639,16 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
         }).when(transferService)
             .listAllInSortedOrder(any(BlobPath.class), eq(TranslogTransferMetadata.METADATA_PREFIX), anyInt(), any(ActionListener.class));
 
-        assertThrows(RuntimeException.class, translogTransferManager::readMetadata);
+        assertThrows(RuntimeException.class, translogCkpFilesTransferManager::readMetadata);
     }
 
     public void testTransferTranslogCheckpointSnapshotWithAllFilesUploaded() throws Exception {
         // Arrange
         Set<TranslogCheckpointSnapshot> toUpload = createTestTranslogCheckpointSnapshots();
         Map<Long, BlobPath> blobPathMap = new HashMap<>();
-        AtomicInteger successCount = new AtomicInteger();
-        AtomicInteger failedCount = new AtomicInteger();
+        AtomicInteger successfulGenCount = new AtomicInteger();
+        AtomicInteger failedGenCount = new AtomicInteger();
+        AtomicInteger processedFilesCount = new AtomicInteger();
         final CountDownLatch latch = new CountDownLatch(toUpload.size());
 
         doAnswer(invocationOnMock -> {
@@ -761,18 +656,21 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
             ActionListener<TransferFileSnapshot> listener = invocationOnMock.getArgument(2);
             for (TransferFileSnapshot fileSnapshot : transferFileSnapshots) {
                 listener.onResponse(fileSnapshot);
+                processedFilesCount.getAndIncrement();
                 fileSnapshot.close();
             }
             return null;
         }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
 
         LatchedActionListener<TranslogCheckpointSnapshot> listener = new LatchedActionListener<>(
-            ActionListener.wrap(resp -> successCount.getAndIncrement(), ex -> failedCount.getAndIncrement()),
+            ActionListener.wrap(resp -> successfulGenCount.getAndIncrement(), ex -> failedGenCount.getAndIncrement()),
             latch
         );
 
-        translogTransferManager.transferTranslogCheckpointSnapshot(toUpload, blobPathMap, listener);
-        assertEquals(successCount.get(), 2);
+        translogCkpFilesTransferManager.transferTranslogCheckpointSnapshot(toUpload, blobPathMap, listener);
+        assertEquals(successfulGenCount.get(), 2);
+        assertEquals(failedGenCount.get(), 0);
+        assertEquals(processedFilesCount.get(), 4);
     }
 
     public void testTransferTranslogCheckpointSnapshotWithOneOfTheTwoFilesFailedForATranslogGeneration() throws Exception {
@@ -785,7 +683,6 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
         Map<Long, BlobPath> blobPathMap = new HashMap<>();
         AtomicInteger successCount = new AtomicInteger();
         AtomicInteger failedCount = new AtomicInteger();
-        final CountDownLatch latch = new CountDownLatch(toUpload.size());
 
         doAnswer(invocationOnMock -> {
             Set<TransferFileSnapshot> transferFileSnapshots = invocationOnMock.getArgument(0);
@@ -806,53 +703,73 @@ public class BaseTranslogTransferManagerTests extends OpenSearchTestCase {
             return null;
         }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
 
+        final CountDownLatch latch = new CountDownLatch(toUpload.size());
         LatchedActionListener<TranslogCheckpointSnapshot> listener = new LatchedActionListener<>(
             ActionListener.wrap(resp -> successCount.getAndIncrement(), ex -> failedCount.getAndIncrement()),
             latch
         );
+        translogCkpFilesTransferManager.transferTranslogCheckpointSnapshot(toUpload, blobPathMap, listener);
 
-        translogTransferManager.transferTranslogCheckpointSnapshot(toUpload, blobPathMap, listener);
         assertEquals(successCount.get(), 0);
         assertEquals(failedCount.get(), 1);
     }
 
-    private Set<TranslogCheckpointSnapshot> createTestTranslogCheckpointSnapshots() {
-        Set<TranslogCheckpointSnapshot> snapshots = new HashSet<>();
-        try {
-            Path translogFile = createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.TRANSLOG_FILE_SUFFIX);
-            Path checkpointFile = createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.CHECKPOINT_SUFFIX);
-            snapshots.add(
-                new TranslogCheckpointSnapshot(
-                    primaryTerm,
-                    generation,
-                    minTranslogGeneration,
-                    translogFile,
-                    checkpointFile,
-                    null,
-                    null,
-                    null,
-                    generation
-                )
-            );
+    public void testTransferTranslogCheckpointSnapshotWhenBothTlogAndCkpTransferFailedForATranslogGeneration() throws Exception {
+        // Arrange
+        Set<TranslogCheckpointSnapshot> toUpload = createTestTranslogCheckpointSnapshots();
+        Map<Long, BlobPath> blobPathMap = new HashMap<>();
+        AtomicInteger successCount = new AtomicInteger();
+        AtomicInteger failedCount = new AtomicInteger();
+        AtomicInteger processedFilesCount = new AtomicInteger();
 
-            translogFile = createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.TRANSLOG_FILE_SUFFIX);
-            checkpointFile = createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.CHECKPOINT_SUFFIX);
-            snapshots.add(
-                new TranslogCheckpointSnapshot(
-                    primaryTerm,
-                    generation - 1,
-                    minTranslogGeneration,
-                    translogFile,
-                    checkpointFile,
-                    null,
-                    null,
-                    null,
-                    generation - 1
-                )
-            );
-        } catch (IOException e) {
-            throw new AssertionError("Failed to create temp file", e);
-        }
-        return snapshots;
+        doAnswer(invocationOnMock -> {
+            Set<TransferFileSnapshot> transferFileSnapshots = invocationOnMock.getArgument(0);
+            ActionListener<TransferFileSnapshot> listener = invocationOnMock.getArgument(2);
+            for (TransferFileSnapshot fileSnapshot : transferFileSnapshots) {
+                listener.onFailure(new FileTransferException(fileSnapshot, new Exception("test-exception")));
+                processedFilesCount.getAndIncrement();
+                fileSnapshot.close();
+            }
+            return null;
+        }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
+
+        final CountDownLatch latch = new CountDownLatch(toUpload.size());
+        LatchedActionListener<TranslogCheckpointSnapshot> listener = new LatchedActionListener<>(
+            ActionListener.wrap(resp -> successCount.getAndIncrement(), ex -> failedCount.getAndIncrement()),
+            latch
+        );
+        translogCkpFilesTransferManager.transferTranslogCheckpointSnapshot(toUpload, blobPathMap, listener);
+
+        assertEquals(successCount.get(), 0);
+        assertEquals(failedCount.get(), 2);
+        assertEquals(processedFilesCount.get(), 4);
+    }
+
+    private Set<TranslogCheckpointSnapshot> createTestTranslogCheckpointSnapshots() throws IOException {
+        return Set.of(
+            new TranslogCheckpointSnapshot(
+                primaryTerm,
+                generation,
+                minTranslogGeneration,
+                createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.TRANSLOG_FILE_SUFFIX),
+                createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.CHECKPOINT_SUFFIX),
+                null,
+                null,
+                null,
+                generation
+            ),
+
+            new TranslogCheckpointSnapshot(
+                primaryTerm,
+                generation - 1,
+                minTranslogGeneration,
+                createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.TRANSLOG_FILE_SUFFIX),
+                createTempFile(Translog.TRANSLOG_FILE_PREFIX + (generation - 1), Translog.CHECKPOINT_SUFFIX),
+                null,
+                null,
+                null,
+                generation - 1
+            )
+        );
     }
 }

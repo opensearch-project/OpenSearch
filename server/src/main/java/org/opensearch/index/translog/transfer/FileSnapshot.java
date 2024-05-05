@@ -121,7 +121,7 @@ public class FileSnapshot implements Closeable {
             this(path, primaryTerm, checksum, null);
         }
 
-        private TransferFileSnapshot(Path path, long primaryTerm, Long checksum, Map<String, String> metadata) throws IOException {
+        public TransferFileSnapshot(Path path, long primaryTerm, Long checksum, Map<String, String> metadata) throws IOException {
             super(path, metadata);
             this.primaryTerm = primaryTerm;
             this.checksum = checksum;
