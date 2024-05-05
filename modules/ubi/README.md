@@ -1,6 +1,6 @@
 # User Behavior Insights (UBI)
 
-UBI facilitates storing queries and events for the purposes of improving search relevance.
+UBI facilitates storing queries and events for the purposes of improving search relevance as descrbed by [[RFC] User Behavior Insights](https://github.com/opensearch-project/OpenSearch/issues/12084).
 
 ## Indexing Queries
 
