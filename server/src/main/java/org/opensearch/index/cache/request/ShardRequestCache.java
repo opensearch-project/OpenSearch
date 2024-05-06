@@ -32,10 +32,13 @@
 
 package org.opensearch.index.cache.request;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Accountable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.indices.IndicesRequestCache;
 
 /**
  * Tracks the portion of the request cache in use for a particular shard.
@@ -45,6 +48,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 @PublicApi(since = "1.0.0")
 public final class ShardRequestCache {
 
+    private static final Logger logger = LogManager.getLogger(ShardRequestCache.class);
     final CounterMetric evictionsMetric = new CounterMetric();
     final CounterMetric totalMetric = new CounterMetric();
     final CounterMetric hitCount = new CounterMetric();
@@ -75,7 +79,12 @@ public final class ShardRequestCache {
         if (value != null) {
             dec += value.ramBytesUsed();
         }
-        totalMetric.dec(dec);
+        if ((totalMetric.count() - dec) < 0) {
+            logger.warn("Ignoring the operation to deduct memory: {} from RequestStats memory_size metric as it will " +
+                "go negative. Current memory: {}. This is a bug.", dec, totalMetric.count());
+        } else {
+            totalMetric.dec(dec);
+        }
     }
 
     // Old functions which increment size by passing in an Accountable. Functional but no longer used.
@@ -93,6 +102,12 @@ public final class ShardRequestCache {
         }
         if (value != null) {
             dec += value.ramBytesUsed();
+        }
+        if ((totalMetric.count() - dec) < 0) {
+            logger.warn("Ignoring the operation to deduct memory: {} from RequestStats memory_size metric as it will " +
+                "go negative. Current memory: {}. This is a bug.", dec, totalMetric.count());
+        } else {
+            totalMetric.dec(dec);
         }
     }
 }
