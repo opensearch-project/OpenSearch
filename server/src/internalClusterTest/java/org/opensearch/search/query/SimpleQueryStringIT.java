@@ -57,7 +57,7 @@ import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
-import org.opensearch.search.SearchModule;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.BeforeClass;
@@ -115,14 +115,14 @@ public class SimpleQueryStringIT extends ParameterizedStaticSettingsOpenSearchIn
         // Lower bound can't be small(such as 60), simpleQueryStringQuery("foo Bar 19 127.0.0.1") in testDocWithAllTypes
         // will create many clauses of BooleanClause, In that way, it will throw too_many_nested_clauses exception.
         // So we need to set a higher bound(such as 80) to avoid failures.
-        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(80, 100);
+        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(1024, 2048);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT)
+            .put(SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT)
             .build();
     }
 

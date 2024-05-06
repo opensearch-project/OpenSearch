@@ -46,6 +46,7 @@ import org.opensearch.index.query.QueryStringQueryBuilder;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchModule;
+import org.opensearch.search.SearchService;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -87,7 +88,7 @@ public class QueryStringIT extends ParameterizedStaticSettingsOpenSearchIntegTes
 
     @BeforeClass
     public static void createRandomClusterSetting() {
-        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(50, 100);
+        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(1024, 2048);
     }
 
     @Before
@@ -101,7 +102,7 @@ public class QueryStringIT extends ParameterizedStaticSettingsOpenSearchIntegTes
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT)
+            .put(SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT)
             .build();
     }
 
