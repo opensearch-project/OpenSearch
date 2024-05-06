@@ -62,6 +62,23 @@ public final class ShardRequestCache {
         missCount.inc();
     }
 
+    // Functions used to increment size by passing in the size directly, Used now, as we use ICacheKey<Key> in the IndicesRequestCache..
+    public void onCached(long keyRamBytesUsed, BytesReference value) {
+        totalMetric.inc(keyRamBytesUsed + value.ramBytesUsed());
+    }
+
+    public void onRemoval(long keyRamBytesUsed, BytesReference value, boolean evicted) {
+        if (evicted) {
+            evictionsMetric.inc();
+        }
+        long dec = keyRamBytesUsed;
+        if (value != null) {
+            dec += value.ramBytesUsed();
+        }
+        totalMetric.dec(dec);
+    }
+
+    // Old functions which increment size by passing in an Accountable. Functional but no longer used.
     public void onCached(Accountable key, BytesReference value) {
         totalMetric.inc(key.ramBytesUsed() + value.ramBytesUsed());
     }
@@ -77,6 +94,5 @@ public final class ShardRequestCache {
         if (value != null) {
             dec += value.ramBytesUsed();
         }
-        totalMetric.dec(dec);
     }
 }

@@ -30,10 +30,12 @@ import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.opensearch.test.transport.MockTransportService;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Arrays.asList;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -43,7 +45,6 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         return 1;
     }
 
-    // ToDo : Fix me when we support migration of replicas
     protected int maximumNumberOfReplicas() {
         return 0;
     }
@@ -52,9 +53,9 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         return asList(MockTransportService.TestPlugin.class);
     }
 
-    public void testMixedModeRelocation() throws Exception {
-        String docRepNode = internalCluster().startNode();
-        Client client = internalCluster().client(docRepNode);
+    public void testRemotePrimaryRelocation() throws Exception {
+        List<String> docRepNodes = internalCluster().startNodes(2);
+        Client client = internalCluster().client(docRepNodes.get(0));
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed"));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
@@ -70,9 +71,12 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         refresh("test");
 
         // add remote node in mixed mode cluster
-        addRemote = true;
+        setAddRemote(true);
         String remoteNode = internalCluster().startNode();
         internalCluster().validateClusterFormed();
+
+        updateSettingsRequest.persistentSettings(Settings.builder().put(MIGRATION_DIRECTION_SETTING.getKey(), "remote_store"));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         String remoteNode2 = internalCluster().startNode();
         internalCluster().validateClusterFormed();
@@ -87,8 +91,17 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         int finalCurrentDoc1 = currentDoc;
         waitUntil(() -> numAutoGenDocs.get() > finalCurrentDoc1 + 5);
 
-        logger.info("-->  relocating from {} to {} ", docRepNode, remoteNode);
-        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, docRepNode, remoteNode)).execute().actionGet();
+        // Change direction to remote store
+        updateSettingsRequest.persistentSettings(Settings.builder().put(MIGRATION_DIRECTION_SETTING.getKey(), "remote_store"));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        logger.info("-->  relocating from {} to {} ", docRepNodes, remoteNode);
+        client().admin()
+            .cluster()
+            .prepareReroute()
+            .add(new MoveAllocationCommand("test", 0, primaryNodeName("test"), remoteNode))
+            .execute()
+            .actionGet();
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()
             .prepareHealth()
@@ -159,7 +172,7 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         refresh("test");
 
         // add remote node in mixed mode cluster
-        addRemote = true;
+        setAddRemote(true);
         String remoteNode = internalCluster().startNode();
         internalCluster().validateClusterFormed();
 
@@ -169,6 +182,10 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder().put(RecoverySettings.INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.getKey(), "10s"))
             .get();
+
+        // Change direction to remote store
+        updateSettingsRequest.persistentSettings(Settings.builder().put(MIGRATION_DIRECTION_SETTING.getKey(), "remote_store"));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         logger.info("--> relocating from {} to {} ", docRepNode, remoteNode);
         client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, docRepNode, remoteNode)).execute().actionGet();

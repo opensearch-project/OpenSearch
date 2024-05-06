@@ -86,6 +86,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
+import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdaterTests.createIndexMetadataWithDocrepSettings;
+import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdaterTests.createIndexMetadataWithRemoteStoreSettings;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
@@ -791,7 +793,9 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             .add(nonRemoteNode2)
             .localNodeId(nonRemoteNode2.getId())
             .build();
-        ClusterState sameTypeClusterState = ClusterState.builder(clusterState).nodes(discoveryNodes).build();
+
+        metadata = createIndexMetadataWithRemoteStoreSettings("test-index");
+        ClusterState sameTypeClusterState = ClusterState.builder(clusterState).nodes(discoveryNodes).metadata(metadata).build();
         transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameTypeClusterState);
 
         // cluster with only non-remote nodes
@@ -801,8 +805,82 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             .add(remoteNode2)
             .localNodeId(remoteNode2.getId())
             .build();
-        sameTypeClusterState = ClusterState.builder(sameTypeClusterState).nodes(discoveryNodes).build();
+        sameTypeClusterState = ClusterState.builder(sameTypeClusterState).nodes(discoveryNodes).metadata(metadata).build();
         transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameTypeClusterState);
+    }
+
+    public void testDontAllowSwitchingToStrictCompatibilityModeWithoutRemoteIndexSettings() {
+        Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
+        FeatureFlags.initializeFeatureFlags(nodeSettings);
+        Settings currentCompatibilityModeSettings = Settings.builder()
+            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.MIXED)
+            .build();
+        Settings intendedCompatibilityModeSettings = Settings.builder()
+            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
+            .build();
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        request.persistentSettings(intendedCompatibilityModeSettings);
+        DiscoveryNode remoteNode1 = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            getRemoteStoreNodeAttributes(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        DiscoveryNode remoteNode2 = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            getRemoteStoreNodeAttributes(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(remoteNode1)
+            .localNodeId(remoteNode1.getId())
+            .add(remoteNode2)
+            .localNodeId(remoteNode2.getId())
+            .build();
+        AllocationService allocationService = new AllocationService(
+            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
+        TransportClusterUpdateSettingsAction transportClusterUpdateSettingsAction = new TransportClusterUpdateSettingsAction(
+            transportService,
+            clusterService,
+            threadPool,
+            allocationService,
+            new ActionFilters(Collections.emptySet()),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            clusterService.getClusterSettings()
+        );
+
+        Metadata nonRemoteIndexMd = Metadata.builder(createIndexMetadataWithDocrepSettings("test"))
+            .persistentSettings(currentCompatibilityModeSettings)
+            .build();
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(nonRemoteIndexMd)
+            .nodes(discoveryNodes)
+            .build();
+        final SettingsException exception = expectThrows(
+            SettingsException.class,
+            () -> transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, clusterState)
+        );
+        assertEquals(
+            "can not switch to STRICT compatibility mode since all indices in the cluster does not have remote store based index settings",
+            exception.getMessage()
+        );
+
+        Metadata remoteIndexMd = Metadata.builder(createIndexMetadataWithRemoteStoreSettings("test"))
+            .persistentSettings(currentCompatibilityModeSettings)
+            .build();
+        ClusterState clusterStateWithRemoteIndices = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(remoteIndexMd)
+            .nodes(discoveryNodes)
+            .build();
+        transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, clusterStateWithRemoteIndices);
     }
 
     public void testDontAllowSwitchingCompatibilityModeForClusterWithMultipleVersions() {
@@ -897,7 +975,10 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             .localNodeId(discoveryNode2.getId())
             .build();
 
-        ClusterState sameVersionClusterState = ClusterState.builder(differentVersionClusterState).nodes(discoveryNodes).build();
+        ClusterState sameVersionClusterState = ClusterState.builder(differentVersionClusterState)
+            .nodes(discoveryNodes)
+            .metadata(createIndexMetadataWithRemoteStoreSettings("test"))
+            .build();
         transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameVersionClusterState);
     }
 
@@ -907,4 +988,5 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         remoteStoreNodeAttributes.put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
         return remoteStoreNodeAttributes;
     }
+
 }
