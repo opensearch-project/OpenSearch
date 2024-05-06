@@ -38,7 +38,6 @@ import org.apache.lucene.util.Accountable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.indices.IndicesRequestCache;
 
 /**
  * Tracks the portion of the request cache in use for a particular shard.
@@ -80,8 +79,12 @@ public final class ShardRequestCache {
             dec += value.ramBytesUsed();
         }
         if ((totalMetric.count() - dec) < 0) {
-            logger.warn("Ignoring the operation to deduct memory: {} from RequestStats memory_size metric as it will " +
-                "go negative. Current memory: {}. This is a bug.", dec, totalMetric.count());
+            logger.warn(
+                "Ignoring the operation to deduct memory: {} from RequestStats memory_size metric as it will "
+                    + "go negative. Current memory: {}. This is a bug.",
+                dec,
+                totalMetric.count()
+            );
         } else {
             totalMetric.dec(dec);
         }
@@ -104,8 +107,12 @@ public final class ShardRequestCache {
             dec += value.ramBytesUsed();
         }
         if ((totalMetric.count() - dec) < 0) {
-            logger.warn("Ignoring the operation to deduct memory: {} from RequestStats memory_size metric as it will " +
-                "go negative. Current memory: {}. This is a bug.", dec, totalMetric.count());
+            logger.warn(
+                "Ignoring the operation to deduct memory: {} from RequestStats memory_size metric as it will "
+                    + "go negative. Current memory: {}. This is a bug.",
+                dec,
+                totalMetric.count()
+            );
         } else {
             totalMetric.dec(dec);
         }

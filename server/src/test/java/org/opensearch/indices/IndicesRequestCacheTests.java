@@ -87,7 +87,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -1300,9 +1299,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     public static String generateString(int length) {
         String characters = "abcdefghijklmnopqrstuvwxyz";
         StringBuilder sb = new StringBuilder(length);
-        Random random = new Random();
         for (int i = 0; i < length; i++) {
-            int index = random.nextInt(characters.length());
+            int index = randomInt(characters.length() - 1);
             sb.append(characters.charAt(index));
         }
         return sb.toString();
