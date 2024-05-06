@@ -1271,6 +1271,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 latch.countDown();
             });
         }
+        latch.await();
         for (int i = 0; i < numberOfIndices; i++) {
             IndexShard indexShard = indexShardList.get(i);
             IndicesService.IndexShardCacheEntity entity = entityMap.get(indexShard);
