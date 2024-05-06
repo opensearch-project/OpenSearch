@@ -8,11 +8,14 @@
 
 package org.opensearch.gateway.remote.routingtable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 
 import java.io.IOException;
@@ -56,6 +59,7 @@ public class IndexRoutingTableInputStream extends InputStream {
     private final IndexRoutingTableHeader indexRoutingTableHeader;
 
     private final Iterator<IndexShardRoutingTable> shardIter;
+    private static final Logger logger = LogManager.getLogger(IndexRoutingTableInputStream.class);
 
     public IndexRoutingTableInputStream(IndexRoutingTable indexRoutingTable, long version, Version nodeVersion) throws IOException {
         this(indexRoutingTable, version, nodeVersion, BUFFER_SIZE);
@@ -66,6 +70,8 @@ public class IndexRoutingTableInputStream extends InputStream {
         this.buf = new byte[size];
         this.shardIter = indexRoutingTable.iterator();
         this.indexRoutingTableHeader = new IndexRoutingTableHeader(version, indexRoutingTable.getIndex().getName(), nodeVersion);
+        logger.info("indexRoutingTable {}, version {}, nodeVersion {}", indexRoutingTable.prettyPrint(), version, nodeVersion);
+
         initialFill();
     }
 
@@ -82,12 +88,26 @@ public class IndexRoutingTableInputStream extends InputStream {
         BytesReference bytesReference = indexRoutingTableHeader.write();
         buf = bytesReference.toBytesRef().bytes;
         count = bytesReference.length();
+        logger.info("bytesReference {} buf {}, count {}", bytesReference , buf, count);
+
         fill(buf);
     }
 
     private void fill(byte[] buf) throws IOException {
         if (leftOverBuf != null) {
-            System.arraycopy(leftOverBuf, 0, buf, count, leftOverBuf.length);
+            if(leftOverBuf.length > buf.length - count) {
+                // leftOverBuf has more content than length of buf, so we need to copy only based on buf length and keep the remaining in leftOverBuf.
+                System.arraycopy(leftOverBuf, 0, buf, count, buf.length - count);
+                byte[] tempLeftOverBuffer =  new byte[leftOverBuf.length - (buf.length - count)];
+                System.arraycopy(leftOverBuf, buf.length - count , tempLeftOverBuffer, 0, leftOverBuf.length - (buf.length - count));
+                leftOverBuf = tempLeftOverBuffer;
+                count = buf.length - count;
+
+            } else {
+                System.arraycopy(leftOverBuf, 0, buf, count, leftOverBuf.length);
+                count +=  leftOverBuf.length;
+                leftOverBuf = null;
+            }
         }
         if (count < buf.length && shardIter.hasNext()) {
             IndexShardRoutingTable next = shardIter.next();
@@ -108,9 +128,10 @@ public class IndexRoutingTableInputStream extends InputStream {
                 leftOverBuf = null;
             } else {
                 System.arraycopy(bytesRef.toBytesRef().bytes, 0, buf, count, buf.length - count);
-                count += buf.length - count;
-                leftOverBuf = new byte[bytesRef.length() - count];
-                System.arraycopy(bytesRef.toBytesRef().bytes, buf.length - count + 1, leftOverBuf, 0, bytesRef.length() - count);
+                leftOverBuf = new byte[bytesRef.length() - (buf.length - count)];
+                System.arraycopy(bytesRef.toBytesRef().bytes, buf.length - count , leftOverBuf, 0, bytesRef.length() - (buf.length - count));
+                count = buf.length;
+
             }
         }
     }
@@ -128,7 +149,7 @@ public class IndexRoutingTableInputStream extends InputStream {
                 markPos = -1; /* buffer got too big, invalidate mark */
                 pos = 0; /* drop buffer contents */
             } else { /* grow buffer */
-                int nsz = markLimit + 1;
+                int nsz = markLimit + 1; //NEED TO CHECK THIS
                 byte[] nbuf = new byte[nsz];
                 System.arraycopy(buffer, 0, nbuf, 0, pos);
                 buffer = nbuf;

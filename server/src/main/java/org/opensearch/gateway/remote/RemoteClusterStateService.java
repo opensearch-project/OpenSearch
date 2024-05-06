@@ -174,7 +174,7 @@ public class RemoteClusterStateService implements Closeable {
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
     private final RemotePersistenceStats remoteStateStats;
     public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 1;
-    public static final int MANIFEST_CURRENT_CODEC_VERSION = ClusterMetadataManifest.CODEC_V1;
+    public static final int MANIFEST_CURRENT_CODEC_VERSION = ClusterMetadataManifest.CODEC_V2;
     public static final int GLOBAL_METADATA_CURRENT_CODEC_VERSION = 1;
 
     // ToXContent Params with gateway mode.
@@ -195,6 +195,8 @@ public class RemoteClusterStateService implements Closeable {
         ThreadPool threadPool
     ) {
         assert isRemoteStoreClusterStateEnabled(settings) : "Remote cluster state is not enabled";
+        logger.info("REMOTE STATE ENABLED");
+
         this.nodeId = nodeId;
         this.repositoriesService = repositoriesService;
         this.settings = settings;
@@ -213,6 +215,7 @@ public class RemoteClusterStateService implements Closeable {
         if(isRemoteRoutingTableEnabled(settings)) {
             this.remoteRoutingTableService = new RemoteRoutingTableService(repositoriesService,
                 settings, clusterSettings);
+            logger.info("REMOTE ROUTING ENABLED");
         }
     }
 
@@ -231,6 +234,7 @@ public class RemoteClusterStateService implements Closeable {
      */
     @Nullable
     public ClusterMetadataManifest writeFullMetadata(ClusterState clusterState, String previousClusterUUID) throws IOException {
+        logger.info("WRITING FULL STATE");
         final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
         if (clusterState.nodes().isLocalNodeElectedClusterManager() == false) {
             logger.error("Local node is not elected cluster manager. Exiting");
@@ -240,15 +244,24 @@ public class RemoteClusterStateService implements Closeable {
         // TODO: we can upload global metadata and index metadata in parallel. [issue: #10645]
         // Write globalMetadata
         String globalMetadataFile = writeGlobalMetadata(clusterState);
+        logger.info("globalMetadataFile {}", globalMetadataFile);
 
         // any validations before/after upload ?
         final List<UploadedIndexMetadata> allUploadedIndexMetadata = writeIndexMetadataParallel(
             clusterState,
             new ArrayList<>(clusterState.metadata().indices().values())
         );
+
+        List<UploadedIndexMetadata> routingIndexMetadata = new ArrayList<>();
+        if(remoteRoutingTableService!=null) {
+            routingIndexMetadata = remoteRoutingTableService.writeFullRoutingTable(clusterState, previousClusterUUID);
+            logger.info("routingIndexMetadata {}", routingIndexMetadata);
+        }
+
         final ClusterMetadataManifest manifest = uploadManifest(
             clusterState,
             allUploadedIndexMetadata,
+            routingIndexMetadata,
             previousClusterUUID,
             globalMetadataFile,
             false
@@ -286,6 +299,8 @@ public class RemoteClusterStateService implements Closeable {
         ClusterState clusterState,
         ClusterMetadataManifest previousManifest
     ) throws IOException {
+        logger.info("WRITING INCREMENTAL STATE");
+
         final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
         if (clusterState.nodes().isLocalNodeElectedClusterManager() == false) {
             logger.error("Local node is not elected cluster manager. Exiting");
@@ -313,12 +328,14 @@ public class RemoteClusterStateService implements Closeable {
         for (final IndexMetadata indexMetadata : previousClusterState.metadata().indices().values()) {
             previousStateIndexMetadataVersionByName.put(indexMetadata.getIndex().getName(), indexMetadata.getVersion());
         }
+        logger.info("previousStateIndexMetadataVersionByName incremental {}", previousStateIndexMetadataVersionByName);
 
         int numIndicesUpdated = 0;
         int numIndicesUnchanged = 0;
         final Map<String, ClusterMetadataManifest.UploadedIndexMetadata> allUploadedIndexMetadata = previousManifest.getIndices()
             .stream()
             .collect(Collectors.toMap(UploadedIndexMetadata::getIndexName, Function.identity()));
+        logger.info("allUploadedIndexMetadata incremental {}", allUploadedIndexMetadata);
 
         List<IndexMetadata> toUpload = new ArrayList<>();
 
@@ -338,18 +355,30 @@ public class RemoteClusterStateService implements Closeable {
             }
             previousStateIndexMetadataVersionByName.remove(indexMetadata.getIndex().getName());
         }
+        logger.info("toUpload incremental {}", toUpload);
+        logger.info("previousStateIndexMetadataVersionByName after rmeove {}", previousStateIndexMetadataVersionByName);
 
         List<UploadedIndexMetadata> uploadedIndexMetadataList = writeIndexMetadataParallel(clusterState, toUpload);
         uploadedIndexMetadataList.forEach(
             uploadedIndexMetadata -> allUploadedIndexMetadata.put(uploadedIndexMetadata.getIndexName(), uploadedIndexMetadata)
         );
+        logger.info("uploadedIndexMetadataList incremental {}", uploadedIndexMetadataList);
 
         for (String removedIndexName : previousStateIndexMetadataVersionByName.keySet()) {
             allUploadedIndexMetadata.remove(removedIndexName);
         }
+        logger.info("allUploadedIndexMetadata after rmeove {}", uploadedIndexMetadataList);
+
+        List<UploadedIndexMetadata> routingIndexMetadata = new ArrayList<>();
+        if(remoteRoutingTableService!=null) {
+            routingIndexMetadata = remoteRoutingTableService.writeIncrementalRoutingTable(previousClusterState, clusterState, previousManifest);
+            logger.info("routingIndexMetadata incremental {}", routingIndexMetadata);
+        }
+
         final ClusterMetadataManifest manifest = uploadManifest(
             clusterState,
             new ArrayList<>(allUploadedIndexMetadata.values()),
+            routingIndexMetadata,
             previousManifest.getPreviousClusterUUID(),
             globalMetadataFile,
             false
@@ -562,9 +591,11 @@ public class RemoteClusterStateService implements Closeable {
             return null;
         }
         assert previousManifest != null : "Last cluster metadata manifest is not set";
+        logger.info("MARKING LAST STATE COMMIITTED");
         ClusterMetadataManifest committedManifest = uploadManifest(
             clusterState,
             previousManifest.getIndices(),
+            previousManifest.getIndicesRouting(),
             previousManifest.getPreviousClusterUUID(),
             previousManifest.getGlobalMetadataFileName(),
             true
@@ -604,8 +635,20 @@ public class RemoteClusterStateService implements Closeable {
         String globalClusterMetadataFileName,
         boolean committed
     ) throws IOException {
+        return uploadManifest(clusterState, uploadedIndexMetadata, new ArrayList<>(), previousClusterUUID, globalClusterMetadataFileName, committed);
+    }
+
+    private ClusterMetadataManifest uploadManifest(
+        ClusterState clusterState,
+        List<UploadedIndexMetadata> uploadedIndexMetadata,
+        List<UploadedIndexMetadata> uploadedIndicesRouting,
+        String previousClusterUUID,
+        String globalClusterMetadataFileName,
+        boolean committed
+    ) throws IOException {
         synchronized (this) {
             final String manifestFileName = getManifestFileName(clusterState.term(), clusterState.version(), committed);
+            logger.info("manifestFileName {}", manifestFileName);
             final ClusterMetadataManifest manifest = new ClusterMetadataManifest(
                 clusterState.term(),
                 clusterState.getVersion(),
@@ -618,8 +661,11 @@ public class RemoteClusterStateService implements Closeable {
                 globalClusterMetadataFileName,
                 uploadedIndexMetadata,
                 previousClusterUUID,
-                clusterState.metadata().clusterUUIDCommitted()
+                clusterState.metadata().clusterUUIDCommitted(),
+                uploadedIndicesRouting
             );
+            logger.info("manifest {}", manifest);
+
             writeMetadataManifest(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), manifest, manifestFileName);
             return manifest;
         }
@@ -639,6 +685,7 @@ public class RemoteClusterStateService implements Closeable {
             logger.trace(String.format(Locale.ROOT, "Manifest file uploaded successfully."));
         }, ex -> { exceptionReference.set(ex); }), latch);
 
+        logger.info("MANIFEST {}", uploadManifest);
         CLUSTER_METADATA_MANIFEST_FORMAT.writeAsyncWithUrgentPriority(
             uploadManifest,
             metadataManifestContainer,
