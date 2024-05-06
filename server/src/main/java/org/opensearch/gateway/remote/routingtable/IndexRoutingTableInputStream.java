@@ -60,6 +60,8 @@ public class IndexRoutingTableInputStream extends InputStream {
 
     private final Iterator<IndexShardRoutingTable> shardIter;
     private static final Logger logger = LogManager.getLogger(IndexRoutingTableInputStream.class);
+    private final BytesStreamOutput bytesStreamOutput;
+    private final BufferedChecksumStreamOutput out;
 
     public IndexRoutingTableInputStream(IndexRoutingTable indexRoutingTable, long version, Version nodeVersion) throws IOException {
         this(indexRoutingTable, version, nodeVersion, BUFFER_SIZE);
@@ -69,10 +71,13 @@ public class IndexRoutingTableInputStream extends InputStream {
         throws IOException {
         this.buf = new byte[size];
         this.shardIter = indexRoutingTable.iterator();
+        this.bytesStreamOutput = new BytesStreamOutput();
+        this.out = new BufferedChecksumStreamOutput(bytesStreamOutput);
         this.indexRoutingTableHeader = new IndexRoutingTableHeader(version, indexRoutingTable.getIndex().getName(), nodeVersion);
+
         logger.info("indexRoutingTable {}, version {}, nodeVersion {}", indexRoutingTable.prettyPrint(), version, nodeVersion);
 
-        initialFill();
+        initialFill(indexRoutingTable.shards().size());
     }
 
     @Override
@@ -84,12 +89,13 @@ public class IndexRoutingTableInputStream extends InputStream {
         return buf[pos++] & 0xff;
     }
 
-    private void initialFill() throws IOException {
-        BytesReference bytesReference = indexRoutingTableHeader.write();
-        buf = bytesReference.toBytesRef().bytes;
-        count = bytesReference.length();
-        logger.info("bytesReference {} buf {}, count {}", bytesReference , buf, count);
+    private void initialFill(int shardCount) throws IOException {
+        indexRoutingTableHeader.write(out);
+        out.writeVInt(shardCount);
 
+        System.arraycopy(bytesStreamOutput.bytes().toBytesRef().bytes, 0 , buf, 0, bytesStreamOutput.bytes().length());
+        count = bytesStreamOutput.bytes().length();
+        bytesStreamOutput.reset();
         fill(buf);
     }
 
@@ -109,19 +115,18 @@ public class IndexRoutingTableInputStream extends InputStream {
                 leftOverBuf = null;
             }
         }
+
         if (count < buf.length && shardIter.hasNext()) {
             IndexShardRoutingTable next = shardIter.next();
-            BytesReference bytesRef;
-            try (
-                BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-                BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(bytesStreamOutput)
-            ) {
-                IndexShardRoutingTable.Builder.writeTo(next, out);
-                // Checksum header
+            IndexShardRoutingTable.Builder.writeTo(next, out);
+            //Add checksum for the file after all shards are done
+            if(!shardIter.hasNext()) {
                 out.writeInt((int) out.getChecksum());
-                out.flush();
-                bytesRef = bytesStreamOutput.bytes();
             }
+            out.flush();
+            BytesReference bytesRef = bytesStreamOutput.bytes();
+            bytesStreamOutput.reset();
+
             if (bytesRef.length() < buf.length - count) {
                 System.arraycopy(bytesRef.toBytesRef().bytes, 0, buf, count, bytesRef.length());
                 count += bytesRef.length();
@@ -134,6 +139,7 @@ public class IndexRoutingTableInputStream extends InputStream {
 
             }
         }
+
     }
 
     private void maybeResizeAndFill() throws IOException {

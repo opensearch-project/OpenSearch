@@ -21,6 +21,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -50,26 +51,16 @@ public class IndexRoutingTableHeader {
 
     /**
      * Returns the bytes reference for the {@link IndexRoutingTableHeader}
-     * @return the {@link BytesReference}
      * @throws IOException
      */
-    public BytesReference write() throws IOException {
-        BytesReference bytesReference;
-        try (
-            BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-            BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(bytesStreamOutput)
-        ) {
+    public void write(StreamOutput out) throws IOException {
             CodecUtil.writeHeader(new OutputStreamDataOutput(out), INDEX_ROUTING_HEADER_CODEC, CURRENT_VERSION);
             // Write version
             out.writeLong(routingTableVersion);
             out.writeInt(nodeVersion.id);
             out.writeString(indexName);
-            // Checksum header
-            out.writeInt((int) out.getChecksum());
+
             out.flush();
-            bytesReference = bytesStreamOutput.bytes();
-        }
-        return bytesReference;
     }
 
     /**
