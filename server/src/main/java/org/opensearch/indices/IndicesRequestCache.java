@@ -315,8 +315,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             readerCacheKeyId = ((OpenSearchDirectoryReader.DelegatingCacheHelper) cacheHelper).getDelegatingCacheKey().getId();
         }
         IndexShard indexShard = (IndexShard) cacheEntity.getCacheIdentity();
-        cache.invalidate(getICacheKey(new Key(indexShard.shardId(), cacheKey, readerCacheKeyId,
-            System.identityHashCode(indexShard))));
+        cache.invalidate(getICacheKey(new Key(indexShard.shardId(), cacheKey, readerCacheKeyId, System.identityHashCode(indexShard))));
     }
 
     /**

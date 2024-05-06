@@ -54,8 +54,7 @@ public final class ShardRequestCache {
     final CounterMetric missCount = new CounterMetric();
 
     public RequestCacheStats stats() {
-        return new RequestCacheStats(Math.max(0, totalMetric.count()), evictionsMetric.count(), hitCount.count(),
-            missCount.count());
+        return new RequestCacheStats(Math.max(0, totalMetric.count()), evictionsMetric.count(), hitCount.count(), missCount.count());
     }
 
     public void onHit() {
@@ -97,6 +96,6 @@ public final class ShardRequestCache {
     }
 
     public void onRemoval(Accountable key, BytesReference value, boolean evicted) {
-       onRemoval(key.ramBytesUsed(), value, evicted);
+        onRemoval(key.ramBytesUsed(), value, evicted);
     }
 }
