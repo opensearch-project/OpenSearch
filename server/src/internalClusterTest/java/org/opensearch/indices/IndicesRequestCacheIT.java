@@ -1270,7 +1270,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
 
         ensureGreen(indexName);
 
-        logger.info("Writing few docs and searching which will cache items");
+        logger.info("Writing few docs and searching those which will cache items in RequestCache");
         indexRandom(true, client.prepareIndex(indexName).setSource("k", "hello"));
         indexRandom(true, client.prepareIndex(indexName).setSource("y", "hello again"));
         SearchResponse resp = client.prepareSearch(indexName).setRequestCache(true).setQuery(QueryBuilders.termQuery("k", "hello")).get();
