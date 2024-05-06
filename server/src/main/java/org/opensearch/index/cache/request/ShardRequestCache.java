@@ -54,7 +54,8 @@ public final class ShardRequestCache {
     final CounterMetric missCount = new CounterMetric();
 
     public RequestCacheStats stats() {
-        return new RequestCacheStats(totalMetric.count(), evictionsMetric.count(), hitCount.count(), missCount.count());
+        return new RequestCacheStats(Math.max(0, totalMetric.count()), evictionsMetric.count(), hitCount.count(),
+            missCount.count());
     }
 
     public void onHit() {
@@ -78,15 +79,15 @@ public final class ShardRequestCache {
         if (value != null) {
             dec += value.ramBytesUsed();
         }
-        if ((totalMetric.count() - dec) < 0) {
+        totalMetric.dec(dec);
+        if (totalMetric.count() < 0) {
+            totalMetric.inc(dec);
             logger.warn(
                 "Ignoring the operation to deduct memory: {} from RequestStats memory_size metric as it will "
                     + "go negative. Current memory: {}. This is a bug.",
                 dec,
                 totalMetric.count()
             );
-        } else {
-            totalMetric.dec(dec);
         }
     }
 
@@ -96,25 +97,6 @@ public final class ShardRequestCache {
     }
 
     public void onRemoval(Accountable key, BytesReference value, boolean evicted) {
-        if (evicted) {
-            evictionsMetric.inc();
-        }
-        long dec = 0;
-        if (key != null) {
-            dec += key.ramBytesUsed();
-        }
-        if (value != null) {
-            dec += value.ramBytesUsed();
-        }
-        if ((totalMetric.count() - dec) < 0) {
-            logger.warn(
-                "Ignoring the operation to deduct memory: {} from RequestStats memory_size metric as it will "
-                    + "go negative. Current memory: {}. This is a bug.",
-                dec,
-                totalMetric.count()
-            );
-        } else {
-            totalMetric.dec(dec);
-        }
+       onRemoval(key.ramBytesUsed(), value, evicted);
     }
 }

@@ -244,7 +244,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         if (indexShardCacheEntity != null) {
             // Here we match the hashcode to avoid scenario where we deduct stats of older IndexShard(with same
             // shardId) from current IndexShard.
-            if (key.indexShardHashCode == indexShardCacheEntity.getCacheIdentity().hashCode()) {
+            if (key.indexShardHashCode == System.identityHashCode(indexShardCacheEntity.getCacheIdentity())) {
                 indexShardCacheEntity.onRemoval(notification);
             }
         }
@@ -281,7 +281,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         String readerCacheKeyId = delegatingCacheHelper.getDelegatingCacheKey().getId();
         assert readerCacheKeyId != null;
         IndexShard indexShard = ((IndexShard) cacheEntity.getCacheIdentity());
-        final Key key = new Key(indexShard.shardId(), cacheKey, readerCacheKeyId, indexShard.hashCode());
+        final Key key = new Key(indexShard.shardId(), cacheKey, readerCacheKeyId, System.identityHashCode(indexShard));
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = cache.computeIfAbsent(getICacheKey(key), cacheLoader);
         if (cacheLoader.isLoaded()) {
@@ -315,7 +315,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             readerCacheKeyId = ((OpenSearchDirectoryReader.DelegatingCacheHelper) cacheHelper).getDelegatingCacheKey().getId();
         }
         IndexShard indexShard = (IndexShard) cacheEntity.getCacheIdentity();
-        cache.invalidate(getICacheKey(new Key(indexShard.shardId(), cacheKey, readerCacheKeyId, indexShard.hashCode())));
+        cache.invalidate(getICacheKey(new Key(indexShard.shardId(), cacheKey, readerCacheKeyId,
+            System.identityHashCode(indexShard))));
     }
 
     /**

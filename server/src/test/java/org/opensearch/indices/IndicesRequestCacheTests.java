@@ -1212,6 +1212,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(readerCacheKeyId, key2.readerCacheKeyId);
         assertEquals(((IndexShard) shardCacheEntity.getCacheIdentity()).shardId(), key2.shardId);
         assertEquals(getTermBytes(), key2.value);
+        assertEquals(indexShard.hashCode(), key2.indexShardHashCode);
     }
 
     public void testGetOrComputeConcurrentlyWithMultipleIndices() throws Exception {
