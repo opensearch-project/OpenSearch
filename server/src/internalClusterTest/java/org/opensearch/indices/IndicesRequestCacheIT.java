@@ -1254,7 +1254,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         String node_1 = internalCluster().startNode(Settings.builder().build());
         Client client = client(node_1);
 
-        logger.info("Starting a node");
+        logger.info("Starting a node in the cluster");
 
         assertThat(cluster().size(), equalTo(1));
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("1").execute().actionGet();
