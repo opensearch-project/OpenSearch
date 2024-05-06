@@ -12,7 +12,11 @@ import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.joda.time.format.DateTimeFormat;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.DEFAULT_TOP_N_LATENCY_QUERIES_INDEX_PATTERN;
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.DEFAULT_TOP_QUERIES_EXPORTER_TYPE;
@@ -24,6 +28,7 @@ import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.EXPO
  */
 public class QueryInsightsExporterFactory {
     final private Client client;
+    final private List<AbstractExporter> exporters;
 
     /**
      * Constructor of QueryInsightsExporterFactory
@@ -32,6 +37,7 @@ public class QueryInsightsExporterFactory {
      */
     public QueryInsightsExporterFactory(final Client client) {
         this.client = client;
+        this.exporters = new ArrayList<>();
     }
 
     /**
@@ -49,7 +55,7 @@ public class QueryInsightsExporterFactory {
         try {
             type = SinkType.parse(settings.get(EXPORTER_TYPE, DEFAULT_TOP_QUERIES_EXPORTER_TYPE));
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "Invalid exporter type [%s]", settings.get(EXPORTER_TYPE)));
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "Invalid exporter type [%s], type should be one of %s", settings.get(EXPORTER_TYPE), SinkType.allSinkTypes()));
         }
         switch (type) {
             case LOCAL_INDEX:

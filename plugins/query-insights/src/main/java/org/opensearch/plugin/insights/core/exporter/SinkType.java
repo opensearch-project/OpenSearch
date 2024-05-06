@@ -8,20 +8,29 @@
 
 package org.opensearch.plugin.insights.core.exporter;
 
+import java.util.Arrays;
 import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Type of supported sinks
  */
 public enum SinkType {
     /** debug exporter */
-    DEBUG,
+    DEBUG("debug"),
     /** local index exporter */
-    LOCAL_INDEX;
+    LOCAL_INDEX("local_index");
+
+    private final String type;
+
+    SinkType(String type) {
+        this.type = type;
+    }
 
     @Override
     public String toString() {
-        return super.toString().toLowerCase(Locale.ROOT);
+        return type;
     }
 
     /**
@@ -31,5 +40,14 @@ public enum SinkType {
      */
     public static SinkType parse(final String type) {
         return valueOf(type.toUpperCase(Locale.ROOT));
+    }
+
+    /**
+     * Get all valid SinkTypes
+     *
+     * @return A set contains all valid SinkTypes
+     */
+    public static Set<SinkType> allSinkTypes() {
+        return Arrays.stream(values()).collect(Collectors.toSet());
     }
 }

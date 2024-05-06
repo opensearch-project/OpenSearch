@@ -22,7 +22,7 @@ public abstract class AbstractExporter {
     /**
      * Logger of exporter
      */
-    protected final Logger logger = LogManager.getLogger(this.getClass());
+    protected final Logger logger = LogManager.getLogger();
 
     /**
      * Constructor of AbstractExporter

@@ -123,7 +123,7 @@ public class QueryInsightsSettings {
     /**
      * Settings and defaults for top queries exporters
      */
-    public static final String TOP_N_LATENCY_QUERIES_EXPORTER_PREFIX = TOP_N_LATENCY_QUERIES_PREFIX + ".exporter.";
+    private static final String TOP_N_LATENCY_QUERIES_EXPORTER_PREFIX = TOP_N_LATENCY_QUERIES_PREFIX + ".exporter.";
     /**
      * Default index pattern of top n queries by latency
      */
