@@ -11,9 +11,8 @@ package org.opensearch.transport.nativeprotocol;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.transport.InboundDecoderTests;
-import org.opensearch.transport.TestRequest;
-import org.opensearch.transport.TestResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -27,14 +26,15 @@ public class NativeInboundDecoderTests extends InboundDecoderTests {
         boolean handshake,
         boolean compress,
         String action,
-        long requestId
+        long requestId,
+        Writeable transportMessage
     ) throws IOException {
         NativeOutboundMessage message;
         if (isRequest) {
             message = new NativeOutboundMessage.Request(
                 threadContext,
                 new String[0],
-                new TestRequest(randomAlphaOfLength(100)),
+                transportMessage,
                 version,
                 action,
                 requestId,
@@ -45,7 +45,7 @@ public class NativeInboundDecoderTests extends InboundDecoderTests {
             message = new NativeOutboundMessage.Response(
                 threadContext,
                 Collections.emptySet(),
-                new TestResponse(randomAlphaOfLength(100)),
+                transportMessage,
                 version,
                 requestId,
                 handshake,

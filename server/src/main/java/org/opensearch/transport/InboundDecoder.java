@@ -185,7 +185,7 @@ public class InboundDecoder implements Releasable {
     }
 
     // exposed for use in tests
-    public static Header readHeader(Version version, int networkMessageSize, BytesReference bytesReference) throws IOException {
+    static Header readHeader(Version version, int networkMessageSize, BytesReference bytesReference) throws IOException {
         try (StreamInput streamInput = bytesReference.streamInput()) {
             streamInput.skip(TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
             long requestId = streamInput.readLong();

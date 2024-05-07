@@ -39,6 +39,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.transport.TransportMessage;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
@@ -58,7 +59,8 @@ public abstract class InboundDecoderTests extends OpenSearchTestCase {
         boolean handshake,
         boolean compress,
         String action,
-        long requestId
+        long requestId,
+        Writeable transportMessage
     ) throws IOException;
 
     @Override
@@ -73,13 +75,15 @@ public abstract class InboundDecoderTests extends OpenSearchTestCase {
         long requestId = randomNonNegativeLong();
         final String headerKey = randomAlphaOfLength(10);
         final String headerValue = randomAlphaOfLength(20);
+        final BytesReference totalBytes;
         if (isRequest) {
             threadContext.putHeader(headerKey, headerValue);
+            totalBytes = serialize(isRequest, Version.CURRENT, false, false, action, requestId, new TestRequest(randomAlphaOfLength(100)));
         } else {
             threadContext.addResponseHeader(headerKey, headerValue);
+            totalBytes = serialize(isRequest, Version.CURRENT, false, false, action, requestId, new TestResponse(randomAlphaOfLength(100)));
         }
 
-        final BytesReference totalBytes = serialize(isRequest, Version.CURRENT, false, false, action, requestId);
         int totalHeaderSize = TcpHeader.headerSize(Version.CURRENT) + totalBytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
         final BytesReference messageBytes = totalBytes.slice(totalHeaderSize, totalBytes.length() - totalHeaderSize);
 
@@ -128,7 +132,15 @@ public abstract class InboundDecoderTests extends OpenSearchTestCase {
         threadContext.putHeader(headerKey, headerValue);
         Version handshakeCompatVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
 
-        final BytesReference bytes = serialize(true, handshakeCompatVersion, true, false, action, requestId);
+        final BytesReference bytes = serialize(
+            true,
+            handshakeCompatVersion,
+            true,
+            false,
+            action,
+            requestId,
+            new TestRequest(randomAlphaOfLength(100))
+        );
         int totalHeaderSize = TcpHeader.headerSize(handshakeCompatVersion) + bytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
 
         InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
@@ -159,16 +171,15 @@ public abstract class InboundDecoderTests extends OpenSearchTestCase {
             threadContext.addResponseHeader(headerKey, headerValue);
         }
         TransportMessage transportMessage;
-        BytesReference totalBytes;
+        final BytesReference totalBytes;
         if (isRequest) {
             transportMessage = new TestRequest(randomAlphaOfLength(100));
-            totalBytes = serialize(true, Version.CURRENT, false, true, action, requestId);
+            totalBytes = serialize(true, Version.CURRENT, false, true, action, requestId, transportMessage);
         } else {
             transportMessage = new TestResponse(randomAlphaOfLength(100));
-            totalBytes = serialize(false, Version.CURRENT, false, true, action, requestId);
+            totalBytes = serialize(false, Version.CURRENT, false, true, action, requestId, transportMessage);
         }
 
-        // final BytesReference totalBytes = message.serialize(new BytesStreamOutput());
         final BytesStreamOutput out = new BytesStreamOutput();
         transportMessage.writeTo(out);
         final BytesReference uncompressedBytes = out.bytes();
@@ -219,7 +230,15 @@ public abstract class InboundDecoderTests extends OpenSearchTestCase {
         threadContext.putHeader(headerKey, headerValue);
         Version handshakeCompatVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
 
-        final BytesReference bytes = serialize(true, handshakeCompatVersion, true, true, action, requestId);
+        final BytesReference bytes = serialize(
+            true,
+            handshakeCompatVersion,
+            true,
+            true,
+            action,
+            requestId,
+            new TestRequest(randomAlphaOfLength(100))
+        );
         int totalHeaderSize = TcpHeader.headerSize(handshakeCompatVersion) + bytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
 
         InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
@@ -243,7 +262,15 @@ public abstract class InboundDecoderTests extends OpenSearchTestCase {
         long requestId = randomNonNegativeLong();
         Version incompatibleVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
 
-        final BytesReference bytes = serialize(true, incompatibleVersion, false, true, action, requestId);
+        final BytesReference bytes = serialize(
+            true,
+            incompatibleVersion,
+            false,
+            true,
+            action,
+            requestId,
+            new TestRequest(randomAlphaOfLength(100))
+        );
 
         InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final ArrayList<Object> fragments = new ArrayList<>();

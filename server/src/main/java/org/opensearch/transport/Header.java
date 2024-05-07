@@ -123,7 +123,7 @@ public class Header {
         return headers;
     }
 
-    public void finishParsingHeader(StreamInput input) throws IOException {
+    void finishParsingHeader(StreamInput input) throws IOException {
         this.headers = ThreadContext.readHeadersFromStream(input);
 
         if (isRequest()) {
