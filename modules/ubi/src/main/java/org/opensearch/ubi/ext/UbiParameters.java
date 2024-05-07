@@ -22,7 +22,6 @@ import org.opensearch.search.SearchExtBuilder;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
 
 /**
  * The UBI parameters available in the ext.
@@ -117,7 +116,7 @@ public class UbiParameters implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(queryId);
+        out.writeString(getQueryId());
         out.writeOptionalString(userQuery);
         out.writeOptionalString(clientId);
         out.writeOptionalString(objectId);
@@ -159,11 +158,7 @@ public class UbiParameters implements Writeable, ToXContentObject {
      * @return The query ID, or a random UUID if the query ID is <code>null</code>.
      */
     public String getQueryId() {
-        if (queryId == null || queryId.isEmpty()) {
-            return UUID.randomUUID().toString();
-        } else {
-            return queryId;
-        }
+        return queryId;
     }
 
     /**

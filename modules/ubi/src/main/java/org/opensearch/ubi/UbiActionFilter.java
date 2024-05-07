@@ -98,29 +98,34 @@ public class UbiActionFilter implements ActionFilter {
                     if (ubiParameters != null) {
 
                         final String queryId = ubiParameters.getQueryId();
-                        final String userQuery = ubiParameters.getUserQuery();
-                        final String userId = ubiParameters.getClientId();
-                        final String objectId = ubiParameters.getObjectId();
 
-                        final List<String> queryResponseHitIds = new LinkedList<>();
+                        if (queryId != null) {
 
-                        for (final SearchHit hit : ((SearchResponse) response).getHits()) {
+                            final String userQuery = ubiParameters.getUserQuery();
+                            final String clientId = ubiParameters.getClientId();
+                            final String objectId = ubiParameters.getObjectId();
 
-                            if (objectId == null || objectId.isEmpty()) {
-                                // Use the result's docId since no object_id was given for the search.
-                                queryResponseHitIds.add(String.valueOf(hit.docId()));
-                            } else {
-                                final Map<String, Object> source = hit.getSourceAsMap();
-                                queryResponseHitIds.add((String) source.get(objectId));
+                            final List<String> queryResponseHitIds = new LinkedList<>();
+
+                            for (final SearchHit hit : ((SearchResponse) response).getHits()) {
+
+                                if (objectId == null || objectId.isEmpty()) {
+                                    // Use the result's docId since no object_id was given for the search.
+                                    queryResponseHitIds.add(String.valueOf(hit.docId()));
+                                } else {
+                                    final Map<String, Object> source = hit.getSourceAsMap();
+                                    queryResponseHitIds.add((String) source.get(objectId));
+                                }
+
                             }
 
+                            final String queryResponseId = UUID.randomUUID().toString();
+                            final QueryResponse queryResponse = new QueryResponse(queryId, queryResponseId, queryResponseHitIds);
+                            final QueryRequest queryRequest = new QueryRequest(queryId, userQuery, clientId, queryResponse);
+
+                            indexQuery(queryRequest);
+
                         }
-
-                        final String queryResponseId = UUID.randomUUID().toString();
-                        final QueryResponse queryResponse = new QueryResponse(queryId, queryResponseId, queryResponseHitIds);
-                        final QueryRequest queryRequest = new QueryRequest(queryId, userQuery, userId, queryResponse);
-
-                        indexUbiQuery(queryRequest);
 
                     }
 
@@ -139,7 +144,7 @@ public class UbiActionFilter implements ActionFilter {
 
     }
 
-    private void indexUbiQuery(final QueryRequest queryRequest) {
+    private void indexQuery(final QueryRequest queryRequest) {
 
         final IndicesExistsRequest indicesExistsRequest = new IndicesExistsRequest(UBI_EVENTS_INDEX, UBI_QUERIES_INDEX);
 
@@ -148,61 +153,65 @@ public class UbiActionFilter implements ActionFilter {
             @Override
             public void onResponse(IndicesExistsResponse indicesExistsResponse) {
 
-                final Settings indexSettings = Settings.builder()
-                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-2")
-                    .put(IndexMetadata.SETTING_PRIORITY, Integer.MAX_VALUE)
-                    .build();
+                if (!indicesExistsResponse.isExists()) {
 
-                // Create the UBI events index.
-                final CreateIndexRequest createEventsIndexRequest = new CreateIndexRequest(UBI_EVENTS_INDEX).mapping(
-                    getResourceFile(EVENTS_MAPPING_FILE)
-                ).settings(indexSettings);
+                    final Settings indexSettings = Settings.builder()
+                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                        .put(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-2")
+                        .put(IndexMetadata.SETTING_PRIORITY, Integer.MAX_VALUE)
+                        .build();
 
-                client.admin().indices().create(createEventsIndexRequest);
+                    // Create the UBI events index.
+                    final CreateIndexRequest createEventsIndexRequest = new CreateIndexRequest(UBI_EVENTS_INDEX).mapping(
+                        getResourceFile(EVENTS_MAPPING_FILE)
+                    ).settings(indexSettings);
 
-                // Create the UBI queries index.
-                final CreateIndexRequest createQueriesIndexRequest = new CreateIndexRequest(UBI_QUERIES_INDEX).mapping(
-                    getResourceFile(QUERIES_MAPPING_FILE)
-                ).settings(indexSettings);
+                    client.admin().indices().create(createEventsIndexRequest);
 
-                client.admin().indices().create(createQueriesIndexRequest);
+                    // Create the UBI queries index.
+                    final CreateIndexRequest createQueriesIndexRequest = new CreateIndexRequest(UBI_QUERIES_INDEX).mapping(
+                        getResourceFile(QUERIES_MAPPING_FILE)
+                    ).settings(indexSettings);
+
+                    client.admin().indices().create(createQueriesIndexRequest);
+
+                }
+
+                LOGGER.debug(
+                    "Indexing query ID {} with response ID {}",
+                    queryRequest.getQueryId(),
+                    queryRequest.getQueryResponse().getQueryResponseId()
+                );
+
+                // What will be indexed - adheres to the queries-mapping.json
+                final Map<String, Object> source = new HashMap<>();
+                source.put("timestamp", queryRequest.getTimestamp());
+                source.put("query_id", queryRequest.getQueryId());
+                source.put("query_response_id", queryRequest.getQueryResponse().getQueryResponseId());
+                source.put("query_response_object_ids", queryRequest.getQueryResponse().getQueryResponseObjectIds());
+                source.put("user_id", queryRequest.getUserId());
+                source.put("user_query", queryRequest.getUserQuery());
+
+                // Build the index request.
+                final IndexRequest indexRequest = new IndexRequest(UBI_QUERIES_INDEX).source(source, XContentType.JSON);
+
+                client.index(indexRequest, new ActionListener<>() {
+
+                    @Override
+                    public void onResponse(IndexResponse indexResponse) {}
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        LOGGER.error("Unable to index query into UBI index.", e);
+                    }
+
+                });
 
             }
 
             @Override
             public void onFailure(Exception ex) {
                 LOGGER.error("Error creating UBI indexes.", ex);
-            }
-
-        });
-
-        LOGGER.debug(
-            "Indexing query ID {} with response ID {}",
-            queryRequest.getQueryId(),
-            queryRequest.getQueryResponse().getQueryResponseId()
-        );
-
-        // What will be indexed - adheres to the queries-mapping.json
-        final Map<String, Object> source = new HashMap<>();
-        source.put("timestamp", queryRequest.getTimestamp());
-        source.put("query_id", queryRequest.getQueryId());
-        source.put("query_response_id", queryRequest.getQueryResponse().getQueryResponseId());
-        source.put("query_response_object_ids", queryRequest.getQueryResponse().getQueryResponseObjectIds());
-        source.put("user_id", queryRequest.getUserId());
-        source.put("user_query", queryRequest.getUserQuery());
-
-        // Build the index request.
-        final IndexRequest indexRequest = new IndexRequest(UBI_QUERIES_INDEX).source(source, XContentType.JSON);
-
-        client.index(indexRequest, new ActionListener<>() {
-
-            @Override
-            public void onResponse(IndexResponse indexResponse) {}
-
-            @Override
-            public void onFailure(Exception e) {
-                LOGGER.error("Unable to index query into UBI index.", e);
             }
 
         });
