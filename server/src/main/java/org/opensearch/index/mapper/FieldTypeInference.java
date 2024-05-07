@@ -10,6 +10,7 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -25,19 +26,19 @@ import java.util.Random;
 import java.util.Set;
 
 /**
- * This method performs type inference by analyzing the _source documents. It uses a random sample of documents to infer the field type, similar to dynamic mapping type guessing logic.
+ * This class performs type inference by analyzing the _source documents. It uses a random sample of documents to infer the field type, similar to dynamic mapping type guessing logic.
  * Unlike guessing based on the first document, where field could be missing, this method generates a random sample to make a more accurate inference.
  * This approach is especially useful for handling missing fields, which is common in nested fields within derived fields of object types.
  *
  * <p>The sample size should be chosen carefully to ensure a high probability of selecting at least one document where the field is present.
  * However, it's essential to strike a balance because a large sample size can lead to performance issues since each sample document's _source field is loaded and examined until the field is found.
  *
- * <p>Determining the sample size (<var>S</var>) is akin to deciding how many balls to draw from a bin, ensuring a high probability (>=<var>P</var>) of drawing at least one green ball (documents with the field) from a mixture of <var>R</var> red balls (documents without the field) and <var>G</var> green balls:
+ * <p>Determining the sample size ({@code S}) is akin to deciding how many balls to draw from a bin, ensuring a high probability ({@code >=P}) of drawing at least one green ball (documents with the field) from a mixture of {@code R } red balls (documents without the field) and {@code G } green balls:
  * <pre>{@code
  * P >= 1 - C(R, S) / C(R + G, S)
  * }</pre>
- * Here, <var>C()</var> represents the binomial coefficient.
- * For a high confidence level, we aim for <var>P</var> >= 0.95. For example, with 10^7 documents where the field is present in 2% of them, the sample size <var>S</var> should be around 149 to achieve a probability of 0.95.
+ * Here, {@code C()} represents the binomial coefficient.
+ * For a high confidence level, we aim for {@code P >= 0.95 }. For example, with {@code 10^7 } documents where the field is present in {@code 2% } of them, the sample size {@code S } should be around 149 to achieve a probability of {@code 0.95}.
  */
 public class FieldTypeInference {
     private final IndexReader indexReader;
@@ -156,7 +157,7 @@ public class FieldTypeInference {
 
         private static int[] getSortedRandomNum(int sampleSize, int upperBound, int attempts) {
             Set<Integer> generatedNumbers = new HashSet<>();
-            Random random = new Random();
+            Random random = Randomness.get();
             int itr = 0;
             while (generatedNumbers.size() < sampleSize && itr++ < attempts) {
                 int randomNumber = random.nextInt(upperBound);
