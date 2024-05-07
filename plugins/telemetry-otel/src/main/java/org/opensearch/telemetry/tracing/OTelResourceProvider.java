@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing;
 
+import io.opentelemetry.sdk.metrics.internal.view.Base2ExponentialHistogramAggregation;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.exporter.OTelMetricsExporterFactory;
@@ -23,12 +24,12 @@ import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.metrics.Aggregation;
 import io.opentelemetry.sdk.metrics.InstrumentSelector;
 import io.opentelemetry.sdk.metrics.InstrumentType;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.View;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
-import io.opentelemetry.sdk.metrics.internal.view.Base2ExponentialHistogramAggregation;
 import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
@@ -100,6 +101,10 @@ public final class OTelResourceProvider {
             .registerView(
                 InstrumentSelector.builder().setType(InstrumentType.HISTOGRAM).build(),
                 View.builder().setAggregation(Base2ExponentialHistogramAggregation.getDefault()).build()
+            )
+            .registerView(
+                InstrumentSelector.builder().setName("otlp.exporter.*").build(),
+                View.builder().setAggregation(Aggregation.drop()).build()
             )
             .build();
     }

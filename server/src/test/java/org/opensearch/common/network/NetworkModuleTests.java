@@ -179,7 +179,8 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                 NamedWriteableRegistry namedWriteableRegistry,
                 NetworkService networkService,
                 Tracer tracer,
-                MetricsRegistry metricsRegistry) {
+                MetricsRegistry metricsRegistry
+            ) {
                 return Collections.singletonMap("custom", custom);
             }
         };
@@ -288,7 +289,8 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                 NamedWriteableRegistry namedWriteableRegistry,
                 NetworkService networkService,
                 Tracer tracer,
-                MetricsRegistry metricsRegistry) {
+                MetricsRegistry metricsRegistry
+            ) {
                 return Collections.singletonMap("default_custom", customTransport);
             }
 
@@ -333,7 +335,8 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                 NamedWriteableRegistry namedWriteableRegistry,
                 NetworkService networkService,
                 Tracer tracer,
-                MetricsRegistry metricsRegistry) {
+                MetricsRegistry metricsRegistry
+            ) {
                 return Collections.singletonMap("default_custom", customTransport);
             }
 

@@ -94,7 +94,8 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
         NamedWriteableRegistry namedWriteableRegistry,
         NetworkService networkService,
         Tracer tracer,
-        MetricsRegistry metricsRegistry) {
+        MetricsRegistry metricsRegistry
+    ) {
         return Collections.singletonMap(
             NIO_TRANSPORT_NAME,
             () -> new NioTransport(

@@ -61,7 +61,8 @@ public class MockNioTransportPlugin extends Plugin implements NetworkPlugin {
         NamedWriteableRegistry namedWriteableRegistry,
         NetworkService networkService,
         Tracer tracer,
-        MetricsRegistry metricsRegistry) {
+        MetricsRegistry metricsRegistry
+    ) {
         return Collections.singletonMap(
             MOCK_NIO_TRANSPORT_NAME,
             () -> new MockNioTransport(

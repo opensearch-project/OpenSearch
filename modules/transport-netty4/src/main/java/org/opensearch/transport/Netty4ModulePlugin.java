@@ -105,7 +105,8 @@ public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
         NamedWriteableRegistry namedWriteableRegistry,
         NetworkService networkService,
         Tracer tracer,
-        MetricsRegistry metricsRegistry) {
+        MetricsRegistry metricsRegistry
+    ) {
         return Collections.singletonMap(
             NETTY_TRANSPORT_NAME,
             () -> new Netty4Transport(

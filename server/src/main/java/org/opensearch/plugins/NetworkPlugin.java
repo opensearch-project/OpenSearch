@@ -86,7 +86,8 @@ public interface NetworkPlugin {
         NamedWriteableRegistry namedWriteableRegistry,
         NetworkService networkService,
         Tracer tracer,
-        MetricsRegistry metricsRegistry) {
+        MetricsRegistry metricsRegistry
+    ) {
         return Collections.emptyMap();
     }
 
