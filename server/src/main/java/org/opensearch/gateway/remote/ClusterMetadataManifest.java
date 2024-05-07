@@ -276,7 +276,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         boolean clusterUUIDCommitted
     ) {
         this(clusterTerm, version, clusterUUID, stateUUID, opensearchVersion, nodeId, committed, codecVersion,
-            globalMetadataFileName, indices, previousClusterUUID, clusterUUIDCommitted, null);
+            globalMetadataFileName, indices, previousClusterUUID, clusterUUIDCommitted, new ArrayList<>());
     }
 
     public ClusterMetadataManifest(
@@ -355,7 +355,9 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         builder.startArray(INDICES_FIELD.getPreferredName());
         {
             for (UploadedIndexMetadata uploadedIndexMetadata : indices) {
+                builder.startObject();
                 uploadedIndexMetadata.toXContent(builder, params);
+                builder.endObject();
             }
         }
         builder.endArray();
@@ -369,9 +371,12 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             builder.startArray(INDICES_ROUTING_FIELD.getPreferredName());
             {
                 for (UploadedIndexMetadata uploadedIndexMetadata : indicesRouting) {
+                    builder.startObject();
                     uploadedIndexMetadata.toXContent(builder, params);
+                    builder.endObject();
                 }
             }
+            builder.endArray();
         }
         return builder;
     }
@@ -391,7 +396,8 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeInt(codecVersion);
             out.writeString(globalMetadataFileName);
-        } else if (out.getVersion().onOrAfter(Version.V_2_14_0)) {
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_14_0)) {
             out.writeCollection(indicesRouting);
         }
     }
@@ -659,11 +665,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject()
+            return builder
                 .field(INDEX_NAME_FIELD.getPreferredName(), getIndexName())
                 .field(INDEX_UUID_FIELD.getPreferredName(), getIndexUUID())
-                .field(UPLOADED_FILENAME_FIELD.getPreferredName(), getUploadedFilePath())
-                .endObject();
+                .field(UPLOADED_FILENAME_FIELD.getPreferredName(), getUploadedFilePath());
         }
 
         @Override

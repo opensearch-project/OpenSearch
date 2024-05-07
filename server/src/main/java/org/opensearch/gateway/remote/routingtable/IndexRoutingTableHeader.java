@@ -21,6 +21,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -50,26 +51,16 @@ public class IndexRoutingTableHeader {
 
     /**
      * Returns the bytes reference for the {@link IndexRoutingTableHeader}
-     * @return the {@link BytesReference}
      * @throws IOException
      */
-    public BytesReference write() throws IOException {
-        BytesReference bytesReference;
-        try (
-            BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-            BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(bytesStreamOutput)
-        ) {
+    public void write(StreamOutput out) throws IOException {
             CodecUtil.writeHeader(new OutputStreamDataOutput(out), INDEX_ROUTING_HEADER_CODEC, CURRENT_VERSION);
             // Write version
             out.writeLong(routingTableVersion);
             out.writeInt(nodeVersion.id);
             out.writeString(indexName);
-            // Checksum header
-            out.writeInt((int) out.getChecksum());
+
             out.flush();
-            bytesReference = bytesStreamOutput.bytes();
-        }
-        return bytesReference;
     }
 
     /**
@@ -83,30 +74,15 @@ public class IndexRoutingTableHeader {
         try {
             try (BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(new BytesStreamInput(inBytes), source)) {
                 readHeaderVersion(in);
-                final int version = in.readInt();
+                final long version = in.readLong();
                 final int nodeVersion = in.readInt();
                 final String name = in.readString();
-                verifyChecksum(in);
                 assert version >= 0 : "Version must be non-negative [" + version + "]";
                 assert in.readByte() == -1 : "Header is not fully read";
                 return new IndexRoutingTableHeader(version, name, Version.fromId(nodeVersion));
             }
         } catch (EOFException e) {
             throw new IOException("index routing header truncated", e);
-        }
-    }
-
-    static void verifyChecksum(BufferedChecksumStreamInput in) throws IOException {
-        // This absolutely must come first, or else reading the checksum becomes part of the checksum
-        long expectedChecksum = in.getChecksum();
-        long readChecksum = Integer.toUnsignedLong(in.readInt());
-        if (readChecksum != expectedChecksum) {
-            throw new IOException(
-                "checksum verification failed - expected: 0x"
-                    + Long.toHexString(expectedChecksum)
-                    + ", got: 0x"
-                    + Long.toHexString(readChecksum)
-            );
         }
     }
 

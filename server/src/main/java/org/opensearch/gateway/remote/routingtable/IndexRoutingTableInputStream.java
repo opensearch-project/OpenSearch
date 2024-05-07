@@ -54,8 +54,9 @@ public class IndexRoutingTableInputStream extends InputStream {
     private static final int BUFFER_SIZE = 8192;
 
     private final IndexRoutingTableHeader indexRoutingTableHeader;
-
     private final Iterator<IndexShardRoutingTable> shardIter;
+    private final BytesStreamOutput bytesStreamOutput;
+    private final BufferedChecksumStreamOutput out;
 
     public IndexRoutingTableInputStream(IndexRoutingTable indexRoutingTable, long version, Version nodeVersion) throws IOException {
         this(indexRoutingTable, version, nodeVersion, BUFFER_SIZE);
@@ -66,7 +67,10 @@ public class IndexRoutingTableInputStream extends InputStream {
         this.buf = new byte[size];
         this.shardIter = indexRoutingTable.iterator();
         this.indexRoutingTableHeader = new IndexRoutingTableHeader(version, indexRoutingTable.getIndex().getName(), nodeVersion);
-        initialFill();
+        this.bytesStreamOutput = new BytesStreamOutput();
+        this.out = new BufferedChecksumStreamOutput(bytesStreamOutput);
+
+        initialFill(indexRoutingTable.shards().size());
     }
 
     @Override
@@ -78,39 +82,52 @@ public class IndexRoutingTableInputStream extends InputStream {
         return buf[pos++] & 0xff;
     }
 
-    private void initialFill() throws IOException {
-        BytesReference bytesReference = indexRoutingTableHeader.write();
-        buf = bytesReference.toBytesRef().bytes;
-        count = bytesReference.length();
+    private void initialFill(int shardCount) throws IOException {
+        indexRoutingTableHeader.write(out);
+        out.writeVInt(shardCount);
+
+        System.arraycopy(bytesStreamOutput.bytes().toBytesRef().bytes, 0 , buf, 0, bytesStreamOutput.bytes().length());
+        count = bytesStreamOutput.bytes().length();
+        bytesStreamOutput.reset();
         fill(buf);
     }
 
     private void fill(byte[] buf) throws IOException {
         if (leftOverBuf != null) {
-            System.arraycopy(leftOverBuf, 0, buf, count, leftOverBuf.length);
+            if(leftOverBuf.length > buf.length - count) {
+                // leftOverBuf has more content than length of buf, so we need to copy only based on buf length and keep the remaining in leftOverBuf.
+                System.arraycopy(leftOverBuf, 0, buf, count, buf.length - count);
+                byte[] tempLeftOverBuffer =  new byte[leftOverBuf.length - (buf.length - count)];
+                System.arraycopy(leftOverBuf, buf.length - count , tempLeftOverBuffer, 0, leftOverBuf.length - (buf.length - count));
+                leftOverBuf = tempLeftOverBuffer;
+                count = buf.length - count;
+            } else {
+                System.arraycopy(leftOverBuf, 0, buf, count, leftOverBuf.length);
+                count +=  leftOverBuf.length;
+                leftOverBuf = null;
+            }
         }
+
         if (count < buf.length && shardIter.hasNext()) {
             IndexShardRoutingTable next = shardIter.next();
-            BytesReference bytesRef;
-            try (
-                BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-                BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(bytesStreamOutput)
-            ) {
-                IndexShardRoutingTable.Builder.writeTo(next, out);
-                // Checksum header
-                out.writeInt((int) out.getChecksum());
-                out.flush();
-                bytesRef = bytesStreamOutput.bytes();
+            IndexShardRoutingTable.Builder.writeTo(next, out);
+            //Add checksum for the file after all shards are done
+            if(!shardIter.hasNext()) {
+                out.writeLong(out.getChecksum());
             }
+            out.flush();
+            BytesReference bytesRef = bytesStreamOutput.bytes();
+            bytesStreamOutput.reset();
+
             if (bytesRef.length() < buf.length - count) {
                 System.arraycopy(bytesRef.toBytesRef().bytes, 0, buf, count, bytesRef.length());
                 count += bytesRef.length();
                 leftOverBuf = null;
             } else {
                 System.arraycopy(bytesRef.toBytesRef().bytes, 0, buf, count, buf.length - count);
-                count += buf.length - count;
-                leftOverBuf = new byte[bytesRef.length() - count];
-                System.arraycopy(bytesRef.toBytesRef().bytes, buf.length - count + 1, leftOverBuf, 0, bytesRef.length() - count);
+                leftOverBuf = new byte[bytesRef.length() - (buf.length - count)];
+                System.arraycopy(bytesRef.toBytesRef().bytes, buf.length - count , leftOverBuf, 0, bytesRef.length() - (buf.length - count));
+                count = buf.length;
             }
         }
     }
