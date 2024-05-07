@@ -205,6 +205,11 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         );
     }
 
+    // package private for testing
+    void invalidateAll() {
+        cache.invalidateAll();
+    }
+
     @Override
     public void close() throws IOException {
         cache.invalidateAll();
@@ -233,8 +238,17 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         // shards as part of request cache.
         // Pass a new removal notification containing Key rather than ICacheKey<Key> to the CacheEntity for backwards compatibility.
         Key key = notification.getKey().key;
-        cacheEntityLookup.apply(key.shardId).ifPresent(entity -> entity.onRemoval(notification));
-        CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId);
+        IndicesService.IndexShardCacheEntity indexShardCacheEntity = (IndicesService.IndexShardCacheEntity) cacheEntityLookup.apply(
+            key.shardId
+        ).orElse(null);
+        if (indexShardCacheEntity != null) {
+            // Here we match the hashcode to avoid scenario where we deduct stats of older IndexShard(with same
+            // shardId) from current IndexShard.
+            if (key.indexShardHashCode == System.identityHashCode(indexShardCacheEntity.getCacheIdentity())) {
+                indexShardCacheEntity.onRemoval(notification);
+            }
+        }
+        CleanupKey cleanupKey = new CleanupKey(indexShardCacheEntity, key.readerCacheKeyId);
         cacheCleanupManager.updateStaleCountOnEntryRemoval(cleanupKey, notification);
     }
 
@@ -266,7 +280,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             .getReaderCacheHelper();
         String readerCacheKeyId = delegatingCacheHelper.getDelegatingCacheKey().getId();
         assert readerCacheKeyId != null;
-        final Key key = new Key(((IndexShard) cacheEntity.getCacheIdentity()).shardId(), cacheKey, readerCacheKeyId);
+        IndexShard indexShard = ((IndexShard) cacheEntity.getCacheIdentity());
+        final Key key = new Key(indexShard.shardId(), cacheKey, readerCacheKeyId, System.identityHashCode(indexShard));
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = cache.computeIfAbsent(getICacheKey(key), cacheLoader);
         if (cacheLoader.isLoaded()) {
@@ -299,7 +314,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             IndexReader.CacheHelper cacheHelper = ((OpenSearchDirectoryReader) reader).getDelegatingCacheHelper();
             readerCacheKeyId = ((OpenSearchDirectoryReader.DelegatingCacheHelper) cacheHelper).getDelegatingCacheKey().getId();
         }
-        cache.invalidate(getICacheKey(new Key(((IndexShard) cacheEntity.getCacheIdentity()).shardId(), cacheKey, readerCacheKeyId)));
+        IndexShard indexShard = (IndexShard) cacheEntity.getCacheIdentity();
+        cache.invalidate(getICacheKey(new Key(indexShard.shardId(), cacheKey, readerCacheKeyId, System.identityHashCode(indexShard))));
     }
 
     /**
@@ -377,19 +393,24 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
      */
     static class Key implements Accountable, Writeable {
         public final ShardId shardId; // use as identity equality
+        public final int indexShardHashCode; // While ShardId is usually sufficient to uniquely identify an
+        // indexShard but in case where the same indexShard is deleted and reallocated on same node, we need the
+        // hashcode(default) to identify the older indexShard but with same shardId.
         public final String readerCacheKeyId;
         public final BytesReference value;
 
-        Key(ShardId shardId, BytesReference value, String readerCacheKeyId) {
+        Key(ShardId shardId, BytesReference value, String readerCacheKeyId, int indexShardHashCode) {
             this.shardId = shardId;
             this.value = value;
             this.readerCacheKeyId = Objects.requireNonNull(readerCacheKeyId);
+            this.indexShardHashCode = indexShardHashCode;
         }
 
         Key(StreamInput in) throws IOException {
             this.shardId = in.readOptionalWriteable(ShardId::new);
             this.readerCacheKeyId = in.readOptionalString();
             this.value = in.readBytesReference();
+            this.indexShardHashCode = in.readInt();
         }
 
         @Override
@@ -411,6 +432,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             if (!Objects.equals(readerCacheKeyId, key.readerCacheKeyId)) return false;
             if (!shardId.equals(key.shardId)) return false;
             if (!value.equals(key.value)) return false;
+            if (indexShardHashCode != key.indexShardHashCode) return false;
             return true;
         }
 
@@ -419,6 +441,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             int result = shardId.hashCode();
             result = 31 * result + readerCacheKeyId.hashCode();
             result = 31 * result + value.hashCode();
+            result = 31 * result + indexShardHashCode;
             return result;
         }
 
@@ -427,6 +450,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             out.writeOptionalWriteable(shardId);
             out.writeOptionalString(readerCacheKeyId);
             out.writeBytesReference(value);
+            out.writeInt(indexShardHashCode);
         }
     }
 
