@@ -82,14 +82,21 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.indices.IndicesRequestCache.INDEX_DIMENSION_NAME;
+import static org.opensearch.indices.IndicesRequestCache.INDICES_CACHE_QUERY_SIZE;
 import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING;
 import static org.opensearch.indices.IndicesRequestCache.SHARD_ID_DIMENSION_NAME;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -460,7 +467,12 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         // cache count should not be affected
         assertEquals(2, cache.count());
 
-        IndicesRequestCache.Key key = new IndicesRequestCache.Key(indexShard.shardId(), getTermBytes(), getReaderCacheKeyId(reader));
+        IndicesRequestCache.Key key = new IndicesRequestCache.Key(
+            indexShard.shardId(),
+            getTermBytes(),
+            getReaderCacheKeyId(reader),
+            indexShard.hashCode()
+        );
         // test the mapping
         ConcurrentMap<ShardId, HashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
         // shard id should exist
@@ -517,7 +529,12 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(2, cache.count());
 
         // evict entry from second reader (this reader is not closed)
-        IndicesRequestCache.Key key = new IndicesRequestCache.Key(indexShard.shardId(), getTermBytes(), getReaderCacheKeyId(secondReader));
+        IndicesRequestCache.Key key = new IndicesRequestCache.Key(
+            indexShard.shardId(),
+            getTermBytes(),
+            getReaderCacheKeyId(secondReader),
+            indexShard.hashCode()
+        );
 
         // test the mapping
         ConcurrentMap<ShardId, HashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
@@ -567,7 +584,12 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         // no keys are stale
         assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
         // create notification for removal of non-stale entry
-        IndicesRequestCache.Key key = new IndicesRequestCache.Key(indexShard.shardId(), getTermBytes(), getReaderCacheKeyId(reader));
+        IndicesRequestCache.Key key = new IndicesRequestCache.Key(
+            indexShard.shardId(),
+            getTermBytes(),
+            getReaderCacheKeyId(reader),
+            indexShard.hashCode()
+        );
         cache.onRemoval(
             new RemovalNotification<ICacheKey<IndicesRequestCache.Key>, BytesReference>(
                 new ICacheKey<>(key),
@@ -610,11 +632,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(totalKeys, cache.cacheCleanupManager.getStaleKeysCount().get());
 
         String readerCacheKeyId = getReaderCacheKeyId(reader);
-        IndicesRequestCache.Key key = new IndicesRequestCache.Key(
-            ((IndexShard) entity.getCacheIdentity()).shardId(),
-            termBytes,
-            readerCacheKeyId
-        );
+        IndexShard indexShard = (IndexShard) entity.getCacheIdentity();
+        IndicesRequestCache.Key key = new IndicesRequestCache.Key(indexShard.shardId(), termBytes, readerCacheKeyId, indexShard.hashCode());
 
         int staleCount = cache.cacheCleanupManager.getStaleKeysCount().get();
         // Notification for Replaced should not deduct the staleCount
@@ -709,7 +728,12 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         // second reader's mapping should not be affected
         assertEquals(2, (int) cleanupKeyToCountMap.get(shardId).get(getReaderCacheKeyId(secondReader)));
         // send removal notification for first reader
-        IndicesRequestCache.Key key = new IndicesRequestCache.Key(indexShard.shardId(), getTermBytes(), getReaderCacheKeyId(reader));
+        IndicesRequestCache.Key key = new IndicesRequestCache.Key(
+            indexShard.shardId(),
+            getTermBytes(),
+            getReaderCacheKeyId(reader),
+            indexShard.hashCode()
+        );
         cache.onRemoval(
             new RemovalNotification<ICacheKey<IndicesRequestCache.Key>, BytesReference>(
                 new ICacheKey<>(key),
@@ -725,7 +749,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(2, (int) cleanupKeyToCountMap.get(shardId).get(getReaderCacheKeyId(secondReader)));
 
         // Without closing the secondReader send removal notification of one of its key
-        key = new IndicesRequestCache.Key(indexShard.shardId(), getTermBytes(), getReaderCacheKeyId(secondReader));
+        key = new IndicesRequestCache.Key(indexShard.shardId(), getTermBytes(), getReaderCacheKeyId(secondReader), indexShard.hashCode());
         cache.onRemoval(
             new RemovalNotification<ICacheKey<IndicesRequestCache.Key>, BytesReference>(
                 new ICacheKey<>(key),
@@ -738,7 +762,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         // secondReader's readerCacheKeyId count should be decremented by 1
         assertEquals(1, (int) cleanupKeyToCountMap.get(shardId).get(getReaderCacheKeyId(secondReader)));
         // Without closing the secondReader send removal notification of its last key
-        key = new IndicesRequestCache.Key(indexShard.shardId(), getTermBytes(), getReaderCacheKeyId(secondReader));
+        key = new IndicesRequestCache.Key(indexShard.shardId(), getTermBytes(), getReaderCacheKeyId(secondReader), indexShard.hashCode());
         cache.onRemoval(
             new RemovalNotification<ICacheKey<IndicesRequestCache.Key>, BytesReference>(
                 new ICacheKey<>(key),
@@ -1152,11 +1176,11 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         IOUtils.close(reader1, reader2, writer, dir);
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.state()).thenReturn(IndexShardState.STARTED);
-        IndicesRequestCache.Key key1 = new IndicesRequestCache.Key(shardId, new TestBytesReference(1), rKey1);
-        IndicesRequestCache.Key key2 = new IndicesRequestCache.Key(shardId, new TestBytesReference(1), rKey1);
-        IndicesRequestCache.Key key3 = new IndicesRequestCache.Key(shardId1, new TestBytesReference(1), rKey1);
-        IndicesRequestCache.Key key4 = new IndicesRequestCache.Key(shardId, new TestBytesReference(1), rKey2);
-        IndicesRequestCache.Key key5 = new IndicesRequestCache.Key(shardId, new TestBytesReference(2), rKey2);
+        IndicesRequestCache.Key key1 = new IndicesRequestCache.Key(shardId, new TestBytesReference(1), rKey1, shardId.hashCode());
+        IndicesRequestCache.Key key2 = new IndicesRequestCache.Key(shardId, new TestBytesReference(1), rKey1, shardId.hashCode());
+        IndicesRequestCache.Key key3 = new IndicesRequestCache.Key(shardId1, new TestBytesReference(1), rKey1, shardId1.hashCode());
+        IndicesRequestCache.Key key4 = new IndicesRequestCache.Key(shardId, new TestBytesReference(1), rKey2, shardId.hashCode());
+        IndicesRequestCache.Key key5 = new IndicesRequestCache.Key(shardId, new TestBytesReference(2), rKey2, shardId.hashCode());
         String s = "Some other random object";
         assertEquals(key1, key1);
         assertEquals(key1, key2);
@@ -1170,7 +1194,12 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     public void testSerializationDeserializationOfCacheKey() throws Exception {
         IndicesService.IndexShardCacheEntity shardCacheEntity = new IndicesService.IndexShardCacheEntity(indexShard);
         String readerCacheKeyId = UUID.randomUUID().toString();
-        IndicesRequestCache.Key key1 = new IndicesRequestCache.Key(indexShard.shardId(), getTermBytes(), readerCacheKeyId);
+        IndicesRequestCache.Key key1 = new IndicesRequestCache.Key(
+            indexShard.shardId(),
+            getTermBytes(),
+            readerCacheKeyId,
+            indexShard.hashCode()
+        );
         BytesReference bytesReference = null;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             key1.writeTo(out);
@@ -1183,6 +1212,100 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(readerCacheKeyId, key2.readerCacheKeyId);
         assertEquals(((IndexShard) shardCacheEntity.getCacheIdentity()).shardId(), key2.shardId);
         assertEquals(getTermBytes(), key2.value);
+        assertEquals(indexShard.hashCode(), key2.indexShardHashCode);
+    }
+
+    public void testGetOrComputeConcurrentlyWithMultipleIndices() throws Exception {
+        threadPool = getThreadPool();
+        int numberOfIndices = randomIntBetween(2, 5);
+        List<String> indicesList = new ArrayList<>();
+        List<IndexShard> indexShardList = Collections.synchronizedList(new ArrayList<>());
+        for (int i = 0; i < numberOfIndices; i++) {
+            String indexName = "test" + i;
+            indicesList.add(indexName);
+            IndexShard indexShard = createIndex(
+                indexName,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).getShard(0);
+            indexShardList.add(indexShard);
+        }
+        // Create a cache with 2kb to cause evictions and test that flow as well.
+        IndicesRequestCache cache = getIndicesRequestCache(Settings.builder().put(INDICES_CACHE_QUERY_SIZE.getKey(), "2kb").build());
+        Map<IndexShard, DirectoryReader> readerMap = new ConcurrentHashMap<>();
+        Map<IndexShard, IndicesService.IndexShardCacheEntity> entityMap = new ConcurrentHashMap<>();
+        Map<IndexShard, IndexWriter> writerMap = new ConcurrentHashMap<>();
+        int numberOfItems = randomIntBetween(200, 400);
+        for (int i = 0; i < numberOfIndices; i++) {
+            IndexShard indexShard = indexShardList.get(i);
+            entityMap.put(indexShard, new IndicesService.IndexShardCacheEntity(indexShard));
+            Directory dir = newDirectory();
+            IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+            for (int j = 0; j < numberOfItems; j++) {
+                writer.addDocument(newDoc(j, generateString(randomIntBetween(4, 50))));
+            }
+            writerMap.put(indexShard, writer);
+            DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), indexShard.shardId());
+            readerMap.put(indexShard, reader);
+        }
+
+        CountDownLatch latch = new CountDownLatch(numberOfItems);
+        ExecutorService executorService = Executors.newFixedThreadPool(5);
+        for (int i = 0; i < numberOfItems; i++) {
+            int finalI = i;
+            executorService.submit(() -> {
+                int randomIndexPosition = randomIntBetween(0, numberOfIndices - 1);
+                IndexShard indexShard = indexShardList.get(randomIndexPosition);
+                TermQueryBuilder termQuery = new TermQueryBuilder("id", generateString(randomIntBetween(4, 50)));
+                BytesReference termBytes = null;
+                try {
+                    termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+                Loader loader = new Loader(readerMap.get(indexShard), finalI);
+                try {
+                    cache.getOrCompute(entityMap.get(indexShard), loader, readerMap.get(indexShard), termBytes);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+                latch.countDown();
+            });
+        }
+        latch.await();
+        for (int i = 0; i < numberOfIndices; i++) {
+            IndexShard indexShard = indexShardList.get(i);
+            IndicesService.IndexShardCacheEntity entity = entityMap.get(indexShard);
+            RequestCacheStats stats = entity.stats().stats();
+            assertTrue(stats.getMemorySizeInBytes() >= 0);
+            assertTrue(stats.getMissCount() >= 0);
+            assertTrue(stats.getEvictions() >= 0);
+        }
+        cache.invalidateAll();
+        for (int i = 0; i < numberOfIndices; i++) {
+            IndexShard indexShard = indexShardList.get(i);
+            IndicesService.IndexShardCacheEntity entity = entityMap.get(indexShard);
+            RequestCacheStats stats = entity.stats().stats();
+            assertEquals(0, stats.getMemorySizeInBytes());
+        }
+
+        for (int i = 0; i < numberOfIndices; i++) {
+            IndexShard indexShard = indexShardList.get(i);
+            readerMap.get(indexShard).close();
+            writerMap.get(indexShard).close();
+            writerMap.get(indexShard).getDirectory().close();
+        }
+        IOUtils.close(cache);
+        executorService.shutdownNow();
+    }
+
+    public static String generateString(int length) {
+        String characters = "abcdefghijklmnopqrstuvwxyz";
+        StringBuilder sb = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            int index = randomInt(characters.length() - 1);
+            sb.append(characters.charAt(index));
+        }
+        return sb.toString();
     }
 
     private class TestBytesReference extends AbstractBytesReference {
