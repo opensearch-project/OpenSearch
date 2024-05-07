@@ -162,4 +162,14 @@ public final class TransportAddress implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(toString());
     }
+
+    public static TransportAddress fromString(String address) throws UnknownHostException {
+        String[] addressSplit = address.split(":");
+        if (addressSplit.length != 2) {
+            throw new IllegalArgumentException("address must be of the form [hostname/ip]:[port]");
+        }
+        String hostname = addressSplit[0];
+        int port = Integer.parseInt(addressSplit[1]);
+        return new TransportAddress(InetAddress.getByName(hostname), port);
+    }
 }

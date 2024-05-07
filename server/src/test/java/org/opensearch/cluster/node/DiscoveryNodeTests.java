@@ -33,15 +33,20 @@
 package org.opensearch.cluster.node;
 
 import org.opensearch.Version;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.HashMap;
@@ -53,6 +58,9 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singletonMap;
+import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_API;
+import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_GATEWAY;
 import static org.opensearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.opensearch.test.NodeRoles.nonSearchNode;
 import static org.opensearch.test.NodeRoles.remoteClusterClientNode;
@@ -248,5 +256,71 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
         final Settings settingWithSearchRole = NodeRoles.onlyRole(DiscoveryNodeRole.SEARCH_ROLE);
         final DiscoveryNode node = DiscoveryNode.createLocal(settingWithSearchRole, buildNewFakeTransportAddress(), "node");
         assertThat(node.isSearchNode(), equalTo(true));
+    }
+
+    public void testToXContentInAPIMode() throws IOException {
+        final DiscoveryNode node = DiscoveryNode.createLocal(
+            Settings.EMPTY,
+            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
+            "node_1"
+        );
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        builder.startObject();
+        node.toXContent(builder, new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_API)));
+        builder.endObject();
+
+        String expectedNodeAPUXContent = "{\n"
+            + "  \"node_1\" : {\n"
+            + "    \"name\" : \""
+            + node.getName()
+            + "\",\n"
+            + "    \"ephemeral_id\" : \""
+            + node.getEphemeralId()
+            + "\",\n"
+            + "    \"transport_address\" : \"0.0.0.0:9200\",\n"
+            + "    \"attributes\" : { }\n"
+            + "  }\n"
+            + "}";
+
+        assertEquals(expectedNodeAPUXContent, builder.toString());
+    }
+
+    public void testToXContentInGatewayMode() throws IOException {
+        final DiscoveryNode node = DiscoveryNode.createLocal(
+            Settings.EMPTY,
+            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
+            "node_1"
+        );
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        builder.startObject();
+        node.toXContent(builder, new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_GATEWAY)));
+        builder.endObject();
+
+        String expectedNodeAPUXContent = "{\n"
+            + "  \"node_1\" : {\n"
+            + "    \"name\" : \""
+            + node.getName()
+            + "\",\n"
+            + "    \"ephemeral_id\" : \""
+            + node.getEphemeralId()
+            + "\",\n"
+            + "    \"transport_address\" : \"0.0.0.0:9200\",\n"
+            + "    \"attributes\" : { },\n"
+            + "    \"host_name\" : \"0.0.0.0\",\n"
+            + "    \"host_address\" : \"0.0.0.0\",\n"
+            + "    \"version\" : \""
+            + node.getVersion()
+            + "\",\n"
+            + "    \"roles\" : [\n"
+            + "      \"cluster_manager\",\n"
+            + "      \"data\",\n"
+            + "      \"ingest\",\n"
+            + "      \"remote_cluster_client\"\n"
+            + "    ]\n"
+            + "  }\n"
+            + "}";
+
+        assertEquals(expectedNodeAPUXContent, builder.toString());
+
     }
 }

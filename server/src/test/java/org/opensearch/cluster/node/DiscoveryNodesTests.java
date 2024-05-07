@@ -36,10 +36,20 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.XContentTestUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -47,6 +57,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -54,6 +65,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static java.util.Collections.singletonMap;
+import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_API;
+import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_GATEWAY;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -495,6 +509,164 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         DiscoveryNodes build = discoBuilder.build();
         assertEquals(Version.fromString("1.1.0"), build.getMaxNodeVersion());
         assertEquals(LegacyESVersion.fromString("5.1.0"), build.getMinNodeVersion());
+    }
+
+    public void testToXContentInAPIMode() throws IOException {
+        DiscoveryNodes nodes = buildDiscoveryNodes();
+
+        String expectedNodeAPUXContent = "%1$s\"node_%2$d\" : {\n"
+            + "%1$s  \"name\" : \"name_%2$d\",\n"
+            + "%1$s  \"ephemeral_id\" : \"%3$s\",\n"
+            + "%1$s  \"transport_address\" : \"%4$s\",\n"
+            + "%1$s  \"attributes\" : {%5$s}\n"
+            + "%1$s}";
+
+        logger.info(nodes);
+
+        verifyToXContentInContextMode(
+            CONTEXT_MODE_API,
+            nodes,
+            "{\n" + "  \"nodes\" : {\n" + nodes.getNodes().entrySet().stream().map(entry -> {
+                int id = Integer.parseInt(entry.getKey().split("_")[1]);
+                return String.format(
+                    Locale.ROOT,
+                    expectedNodeAPUXContent,
+                    "    ",
+                    id,
+                    entry.getValue().getEphemeralId(),
+                    entry.getValue().getAddress().toString(),
+                    entry.getValue().getAttributes().isEmpty()
+                        ? " "
+                        : "\n" + "        \"custom\" : \"" + entry.getValue().getAttributes().get("custom") + "\"\n      "
+                );
+            }).collect(Collectors.joining(",\n")) + "\n" + "  }\n" + "}"
+        );
+    }
+
+    public void testToXContentInGatewayMode() throws IOException {
+        DiscoveryNodes nodes = buildDiscoveryNodes();
+        String expectedXContent = getExpectedXContentInGatewayMode(nodes);
+
+        verifyToXContentInContextMode(CONTEXT_MODE_GATEWAY, nodes, expectedXContent);
+    }
+
+    private String getExpectedXContentInGatewayMode(DiscoveryNodes nodes) {
+        /*
+         * Following formatting creates a string like following:
+         * "node_1" : {
+         *   "name" : "name_1",
+         *   "ephemeral_id" : "3Q3xRwYKScWqBgVCrWmNCQ",
+         *   "transport_address" : "0.0.0.0:2",
+         *   "attributes" : {
+         *     "custom" : "PKU"
+         *   },
+         *   "host_name" : "0.0.0.0",
+         *   "host_address" : "0.0.0.0",
+         *   "version" : "3.0.0",
+         *   "roles" : [
+         *     "custom_role",
+         *      "ingest",
+         *      "remote_cluster_client",
+         *      "search"
+         *   ]
+         * }
+         * */
+        String expectedNodeAPUXContent = "%1$s\"node_%2$d\" : {\n"
+            + "%1$s  \"name\" : \"name_%2$d\",\n"
+            + "%1$s  \"ephemeral_id\" : \"%3$s\",\n"
+            + "%1$s  \"transport_address\" : \"%4$s\",\n"
+            + "%1$s  \"attributes\" : {%5$s},\n"
+            + "%1$s  \"host_name\" : \"0.0.0.0\",\n"
+            + "%1$s  \"host_address\" : \"0.0.0.0\",\n"
+            + "%1$s  \"version\" : \"%6$s\",\n"
+            + "%1$s  \"roles\" : [%7$s]\n"
+            + "%1$s}";
+
+        return "{\n" + "  \"nodes\" : {\n" + nodes.getNodes().entrySet().stream().map(entry -> {
+            int id = Integer.parseInt(entry.getKey().split("_")[1]);
+            DiscoveryNode node = entry.getValue();
+            String indent = "    ";
+            return String.format(
+                Locale.ROOT,
+                expectedNodeAPUXContent,
+                indent,
+                id,
+                node.getEphemeralId(),
+                entry.getValue().getAddress().toString(),
+                node.getAttributes().isEmpty()
+                    ? " "
+                    : "\n" + indent + "    \"custom\" : \"" + node.getAttributes().get("custom") + "\"\n  " + indent,
+                node.getVersion(),
+                node.getRoles().isEmpty()
+                    ? " "
+                    : "\n"
+                        + indent
+                        + "    \""
+                        + node.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining("\",\n" + indent + "    \""))
+                        + "\"\n  "
+                        + indent
+            );
+        }).collect(Collectors.joining(",\n"))
+            + "\n"
+            + "  },\n"
+            + "  \"cluster_manager\" : \""
+            + nodes.getClusterManagerNodeId()
+            + "\"\n"
+            + "}";
+    }
+
+    public void verifyToXContentInContextMode(String context, DiscoveryNodes nodes, String expected) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        builder.startObject();
+        nodes.toXContent(builder, new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, context)));
+        builder.endObject();
+
+        assertEquals(expected, builder.toString());
+    }
+
+    public void testFromXContent() throws IOException {
+        doFromXContentTestWithRandomFields(false);
+    }
+
+    public void testFromXContentWithRandomFields() throws IOException {
+        doFromXContentTestWithRandomFields(true);
+    }
+
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
+        DiscoveryNodes nodes = buildDiscoveryNodes();
+        boolean humanReadable = randomBoolean();
+        final MediaType mediaType = MediaTypeRegistry.JSON;
+        BytesReference originalBytes = toShuffledXContent(
+            nodes,
+            mediaType,
+            new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_GATEWAY)),
+            humanReadable
+        );
+
+        if (addRandomFields) {
+            String unsupportedField = "unsupported_field";
+            BytesReference mutated = BytesReference.bytes(
+                XContentTestUtils.insertIntoXContent(
+                    mediaType.xContent(),
+                    originalBytes,
+                    Collections.singletonList(""),
+                    () -> unsupportedField,
+                    () -> randomAlphaOfLengthBetween(3, 10)
+                )
+            );
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> DiscoveryNodes.fromXContent(createParser(mediaType.xContent(), mutated))
+            );
+            assertEquals(iae.getMessage(), "unexpected value field " + unsupportedField);
+        } else {
+            try (XContentParser parser = createParser(mediaType.xContent(), originalBytes)) {
+                DiscoveryNodes parsedNodes = DiscoveryNodes.fromXContent(parser);
+                assertEquals(nodes.getSize(), parsedNodes.getSize());
+                nodes.forEach(node -> node.equals(parsedNodes.get(node.getId())));
+                assertEquals(nodes.getClusterManagerNodeId(), parsedNodes.getClusterManagerNodeId());
+            }
+        }
     }
 
     private DiscoveryNode buildDiscoveryNodeFromExisting(DiscoveryNode existing, Version newVersion) {

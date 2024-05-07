@@ -33,6 +33,7 @@
 package org.opensearch.cluster.node;
 
 import org.opensearch.Version;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
@@ -43,6 +44,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.node.Node;
 
 import java.io.IOException;
@@ -60,6 +62,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_API;
+import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
 import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
 
@@ -72,6 +76,14 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     static final String COORDINATING_ONLY = "coordinating_only";
+    static final String KEY_NAME = "name";
+    static final String KEY_EPHEMERAL_ID = "ephemeral_id";
+    static final String KEY_HOST_NAME = "host_name";
+    static final String KEY_HOST_ADDRESS = "host_address";
+    static final String KEY_TRANSPORT_ADDRESS = "transport_address";
+    static final String KEY_ATTRIBUTES = "attributes";
+    static final String KEY_VERSION = "version";
+    static final String KEY_ROLES = "roles";
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
         boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
@@ -544,19 +556,95 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        Metadata.XContentContext context = Metadata.XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
         builder.startObject(getId());
-        builder.field("name", getName());
-        builder.field("ephemeral_id", getEphemeralId());
-        builder.field("transport_address", getAddress().toString());
+        builder.field(KEY_NAME, getName());
+        builder.field(KEY_EPHEMERAL_ID, getEphemeralId());
+        builder.field(KEY_TRANSPORT_ADDRESS, getAddress().toString());
 
-        builder.startObject("attributes");
+        builder.startObject(KEY_ATTRIBUTES);
         for (Map.Entry<String, String> entry : attributes.entrySet()) {
             builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();
+        if (context == Metadata.XContentContext.GATEWAY) {
+            builder.field(KEY_HOST_NAME, getHostName());
+            builder.field(KEY_HOST_ADDRESS, getHostAddress());
+            builder.field(KEY_VERSION, getVersion().toString());
+            builder.startArray(KEY_ROLES);
+            for (DiscoveryNodeRole role : roles) {
+                builder.value(role.roleName());
+            }
+            builder.endArray();
+        }
 
         builder.endObject();
         return builder;
+    }
+
+    public static DiscoveryNode fromXContent(XContentParser parser, String nodeId) throws IOException {
+        if (parser.currentToken() == null) {
+            parser.nextToken();
+        }
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            parser.nextToken();
+        }
+        if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
+            throw new IllegalArgumentException("expected field name but got a " + parser.currentToken());
+        }
+        String nodeName = null;
+        String hostName = null;
+        String hostAddress = null;
+        String ephemeralId = null;
+        TransportAddress transportAddress = null;
+        Map<String, String> attributes = new HashMap<>();
+        Set<DiscoveryNodeRole> roles = new HashSet<>();
+        Version version = null;
+        String currentFieldName = parser.currentName();
+        // token should be start object at this point
+        // XContentParser.Token token = parser.nextToken();
+        // if (token != XContentParser.Token.START_OBJECT) {
+        // throw new IllegalArgumentException("expected object but got a " + token);
+        // }
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (KEY_NAME.equals(currentFieldName)) {
+                    nodeName = parser.text();
+                } else if (KEY_EPHEMERAL_ID.equals(currentFieldName)) {
+                    ephemeralId = parser.text();
+                } else if (KEY_TRANSPORT_ADDRESS.equals(currentFieldName)) {
+                    transportAddress = TransportAddress.fromString(parser.text());
+                } else if (KEY_HOST_NAME.equals(currentFieldName)) {
+                    hostName = parser.text();
+                } else if (KEY_HOST_ADDRESS.equals(currentFieldName)) {
+                    hostAddress = parser.text();
+                } else if (KEY_VERSION.equals(currentFieldName)) {
+                    version = Version.fromString(parser.text());
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (KEY_ATTRIBUTES.equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (token.isValue()) {
+                            attributes.put(currentFieldName, parser.text());
+                        }
+                    }
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (KEY_ROLES.equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        roles.add(getRoleFromRoleName(parser.text()));
+                    }
+                }
+            } else {
+                throw new IllegalArgumentException("unexpected token " + token);
+            }
+        }
+        return new DiscoveryNode(nodeName, nodeId, ephemeralId, hostName, hostAddress, transportAddress, attributes, roles, version);
     }
 
     private static Map<String, DiscoveryNodeRole> rolesToMap(final Stream<DiscoveryNodeRole> roles) {
