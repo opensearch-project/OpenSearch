@@ -43,6 +43,8 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.internal.artifacts.ivyservice.LenientConfigurationInternal;
+import org.gradle.api.internal.artifacts.ivyservice.ResolvedFilesCollectingVisitor;
 import org.gradle.api.provider.Property;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.CacheableTask;
@@ -203,11 +205,12 @@ public class ThirdPartyAuditTask extends DefaultTask {
         // or dependencies added as `files(...)`, we can't be sure if those are third party or not.
         // err on the side of scanning these to make sure we don't miss anything
         Spec<Dependency> reallyThirdParty = dep -> dep.getGroup() != null && dep.getGroup().startsWith("org.opensearch") == false;
-        Set<File> jars = getRuntimeConfiguration().getResolvedConfiguration().getFiles(reallyThirdParty);
-        Set<File> compileOnlyConfiguration = getProject().getConfigurations()
-            .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
-            .getResolvedConfiguration()
-            .getFiles(reallyThirdParty);
+
+        Set<File> jars = getFiles(getRuntimeConfiguration(), reallyThirdParty);
+        Set<File> compileOnlyConfiguration = getFiles(
+            getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME),
+            reallyThirdParty
+        );
         // don't scan provided dependencies that we already scanned, e.x. don't scan cores dependencies for every plugin
         if (compileOnlyConfiguration != null) {
             jars.removeAll(compileOnlyConfiguration);
@@ -284,6 +287,14 @@ public class ThirdPartyAuditTask extends DefaultTask {
         // Mark successful third party audit check
         getSuccessMarker().getParentFile().mkdirs();
         Files.write(getSuccessMarker().toPath(), new byte[] {});
+    }
+
+    private Set<File> getFiles(Configuration configuration, Spec<Dependency> spec) {
+        final ResolvedFilesCollectingVisitor visitor = new ResolvedFilesCollectingVisitor();
+        final LenientConfigurationInternal cfg = (LenientConfigurationInternal) configuration.getResolvedConfiguration()
+            .getLenientConfiguration();
+        cfg.select(spec).visitArtifacts(visitor, false);
+        return visitor.getFiles();
     }
 
     private void logForbiddenAPIsOutput(String forbiddenApisOutput) {
