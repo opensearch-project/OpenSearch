@@ -562,7 +562,7 @@ public class RemoteFsTranslog extends Translog {
         // This enables us to restore translog from the metadata in case of failover or relocation.
         Set<Long> generationsToDelete = new HashSet<>();
         for (long generation = minRemoteGenReferenced - 1 - indexSettings().getRemoteTranslogExtraKeep(); generation >= 0; generation--) {
-            if (fileTransferTracker.uploaded(Translog.getFilename(generation)) == false) {
+            if (fileTransferTracker.translogGenerationUploaded(generation) == false) {
                 break;
             }
             generationsToDelete.add(generation);

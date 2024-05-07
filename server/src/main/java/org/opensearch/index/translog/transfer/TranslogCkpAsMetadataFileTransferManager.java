@@ -30,8 +30,6 @@ import java.util.Set;
  */
 public class TranslogCkpAsMetadataFileTransferManager extends TranslogTransferManager {
 
-    TransferService transferService;
-
     public TranslogCkpAsMetadataFileTransferManager(
         ShardId shardId,
         TransferService transferService,
@@ -50,7 +48,6 @@ public class TranslogCkpAsMetadataFileTransferManager extends TranslogTransferMa
             remoteTranslogTransferTracker,
             remoteStoreSettings
         );
-        this.transferService = transferService;
     }
 
     @Override

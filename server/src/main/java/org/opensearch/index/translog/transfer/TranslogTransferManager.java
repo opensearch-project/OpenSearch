@@ -57,10 +57,10 @@ import static org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSn
 public abstract class TranslogTransferManager {
 
     private final ShardId shardId;
-    private final TransferService transferService;
+    protected final TransferService transferService;
     private final BlobPath remoteDataTransferPath;
     private final BlobPath remoteMetadataTransferPath;
-    private final FileTransferTracker fileTransferTracker;
+    protected final FileTransferTracker fileTransferTracker;
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
     private final RemoteStoreSettings remoteStoreSettings;
     private static final int METADATA_FILES_TO_FETCH = 10;
@@ -402,7 +402,6 @@ public abstract class TranslogTransferManager {
             Files.write(filePath, ckpFileBytes);
             downloadStatus = true;
         } finally {
-            remoteTranslogTransferTracker.addDownloadTimeInMillis(0);
             if (downloadStatus) {
                 remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
             }

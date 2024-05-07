@@ -187,7 +187,7 @@ public class FileTransferTracker implements FileTransferListener {
         return fileTransferTracker.get(file) == TransferState.SUCCESS;
     }
 
-    boolean translogGenerationUploaded(Long generation) {
+    public boolean translogGenerationUploaded(Long generation) {
         return generationTransferTracker.get(generation) == TransferState.SUCCESS;
     }
 
@@ -197,7 +197,7 @@ public class FileTransferTracker implements FileTransferListener {
             .collect(Collectors.toSet());
     }
 
-    Set<Long> allUploadedGeneration() {
+    public Set<Long> allUploadedGeneration() {
         return getSuccessfulKeys(generationTransferTracker);
     }
 

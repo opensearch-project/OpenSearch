@@ -32,10 +32,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @opensearch.internal
  */
 public class TranslogCkpFilesTransferManager extends TranslogTransferManager {
-
-    TransferService transferService;
-    FileTransferTracker fileTransferTracker;
-
     public TranslogCkpFilesTransferManager(
         ShardId shardId,
         TransferService transferService,
@@ -54,8 +50,6 @@ public class TranslogCkpFilesTransferManager extends TranslogTransferManager {
             remoteTranslogTransferTracker,
             remoteStoreSettings
         );
-        this.transferService = transferService;
-        this.fileTransferTracker = fileTransferTracker;
     }
 
     @Override
