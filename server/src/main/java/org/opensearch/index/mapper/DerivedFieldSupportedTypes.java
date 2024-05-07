@@ -20,6 +20,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.TriFunction;
@@ -123,7 +124,19 @@ public enum DerivedFieldSupportedTypes {
         NumberFieldMapper.Builder floatBuilder = new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT, false, false);
         return floatBuilder.build(context);
     }, name -> o -> new FloatField(name, Float.parseFloat(o.toString()), Field.Store.NO), o -> o),
-    OBJECT("object", KEYWORD::getFieldMapper, name -> o -> new KeywordField(name, (String) o, Field.Store.NO), o -> o);
+    OBJECT("object", (name, context, indexAnalyzers) -> {
+        // we create a keyword field type with index options set as NONE as we don't support queries directly on object type
+        KeywordFieldMapper.Builder keywordBuilder = new KeywordFieldMapper.Builder(name);
+        KeywordFieldMapper.KeywordFieldType keywordFieldType = keywordBuilder.buildFieldType(context, new FieldType());
+        return new KeywordFieldMapper(
+            name,
+            new FieldType(),
+            keywordFieldType,
+            keywordBuilder.multiFieldsBuilder.build(keywordBuilder, context),
+            keywordBuilder.copyTo.build(),
+            keywordBuilder
+        );
+    }, name -> o -> { throw new OpenSearchException("Cannot create IndexableField to execute queries on object derived field"); }, o -> o);
 
     final String name;
     private final TriFunction<String, Mapper.BuilderContext, IndexAnalyzers, FieldMapper> builder;

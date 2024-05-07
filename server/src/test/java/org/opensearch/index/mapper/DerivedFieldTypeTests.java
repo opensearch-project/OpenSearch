@@ -15,11 +15,13 @@ import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.script.Script;
 
 import java.util.List;
 
+import static org.apache.lucene.index.IndexOptions.NONE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -86,6 +88,13 @@ public class DerivedFieldTypeTests extends FieldTypeTestCase {
         assertTrue(dft.getFieldMapper() instanceof NumberFieldMapper);
         assertTrue(dft.getIndexableFieldGenerator().apply(10.0) instanceof DoubleField);
         expectThrows(Exception.class, () -> dft.getIndexableFieldGenerator().apply(""));
+    }
+
+    public void testObjectType() {
+        DerivedFieldType dft = createDerivedFieldType("object");
+        assertTrue(dft.getFieldMapper() instanceof KeywordFieldMapper);
+        assertEquals(dft.getFieldMapper().fieldType.indexOptions(), NONE);
+        assertThrows(OpenSearchException.class, () -> dft.getIndexableFieldGenerator().apply(""));
     }
 
     public void testUnsupportedType() {

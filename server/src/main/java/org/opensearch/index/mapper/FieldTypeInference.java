@@ -49,6 +49,7 @@ public class FieldTypeInference {
     // TODO expose using a index setting?
     private int sampleSize;
     private static final int DEFAULT_SAMPLE_SIZE = 60;
+    private static final int MAX_SAMPLE_SIZE_ALLOWED = 1000;
 
     public FieldTypeInference(String indexName, MapperService mapperService, IndexReader indexReader) {
         this.indexName = indexName;
@@ -58,7 +59,7 @@ public class FieldTypeInference {
     }
 
     public void setSampleSize(int sampleSize) {
-        this.sampleSize = sampleSize;
+        this.sampleSize = Math.min(sampleSize, MAX_SAMPLE_SIZE_ALLOWED);
     }
 
     public int getSampleSize() {
@@ -70,7 +71,7 @@ public class FieldTypeInference {
         Mapper inferredMapper = null;
         while (inferredMapper == null && valuesGenerator.hasNext()) {
             List<Object> values = valuesGenerator.next();
-            if (values == null) {
+            if (values == null || values.isEmpty()) {
                 continue;
             }
             // always use first value in case of multi value field to infer type

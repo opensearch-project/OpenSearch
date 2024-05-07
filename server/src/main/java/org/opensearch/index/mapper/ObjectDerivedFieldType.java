@@ -9,6 +9,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -22,15 +23,28 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-public class DerivedObjectFieldType extends DerivedFieldType {
+/**
+ * ObjectDerivedFieldType is similar to object field type in context of derived fields.
+ * It is not a primitive field type and doesn't support any queries directly. However, any nested derived field with parent as
+ * ObjectDerivedFieldType will make use of it to run query once the field type is inferred.
+ */
+public class ObjectDerivedFieldType extends DerivedFieldType {
 
-    DerivedObjectFieldType(
+    ObjectDerivedFieldType(
         DerivedField derivedField,
         FieldMapper typeFieldMapper,
         Function<Object, IndexableField> fieldFunction,
         IndexAnalyzers indexAnalyzers
     ) {
-        super(derivedField, typeFieldMapper, fieldFunction, indexAnalyzers);
+        super(derivedField, typeFieldMapper, derivedField.getType().equals(DerivedFieldSupportedTypes.DATE.getName()) ? (o -> {
+            // this is needed to support date type for nested fields, they need to be converted to long to create
+            // IndexableField
+            if (o instanceof String) {
+                return fieldFunction.apply(((DateFieldMapper) typeFieldMapper).fieldType().parse((String) o));
+            } else {
+                return fieldFunction.apply(o);
+            }
+        }) : fieldFunction, indexAnalyzers);
     }
 
     @Override
@@ -54,34 +68,43 @@ public class DerivedObjectFieldType extends DerivedFieldType {
         }
         Function<Object, Object> valueForDisplay = DerivedFieldSupportedTypes.getValueForDisplayGenerator(getType());
         String subFieldName = name().substring(name().indexOf(".") + 1);
-        return new DerivedObjectFieldValueFetcher(
+        return new ObjectDerivedFieldValueFetcher(
             subFieldName,
             getDerivedFieldLeafFactory(derivedField.getScript(), context, searchLookup == null ? context.lookup() : searchLookup),
             valueForDisplay
         );
     }
 
-    public static class DerivedObjectFieldValueFetcher extends DerivedFieldValueFetcher {
+    public static class ObjectDerivedFieldValueFetcher extends DerivedFieldValueFetcher {
         private final String subField;
 
-        public DerivedObjectFieldValueFetcher(
+        // TODO add it as part of index setting?
+        private final boolean failOnInvalidJsonObjects;
+
+        public ObjectDerivedFieldValueFetcher(
             String subField,
             DerivedFieldScript.LeafFactory derivedFieldScriptFactory,
             Function<Object, Object> valueForDisplay
         ) {
             super(derivedFieldScriptFactory, valueForDisplay);
             this.subField = subField;
+            this.failOnInvalidJsonObjects = true;
         }
 
         @Override
         public List<Object> fetchValuesInternal(SourceLookup lookup) {
             List<Object> jsonObjects = super.fetchValuesInternal(lookup);
-            // TODO add check for valid json and error handling around the same if mismatch
-            // parse the value of field from the json object and return that instead
             List<Object> result = new ArrayList<>();
             for (Object o : jsonObjects) {
-                Map<String, Object> s = XContentHelper.convertToMap(JsonXContent.jsonXContent, (String) o, false);
-                result.add(getNestedField(s, subField));
+                try {
+                    Map<String, Object> s = XContentHelper.convertToMap(JsonXContent.jsonXContent, (String) o, false);
+                    result.add(getNestedField(s, subField));
+                } catch (OpenSearchParseException e) {
+                    if (failOnInvalidJsonObjects) {
+                        throw e;
+                    }
+                    // TODO cannot log warnings as it can bloat up the logs. Add to some stats?
+                }
             }
             return result;
         }

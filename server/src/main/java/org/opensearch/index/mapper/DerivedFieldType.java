@@ -39,10 +39,11 @@ import java.util.function.Function;
  * Contains logic to execute different type of queries on a derived field of given type.
  * @opensearch.internal
  */
+
 public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryable {
     final DerivedField derivedField;
-    private final FieldMapper typeFieldMapper;
-    private final Function<Object, IndexableField> indexableFieldGenerator;
+    final FieldMapper typeFieldMapper;
+    final Function<Object, IndexableField> indexableFieldGenerator;
 
     public DerivedFieldType(
         DerivedField derivedField,

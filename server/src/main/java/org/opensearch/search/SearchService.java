@@ -77,6 +77,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.mapper.DefaultDerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedFieldResolver;
 import org.opensearch.index.query.InnerHitContextBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
@@ -1079,7 +1080,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.source() != null
                 && request.source().size() != 0
                 && (request.source().getDerivedFieldsObject() != null || request.source().getDerivedFields() != null)) {
-                DerivedFieldResolver derivedFieldResolver = new DerivedFieldResolver(
+                DerivedFieldResolver derivedFieldResolver = new DefaultDerivedFieldResolver(
                     searchContext.getQueryShardContext(),
                     request.source().getDerivedFieldsObject(),
                     request.source().getDerivedFields()

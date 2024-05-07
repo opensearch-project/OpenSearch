@@ -85,7 +85,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
             );
             DerivedFieldType ft;
             if (name.contains(".")) {
-                ft = new DerivedObjectFieldType(
+                ft = new ObjectDerivedFieldType(
                     new DerivedField(buildFullName(context), type.getValue(), script.getValue(), sourceIndexedField.getValue()),
                     fieldMapper,
                     fieldFunction,

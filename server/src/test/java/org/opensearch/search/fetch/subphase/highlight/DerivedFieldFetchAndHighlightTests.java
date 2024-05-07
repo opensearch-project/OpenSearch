@@ -27,8 +27,8 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.ContentPath;
+import org.opensearch.index.mapper.DefaultDerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedField;
-import org.opensearch.index.mapper.DerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedFieldSupportedTypes;
 import org.opensearch.index.mapper.DerivedFieldType;
 import org.opensearch.index.mapper.Mapper;
@@ -221,7 +221,7 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
 
                 // This mock behavior is similar to adding derived fields in search request
                 mockShardContext.setDerivedFieldResolver(
-                    new DerivedFieldResolver(
+                    new DefaultDerivedFieldResolver(
                         mockShardContext,
                         null,
                         List.of(

@@ -58,6 +58,7 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.mapper.ContentPath;
+import org.opensearch.index.mapper.DefaultDerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedFieldType;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -123,7 +124,6 @@ public class QueryShardContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private BitSetProducer parentFilter;
-
     private DerivedFieldResolver derivedFieldResolver;
 
     public QueryShardContext(
@@ -271,7 +271,7 @@ public class QueryShardContext extends QueryRewriteContext {
         this.fullyQualifiedIndex = fullyQualifiedIndex;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.valuesSourceRegistry = valuesSourceRegistry;
-        this.derivedFieldResolver = new DerivedFieldResolver(this, emptyMap(), emptyList());
+        this.derivedFieldResolver = new DefaultDerivedFieldResolver(this, emptyMap(), emptyList());
     }
 
     private void reset() {
