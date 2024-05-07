@@ -23,7 +23,7 @@ public interface TaskWorker {
     /**
      * Execute the Task
      *
-     * @param task Task to be execute
+     * @param task Task to be executed
      * @param taskParams TaskParams to be used while executing the task
      */
     void executeTask(Task task, TaskParams taskParams);
