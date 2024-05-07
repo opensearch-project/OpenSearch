@@ -24,9 +24,35 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * ObjectDerivedFieldType is similar to object field type in context of derived fields.
- * It is not a primitive field type and doesn't support any queries directly. However, any nested derived field with parent as
- * ObjectDerivedFieldType will make use of it to run query once the field type is inferred.
+ * ObjectDerivedFieldType represents a derived field type that behaves similarly to an Object field type within the context of derived fields.
+ * It is not a primitive field type and does not directly support queries. However, any nested derived fields contained within an ObjectDerivedFieldType
+ * are also classified as Object derived fields, which support queries depending on their type inferred. For example, consider the following mapping:
+ * <p>
+ * mappings:
+ *     derived:
+ *         regular_field:
+ *             type: keyword
+ *             script: "emit(keyword_string)"
+ *         derived_obj:
+ *             type: object
+ *             script: "emit(json_obj)"
+ * <p>
+ * Here, we have a regular keyword derived field and an object type derived field.
+ * Any nested field within derived_obj does not need to be explicitly defined. Their type will be inferred, and the value will be extracted from the json_obj emitted by the script
+ * associated with the parent object derived_obj. The {@link ObjectDerivedFieldValueFetcher} is used for this purpose which accepts sub_field and can extract the nested fields from JSON.
+ * For instance, if derived_obj emits the following document:
+ * <p>
+ * "derived_obj" : {
+ *     "sub_field_1": "value 1",
+ *     "sub_field_2": {
+ *         "sub_field_3": "value_3"
+ *     }
+ * }
+ * <p>
+ * Then nested fields such as sub_field_1 and sub_field_3 can be used in the query as derived_obj.sub_field_1 and derived_obj.sub_field_2.sub_field_3 respectively.
+ * Both of these nested derived fields will be an instance of ObjectDerivedFieldType; however, their mapped field type will be inferred based on the type of value they hold, to support queries on them.
+ * Refer to {@link FieldTypeInference} for more details on the type inference logic.
+ *
  */
 public class ObjectDerivedFieldType extends DerivedFieldType {
 
@@ -37,7 +63,7 @@ public class ObjectDerivedFieldType extends DerivedFieldType {
         IndexAnalyzers indexAnalyzers
     ) {
         super(derivedField, typeFieldMapper, derivedField.getType().equals(DerivedFieldSupportedTypes.DATE.getName()) ? (o -> {
-            // this is needed to support date type for nested fields, they need to be converted to long to create
+            // this is needed to support date type for nested fields as they are required to be converted to long to create
             // IndexableField
             if (o instanceof String) {
                 return fieldFunction.apply(((DateFieldMapper) typeFieldMapper).fieldType().parse((String) o));

@@ -25,30 +25,27 @@ import java.util.Random;
 import java.util.Set;
 
 /**
- * This method infers the field type by examining the _source documents. For a given value, type inference is similar to the dynamic mapping type guessing logic.
- * Instead of guessing the type based on the first document, it generates a random sample of documents to make a more accurate inference.
- * This approach is particularly useful when dealing with missing fields, which is common in nested fields within derived fields of object types.
+ * This method performs type inference by analyzing the _source documents. It uses a random sample of documents to infer the field type, similar to dynamic mapping type guessing logic.
+ * Unlike guessing based on the first document, where field could be missing, this method generates a random sample to make a more accurate inference.
+ * This approach is especially useful for handling missing fields, which is common in nested fields within derived fields of object types.
  *
- * <p>The sample size should be selected carefully to ensure a high probability of selecting at least one document where the field is present.
- * However, it's important to maintain a balance as a large sample size can lead to performance issues as for each sample document _source field is loaded and examined.
+ * <p>The sample size should be chosen carefully to ensure a high probability of selecting at least one document where the field is present.
+ * However, it's essential to strike a balance because a large sample size can lead to performance issues since each sample document's _source field is loaded and examined until the field is found.
  *
- * <p>The problem of determining the sample size (S) is akin to deciding how many balls to draw from a bin,
- * ensuring a high probability (>=P) of drawing at least one green ball (documents with the field) from a mixture of
- * R red balls (documents without the field) and G green balls -
- * <pre>
+ * <p>Determining the sample size (<var>S</var>) is akin to deciding how many balls to draw from a bin, ensuring a high probability (>=<var>P</var>) of drawing at least one green ball (documents with the field) from a mixture of <var>R</var> red balls (documents without the field) and <var>G</var> green balls:
+ * <pre>{@code
  * P >= 1 - C(R, S) / C(R + G, S)
- * </pre>
- * Where C() is the binomial coefficient
- * For a high confidence, we want the P >= 0.95
+ * }</pre>
+ * Here, <var>C()</var> represents the binomial coefficient.
+ * For a high confidence level, we aim for <var>P</var> >= 0.95. For example, with 10^7 documents where the field is present in 2% of them, the sample size <var>S</var> should be around 149 to achieve a probability of 0.95.
  */
-
 public class FieldTypeInference {
     private final IndexReader indexReader;
     private final String indexName;
     private final MapperService mapperService;
-    // TODO expose using a index setting?
+    // TODO expose using a index setting
     private int sampleSize;
-    private static final int DEFAULT_SAMPLE_SIZE = 60;
+    private static final int DEFAULT_SAMPLE_SIZE = 150;
     private static final int MAX_SAMPLE_SIZE_ALLOWED = 1000;
 
     public FieldTypeInference(String indexName, MapperService mapperService, IndexReader indexReader) {
