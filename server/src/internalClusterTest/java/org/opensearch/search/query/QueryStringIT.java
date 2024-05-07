@@ -45,7 +45,6 @@ import org.opensearch.index.query.Operator;
 import org.opensearch.index.query.QueryStringQueryBuilder;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
-import org.opensearch.search.SearchModule;
 import org.opensearch.search.SearchService;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.Before;
@@ -88,7 +87,7 @@ public class QueryStringIT extends ParameterizedStaticSettingsOpenSearchIntegTes
 
     @BeforeClass
     public static void createRandomClusterSetting() {
-        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(1024, 2048);
+        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(50, 100);
     }
 
     @Before

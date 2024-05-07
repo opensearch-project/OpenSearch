@@ -148,7 +148,6 @@ import org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionCo
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.script.ScriptService;
-import org.opensearch.search.SearchModule;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.backpressure.settings.NodeDuressSettings;

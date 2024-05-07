@@ -38,7 +38,6 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
-import org.opensearch.search.SearchModule;
 import org.opensearch.search.SearchService;
 
 import java.util.Collection;

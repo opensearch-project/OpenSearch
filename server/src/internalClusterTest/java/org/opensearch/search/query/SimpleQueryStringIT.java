@@ -79,6 +79,7 @@ import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING;
 import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFailures;
@@ -115,7 +116,7 @@ public class SimpleQueryStringIT extends ParameterizedStaticSettingsOpenSearchIn
         // Lower bound can't be small(such as 60), simpleQueryStringQuery("foo Bar 19 127.0.0.1") in testDocWithAllTypes
         // will create many clauses of BooleanClause, In that way, it will throw too_many_nested_clauses exception.
         // So we need to set a higher bound(such as 80) to avoid failures.
-        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(1024, 2048);
+        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(80, 100);
     }
 
     @Override
@@ -718,6 +719,46 @@ public class SimpleQueryStringIT extends ParameterizedStaticSettingsOpenSearchIn
         assertNoFailures(response);
         assertHitCount(response, 1);
         assertHits(response.getHits(), "1");
+    }
+
+    public void testDynamicClauseCountUpdate() throws Exception {
+        client().prepareIndex("testdynamic").setId("1").setSource("field", "foo bar baz").get();
+        refresh();
+        StringBuilder sb = new StringBuilder("foo");
+
+        // create clause_count + 1 clauses to hit error
+        for (int i = 0; i <= CLUSTER_MAX_CLAUSE_COUNT; i++) {
+            sb.append(" OR foo" + i);
+        }
+
+        QueryStringQueryBuilder qb = queryStringQuery(sb.toString()).field("field");
+
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
+            client().prepareSearch("testdynamic").setQuery(qb).get();
+        });
+
+        assert (e.getDetailedMessage().contains("maxClauseCount is set to " + (CLUSTER_MAX_CLAUSE_COUNT)));
+
+        // increase clause count by 2
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT + 2))
+        );
+
+        Thread.sleep(1);
+
+        SearchResponse response = client().prepareSearch("testdynamic").setQuery(qb).get();
+        assertHitCount(response, 1);
+        assertHits(response.getHits(), "1");
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().putNull(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()))
+        );
     }
 
     private void assertHits(SearchHits hits, String... ids) {
