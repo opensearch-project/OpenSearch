@@ -70,7 +70,7 @@ public class FeatureFlags {
     /**
      * Gates the functionality of remote routing table.
      */
-    public static final String REMOTE_ROUTING_TABLE_EXPERIMENTAL = "opensearch.experimental.feature.remote_store.routing.enabled";
+    public static final String REMOTE_ROUTING_TABLE_EXPERIMENTAL = "opensearch.experimental.feature.remote_store.routing_table.enabled";
 
     public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL,

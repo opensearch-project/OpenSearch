@@ -41,7 +41,7 @@ public class RemoteRoutingTableService implements Closeable {
      * Cluster setting to specify if routing table should be published to remote store
      */
     public static final Setting<Boolean> REMOTE_ROUTING_TABLE_ENABLED_SETTING = Setting.boolSetting(
-        "cluster.remote_store.routing.enabled",
+        "cluster.remote_store.routing_table.enabled",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Final
