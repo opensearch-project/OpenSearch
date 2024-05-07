@@ -9,6 +9,8 @@
 package org.opensearch.offline_tasks;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.offline_tasks.task.Task;
+import org.opensearch.offline_tasks.task.TaskId;
 
 import java.util.List;
 
@@ -21,37 +23,37 @@ import java.util.List;
 public interface TaskClient {
 
     /**
-     * Submit a new task to Task Store/Queue
+     * Submit a new task to TaskStore/Queue
      *
      * @param task
      */
     void submitTask(Task task);
 
     /**
-     * Claim task from Task Store/Queue. This ensure no 2 nodes work on the same task.
+     * Claim task from TaskStore/Queue. This ensures no 2 Offline Nodes work on the same task.
      *
      * @param taskId
      */
     void claimTask(TaskId taskId);
 
     /**
-     * Get task from Task Store/Queue
+     * Get task from TaskStore/Queue
      *
      * @param taskId
-     * @return
+     * @return Task corresponding to TaskId
      */
     Task getTask(TaskId taskId);
 
     /**
-     * Update task in Task Store/Queue
+     * Update task in TaskStore/Queue
      *
      * @param task
-     * @return
      */
-    Task updateTask(Task task);
+    void updateTask(Task task);
 
     /**
-     * Mark task as cancelled
+     * Mark task as cancelled.
+     * Ongoing Tasks can be cancelled as well if the corresponding worker supports cancellation
      *
      * @param taskId
      */

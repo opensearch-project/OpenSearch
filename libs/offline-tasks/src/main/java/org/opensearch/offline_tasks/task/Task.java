@@ -6,11 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.offline_tasks;
+package org.opensearch.offline_tasks.task;
+
+import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
  * A Background Task to be run on Offline Node.
  */
+@ExperimentalApi
 public class Task {
 
     /**

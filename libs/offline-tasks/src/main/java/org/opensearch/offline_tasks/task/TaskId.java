@@ -6,18 +6,25 @@
  * compatible open source license.
  */
 
-package org.opensearch.offline_tasks;
+package org.opensearch.offline_tasks.task;
+
+import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
- * Class encapsulating Task id
+ * Class encapsulating Task identifier
  */
+@ExperimentalApi
 public class TaskId {
 
     /**
-     * Id of the Task
+     * Identified of the Task
      */
     String id;
 
+    /**
+     * Constructor to initialize TaskId
+     * @param id
+     */
     public TaskId(String id) {
         this.id = id;
     }

@@ -7,6 +7,6 @@
  */
 
 /**
- * Contains telemetry related classes
+ * Contains tasks related classes
  */
 package org.opensearch.offline_tasks;
