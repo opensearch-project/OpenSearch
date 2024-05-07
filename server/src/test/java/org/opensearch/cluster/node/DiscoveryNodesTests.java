@@ -514,14 +514,24 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
     public void testToXContentInAPIMode() throws IOException {
         DiscoveryNodes nodes = buildDiscoveryNodes();
 
+        /*
+         * Following format is expected to be used by API and looks like following:
+         * "node_1" : {
+         *   "name" : "name_1",
+         *   "ephemeral_id" : "3Q3xRwYKScWqBgVCrWmNCQ",
+         *   "transport_address" : "0.0.0.0:2",
+         *   "attributes" : {
+         *     "custom" : "PKU"
+         *   }
+         * }
+         *
+        * */
         String expectedNodeAPUXContent = "%1$s\"node_%2$d\" : {\n"
             + "%1$s  \"name\" : \"name_%2$d\",\n"
             + "%1$s  \"ephemeral_id\" : \"%3$s\",\n"
             + "%1$s  \"transport_address\" : \"%4$s\",\n"
             + "%1$s  \"attributes\" : {%5$s}\n"
             + "%1$s}";
-
-        logger.info(nodes);
 
         verifyToXContentInContextMode(
             CONTEXT_MODE_API,
@@ -585,26 +595,26 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         return "{\n" + "  \"nodes\" : {\n" + nodes.getNodes().entrySet().stream().map(entry -> {
             int id = Integer.parseInt(entry.getKey().split("_")[1]);
             DiscoveryNode node = entry.getValue();
-            String indent = "    ";
+            String offset = "    ";
             return String.format(
                 Locale.ROOT,
                 expectedNodeAPUXContent,
-                indent,
+                offset,
                 id,
                 node.getEphemeralId(),
                 entry.getValue().getAddress().toString(),
                 node.getAttributes().isEmpty()
                     ? " "
-                    : "\n" + indent + "    \"custom\" : \"" + node.getAttributes().get("custom") + "\"\n  " + indent,
+                    : "\n" + offset + "    \"custom\" : \"" + node.getAttributes().get("custom") + "\"\n  " + offset,
                 node.getVersion(),
                 node.getRoles().isEmpty()
                     ? " "
                     : "\n"
-                        + indent
+                        + offset
                         + "    \""
-                        + node.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining("\",\n" + indent + "    \""))
+                        + node.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining("\",\n" + offset + "    \""))
                         + "\"\n  "
-                        + indent
+                        + offset
             );
         }).collect(Collectors.joining(",\n"))
             + "\n"
@@ -617,9 +627,7 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
 
     public void verifyToXContentInContextMode(String context, DiscoveryNodes nodes, String expected) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        builder.startObject();
         nodes.toXContent(builder, new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, context)));
-        builder.endObject();
 
         assertEquals(expected, builder.toString());
     }
@@ -654,11 +662,13 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
                     () -> randomAlphaOfLengthBetween(3, 10)
                 )
             );
-            IllegalArgumentException iae = expectThrows(
-                IllegalArgumentException.class,
+            AssertionError iae = expectThrows(
+                AssertionError.class,
                 () -> DiscoveryNodes.fromXContent(createParser(mediaType.xContent(), mutated))
             );
-            assertEquals(iae.getMessage(), "unexpected value field " + unsupportedField);
+            assertTrue(
+                iae.getMessage().matches("expecting field with name \\[([a-z]+(?:_[a-z]+)*)] but found \\[" + unsupportedField + "]")
+            );
         } else {
             try (XContentParser parser = createParser(mediaType.xContent(), originalBytes)) {
                 DiscoveryNodes parsedNodes = DiscoveryNodes.fromXContent(parser);

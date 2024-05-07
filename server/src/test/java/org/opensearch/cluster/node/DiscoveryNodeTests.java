@@ -269,7 +269,7 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
         node.toXContent(builder, new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_API)));
         builder.endObject();
 
-        String expectedNodeAPUXContent = "{\n"
+        String expectedNodeAPIXContent = "{\n"
             + "  \"node_1\" : {\n"
             + "    \"name\" : \""
             + node.getName()
@@ -282,7 +282,7 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
             + "  }\n"
             + "}";
 
-        assertEquals(expectedNodeAPUXContent, builder.toString());
+        assertEquals(expectedNodeAPIXContent, builder.toString());
     }
 
     public void testToXContentInGatewayMode() throws IOException {
@@ -296,7 +296,7 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
         node.toXContent(builder, new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_GATEWAY)));
         builder.endObject();
 
-        String expectedNodeAPUXContent = "{\n"
+        String expectedNodeAPIXContent = "{\n"
             + "  \"node_1\" : {\n"
             + "    \"name\" : \""
             + node.getName()
@@ -320,7 +320,6 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
             + "  }\n"
             + "}";
 
-        assertEquals(expectedNodeAPUXContent, builder.toString());
-
+        assertEquals(expectedNodeAPIXContent, builder.toString());
     }
 }

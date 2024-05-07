@@ -45,7 +45,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
@@ -65,6 +65,7 @@ import java.util.stream.StreamSupport;
 
 import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_API;
 import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
@@ -73,9 +74,11 @@ import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode>, ToXContentFragment {
+public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode>, ToXContentObject {
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
+    public static final String KEY_NODES = "nodes";
+    public static final String KEY_CLUSTER_MANAGER = "cluster_manager";
 
     private final Map<String, DiscoveryNode> nodes;
     private final Map<String, DiscoveryNode> dataNodes;
@@ -575,56 +578,54 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("nodes");
+        builder.startObject();
+        innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(KEY_NODES);
         for (DiscoveryNode node : this) {
             node.toXContent(builder, params);
         }
         builder.endObject();
         Metadata.XContentContext context = Metadata.XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
         if (context == Metadata.XContentContext.GATEWAY && clusterManagerNodeId != null) {
-            builder.field("cluster_manager", clusterManagerNodeId);
+            builder.field(KEY_CLUSTER_MANAGER, clusterManagerNodeId);
         }
         return builder;
     }
 
     public static DiscoveryNodes fromXContent(XContentParser parser) throws IOException {
         Builder builder = new Builder();
-        if (parser.currentToken() == null) {
+        if (parser.currentToken() == null) { // fresh parser? move to the first token
             parser.nextToken();
         }
-        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            parser.nextToken();
-        }
-        if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
-            throw new IllegalArgumentException("expected field name but got a " + parser.currentToken());
-        }
-        XContentParser.Token token;
-        String currentFieldName = parser.currentName();
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("nodes".equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token == XContentParser.Token.START_OBJECT) {
-                            String nodeId = currentFieldName;
-                            DiscoveryNode node = DiscoveryNode.fromXContent(parser, nodeId);
-                            builder.add(node);
-                        }
-                    }
-                } else {
-                    throw new IllegalArgumentException("unexpected object field " + currentFieldName);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+            String currentFieldName = parser.currentName();
+            token = parser.nextToken();
+            if (token == XContentParser.Token.START_OBJECT) {
+                assert currentFieldName.equals(KEY_NODES) : "expecting field with name ["
+                    + KEY_NODES
+                    + "] but found ["
+                    + currentFieldName
+                    + "]";
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    builder.add(DiscoveryNode.fromXContent(parser));
                 }
             } else if (token.isValue()) {
-                if ("cluster_manager".equals(currentFieldName)) {
-                    String clusterManagerNodeId = parser.text();
-                    if (clusterManagerNodeId != null) {
-                        builder.clusterManagerNodeId(clusterManagerNodeId);
-                    }
-                } else {
-                    throw new IllegalArgumentException("unexpected value field " + currentFieldName);
+                assert currentFieldName.equals(KEY_CLUSTER_MANAGER) : "expecting field with name ["
+                    + KEY_CLUSTER_MANAGER
+                    + "] but found ["
+                    + currentFieldName
+                    + "]";
+                String clusterManagerNodeId = parser.text();
+                if (clusterManagerNodeId != null) {
+                    builder.clusterManagerNodeId(clusterManagerNodeId);
                 }
             } else {
                 throw new IllegalArgumentException("unexpected token " + token);

@@ -163,6 +163,11 @@ public final class TransportAddress implements Writeable, ToXContentFragment {
         return builder.value(toString());
     }
 
+    /**
+    * Converts a string in the format [hostname/ip]:[port] into a transport address.
+    * @throws UnknownHostException if the hostname or ip address is invalid
+    * @throws IllegalArgumentException if invalid string format provided
+    */
     public static TransportAddress fromString(String address) throws UnknownHostException {
         String[] addressSplit = address.split(":");
         if (addressSplit.length != 2) {

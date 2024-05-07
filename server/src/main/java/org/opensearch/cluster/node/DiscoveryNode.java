@@ -64,6 +64,7 @@ import java.util.stream.Stream;
 
 import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_API;
 import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
 
@@ -582,16 +583,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return builder;
     }
 
-    public static DiscoveryNode fromXContent(XContentParser parser, String nodeId) throws IOException {
-        if (parser.currentToken() == null) {
+    public static DiscoveryNode fromXContent(XContentParser parser) throws IOException {
+        if (parser.currentToken() == null) { // fresh parser? move to the first token
             parser.nextToken();
         }
-        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) { // on a start object move to next token
             parser.nextToken();
         }
-        if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
-            throw new IllegalArgumentException("expected field name but got a " + parser.currentToken());
-        }
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+        String nodeId = parser.currentName();
         String nodeName = null;
         String hostName = null;
         String hostAddress = null;
@@ -600,45 +600,56 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Map<String, String> attributes = new HashMap<>();
         Set<DiscoveryNodeRole> roles = new HashSet<>();
         Version version = null;
-        String currentFieldName = parser.currentName();
-        // token should be start object at this point
-        // XContentParser.Token token = parser.nextToken();
-        // if (token != XContentParser.Token.START_OBJECT) {
-        // throw new IllegalArgumentException("expected object but got a " + token);
-        // }
-        XContentParser.Token token;
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if (KEY_NAME.equals(currentFieldName)) {
-                    nodeName = parser.text();
-                } else if (KEY_EPHEMERAL_ID.equals(currentFieldName)) {
-                    ephemeralId = parser.text();
-                } else if (KEY_TRANSPORT_ADDRESS.equals(currentFieldName)) {
-                    transportAddress = TransportAddress.fromString(parser.text());
-                } else if (KEY_HOST_NAME.equals(currentFieldName)) {
-                    hostName = parser.text();
-                } else if (KEY_HOST_ADDRESS.equals(currentFieldName)) {
-                    hostAddress = parser.text();
-                } else if (KEY_VERSION.equals(currentFieldName)) {
-                    version = Version.fromString(parser.text());
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+            String currentFieldName = parser.currentName();
+            token = parser.nextToken();
+            if (token.isValue()) {
+                switch (currentFieldName) {
+                    case KEY_NAME:
+                        nodeName = parser.text();
+                        break;
+                    case KEY_EPHEMERAL_ID:
+                        ephemeralId = parser.text();
+                        break;
+                    case KEY_TRANSPORT_ADDRESS:
+                        transportAddress = TransportAddress.fromString(parser.text());
+                        break;
+                    case KEY_HOST_NAME:
+                        hostName = parser.text();
+                        break;
+                    case KEY_HOST_ADDRESS:
+                        hostAddress = parser.text();
+                        break;
+                    case KEY_VERSION:
+                        version = Version.fromString(parser.text());
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unexpected field [ " + currentFieldName + " ]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (KEY_ATTRIBUTES.equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token.isValue()) {
-                            attributes.put(currentFieldName, parser.text());
-                        }
-                    }
+                assert currentFieldName.equals(KEY_ATTRIBUTES) : "expecting field with name ["
+                    + KEY_ATTRIBUTES
+                    + "] but found ["
+                    + currentFieldName
+                    + "]";
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+                    currentFieldName = parser.currentName();
+                    token = parser.nextToken();
+                    ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
+                    attributes.put(currentFieldName, parser.text());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (KEY_ROLES.equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        roles.add(getRoleFromRoleName(parser.text()));
-                    }
+                assert currentFieldName.equals(KEY_ROLES) : "expecting field with name ["
+                    + KEY_ROLES
+                    + "] but found ["
+                    + currentFieldName
+                    + "]";
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    roles.add(getRoleFromRoleName(parser.text()));
                 }
             } else {
                 throw new IllegalArgumentException("unexpected token " + token);
