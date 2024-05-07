@@ -60,11 +60,11 @@ public class Header {
     private final long requestId;
     private final byte status;
     // These are directly set by tests
-    public String actionName;
-    public Tuple<Map<String, String>, Map<String, Set<String>>> headers;
+    String actionName;
+    Tuple<Map<String, String>, Map<String, Set<String>>> headers;
     Set<String> features;
 
-    public Header(int networkMessageSize, long requestId, byte status, Version version) {
+    Header(int networkMessageSize, long requestId, byte status, Version version) {
         this.networkMessageSize = networkMessageSize;
         this.version = version;
         this.requestId = requestId;
@@ -91,11 +91,11 @@ public class Header {
         return TransportStatus.isRequest(status);
     }
 
-    public boolean isResponse() {
+    boolean isResponse() {
         return TransportStatus.isRequest(status) == false;
     }
 
-    public boolean isError() {
+    boolean isError() {
         return TransportStatus.isError(status);
     }
 
@@ -103,7 +103,7 @@ public class Header {
         return TransportStatus.isHandshake(status);
     }
 
-    public boolean isCompressed() {
+    boolean isCompressed() {
         return TransportStatus.isCompress(status);
     }
 
@@ -111,7 +111,7 @@ public class Header {
         return actionName;
     }
 
-    public boolean needsToReadVariableHeader() {
+    boolean needsToReadVariableHeader() {
         return headers == null;
     }
 
@@ -119,7 +119,7 @@ public class Header {
         return features;
     }
 
-    public Tuple<Map<String, String>, Map<String, Set<String>>> getHeaders() {
+    Tuple<Map<String, String>, Map<String, Set<String>>> getHeaders() {
         return headers;
     }
 

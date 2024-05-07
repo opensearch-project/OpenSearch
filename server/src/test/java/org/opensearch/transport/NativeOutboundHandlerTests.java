@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.transport.nativeprotocol;
+package org.opensearch.transport;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
@@ -52,17 +52,8 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.FakeTcpChannel;
-import org.opensearch.transport.Header;
-import org.opensearch.transport.InboundPipeline;
-import org.opensearch.transport.OutboundHandler;
-import org.opensearch.transport.RemoteTransportException;
-import org.opensearch.transport.StatsTracker;
-import org.opensearch.transport.TestRequest;
-import org.opensearch.transport.TestResponse;
-import org.opensearch.transport.TransportMessageListener;
-import org.opensearch.transport.TransportRequest;
-import org.opensearch.transport.TransportRequestOptions;
+import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
+import org.opensearch.transport.nativeprotocol.NativeOutboundHandler;
 import org.junit.After;
 import org.junit.Before;
 

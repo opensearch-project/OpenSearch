@@ -55,7 +55,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.nativeprotocol.InboundDecoder;
 import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
 import org.opensearch.transport.nativeprotocol.NativeOutboundMessageTests;
 import org.junit.After;

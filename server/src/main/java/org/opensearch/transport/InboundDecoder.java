@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.transport.nativeprotocol;
+package org.opensearch.transport;
 
 import org.opensearch.Version;
 import org.opensearch.common.bytes.ReleasableBytesReference;
@@ -39,10 +39,6 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.transport.Header;
-import org.opensearch.transport.TcpHeader;
-import org.opensearch.transport.TcpTransport;
-import org.opensearch.transport.TransportDecompressor;
 
 import java.io.IOException;
 import java.util.function.Consumer;

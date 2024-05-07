@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.transport.nativeprotocol;
+package org.opensearch.transport;
 
 import org.opensearch.Version;
 import org.opensearch.common.breaker.TestCircuitBreaker;
@@ -42,9 +42,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.ActionNotFoundTransportException;
-import org.opensearch.transport.Header;
-import org.opensearch.transport.TransportStatus;
+import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
 import org.junit.Before;
 
 import java.io.IOException;

@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.transport.nativeprotocol;
+package org.opensearch.transport;
 
 import org.opensearch.Version;
 import org.opensearch.common.breaker.TestCircuitBreaker;
@@ -49,19 +49,10 @@ import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.FakeTcpChannel;
-import org.opensearch.transport.Header;
-import org.opensearch.transport.InboundPipeline;
-import org.opensearch.transport.ProtocolInboundMessage;
-import org.opensearch.transport.StatsTracker;
-import org.opensearch.transport.TcpChannel;
-import org.opensearch.transport.TcpHeader;
-import org.opensearch.transport.TestRequest;
-import org.opensearch.transport.TestResponse;
+import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -72,10 +63,20 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class InboundPipelineTests extends OpenSearchTestCase {
+public abstract class InboundPipelineTests extends OpenSearchTestCase {
 
     private static final int BYTE_THRESHOLD = 128 * 1024;
-    private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+    public final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+    protected abstract BytesReference serialize(
+        boolean isRequest,
+        Version version,
+        boolean handshake,
+        boolean compress,
+        String action,
+        long requestId,
+        String value
+    ) throws IOException;
 
     public void testPipelineHandlingForNativeProtocol() throws IOException {
         final List<Tuple<MessageData, Exception>> expected = new ArrayList<>();
@@ -136,49 +137,23 @@ public class InboundPipelineTests extends OpenSearchTestCase {
                     final MessageData messageData;
                     Exception expectedExceptionClass = null;
 
-                    NativeOutboundMessage message;
+                    // NativeOutboundMessage message;
+                    final BytesReference reference;
                     if (isRequest) {
                         if (rarely()) {
                             messageData = new MessageData(version, requestId, true, isCompressed, breakThisAction, null);
-                            message = new NativeOutboundMessage.Request(
-                                threadContext,
-                                new String[0],
-                                new TestRequest(value),
-                                version,
-                                breakThisAction,
-                                requestId,
-                                false,
-                                isCompressed
-                            );
+                            reference = serialize(true, version, false, isCompressed, breakThisAction, requestId, value);
                             expectedExceptionClass = new CircuitBreakingException("", CircuitBreaker.Durability.PERMANENT);
                         } else {
                             messageData = new MessageData(version, requestId, true, isCompressed, actionName, value);
-                            message = new NativeOutboundMessage.Request(
-                                threadContext,
-                                new String[0],
-                                new TestRequest(value),
-                                version,
-                                actionName,
-                                requestId,
-                                false,
-                                isCompressed
-                            );
+                            reference = serialize(true, version, false, isCompressed, actionName, requestId, value);
                         }
                     } else {
                         messageData = new MessageData(version, requestId, false, isCompressed, null, value);
-                        message = new NativeOutboundMessage.Response(
-                            threadContext,
-                            Collections.emptySet(),
-                            new TestResponse(value),
-                            version,
-                            requestId,
-                            false,
-                            isCompressed
-                        );
+                        reference = serialize(false, version, false, isCompressed, actionName, requestId, value);
                     }
 
                     expected.add(new Tuple<>(messageData, expectedExceptionClass));
-                    final BytesReference reference = message.serialize(new BytesStreamOutput());
                     Streams.copy(reference.streamInput(), streamOutput);
                 }
 
@@ -239,31 +214,7 @@ public class InboundPipelineTests extends OpenSearchTestCase {
             final boolean isRequest = randomBoolean();
             final long requestId = randomNonNegativeLong();
 
-            NativeOutboundMessage message;
-            if (isRequest) {
-                message = new NativeOutboundMessage.Request(
-                    threadContext,
-                    new String[0],
-                    new TestRequest(value),
-                    invalidVersion,
-                    actionName,
-                    requestId,
-                    false,
-                    false
-                );
-            } else {
-                message = new NativeOutboundMessage.Response(
-                    threadContext,
-                    Collections.emptySet(),
-                    new TestResponse(value),
-                    invalidVersion,
-                    requestId,
-                    false,
-                    false
-                );
-            }
-
-            final BytesReference reference = message.serialize(streamOutput);
+            final BytesReference reference = serialize(isRequest, invalidVersion, false, false, actionName, requestId, value);
             try (ReleasableBytesReference releasable = ReleasableBytesReference.wrap(reference)) {
                 expectThrows(IllegalStateException.class, () -> pipeline.handleBytes(new FakeTcpChannel(), releasable));
             }
@@ -293,31 +244,7 @@ public class InboundPipelineTests extends OpenSearchTestCase {
             final boolean isRequest = randomBoolean();
             final long requestId = randomNonNegativeLong();
 
-            NativeOutboundMessage message;
-            if (isRequest) {
-                message = new NativeOutboundMessage.Request(
-                    threadContext,
-                    new String[0],
-                    new TestRequest(value),
-                    version,
-                    actionName,
-                    requestId,
-                    false,
-                    false
-                );
-            } else {
-                message = new NativeOutboundMessage.Response(
-                    threadContext,
-                    Collections.emptySet(),
-                    new TestResponse(value),
-                    version,
-                    requestId,
-                    false,
-                    false
-                );
-            }
-
-            final BytesReference reference = message.serialize(streamOutput);
+            final BytesReference reference = serialize(isRequest, version, false, false, actionName, requestId, value);
             final int fixedHeaderSize = TcpHeader.headerSize(Version.CURRENT);
             final int variableHeaderSize = reference.getInt(fixedHeaderSize - 4);
             final int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
