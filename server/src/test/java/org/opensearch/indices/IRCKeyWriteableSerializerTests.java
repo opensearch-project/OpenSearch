@@ -45,6 +45,7 @@ public class IRCKeyWriteableSerializerTests extends OpenSearchSingleNodeTestCase
             value[i] = (byte) (random.nextInt(126 - 32) + 32);
         }
         BytesReference keyValue = new BytesArray(value);
-        return new IndicesRequestCache.Key(shard, keyValue, UUID.randomUUID().toString()); // same UUID source as used in real key
+        return new IndicesRequestCache.Key(shard, keyValue, UUID.randomUUID().toString(), shard.hashCode()); // same UUID
+        // source as used in real key
     }
 }
