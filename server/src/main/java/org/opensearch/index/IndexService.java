@@ -312,6 +312,81 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         updateFsyncTaskIfNecessary();
     }
 
+    public IndexService(
+        IndexSettings indexSettings,
+        IndexCreationContext indexCreationContext,
+        NodeEnvironment nodeEnv,
+        NamedXContentRegistry xContentRegistry,
+        SimilarityService similarityService,
+        ShardStoreDeleter shardStoreDeleter,
+        IndexAnalyzers indexAnalyzers,
+        EngineFactory engineFactory,
+        EngineConfigFactory engineConfigFactory,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        QueryCache queryCache,
+        IndexStorePlugin.DirectoryFactory directoryFactory,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        IndexEventListener eventListener,
+        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        List<SearchOperationListener> searchOperationListeners,
+        List<IndexingOperationListener> indexingOperationListeners,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        BooleanSupplier allowExpensiveQueries,
+        IndexNameExpressionResolver expressionResolver,
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings
+    ) {
+        this(
+            indexSettings,
+            indexCreationContext,
+            nodeEnv,
+            xContentRegistry,
+            similarityService,
+            shardStoreDeleter,
+            indexAnalyzers,
+            engineFactory,
+            engineConfigFactory,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            queryCache,
+            directoryFactory,
+            remoteDirectoryFactory,
+            eventListener,
+            wrapperFactory,
+            mapperRegistry,
+            indicesFieldDataCache,
+            searchOperationListeners,
+            indexingOperationListeners,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            allowExpensiveQueries,
+            expressionResolver,
+            valuesSourceRegistry,
+            recoveryStateFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            recoverySettings,
+            remoteStoreSettings,
+            null
+        );
+    }
+
     static boolean needsMapperService(IndexSettings indexSettings, IndexCreationContext indexCreationContext) {
         return false == (indexSettings.getIndexMetadata().getState() == IndexMetadata.State.CLOSE
             && indexCreationContext == IndexCreationContext.CREATE_INDEX); // metadata verification needs a mapper service
@@ -542,7 +617,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (FeatureFlags.isEnabled(FeatureFlags.WRITEABLE_REMOTE_INDEX_SETTING) &&
             // TODO : Need to remove this check after support for hot indices is added in Composite Directory
                 this.indexSettings.isStoreLocalityPartial()) {
-                /**
+                /*
                  * Currently Composite Directory only supports local directory to be of type FSDirectory
                  * The reason is that FileCache currently has it key type as Path
                  * Composite Directory currently uses FSDirectory's getDirectory() method to fetch and use the Path for operating on FileCache
@@ -550,6 +625,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                  */
                 Directory localDirectory = directoryFactory.newDirectory(this.indexSettings, path);
                 assert localDirectory instanceof FSDirectory : "For Composite Directory, local directory must be of type FSDirectory";
+                assert fileCache != null : "File Cache not initialized on this Node, cannot create Composite Directory without FileCache";
                 directory = new CompositeDirectory((FSDirectory) localDirectory, (RemoteSegmentStoreDirectory) remoteDirectory, fileCache);
             } else {
                 directory = directoryFactory.newDirectory(this.indexSettings, path);

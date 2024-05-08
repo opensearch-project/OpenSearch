@@ -15,28 +15,23 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.Lock;
-import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.Version;
-import org.opensearch.common.lucene.store.FilterIndexOutput;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
-import org.opensearch.index.store.remote.file.OnDemandCompositeBlockIndexInput;
+import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
-import org.opensearch.index.store.remote.filecache.WrappedCachedIndexInput;
+import org.opensearch.index.store.remote.filecache.NonBlockCachedIndexInput;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
-import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.BlockIOContext;
 import org.opensearch.index.store.remote.utils.FileType;
 import org.opensearch.index.store.remote.utils.TransferManager;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -49,7 +44,10 @@ import java.util.stream.Collectors;
  * Consumers of Composite directory need not worry whether file is in local or remote
  * All such abstractions will be handled by the Composite directory itself
  * Implements all required methods by Directory abstraction
+ *
+ * @opensearch.internal
  */
+@ExperimentalApi
 public class CompositeDirectory extends FilterDirectory {
     private static final Logger logger = LogManager.getLogger(CompositeDirectory.class);
     private final FSDirectory localDirectory;
@@ -59,7 +57,6 @@ public class CompositeDirectory extends FilterDirectory {
     private final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     private final ReentrantReadWriteLock.WriteLock writeLock = readWriteLock.writeLock();
     private final ReentrantReadWriteLock.ReadLock readLock = readWriteLock.readLock();
-    private final RemoteDirectoryBlobStreamReader remoteDirectoryBlobStreamReader;
 
     /**
      * Constructor to initialise the composite directory
@@ -72,10 +69,13 @@ public class CompositeDirectory extends FilterDirectory {
         this.localDirectory = localDirectory;
         this.remoteDirectory = remoteDirectory;
         this.fileCache = fileCache;
-        remoteDirectoryBlobStreamReader = new RemoteDirectoryBlobStreamReader(IOContext.DEFAULT, remoteDirectory);
         transferManager = new TransferManager(
-            remoteDirectoryBlobStreamReader,
-            fileCache);
+            (name, position, length) -> new InputStreamIndexInput(
+                remoteDirectory.openInput(name, new BlockIOContext(IOContext.DEFAULT, position, length)),
+                length
+            ),
+            fileCache
+        );
     }
 
     /**
@@ -86,17 +86,15 @@ public class CompositeDirectory extends FilterDirectory {
      */
     @Override
     public String[] listAll() throws IOException {
-        logger.trace("listAll() called ...");
+        logger.trace("listAll() called");
         readLock.lock();
         try {
             String[] localFiles = localDirectory.listAll();
-            logger.trace("LocalDirectory files : {}", () -> Arrays.toString(localFiles));
+            logger.trace("Local Directory files : {}", () -> Arrays.toString(localFiles));
             Set<String> allFiles = new HashSet<>(Arrays.asList(localFiles));
-            if (remoteDirectory != null) {
-                String[] remoteFiles = getRemoteFiles();
-                allFiles.addAll(Arrays.asList(remoteFiles));
-                logger.trace("Remote Directory files : {}", () -> Arrays.toString(remoteFiles));
-            }
+            String[] remoteFiles = getRemoteFiles();
+            allFiles.addAll(Arrays.asList(remoteFiles));
+            logger.trace("Remote Directory files : {}", () -> Arrays.toString(remoteFiles));
             Set<String> localLuceneFiles = allFiles.stream()
                 .filter(file -> !FileType.isBlockFile(file))
                 .collect(Collectors.toUnmodifiableSet());
@@ -112,7 +110,7 @@ public class CompositeDirectory extends FilterDirectory {
 
     /**
      * Removes an existing file in the directory.
-     * Throws {@link NoSuchFileException} or {@link FileNotFoundException} in case file is not present locally and in remote as well
+     * Currently deleting only from local directory as files from remote should not be deleted due to availability reasons
      * @param name the name of an existing file.
      * @throws IOException in case of I/O error
      */
@@ -121,11 +119,11 @@ public class CompositeDirectory extends FilterDirectory {
         logger.trace("deleteFile() called {}", name);
         writeLock.lock();
         try {
-            localDirectory.deleteFile(name);
+            /*
+            Not deleting from localDirectory directly since it causes a race condition when the localDirectory deletes a file, and it ends up in pendingDeletion state.
+            Meanwhile, fileCache on removal deletes the file directly via the Files class and later when the directory tries to delete the files pending for deletion (which happens before creating a new file), it causes NoSuchFileException and new file creation fails
+             */
             fileCache.remove(localDirectory.getDirectory().resolve(name));
-        } catch (NoSuchFileException | FileNotFoundException e) {
-            logger.trace("File {} not found in local, trying to delete from Remote", name);
-            remoteDirectory.deleteFile(name);
         } finally {
             writeLock.unlock();
         }
@@ -143,8 +141,10 @@ public class CompositeDirectory extends FilterDirectory {
         readLock.lock();
         try {
             long fileLength;
-            if (isTempFile(name) || fileCache.get(localDirectory.getDirectory().resolve(name)) != null) {
+            Path key = localDirectory.getDirectory().resolve(name);
+            if (isTempFile(name) || fileCache.get(key) != null) {
                 fileLength = localDirectory.fileLength(name);
+                fileCache.decRef(key);
                 logger.trace("fileLength from Local {}", fileLength);
             } else {
                 fileLength = remoteDirectory.fileLength(name);
@@ -167,10 +167,16 @@ public class CompositeDirectory extends FilterDirectory {
         logger.trace("createOutput() called {}", name);
         writeLock.lock();
         try {
-            /**
-             * The CacheableIndexOutput will ensure that the file is added to FileCache once write is completed on this file
+            /*
+             * The CloseableFilterIndexOutput will ensure that the file is added to FileCache once write is completed on this file
              */
-            return new CacheableIndexOutput(localDirectory.createOutput(name, context), name);
+            return new CloseableFilterIndexOutput(localDirectory.createOutput(name, context), name, (fileName) -> {
+                try {
+                    cacheFile(fileName);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         } finally {
             writeLock.unlock();
         }
@@ -203,13 +209,12 @@ public class CompositeDirectory extends FilterDirectory {
         logger.trace("sync() called {}", names);
         writeLock.lock();
         try {
-            Collection<String> newLocalFiles = new ArrayList<>();
             Collection<String> remoteFiles = Arrays.asList(getRemoteFiles());
-            for (String name : names) {
-                if (remoteFiles.contains(name) == false) newLocalFiles.add(name);
-            }
-            logger.trace("Synced files : {}", newLocalFiles);
-            localDirectory.sync(newLocalFiles);
+            Collection<String> filesToSync = names.stream()
+                .filter(name -> remoteFiles.contains(name) == false)
+                .collect(Collectors.toList());
+            logger.trace("Synced files : {}", filesToSync);
+            localDirectory.sync(filesToSync);
         } finally {
             writeLock.unlock();
         }
@@ -259,64 +264,44 @@ public class CompositeDirectory extends FilterDirectory {
         logger.trace("openInput() called {}", name);
         writeLock.lock();
         try {
-            remoteDirectoryBlobStreamReader.setContext(context);
-            /**
+            /*
              * We aren't tracking temporary files (created via createTempOutput) currently in FileCache as these are created and then deleted within a very short span of time
              * We will be reading them directory from the local directory
              */
             if (isTempFile(name)) {
                 return localDirectory.openInput(name, context);
             }
-            /**
+            /*
              * Return directly from the FileCache (via TransferManager) if complete file is present
              */
-            else if (fileCache.get(localDirectory.getDirectory().resolve(name)) != null) {
+
+            Path key = localDirectory.getDirectory().resolve(name);
+            CachedIndexInput indexInput = fileCache.get(key);
+            if (indexInput != null) {
                 logger.trace("Complete file found in FileCache");
-                BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder()
-                    .directory(localDirectory)
-                    .fileName(name)
-                    // position and length are not required here since this is a complete file, just adding dummy values for validation
-                    .blobParts(new ArrayList<>(Arrays.asList(new BlobFetchRequest.BlobPart(name, 0, 1))))
-                    .build();
-                return transferManager.fetchBlob(blobFetchRequest);
+                try {
+                    return indexInput.getIndexInput().clone();
+                } finally {
+                    fileCache.decRef(key);
+                }
             }
-            /**
+            /*
              * If file has been uploaded to the Remote Store, fetch it from the Remote Store in blocks via OnDemandCompositeBlockIndexInput
              */
             else {
                 logger.trace("Complete file not in FileCache, to be fetched in Blocks from Remote");
                 RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.readLatestMetadataFile();
                 RemoteSegmentStoreDirectory.UploadedSegmentMetadata uploadedSegmentMetadata = remoteSegmentMetadata.getMetadata().get(name);
-                /**
+                /*
                  * TODO : Refactor FileInfo and OnDemandBlockSnapshotIndexInput to more generic names as they are not Remote Snapshot specific
                  */
                 BlobStoreIndexShardSnapshot.FileInfo fileInfo = new BlobStoreIndexShardSnapshot.FileInfo(
                     name,
-                    new StoreFileMetadata(name, uploadedSegmentMetadata.getLength(),
-                        uploadedSegmentMetadata.getChecksum(), Version.LATEST),
+                    new StoreFileMetadata(name, uploadedSegmentMetadata.getLength(), uploadedSegmentMetadata.getChecksum(), Version.LATEST),
                     null
                 );
                 return new OnDemandBlockSnapshotIndexInput(fileInfo, localDirectory, transferManager);
-                //return new OnDemandCompositeBlockIndexInput(remoteDirectory, name, localDirectory, fileCache, context);
             }
-        } finally {
-            writeLock.unlock();
-        }
-    }
-
-    /**
-     * Acquires and returns a {@link Lock} for a file with the given name.
-     * @param name the name of the lock file
-     * @throws LockObtainFailedException (optional specific exception) if the lock could not be
-     * obtained because it is currently held elsewhere.
-     * @throws IOException in case of I/O error
-     */
-    @Override
-    public Lock obtainLock(String name) throws IOException {
-        logger.trace("obtainLock() called {}", name);
-        writeLock.lock();
-        try {
-            return localDirectory.obtainLock(name);
         } finally {
             writeLock.unlock();
         }
@@ -330,7 +315,12 @@ public class CompositeDirectory extends FilterDirectory {
     public void close() throws IOException {
         writeLock.lock();
         try {
+            Arrays.stream(localDirectory.listAll()).forEach(f -> {
+                logger.trace("Removing file from cache {}", f);
+                fileCache.remove(localDirectory.getDirectory().resolve(f));
+            });
             localDirectory.close();
+            remoteDirectory.close();
         } finally {
             writeLock.unlock();
         }
@@ -366,11 +356,11 @@ public class CompositeDirectory extends FilterDirectory {
             writeLock.lock();
             try {
                 /**
-                 * TODO - Unpin the files here  from FileCache so that they become eligible for eviction, once pinning/unpinning support is added in FileCache
+                 * TODO - Unpin the files here from FileCache so that they become eligible for eviction, once pinning/unpinning support is added in FileCache
                  * Uncomment the below commented line(to remove the file from cache once uploaded) to test block based functionality
                  */
                 logger.trace("File {} uploaded to Remote Store and now can be eligible for eviction in FileCache", fileName);
-                fileCache.remove(localDirectory.getDirectory().resolve(fileName));
+                // fileCache.remove(localDirectory.getDirectory().resolve(fileName));
             } finally {
                 writeLock.unlock();
             }
@@ -403,41 +393,11 @@ public class CompositeDirectory extends FilterDirectory {
 
     private void cacheFile(String name) throws IOException {
         Path filePath = localDirectory.getDirectory().resolve(name);
-        fileCache.put(filePath, new WrappedCachedIndexInput(localDirectory.openInput(name, IOContext.READ)));
+        fileCache.put(filePath, new NonBlockCachedIndexInput(localDirectory.openInput(name, IOContext.READ)));
+        // Decrementing ref here as above put call increments the ref of the key
+        fileCache.decRef(filePath);
+        // TODO : Pin the above filePath in the file cache once pinning support is added so that it cannot be evicted unless it has been
+        // successfully uploaded to Remote
     }
 
-    private class CacheableIndexOutput extends FilterIndexOutput {
-
-        String fileName;
-
-        public CacheableIndexOutput(IndexOutput out, String fileName) {
-            super("CacheableIndexOutput for file : " + fileName, out);
-            this.fileName = fileName;
-        }
-
-        @Override
-        public void close() throws IOException {
-            super.close();
-            cacheFile(fileName);
-        }
-    }
-
-    private class RemoteDirectoryBlobStreamReader implements TransferManager.BlobStreamReader {
-        private IOContext context;
-        private final RemoteSegmentStoreDirectory remoteDirectory;
-
-        RemoteDirectoryBlobStreamReader(IOContext context, RemoteSegmentStoreDirectory remoteDirectory) {
-            this.context = context;
-            this.remoteDirectory = remoteDirectory;
-        }
-
-        void setContext(IOContext context) {
-            this.context = context;
-        }
-
-        @Override
-        public InputStream read(String name, long position, long length) throws IOException {
-            return new InputStreamIndexInput(remoteDirectory.openInput(name, new BlockIOContext(context, position, length)), length);
-        }
-    }
 }
