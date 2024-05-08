@@ -28,6 +28,8 @@ import java.util.Map;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.metadata.ResourceLimitGroup.ALLOWED_RESOURCES;
+
 /**
  * This class tracks requests per resourceLimitGroups
  */
@@ -39,7 +41,6 @@ public class ResourceLimitsGroupResourceUsageTrackerService extends ResourceLimi
 
     private static final String CPU = "cpu";
     private static final String JVM = "jvm";
-    private static final List<String> TRACKED_RESOURCES = List.of(JVM);
     private static final int numberOfAvailableProcessors = Runtime.getRuntime().availableProcessors();
     private static final long totalAvailableJvmMemory = Runtime.getRuntime().totalMemory();
     private final LongSupplier timeNanosSupplier;
@@ -89,7 +90,7 @@ public class ResourceLimitsGroupResourceUsageTrackerService extends ResourceLimi
 
     @Override
     public void updateResourceLimitGroupsResourceUsage() {
-        activeResourceLimitGroups = new ArrayList<>(clusterService.state().metadata().resourceLimitGroups().values());
+        activeResourceLimitGroups = new ArrayList<>(clusterService.state().metadata().resourceLimitGroups());
 
         updateResourceLimitGroupTasks();
 
@@ -195,7 +196,7 @@ public class ResourceLimitsGroupResourceUsageTrackerService extends ResourceLimi
     }
 
     /**
-     * filter out the deleted sandboxes which still has unfi
+     * filter out the deleted sandboxes which still has unfinished tasks
      */
     public void pruneResourceLimitGroup() {
         toDeleteResourceLimitGroups = toDeleteResourceLimitGroups.stream().filter(this::hasUnfinishedTasks).collect(Collectors.toList());
@@ -269,7 +270,7 @@ public class ResourceLimitsGroupResourceUsageTrackerService extends ResourceLimi
             boolean isBreaching = false;
 
             for (ResourceLimitGroup.ResourceLimit resourceLimit : resourceLimitGroup.getResourceLimits()) {
-                if (currentResourceUsage.get(resourceLimit.getResourceName()) > resourceLimit.getValue()) {
+                if (currentResourceUsage.get(resourceLimit.getResourceName()) > resourceLimit.getThreshold()) {
                     isBreaching = true;
                     break;
                 }
@@ -283,10 +284,10 @@ public class ResourceLimitsGroupResourceUsageTrackerService extends ResourceLimi
 
     List<TaskCancellation> getCancellableTasksFrom(ResourceLimitGroup resourceLimitGroup) {
         List<TaskCancellation> cancellations = new ArrayList<>();
-        for (String resource : TRACKED_RESOURCES) {
+        for (String resource : ALLOWED_RESOURCES) {
             final double reduceBy = resourceUsage.get(resourceLimitGroup.getName()).get(resource) - resourceLimitGroup.getResourceLimitFor(
                 resource
-            ).getValue();
+            ).getThreshold();
             /**
              * if the resource is not defined for this sandbox then ignore cancellations from it
              */

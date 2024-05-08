@@ -122,8 +122,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private Boolean phaseTook = null;
 
-    private String resourceLimitGroupId;
-
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
@@ -264,10 +262,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             phaseTook = in.readOptionalBoolean();
         }
-
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            resourceLimitGroupId = in.readOptionalString();
-        }
     }
 
     @Override
@@ -301,9 +295,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalBoolean(phaseTook);
-        }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeOptionalString(resourceLimitGroupId);
         }
     }
 
@@ -706,16 +697,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     public String pipeline() {
         return pipeline;
     }
-
-    public SearchRequest resourceLimitGroupId(String resourceLimitGroupId) {
-        this.resourceLimitGroupId = resourceLimitGroupId;
-        return this;
-    }
-
-    public String resourceLimitGroupId() {
-        return resourceLimitGroupId;
-    }
-
     @Override
     public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers, cancelAfterTimeInterval);
@@ -770,8 +751,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
             && Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval)
             && Objects.equals(pipeline, that.pipeline)
-            && Objects.equals(phaseTook, that.phaseTook)
-            && Objects.equals(resourceLimitGroupId, that.resourceLimitGroupId);
+            && Objects.equals(phaseTook, that.phaseTook);
     }
 
     @Override
@@ -793,8 +773,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             absoluteStartMillis,
             ccsMinimizeRoundtrips,
             cancelAfterTimeInterval,
-            phaseTook,
-            resourceLimitGroupId
+            phaseTook
         );
     }
 
@@ -839,8 +818,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + pipeline
             + ", phaseTook="
             + phaseTook
-            + ", resourceLimitGroupId="
-            + resourceLimitGroupId
             + "}";
     }
 }

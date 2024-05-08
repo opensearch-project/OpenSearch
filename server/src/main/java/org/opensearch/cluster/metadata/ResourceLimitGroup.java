@@ -45,7 +45,8 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
     private final List<ResourceLimit> resourceLimits;
     private final ResourceLimitGroupMode mode;
 
-    private static final List<String> ALLOWED_RESOURCES = List.of("jvm");
+    // list of resources that are allowed to be present in the ResourceLimitGroupSchema
+    public static final List<String> ALLOWED_RESOURCES = List.of("jvm");
 
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField RESOURCE_LIMITS_FIELD = new ParseField("resourceLimits");
@@ -96,10 +97,10 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
     @ExperimentalApi
     public static class ResourceLimit implements Writeable, ToXContentObject {
         private final String resourceName;
-        private final Double value;
+        private final Double threshold;
 
         static final ParseField RESOURCE_NAME_FIELD = new ParseField("resourceName");
-        static final ParseField RESOURCE_VALUE_FIELD = new ParseField("value");
+        static final ParseField RESOURCE_VALUE_FIELD = new ParseField("threshold");
 
         public static final ConstructingObjectParser<ResourceLimit, Void> PARSER = new ConstructingObjectParser<>(
             "ResourceLimitParser",
@@ -125,7 +126,7 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
                 );
             }
             this.resourceName = resourceName;
-            this.value = value;
+            this.threshold = value;
         }
 
         public ResourceLimit(StreamInput in) throws IOException {
@@ -140,7 +141,7 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(resourceName);
-            out.writeDouble(value);
+            out.writeDouble(threshold);
         }
 
         /**
@@ -153,7 +154,7 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(RESOURCE_NAME_FIELD.getPreferredName(), resourceName);
-            builder.field(RESOURCE_VALUE_FIELD.getPreferredName(), value);
+            builder.field(RESOURCE_VALUE_FIELD.getPreferredName(), threshold);
             builder.endObject();
             return builder;
         }
@@ -167,20 +168,20 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ResourceLimit that = (ResourceLimit) o;
-            return Objects.equals(resourceName, that.resourceName) && Objects.equals(value, that.value);
+            return Objects.equals(resourceName, that.resourceName) && Objects.equals(threshold, that.threshold);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(resourceName, value);
+            return Objects.hash(resourceName, threshold);
         }
 
         public String getResourceName() {
             return resourceName;
         }
 
-        public Double getValue() {
-            return value;
+        public Double getThreshold() {
+            return threshold;
         }
     }
 
