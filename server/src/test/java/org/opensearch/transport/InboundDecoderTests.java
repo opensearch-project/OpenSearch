@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.hasItems;
 
 public abstract class InboundDecoderTests extends OpenSearchTestCase {
 
-    public ThreadContext threadContext;
+    protected ThreadContext threadContext;
 
     protected abstract BytesReference serialize(
         boolean isRequest,
@@ -75,15 +75,16 @@ public abstract class InboundDecoderTests extends OpenSearchTestCase {
         long requestId = randomNonNegativeLong();
         final String headerKey = randomAlphaOfLength(10);
         final String headerValue = randomAlphaOfLength(20);
-        final BytesReference totalBytes;
+        TransportMessage transportMessage;
         if (isRequest) {
             threadContext.putHeader(headerKey, headerValue);
-            totalBytes = serialize(isRequest, Version.CURRENT, false, false, action, requestId, new TestRequest(randomAlphaOfLength(100)));
+            transportMessage = new TestRequest(randomAlphaOfLength(100));
         } else {
             threadContext.addResponseHeader(headerKey, headerValue);
-            totalBytes = serialize(isRequest, Version.CURRENT, false, false, action, requestId, new TestResponse(randomAlphaOfLength(100)));
+            transportMessage = new TestResponse(randomAlphaOfLength(100));
         }
 
+        final BytesReference totalBytes = serialize(isRequest, Version.CURRENT, false, false, action, requestId, transportMessage);
         int totalHeaderSize = TcpHeader.headerSize(Version.CURRENT) + totalBytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
         final BytesReference messageBytes = totalBytes.slice(totalHeaderSize, totalBytes.length() - totalHeaderSize);
 
@@ -171,15 +172,13 @@ public abstract class InboundDecoderTests extends OpenSearchTestCase {
             threadContext.addResponseHeader(headerKey, headerValue);
         }
         TransportMessage transportMessage;
-        final BytesReference totalBytes;
         if (isRequest) {
             transportMessage = new TestRequest(randomAlphaOfLength(100));
-            totalBytes = serialize(true, Version.CURRENT, false, true, action, requestId, transportMessage);
         } else {
             transportMessage = new TestResponse(randomAlphaOfLength(100));
-            totalBytes = serialize(false, Version.CURRENT, false, true, action, requestId, transportMessage);
         }
 
+        final BytesReference totalBytes = serialize(false, Version.CURRENT, false, true, action, requestId, transportMessage);
         final BytesStreamOutput out = new BytesStreamOutput();
         transportMessage.writeTo(out);
         final BytesReference uncompressedBytes = out.bytes();
