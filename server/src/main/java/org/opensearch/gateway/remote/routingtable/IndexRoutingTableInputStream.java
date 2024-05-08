@@ -121,7 +121,7 @@ public class IndexRoutingTableInputStream extends InputStream {
             IndexShardRoutingTable.Builder.writeTo(next, out);
             //Add checksum for the file after all shards are done
             if(!shardIter.hasNext()) {
-                out.writeInt((int) out.getChecksum());
+                out.writeLong(out.getChecksum());
             }
             out.flush();
             BytesReference bytesRef = bytesStreamOutput.bytes();
