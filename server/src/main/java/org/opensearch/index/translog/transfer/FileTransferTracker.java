@@ -12,10 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
-import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,28 +25,30 @@ import java.util.stream.Collectors;
 
 /**
  * FileTransferTracker keeps track of generational translog files uploaded to the remote translog store
+ *
+ * @opensearch.internal
  */
-public class FileTransferTracker implements FileTransferListener {
+public abstract class FileTransferTracker implements FileTransferListener {
 
-    private final Map<String, TransferState> fileTransferTracker;
-    private final Map<Long, TransferState> generationTransferTracker;
-    private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
-    private Map<String, Long> bytesForTlogCkpFileToUpload;
-    private long fileTransferStartTime = -1;
-    private final Logger logger;
-    private final boolean ckpAsTranslogMetadata;
+    final Map<String, TransferState> fileTransferTracker;
+    final Map<Long, TransferState> generationTransferTracker;
+    final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
+    Map<String, Long> bytesForTlogCkpFileToUpload;
+    long fileTransferStartTime = -1;
+    final Logger logger;
 
-    public FileTransferTracker(
-        ShardId shardId,
-        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
-        boolean ckpAsTranslogMetadata
-    ) {
+    public FileTransferTracker(ShardId shardId, RemoteTranslogTransferTracker remoteTranslogTransferTracker) {
         this.fileTransferTracker = new ConcurrentHashMap<>();
         this.generationTransferTracker = new ConcurrentHashMap<>();
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         this.logger = Loggers.getLogger(getClass(), shardId);
-        this.ckpAsTranslogMetadata = ckpAsTranslogMetadata;
     }
+
+    @Override
+    public abstract void onSuccess(TranslogCheckpointSnapshot fileSnapshot);
+
+    @Override
+    public abstract void onFailure(TranslogCheckpointSnapshot fileSnapshot, Exception e);
 
     void recordFileTransferStartTime(long uploadStartTime) {
         // Recording the start time more than once for a sync is invalid
@@ -66,7 +66,7 @@ public class FileTransferTracker implements FileTransferListener {
     }
 
     private void recordFileContentLength(String fileName, LongSupplier contentLengthSupplier) {
-        if (uploaded(fileName) == false) {
+        if (isFileUploaded(fileName) == false) {
             bytesForTlogCkpFileToUpload.put(fileName, contentLengthSupplier.getAsLong());
         }
     }
@@ -75,95 +75,37 @@ public class FileTransferTracker implements FileTransferListener {
         return bytesForTlogCkpFileToUpload.values().stream().reduce(0L, Long::sum);
     }
 
-    private <K> void updateTransferState(Map<K, TransferState> tracker, K key, TransferState targetState) {
-        tracker.compute(key, (k, v) -> {
-            if (v == null || v.validateNextState(targetState)) {
-                return targetState;
-            }
-            throw new IllegalStateException("Unexpected transfer state " + v + " while setting target to " + targetState);
-        });
-    }
-
     void addGeneration(long generation, boolean success) {
         TransferState targetState = success ? TransferState.SUCCESS : TransferState.FAILED;
-        addGeneration(generation, targetState);
-    }
-
-    private void addGeneration(long generation, TransferState targetState) {
         updateTransferState(generationTransferTracker, generation, targetState);
     }
 
-    void add(String file, boolean success) {
-        TransferState targetState = success ? TransferState.SUCCESS : TransferState.FAILED;
-        add(file, targetState);
+    public boolean isGenerationUploaded(Long generation) {
+        return generationTransferTracker.get(generation) == TransferState.SUCCESS;
     }
 
-    private void add(String file, TransferState targetState) {
+    public Set<Long> allUploadedGeneration() {
+        return getSuccessfulKeys(generationTransferTracker);
+    }
+
+    void addFile(String file, boolean success) {
+        TransferState targetState = success ? TransferState.SUCCESS : TransferState.FAILED;
         updateTransferState(fileTransferTracker, file, targetState);
     }
 
-    @Override
-    public void onSuccess(TranslogCheckpointSnapshot fileSnapshot) {
-        try {
-            long durationInMillis = (System.nanoTime() - fileTransferStartTime) / 1_000_000L;
-            remoteTranslogTransferTracker.addUploadTimeInMillis(durationInMillis);
-            updateTransferStats(fileSnapshot, true);
-        } catch (Exception ex) {
-            logger.error("Failure to update translog upload success stats", ex);
-        }
-        addGeneration(fileSnapshot.getGeneration(), TransferState.SUCCESS);
-        if (!ckpAsTranslogMetadata) {
-            add(fileSnapshot.getCheckpointFileName(), TransferState.SUCCESS);
-            add(fileSnapshot.getTranslogFileName(), TransferState.SUCCESS);
-        }
+    public boolean isFileUploaded(String file) {
+        return fileTransferTracker.get(file) == TransferState.SUCCESS;
     }
 
-    @Override
-    public void onFailure(TranslogCheckpointSnapshot fileSnapshot, Exception e) {
-        long durationInMillis = (System.nanoTime() - fileTransferStartTime) / 1_000_000L;
-        remoteTranslogTransferTracker.addUploadTimeInMillis(durationInMillis);
-        addGeneration(fileSnapshot.getGeneration(), TransferState.FAILED);
-
-        if (ckpAsTranslogMetadata) {
-            updateTransferStats(fileSnapshot, false);
-        } else {
-            assert e instanceof TranslogTransferException;
-            TranslogTransferException exception = (TranslogTransferException) e;
-            Set<TransferFileSnapshot> failedFiles = exception.getFailedFiles();
-            Set<TransferFileSnapshot> successFiles = exception.getSuccessFiles();
-            assert failedFiles.isEmpty() == false;
-            failedFiles.forEach(failedFile -> {
-                add(failedFile.getName(), false);
-                long failedBytes = 0;
-                try {
-                    failedBytes = failedFile.getContentLength();
-                } catch (IOException ignore) {}
-                updateBytesInRemoteTranslogTransferTracker(failedBytes, false);
-            });
-            successFiles.forEach(successFile -> {
-                add(successFile.getName(), true);
-                long succededBytes = 0;
-                try {
-                    succededBytes = successFile.getContentLength();
-                } catch (IOException ignore) {}
-                updateBytesInRemoteTranslogTransferTracker(succededBytes, true);
-            });
-        }
+    public Set<String> allUploadedFiles() {
+        return getSuccessfulKeys(fileTransferTracker);
     }
 
-    private void updateTransferStats(TranslogCheckpointSnapshot fileSnapshot, boolean isSuccess) {
-        Long translogFileBytes = bytesForTlogCkpFileToUpload.get(fileSnapshot.getTranslogFileName());
-        if (translogFileBytes != null) {
-            updateBytesInRemoteTranslogTransferTracker(translogFileBytes, isSuccess);
-        }
-
-        Long checkpointFileBytes = bytesForTlogCkpFileToUpload.get(fileSnapshot.getCheckpointFileName());
-        if (checkpointFileBytes != null) {
-            updateBytesInRemoteTranslogTransferTracker(checkpointFileBytes, isSuccess);
-        }
-    }
-
-    private void updateBytesInRemoteTranslogTransferTracker(long bytes, boolean isSuccess) {
+    /**
+     * @param bytes bytes to add in remote translog transfer tracker.
+     * @param isSuccess represent if provided bytes failed or succeeded
+     */
+    void updateUploadBytesInRemoteTranslogTransferTracker(long bytes, boolean isSuccess) {
         if (isSuccess) {
             remoteTranslogTransferTracker.addUploadBytesSucceeded(bytes);
         } else {
@@ -171,7 +113,17 @@ public class FileTransferTracker implements FileTransferListener {
         }
     }
 
-    void delete(List<String> names) {
+    void updateUploadTimeInRemoteTranslogTransferTracker() {
+        long durationInMillis = (System.nanoTime() - fileTransferStartTime) / 1_000_000L;
+        remoteTranslogTransferTracker.addUploadTimeInMillis(durationInMillis);
+    }
+
+    void updateTranslogTransferStats(String fileName, boolean isSuccess) {
+        Long translogFileBytes = bytesForTlogCkpFileToUpload.get(fileName);
+        updateUploadBytesInRemoteTranslogTransferTracker(translogFileBytes, isSuccess);
+    }
+
+    void deleteFiles(List<String> names) {
         for (String name : names) {
             fileTransferTracker.remove(name);
         }
@@ -183,28 +135,28 @@ public class FileTransferTracker implements FileTransferListener {
         }
     }
 
-    public boolean uploaded(String file) {
-        return fileTransferTracker.get(file) == TransferState.SUCCESS;
-    }
-
-    public boolean translogGenerationUploaded(Long generation) {
-        return generationTransferTracker.get(generation) == TransferState.SUCCESS;
-    }
-
     Set<TranslogCheckpointSnapshot> exclusionFilter(Set<TranslogCheckpointSnapshot> original) {
         return original.stream()
             .filter(fileSnapshot -> generationTransferTracker.get(fileSnapshot.getGeneration()) != TransferState.SUCCESS)
             .collect(Collectors.toSet());
     }
 
-    public Set<Long> allUploadedGeneration() {
-        return getSuccessfulKeys(generationTransferTracker);
+    /**
+     * Updates the transfer state for the given key in the specified tracker map.
+     */
+    private <K> void updateTransferState(Map<K, TransferState> tracker, K key, TransferState targetState) {
+        tracker.compute(key, (k, v) -> {
+            if (v == null || v.validateNextState(targetState)) {
+                return targetState;
+            }
+            throw new IllegalStateException("Unexpected transfer state " + v + " while setting target to " + targetState);
+        });
     }
 
-    public Set<String> allUploaded() {
-        return getSuccessfulKeys(fileTransferTracker);
-    }
-
+    /**
+     * Retrieves a set of keys from the given tracker map whose corresponding values are equal to the
+     * {@link TransferState#SUCCESS} state.
+     */
     private <K> Set<K> getSuccessfulKeys(Map<K, TransferState> tracker) {
         return tracker.entrySet()
             .stream()

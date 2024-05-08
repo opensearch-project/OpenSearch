@@ -99,7 +99,7 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
         remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 20);
         tlogBytes = "Hello Translog".getBytes(StandardCharsets.UTF_8);
         ckpBytes = "Hello Checkpoint".getBytes(StandardCharsets.UTF_8);
-        tracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0), remoteTranslogTransferTracker, ckpAsTranslogMetadata);
+        tracker = new TranslogCkpFilesTransferTracker(new ShardId("index", "indexUuid", 0), remoteTranslogTransferTracker);
         translogCkpFilesTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
             shardId,
             transferService,
@@ -149,10 +149,9 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
             return null;
         }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
 
-        FileTransferTracker fileTransferTracker = new FileTransferTracker(
+        FileTransferTracker fileTransferTracker = new TranslogCkpFilesTransferTracker(
             new ShardId("index", "indexUUid", 0),
-            remoteTranslogTransferTracker,
-            false
+            remoteTranslogTransferTracker
         ) {
             @Override
             public void onSuccess(TranslogCheckpointSnapshot fileSnapshot) {
@@ -215,10 +214,9 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
             t.start();
             return null;
         }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
-        FileTransferTracker fileTransferTracker = new FileTransferTracker(
+        FileTransferTracker fileTransferTracker = new TranslogCkpFilesTransferTracker(
             new ShardId("index", "indexUUid", 0),
-            remoteTranslogTransferTracker,
-            false
+            remoteTranslogTransferTracker
         );
         RemoteStoreSettings remoteStoreSettings = mock(RemoteStoreSettings.class);
         when(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout()).thenReturn(new TimeValue(1));
@@ -264,10 +262,9 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
             uploadThread.get().start();
             return null;
         }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
-        FileTransferTracker fileTransferTracker = new FileTransferTracker(
+        FileTransferTracker fileTransferTracker = new TranslogCkpFilesTransferTracker(
             new ShardId("index", "indexUUid", 0),
-            remoteTranslogTransferTracker,
-            false
+            remoteTranslogTransferTracker
         );
         TranslogTransferManager translogTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
             shardId,
@@ -481,13 +478,13 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
         assertTrue(Files.exists(location.resolve(checkpointFile)));
 
         // Since the tracker already holds the files with success state, adding them with failed state would throw exception
-        assertThrows(IllegalStateException.class, () -> tracker.add(translogFile, false));
-        assertThrows(IllegalStateException.class, () -> tracker.add(checkpointFile, false));
+        assertThrows(IllegalStateException.class, () -> tracker.addFile(translogFile, false));
+        assertThrows(IllegalStateException.class, () -> tracker.addFile(checkpointFile, false));
         assertThrows(IllegalStateException.class, () -> tracker.addGeneration(23, false));
 
         // Since the tracker already holds the files with success state, adding them with success state is allowed
-        tracker.add(translogFile, true);
-        tracker.add(checkpointFile, true);
+        tracker.addFile(translogFile, true);
+        tracker.addFile(checkpointFile, true);
         tracker.addGeneration(23, true);
         assertTlogCkpDownloadStats();
     }
@@ -516,15 +513,15 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
         );
         String translogFile = "translog-19.tlog", checkpointFile = "translog-19.ckp";
         tracker.addGeneration(19, true);
-        tracker.add(translogFile, true);
-        tracker.add(checkpointFile, true);
+        tracker.addFile(translogFile, true);
+        tracker.addFile(checkpointFile, true);
         assertEquals(1, tracker.allUploadedGeneration().size());
-        assertEquals(2, tracker.allUploaded().size());
+        assertEquals(2, tracker.allUploadedFiles().size());
 
         List<String> files = List.of(checkpointFile, translogFile);
         translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
         assertBusy(() -> assertEquals(0, tracker.allUploadedGeneration().size()));
-        assertBusy(() -> assertEquals(0, tracker.allUploaded().size()));
+        assertBusy(() -> assertEquals(0, tracker.allUploadedFiles().size()));
         verify(blobContainer).deleteBlobsIgnoringIfNotExists(eq(files));
     }
 
@@ -567,7 +564,10 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
     }
 
     public void testDeleteTranslogFailure() throws Exception {
-        FileTransferTracker tracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0), remoteTranslogTransferTracker, false);
+        FileTransferTracker tracker = new TranslogCkpFilesTransferTracker(
+            new ShardId("index", "indexUuid", 0),
+            remoteTranslogTransferTracker
+        );
         BlobStore blobStore = mock(BlobStore.class);
         BlobContainer blobContainer = mock(BlobContainer.class);
         doAnswer(invocation -> { throw new IOException("test exception"); }).when(blobStore).blobContainer(any(BlobPath.class));
@@ -584,15 +584,15 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
             ckpAsTranslogMetadata
         );
         String translogFile = "translog-19.tlog", checkpointFile = "translog-19.ckp";
-        tracker.add(translogFile, true);
-        tracker.add(checkpointFile, true);
+        tracker.addFile(translogFile, true);
+        tracker.addFile(checkpointFile, true);
         tracker.addGeneration(19, true);
-        assertEquals(2, tracker.allUploaded().size());
+        assertEquals(2, tracker.allUploadedFiles().size());
         assertEquals(1, tracker.allUploadedGeneration().size());
 
         translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
         assertEquals(1, tracker.allUploadedGeneration().size());
-        assertEquals(2, tracker.allUploaded().size());
+        assertEquals(2, tracker.allUploadedFiles().size());
     }
 
     private void assertNoDownloadStats(boolean nonZeroUploadTime) {

@@ -311,7 +311,7 @@ public abstract class TranslogTransferManager {
         }
 
         // Mark in FileTransferTracker so that the same files are not uploaded at the time of translog sync
-        fileTransferTracker.add(fileName, true);
+        fileTransferTracker.addFile(fileName, true);
 
         try {
             if (isMetadataContainsCheckpointData(metadata)) {
@@ -363,7 +363,7 @@ public abstract class TranslogTransferManager {
         }
 
         // Mark file download status as success in FileTransferTracker, this also gives us information to delete this file from remote
-        fileTransferTracker.add(fileName, true);
+        fileTransferTracker.addFile(fileName, true);
     }
 
     /**
@@ -537,7 +537,7 @@ public abstract class TranslogTransferManager {
             String ckpFileName = Translog.getCommitCheckpointFileName(generation);
             String translogFileName = Translog.getFilename(generation);
             // delete .ckp file iff its transfer state is SUCCESS
-            if (fileTransferTracker.uploaded(ckpFileName)) {
+            if (fileTransferTracker.isFileUploaded(ckpFileName)) {
                 translogFiles.add(ckpFileName);
             }
             translogFiles.add(translogFileName);
@@ -683,7 +683,7 @@ public abstract class TranslogTransferManager {
                 new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {
-                        fileTransferTracker.delete(files);
+                        fileTransferTracker.deleteFiles(files);
                         fileTransferTracker.deleteGenerations(generations);
                         logger.trace("Deleted translogs for primaryTerm={} files={}", primaryTerm, files);
                         onCompletion.run();

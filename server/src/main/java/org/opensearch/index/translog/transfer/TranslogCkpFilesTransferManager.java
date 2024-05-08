@@ -65,10 +65,10 @@ public class TranslogCkpFilesTransferManager extends TranslogTransferManager {
             String tlogFileName = tlogAndCkpTransferFileSnapshot.getTranslogFileName();
             String ckpFileName = tlogAndCkpTransferFileSnapshot.getCheckpointFileName();
 
-            if (fileTransferTracker.uploaded(tlogFileName) == false) {
+            if (fileTransferTracker.isFileUploaded(tlogFileName) == false) {
                 filesToUpload.add(tlogAndCkpTransferFileSnapshot.getTranslogFileSnapshot());
             }
-            if (fileTransferTracker.uploaded(ckpFileName) == false) {
+            if (fileTransferTracker.isFileUploaded(ckpFileName) == false) {
                 filesToUpload.add(tlogAndCkpTransferFileSnapshot.getCheckpointFileSnapshot());
             }
             assert !filesToUpload.isEmpty();

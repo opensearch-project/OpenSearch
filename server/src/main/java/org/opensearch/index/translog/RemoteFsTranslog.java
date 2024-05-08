@@ -25,6 +25,7 @@ import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
+import org.opensearch.index.translog.transfer.FileTransferTrackerFactory;
 import org.opensearch.index.translog.transfer.TransferSnapshot;
 import org.opensearch.index.translog.transfer.TranslogSyncSnapshot;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
@@ -114,7 +115,11 @@ public class RemoteFsTranslog extends Translog {
         this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         boolean ckpAsTranslogMetadata = isCkpAsTranslogMetadata(minNodeVersionSupplier, blobStoreRepository);
-        fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker, ckpAsTranslogMetadata);
+        fileTransferTracker = FileTransferTrackerFactory.getFileTransferTracker(
+            shardId,
+            remoteTranslogTransferTracker,
+            ckpAsTranslogMetadata
+        );
 
         this.translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
@@ -191,7 +196,11 @@ public class RemoteFsTranslog extends Translog {
         // We use a dummy stats tracker to ensure the flow doesn't break.
         // TODO: To be revisited as part of https://github.com/opensearch-project/OpenSearch/issues/7567
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 1000);
-        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker, false);
+        FileTransferTracker fileTransferTracker = FileTransferTrackerFactory.getFileTransferTracker(
+            shardId,
+            remoteTranslogTransferTracker,
+            false
+        );
         TranslogTransferManager translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
@@ -442,7 +451,7 @@ public class RemoteFsTranslog extends Translog {
 
     // Visible for testing
     public Set<String> allUploaded() {
-        return fileTransferTracker.allUploaded();
+        return fileTransferTracker.allUploadedFiles();
     }
 
     private boolean syncToDisk() throws IOException {
@@ -562,7 +571,7 @@ public class RemoteFsTranslog extends Translog {
         // This enables us to restore translog from the metadata in case of failover or relocation.
         Set<Long> generationsToDelete = new HashSet<>();
         for (long generation = minRemoteGenReferenced - 1 - indexSettings().getRemoteTranslogExtraKeep(); generation >= 0; generation--) {
-            if (fileTransferTracker.translogGenerationUploaded(generation) == false) {
+            if (fileTransferTracker.isGenerationUploaded(generation) == false) {
                 break;
             }
             generationsToDelete.add(generation);
@@ -621,7 +630,11 @@ public class RemoteFsTranslog extends Translog {
         // We use a dummy stats tracker to ensure the flow doesn't break.
         // TODO: To be revisited as part of https://github.com/opensearch-project/OpenSearch/issues/7567
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 1000);
-        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker, false);
+        FileTransferTracker fileTransferTracker = FileTransferTrackerFactory.getFileTransferTracker(
+            shardId,
+            remoteTranslogTransferTracker,
+            false
+        );
         TranslogTransferManager translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,

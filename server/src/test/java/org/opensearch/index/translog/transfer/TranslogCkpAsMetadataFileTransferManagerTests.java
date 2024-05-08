@@ -93,7 +93,7 @@ public class TranslogCkpAsMetadataFileTransferManagerTests extends OpenSearchTes
         remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 20);
         tlogBytes = "Hello Translog".getBytes(StandardCharsets.UTF_8);
         ckpBytes = "Hello Checkpoint".getBytes(StandardCharsets.UTF_8);
-        tracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0), remoteTranslogTransferTracker, ckpAsTranslogMetadata);
+        tracker = new TranslogCkpAsMetadataFileTransferTracker(new ShardId("index", "indexUuid", 0), remoteTranslogTransferTracker);
         translogCkpAsMetadataTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
             shardId,
             transferService,
@@ -182,18 +182,15 @@ public class TranslogCkpAsMetadataFileTransferManagerTests extends OpenSearchTes
             return null;
         }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
 
-        FileTransferTracker fileTransferTracker = new FileTransferTracker(
+        FileTransferTracker fileTransferTracker = new TranslogCkpAsMetadataFileTransferTracker(
             new ShardId("index", "indexUUid", 0),
-            remoteTranslogTransferTracker,
-            false
+            remoteTranslogTransferTracker
         ) {
-            @Override
             public void onSuccess(TranslogCheckpointSnapshot fileSnapshot) {
                 fileTransferSucceeded.incrementAndGet();
                 super.onSuccess(fileSnapshot);
             }
 
-            @Override
             public void onFailure(TranslogCheckpointSnapshot fileSnapshot, Exception e) {
                 fileTransferFailed.incrementAndGet();
                 super.onFailure(fileSnapshot, e);
@@ -248,10 +245,9 @@ public class TranslogCkpAsMetadataFileTransferManagerTests extends OpenSearchTes
             t.start();
             return null;
         }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
-        FileTransferTracker fileTransferTracker = new FileTransferTracker(
+        FileTransferTracker fileTransferTracker = new TranslogCkpAsMetadataFileTransferTracker(
             new ShardId("index", "indexUUid", 0),
-            remoteTranslogTransferTracker,
-            false
+            remoteTranslogTransferTracker
         );
         RemoteStoreSettings remoteStoreSettings = mock(RemoteStoreSettings.class);
         when(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout()).thenReturn(new TimeValue(1));
@@ -295,10 +291,9 @@ public class TranslogCkpAsMetadataFileTransferManagerTests extends OpenSearchTes
             uploadThread.get().start();
             return null;
         }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
-        FileTransferTracker fileTransferTracker = new FileTransferTracker(
+        FileTransferTracker fileTransferTracker = new TranslogCkpAsMetadataFileTransferTracker(
             new ShardId("index", "indexUUid", 0),
-            remoteTranslogTransferTracker,
-            false
+            remoteTranslogTransferTracker
         );
         TranslogTransferManager translogTransferManager = TranslogTransferManagerFactory.getTranslogTransferManager(
             shardId,
@@ -398,15 +393,15 @@ public class TranslogCkpAsMetadataFileTransferManagerTests extends OpenSearchTes
 
         // Since the tracker already holds the translog.tlog file, and generation with success state, adding them with failed state would
         // throw exception
-        assertThrows(IllegalStateException.class, () -> tracker.add(translogFile, false));
+        assertThrows(IllegalStateException.class, () -> tracker.addFile(translogFile, false));
         assertThrows(IllegalStateException.class, () -> tracker.addGeneration(23, false));
 
         // Since the tracker doesn't have translog.ckp file status updated. adding it Failed is allowed
-        tracker.add(checkpointFile, false);
+        tracker.addFile(checkpointFile, false);
 
         // Since the tracker already holds the translog.tlog file, and generation with success state, adding them with success state is
         // allowed
-        tracker.add(translogFile, true);
+        tracker.addFile(translogFile, true);
         tracker.addGeneration(23, true);
         assertTlogCkpDownloadStats_When_CkpFileStoredAsMetadata();
     }
@@ -436,15 +431,15 @@ public class TranslogCkpAsMetadataFileTransferManagerTests extends OpenSearchTes
         );
         String translogFile = "translog-19.tlog";
         tracker.addGeneration(19, true);
-        tracker.add(translogFile, true);
+        tracker.addFile(translogFile, true);
         // tracker.add(checkpointFile, true);
         assertEquals(1, tracker.allUploadedGeneration().size());
-        assertEquals(1, tracker.allUploaded().size());
+        assertEquals(1, tracker.allUploadedFiles().size());
 
         List<String> verifyDeleteFilesList = List.of(translogFile);
         translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
         assertBusy(() -> assertEquals(0, tracker.allUploadedGeneration().size()));
-        assertBusy(() -> assertEquals(0, tracker.allUploaded().size()));
+        assertBusy(() -> assertEquals(0, tracker.allUploadedFiles().size()));
         // only translog.tlog file will be sent for delete.
         verify(blobContainer).deleteBlobsIgnoringIfNotExists(eq(verifyDeleteFilesList));
     }

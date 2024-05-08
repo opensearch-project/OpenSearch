@@ -8,10 +8,13 @@
 
 package org.opensearch.index.translog.transfer;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.Set;
+
+import reactor.util.annotation.NonNull;
 
 /**
  * Exception when a generation of translog files transfer encounters a failure
@@ -22,18 +25,18 @@ public class TranslogTransferException extends RuntimeException {
 
     private final TranslogCheckpointSnapshot fileSnapshot;
     private final Set<TransferFileSnapshot> failedFiles;
-    private final Set<TransferFileSnapshot> successFiles;
+    private final Set<TransferFileSnapshot> successfulFiles;
 
     public TranslogTransferException(
         TranslogCheckpointSnapshot fileSnapshot,
         Throwable cause,
-        Set<TransferFileSnapshot> failedFiles,
-        Set<TransferFileSnapshot> successFiles
+        @NonNull Set<TransferFileSnapshot> failedFiles,
+        @Nullable Set<TransferFileSnapshot> successfulFiles
     ) {
         super(cause);
         this.fileSnapshot = fileSnapshot;
-        this.failedFiles = failedFiles == null ? new HashSet<>() : failedFiles;
-        this.successFiles = successFiles == null ? new HashSet<>() : successFiles;
+        this.successfulFiles = successfulFiles == null ? Collections.emptySet() : successfulFiles;
+        this.failedFiles = failedFiles;
     }
 
     public TranslogCheckpointSnapshot getFileSnapshot() {
@@ -45,6 +48,6 @@ public class TranslogTransferException extends RuntimeException {
     }
 
     public Set<TransferFileSnapshot> getSuccessFiles() {
-        return successFiles;
+        return successfulFiles;
     }
 }
