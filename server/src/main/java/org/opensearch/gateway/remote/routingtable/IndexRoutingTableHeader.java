@@ -65,22 +65,18 @@ public class IndexRoutingTableHeader {
 
     /**
      * Reads the contents on the byte array into the corresponding {@link IndexRoutingTableHeader}
-     * @param inBytes
-     * @param source
-     * @return
+     * @param in
+     * @return IndexRoutingTableHeader
      * @throws IOException
      */
-    public IndexRoutingTableHeader read(byte[] inBytes, String source) throws IOException {
+    public static IndexRoutingTableHeader read(BufferedChecksumStreamInput in) throws IOException {
         try {
-            try (BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(new BytesStreamInput(inBytes), source)) {
                 readHeaderVersion(in);
                 final long version = in.readLong();
                 final int nodeVersion = in.readInt();
                 final String name = in.readString();
                 assert version >= 0 : "Version must be non-negative [" + version + "]";
-                assert in.readByte() == -1 : "Header is not fully read";
                 return new IndexRoutingTableHeader(version, name, Version.fromId(nodeVersion));
-            }
         } catch (EOFException e) {
             throw new IOException("index routing header truncated", e);
         }
