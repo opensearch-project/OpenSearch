@@ -110,4 +110,25 @@ public class JsonToStringXContentParserTests extends OpenSearchTestCase {
         );
     }
 
+    public void testArrayOfObjects() throws IOException {
+        String jsonExample ="{" +
+            "\"field\": {" +
+            "  \"detail\": {" +
+            "    \"foooooooooooo\": [" +
+            "      {\"name\":\"baz\"}," +
+            "      {\"name\":\"baz\"}" +
+            "    ]" +
+            "  }" +
+            "}}";
+
+        assertEquals("{" +
+            "\"flat\":[\"field\",\"detail\",\"foooooooooooo\",\"name\",\"name\"]," +
+            "\"flat._value\":[\"baz\",\"baz\"]," +
+            "\"flat._valueAndPath\":[" +
+            "\"flat.field.detail.foooooooooooo.name=baz\"," +
+            "\"flat.field.detail.foooooooooooo.name=baz\"" +
+            "]}",
+            flattenJsonString("flat", jsonExample)
+        );
+    }
 }
