@@ -1054,7 +1054,7 @@ public class MetadataCreateIndexService {
                 .getNodes()
                 .values()
                 .stream()
-                .filter(DiscoveryNode::isRemoteStoreNode)
+                .filter(DiscoveryNode::isRemoteDataNode)
                 .findFirst();
 
             if (remoteNode.isPresent()) {

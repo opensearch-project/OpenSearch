@@ -496,12 +496,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             };
             Store remoteStore = null;
             boolean seedRemote = false;
-            if (targetNode.isRemoteStoreNode()) {
+            if (targetNode.isRemoteDataNode()) {
                 final Directory remoteDirectory;
                 if (this.indexSettings.isRemoteStoreEnabled()) {
                     remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
                 } else {
-                    if (sourceNode == null || sourceNode.isRemoteStoreNode() == false) {
+                    if (sourceNode == null || sourceNode.isRemoteDataNode() == false) {
                         if (routing.primary() == false) {
                             throw new IllegalStateException("Can't migrate a remote shard to replica before primary " + routing.shardId());
                         }

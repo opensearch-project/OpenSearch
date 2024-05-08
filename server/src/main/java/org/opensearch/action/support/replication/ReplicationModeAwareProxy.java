@@ -85,7 +85,7 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
          */
         if (isRemoteEnabled == false) {
             DiscoveryNode targetNode = discoveryNodes.get(shardRouting.currentNodeId());
-            if (targetNode != null && targetNode.isRemoteStoreNode() == false) {
+            if (targetNode != null && targetNode.isRemoteDataNode() == false) {
                 // Perform full replication if replica is hosted on a non-remote node.
                 return ReplicationMode.FULL_REPLICATION;
             }
