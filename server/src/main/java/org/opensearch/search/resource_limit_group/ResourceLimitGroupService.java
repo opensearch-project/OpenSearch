@@ -26,17 +26,16 @@ public class ResourceLimitGroupService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(ResourceLimitGroupService.class);
 
     private final ResourceLimitGroupResourceUsageTracker requestTracker;
-    private final ResourceLimitGroupTaskCanceller requestCanceller;
+    private final ResourceLimitGroupTaskCanceller taskCanceller;
     private final ResourceLimitGroupPruner resourceLimitGroupPruner;
     private volatile Scheduler.Cancellable scheduledFuture;
     private final ResourceLimitGroupServiceSettings sandboxServiceSettings;
     private final ThreadPool threadPool;
-    private final ResourceLimitGroupTaskCanceller taskCanceller;
 
     /**
      * Guice managed constructor
      * @param requestTrackerService
-     * @param requestCanceller
+     * @param taskCanceller
      * @param resourceLimitGroupPruner
      * @param sandboxServiceSettings
      * @param threadPool
@@ -44,18 +43,16 @@ public class ResourceLimitGroupService extends AbstractLifecycleComponent {
     @Inject
     public ResourceLimitGroupService(
         ResourceLimitGroupResourceUsageTracker requestTrackerService,
-        ResourceLimitGroupTaskCanceller requestCanceller,
+        ResourceLimitGroupTaskCanceller taskCanceller,
         ResourceLimitGroupPruner resourceLimitGroupPruner,
         ResourceLimitGroupServiceSettings sandboxServiceSettings,
-        ThreadPool threadPool,
-        ResourceLimitGroupTaskCanceller taskCanceller
+        ThreadPool threadPool
     ) {
         this.requestTracker = requestTrackerService;
-        this.requestCanceller = requestCanceller;
+        this.taskCanceller = taskCanceller;
         this.resourceLimitGroupPruner = resourceLimitGroupPruner;
         this.sandboxServiceSettings = sandboxServiceSettings;
         this.threadPool = threadPool;
-        this.taskCanceller = taskCanceller;
     }
 
     /**

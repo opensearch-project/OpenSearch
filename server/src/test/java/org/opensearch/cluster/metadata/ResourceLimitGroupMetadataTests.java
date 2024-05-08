@@ -12,9 +12,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.test.AbstractNamedWriteableTestCase;
 
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 import static org.opensearch.cluster.metadata.ResourceLimitGroupTests.createRandomResourceLimitGroup;
 
@@ -40,12 +38,10 @@ public class ResourceLimitGroupMetadataTests extends AbstractNamedWriteableTestC
 
     @Override
     protected ResourceLimitGroupMetadata createTestInstance() {
-        Map<String, ResourceLimitGroup> resourceLimitGroupMap = getRandomResourceLimitGroups().stream()
-            .collect(Collectors.toMap(ResourceLimitGroup::getName, resourceLimitGroup -> resourceLimitGroup));
-        return new ResourceLimitGroupMetadata(resourceLimitGroupMap);
+        return new ResourceLimitGroupMetadata(getRandomResourceLimitGroups());
     }
 
-    private List<ResourceLimitGroup> getRandomResourceLimitGroups() {
-        return List.of(createRandomResourceLimitGroup(), createRandomResourceLimitGroup());
+    private Set<ResourceLimitGroup> getRandomResourceLimitGroups() {
+        return Set.of(createRandomResourceLimitGroup(), createRandomResourceLimitGroup());
     }
 }
