@@ -23,10 +23,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 import static org.opensearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 
@@ -50,30 +47,27 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<ResourceLimitGroupMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "resourceLimitGroupParser",
-        args -> new ResourceLimitGroupMetadata((Map<String, ResourceLimitGroup>) args[0])
+        args -> new ResourceLimitGroupMetadata((Set<ResourceLimitGroup>) args[0])
     );
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
-            Map<String, ResourceLimitGroup> resourceLimitGroupMap = new HashMap<>();
-            while (p.nextToken() != XContentParser.Token.END_OBJECT) {
-                resourceLimitGroupMap.put(p.currentName(), ResourceLimitGroup.fromXContent(p));
-            }
-            return resourceLimitGroupMap;
-        }, RESOURCE_LIMIT_GROUP_FIELD);
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> ResourceLimitGroup.fromXContent(p),
+            RESOURCE_LIMIT_GROUP_FIELD);
     }
 
-    private final Map<String, ResourceLimitGroup> resourceLimitGroups;
+    private final Set<ResourceLimitGroup> resourceLimitGroups;
 
-    public ResourceLimitGroupMetadata(Map<String, ResourceLimitGroup> resourceLimitGroups) {
+    public ResourceLimitGroupMetadata(Set<ResourceLimitGroup> resourceLimitGroups) {
         this.resourceLimitGroups = resourceLimitGroups;
     }
 
     public ResourceLimitGroupMetadata(StreamInput in) throws IOException {
-        this.resourceLimitGroups = in.readMap(StreamInput::readString, ResourceLimitGroup::new);
+        this.resourceLimitGroups = in.readSet(ResourceLimitGroup::new);
     }
 
-    public Map<String, ResourceLimitGroup> resourceLimitGroups() {
+    public Set<ResourceLimitGroup> resourceLimitGroups() {
         return this.resourceLimitGroups;
     }
 
@@ -100,7 +94,7 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(resourceLimitGroups, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
+        out.writeCollection(resourceLimitGroups);
     }
 
     /**
@@ -111,10 +105,8 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(RESOURCE_LIMIT_GROUP_FIELD.getPreferredName());
-        for (Map.Entry<String, ResourceLimitGroup> entry : resourceLimitGroups.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue());
-        }
+        builder.startObject();
+        builder.field(RESOURCE_LIMIT_GROUP_FIELD.getPreferredName(), resourceLimitGroups);
         builder.endObject();
         return builder;
     }
@@ -133,64 +125,9 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
         return new ResourceLimitGroupMetadataDiff((ResourceLimitGroupMetadata) previousState, this);
     }
 
-    /**
-     * @return
-     */
     @Override
     public EnumSet<Metadata.XContentContext> context() {
         return ALL_CONTEXTS;
-    }
-
-    /**
-     * ResourceLimitGroupMetadataDiff
-     */
-    static class ResourceLimitGroupMetadataDiff implements NamedDiff<Metadata.Custom> {
-        final Diff<Map<String, ResourceLimitGroup>> dataStreanDiff;
-
-        ResourceLimitGroupMetadataDiff(final ResourceLimitGroupMetadata before, final ResourceLimitGroupMetadata after) {
-            dataStreanDiff = DiffableUtils.diff(
-                before.resourceLimitGroups,
-                after.resourceLimitGroups,
-                DiffableUtils.getStringKeySerializer()
-            );
-        }
-
-        ResourceLimitGroupMetadataDiff(final StreamInput in) throws IOException {
-            this.dataStreanDiff = DiffableUtils.readJdkMapDiff(
-                in,
-                DiffableUtils.getStringKeySerializer(),
-                ResourceLimitGroup::new,
-                ResourceLimitGroup::readDiff
-            );
-        }
-
-        /**
-         * Returns the name of the writeable object
-         */
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        /**
-         * Write this into the {@linkplain StreamOutput}.
-         *
-         * @param out
-         */
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            dataStreanDiff.writeTo(out);
-        }
-
-        /**
-         * Applies difference to the specified part and returns the resulted part
-         *
-         * @param part
-         */
-        @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
-            return new ResourceLimitGroupMetadata(dataStreanDiff.apply(((ResourceLimitGroupMetadata) part).resourceLimitGroups));
-        }
     }
 
     @Override
@@ -209,5 +146,71 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
     @Override
     public String toString() {
         return Strings.toString(MediaTypeRegistry.JSON, this);
+    }
+
+    /**
+     * ResourceLimitGroupMetadataDiff
+     */
+    static class ResourceLimitGroupMetadataDiff implements NamedDiff<Metadata.Custom> {
+        final Diff<Map<String, ResourceLimitGroup>> dataStreamDiff;
+
+        ResourceLimitGroupMetadataDiff(final ResourceLimitGroupMetadata before, final ResourceLimitGroupMetadata after) {
+            dataStreamDiff = DiffableUtils.diff(
+                toMap(before.resourceLimitGroups),
+                toMap(after.resourceLimitGroups),
+                DiffableUtils.getStringKeySerializer()
+            );
+        }
+
+        ResourceLimitGroupMetadataDiff(final StreamInput in) throws IOException {
+            this.dataStreamDiff = DiffableUtils.readJdkMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                ResourceLimitGroup::new,
+                ResourceLimitGroup::readDiff
+            );
+        }
+
+        private Map<String, ResourceLimitGroup> toMap(Set<ResourceLimitGroup> resourceLimitGroups) {
+            final Map<String, ResourceLimitGroup> resourceLimitGroupMap = new HashMap<>();
+
+            resourceLimitGroups.forEach(resourceLimitGroup ->
+                resourceLimitGroupMap.put(resourceLimitGroup.getName(), resourceLimitGroup)
+            );
+            return resourceLimitGroupMap;
+        }
+
+        /**
+         * Returns the name of the writeable object
+         */
+        @Override
+        public String getWriteableName() {
+            return TYPE;
+        }
+
+        /**
+         * Write this into the {@linkplain StreamOutput}.
+         *
+         * @param out
+         */
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            dataStreamDiff.writeTo(out);
+        }
+
+        /**
+         * Applies difference to the specified part and returns the resulted part
+         *
+         * @param part
+         */
+        @Override
+        public Metadata.Custom apply(Metadata.Custom part) {
+            return new ResourceLimitGroupMetadata(
+                new HashSet<>(
+                    dataStreamDiff.apply(
+                        toMap( ( (ResourceLimitGroupMetadata) part).resourceLimitGroups)
+                    ).values())
+            );
+        }
     }
 }

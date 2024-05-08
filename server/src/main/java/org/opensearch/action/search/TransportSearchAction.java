@@ -72,6 +72,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.index.query.Rewriteable;
+import org.opensearch.search.MultiTenantLabel;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.SearchShardTarget;
@@ -122,8 +123,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
-import static org.opensearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
-import static org.opensearch.action.search.SearchType.QUERY_THEN_FETCH;
+import static org.opensearch.action.search.SearchType.*;
 import static org.opensearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
 
 /**
@@ -166,6 +166,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final String NOT_PROVIDED = "NOT_PROVIDED";
 
     private final NodeClient client;
     private final ThreadPool threadPool;
@@ -1105,7 +1106,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             localShardIterators.size() + remoteShardIterators.size()
         );
 
-        task.setResourceLimitGroupName(searchRequest.resourceLimitGroupId());
+        // Set tenant for this request in the task for tracking the tasks across tenants
+        Map<String, Object> multiTenantLabels = searchRequest.source().multiTenantLabels();
+        String tenant = NOT_PROVIDED;
+        if (multiTenantLabels != null) {
+            tenant = (String) multiTenantLabels.get(MultiTenantLabel.TENANT_LABEL.name());
+        }
+        task.setResourceLimitGroupName(tenant);
 
         searchAsyncActionProvider.asyncSearchAction(
             task,

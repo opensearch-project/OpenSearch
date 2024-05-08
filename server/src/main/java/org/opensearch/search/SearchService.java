@@ -158,6 +158,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
+import static org.opensearch.action.search.TransportSearchAction.NOT_PROVIDED;
 import static org.opensearch.common.unit.TimeValue.timeValueHours;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
@@ -568,7 +569,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
-        task.setResourceLimitGroupName(request.resourceLimitGroupId());
+        setTenantInTask(task, request);
         rewriteAndFetchShardRequest(shard, request, new ActionListener<ShardSearchRequest>() {
             @Override
             public void onResponse(ShardSearchRequest orig) {
@@ -597,6 +598,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 listener.onFailure(exc);
             }
         });
+    }
+
+    private void setTenantInTask(SearchShardTask task, ShardSearchRequest request) {
+        String tenant = NOT_PROVIDED;
+        if (request.source().multiTenantLabels() != null) {
+            tenant = (String) request.source().multiTenantLabels().get(MultiTenantLabel.TENANT_LABEL.name());
+        }
+        task.setResourceLimitGroupName(tenant);
     }
 
     private IndexShard getShard(ShardSearchRequest request) {
@@ -677,7 +686,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
-            task.setResourceLimitGroupName(shardSearchRequest.resourceLimitGroupId());
+            setTenantInTask(task, shardSearchRequest);
             try (
                 SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false);
                 SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
@@ -780,7 +789,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void executeFetchPhase(ShardFetchRequest request, SearchShardTask task, ActionListener<FetchSearchResult> listener) {
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
-        task.setResourceLimitGroupName(shardSearchRequest.resourceLimitGroupId());
+        setTenantInTask(task, shardSearchRequest);
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false)) {

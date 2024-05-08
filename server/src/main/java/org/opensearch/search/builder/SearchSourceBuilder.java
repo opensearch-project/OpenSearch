@@ -77,11 +77,7 @@ import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
@@ -136,6 +132,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField SLICE = new ParseField("slice");
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
     public static final ParseField SEARCH_PIPELINE = new ParseField("search_pipeline");
+    public static final ParseField MULTI_TENANT_LABELS = new ParseField("multitenant_attrs");
 
     public static SearchSourceBuilder fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, true);
@@ -223,6 +220,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private PointInTimeBuilder pointInTimeBuilder = null;
 
     private Map<String, Object> searchPipelineSource = null;
+    private Map<String, Object> multiTenantLabels = new HashMap<>();
 
     /**
      * Constructs a new search source builder.
@@ -296,6 +294,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (in.readBoolean()) {
                 derivedFields = in.readList(DerivedField::new);
             }
+        }
+
+        if (in.getVersion().onOrAfter(Version.V_2_14_0)) {
+            multiTenantLabels = in.readMap();
         }
     }
 
@@ -376,6 +378,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (hasDerivedFields) {
                 out.writeList(derivedFields);
             }
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_2_14_0)) {
+            out.writeMap(multiTenantLabels);
         }
     }
 
@@ -1089,6 +1095,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
+     *
+     * @return {@code <String, String>} pairs
+     */
+    public Map<String, Object> multiTenantLabels() {
+        return multiTenantLabels;
+    }
+
+    /**
      * Rewrites this search source builder into its primitive form. e.g. by
      * rewriting the QueryBuilder. If the builder did not change the identity
      * reference must be returned otherwise the builder will be rewritten
@@ -1334,6 +1348,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         searchPipelineSource = parser.mapOrdered();
                     } else if (DERIVED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         derivedFieldsObject = parser.map();
+                    } else if (MULTI_TENANT_LABELS.match(currentFieldName, parser.getDeprecationHandler())) {
+                        multiTenantLabels = parser.map();
                     } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
