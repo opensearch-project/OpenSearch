@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.TransferManager;
 
@@ -142,7 +141,14 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
 
         final long blockStart = getBlockStart(blockId);
         final long blockEnd = blockStart + getActualBlockSize(blockId);
-        logger.trace("File: {} , Block File: {} , BlockStart: {} , BlockEnd: {} , OriginalFileSize: {}", fileName, blockFileName, blockStart, blockEnd, originalFileSize);
+        logger.trace(
+            "File: {} , Block File: {} , BlockStart: {} , BlockEnd: {} , OriginalFileSize: {}",
+            fileName,
+            blockFileName,
+            blockStart,
+            blockEnd,
+            originalFileSize
+        );
 
         // Block may be present on multiple chunks of a file, so we need
         // to fetch each chunk/blob part separately to fetch an entire block.

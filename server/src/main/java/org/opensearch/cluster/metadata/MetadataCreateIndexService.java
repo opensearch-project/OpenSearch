@@ -1696,7 +1696,9 @@ public class MetadataCreateIndexService {
             .equalsIgnoreCase(IndexModule.DataLocalityType.PARTIAL.toString())
             && !FeatureFlags.isEnabled(FeatureFlags.WRITEABLE_REMOTE_INDEX_SETTING)) {
             throw new IllegalArgumentException(
-                "index.store.locality can be set to PARTIAL only if Feature Flag for Writable Remote Index is true"
+                "index.store.locality can be set to PARTIAL only if Feature Flag ["
+                    + FeatureFlags.WRITEABLE_REMOTE_INDEX_SETTING.getKey()
+                    + "] is set to true"
             );
         }
     }

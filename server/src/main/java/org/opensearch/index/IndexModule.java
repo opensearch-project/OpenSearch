@@ -345,6 +345,29 @@ public final class IndexModule {
         this.fileCache = fileCache;
     }
 
+    public IndexModule(
+        final IndexSettings indexSettings,
+        final AnalysisRegistry analysisRegistry,
+        final EngineFactory engineFactory,
+        final EngineConfigFactory engineConfigFactory,
+        final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
+        final BooleanSupplier allowExpensiveQueries,
+        final IndexNameExpressionResolver expressionResolver,
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories
+    ) {
+        this(
+            indexSettings,
+            analysisRegistry,
+            engineFactory,
+            engineConfigFactory,
+            directoryFactories,
+            allowExpensiveQueries,
+            expressionResolver,
+            recoveryStateFactories,
+            null
+        );
+    }
+
     /**
      * Adds a Setting and it's consumer for this index.
      */

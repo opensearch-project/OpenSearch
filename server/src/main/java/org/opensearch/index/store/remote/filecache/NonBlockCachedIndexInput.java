@@ -14,17 +14,17 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Wrapper implementation of the CachedIndexInput which takes in an IndexInput as parameter
+ * Implementation of the CachedIndexInput for NON_BLOCK files which takes in an IndexInput as parameter
  */
-public class WrappedCachedIndexInput implements CachedIndexInput {
+public class NonBlockCachedIndexInput implements CachedIndexInput {
 
-    IndexInput indexInput;
-    AtomicBoolean isClosed;
+    private final IndexInput indexInput;
+    private final AtomicBoolean isClosed;
 
     /**
      * Constructor - takes IndexInput as parameter
      */
-    public WrappedCachedIndexInput(IndexInput indexInput) {
+    public NonBlockCachedIndexInput(IndexInput indexInput) {
         this.indexInput = indexInput;
         isClosed = new AtomicBoolean(false);
     }
@@ -58,7 +58,7 @@ public class WrappedCachedIndexInput implements CachedIndexInput {
      */
     @Override
     public void close() throws Exception {
-        if (!isClosed()) {
+        if (!isClosed.getAndSet(true)) {
             indexInput.close();
             isClosed.set(true);
         }
