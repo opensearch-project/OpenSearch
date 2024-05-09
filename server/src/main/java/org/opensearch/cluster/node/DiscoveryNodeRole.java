@@ -311,6 +311,18 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     };
 
     /**
+     * Represents the role for a Offline node, which is dedicated only to run background tasks.
+     */
+    public static final DiscoveryNodeRole OFFLINE_ROLE = new DiscoveryNodeRole("offline", "o") {
+
+        @Override
+        public Setting<Boolean> legacySetting() {
+            // offline role is added in 2.15 so doesn't need to configure legacy setting
+            return null;
+        }
+    };
+
+    /**
      * The built-in node roles.
      */
     public static SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES = Collections.unmodifiableSortedSet(

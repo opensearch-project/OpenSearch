@@ -94,6 +94,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
@@ -389,6 +390,20 @@ public final class NodeEnvironment implements Closeable {
 
             if (DiscoveryNode.isSearchNode(settings) == false) {
                 ensureNoFileCacheData(fileCacheNodePath);
+            }
+
+            if (DiscoveryNode.isOfflineNode(settings) && DiscoveryNode.getRolesFromSettings(settings).size() > 1) {
+                final String message = String.format(
+                    Locale.ROOT,
+                    "Offline Nodes cannot be used with any other roles, only %s role should be provided. Please remove %s roles",
+                    DiscoveryNodeRole.OFFLINE_ROLE.roleName(),
+                    DiscoveryNode.getRolesFromSettings(settings)
+                        .stream()
+                        .map(DiscoveryNodeRole::roleName)
+                        .filter(role1 -> Objects.equals(role1, DiscoveryNodeRole.OFFLINE_ROLE.roleName()))
+                        .collect(Collectors.joining(","))
+                );
+                throw new IllegalStateException(message);
             }
 
             this.nodeMetadata = loadNodeMetadata(settings, logger, nodePaths);
