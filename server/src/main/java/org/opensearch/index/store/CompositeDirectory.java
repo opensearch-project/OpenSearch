@@ -352,11 +352,13 @@ public class CompositeDirectory extends FilterDirectory {
         for (String fileName : files) {
             writeLock.lock();
             try {
-                /**
+                /* Decrementing the refCount here for the path so that it becomes eligible for eviction
+                 * This is a temporary solution until pinning support is added
                  * TODO - Unpin the files here from FileCache so that they become eligible for eviction, once pinning/unpinning support is added in FileCache
                  * Uncomment the below commented line(to remove the file from cache once uploaded) to test block based functionality
                  */
                 logger.trace("File {} uploaded to Remote Store and now can be eligible for eviction in FileCache", fileName);
+                fileCache.decRef(localDirectory.getDirectory().resolve(fileName));
                 // fileCache.remove(localDirectory.getDirectory().resolve(fileName));
             } finally {
                 writeLock.unlock();
@@ -390,11 +392,12 @@ public class CompositeDirectory extends FilterDirectory {
 
     private void cacheFile(String name) throws IOException {
         Path filePath = localDirectory.getDirectory().resolve(name);
-        fileCache.put(filePath, new FullFileCachedIndexInput(fileCache, filePath, localDirectory.openInput(name, IOContext.READ)));
-        // Decrementing ref here as above put call increments the ref of the key
-        fileCache.decRef(filePath);
+        // put will increase the refCount for the path, making sure it is not evicted, wil decrease the ref after it is uploaded to Remote
+        // so that it can be evicted after that
+        // this is just a temporary solution, will pin the file once support for that is added in FileCache
         // TODO : Pin the above filePath in the file cache once pinning support is added so that it cannot be evicted unless it has been
         // successfully uploaded to Remote
+        fileCache.put(filePath, new FullFileCachedIndexInput(fileCache, filePath, localDirectory.openInput(name, IOContext.READ)));
     }
 
 }
