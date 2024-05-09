@@ -8,9 +8,12 @@
 
 package org.opensearch.offline_tasks.task;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Enum for task type
  */
+@ExperimentalApi
 public enum TaskType {
     /**
      * For all segment merge related tasks

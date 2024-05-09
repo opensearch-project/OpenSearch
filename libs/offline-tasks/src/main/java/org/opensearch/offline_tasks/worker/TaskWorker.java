@@ -10,7 +10,6 @@ package org.opensearch.offline_tasks.worker;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.offline_tasks.task.Task;
-import org.opensearch.offline_tasks.task.TaskParams;
 
 /**
  * Task Worker that executes the Task
@@ -24,8 +23,7 @@ public interface TaskWorker {
      * Execute the Task
      *
      * @param task Task to be executed
-     * @param taskParams TaskParams to be used while executing the task
      */
-    void executeTask(Task task, TaskParams taskParams);
+    void executeTask(Task task);
 
 }

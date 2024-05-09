@@ -19,7 +19,7 @@ public class TaskId {
     /**
      * Identified of the Task
      */
-    String id;
+    private final String id;
 
     /**
      * Constructor to initialize TaskId
@@ -27,5 +27,13 @@ public class TaskId {
      */
     public TaskId(String id) {
         this.id = id;
+    }
+
+    /**
+     * Get id value
+     * @return id
+     */
+    public String getValue() {
+        return id;
     }
 }

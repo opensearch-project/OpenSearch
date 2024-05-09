@@ -19,17 +19,17 @@ public class Task {
     /**
      * Task identifier used to uniquely identify a Task
      */
-    private TaskId taskId;
+    private final TaskId taskId;
 
     /**
      * Various params to used for Task execution
      */
-    private TaskParams params;
+    private final TaskParams params;
 
     /**
      * Type/Category of the Task
      */
-    private TaskType taskType;
+    private final TaskType taskType;
 
     /**
      * Constructor for Task
@@ -42,5 +42,29 @@ public class Task {
         this.taskId = taskId;
         this.params = params;
         this.taskType = taskType;
+    }
+
+    /**
+     * Get TaskId
+     * @return TaskId
+     */
+    public TaskId getTaskId() {
+        return taskId;
+    }
+
+    /**
+     * Get TaskParams
+     * @return TaskParams
+     */
+    public TaskParams getParams() {
+        return params;
+    }
+
+    /**
+     * Get TaskType
+     * @return TaskType
+     */
+    public TaskType getTaskType() {
+        return taskType;
     }
 }
