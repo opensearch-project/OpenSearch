@@ -90,7 +90,8 @@ public class DerivedFieldQueryTests extends OpenSearchTestCase {
             valueFetcher,
             searchLookup,
             Lucene.STANDARD_ANALYZER,
-            indexableFieldFunction
+            indexableFieldFunction,
+            false
         );
 
         // Index and Search

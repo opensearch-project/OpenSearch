@@ -56,7 +56,7 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
         when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
         DefaultDerivedFieldResolver resolver = new DefaultDerivedFieldResolver(queryShardContext, null, null);
         assertEquals("keyword", resolver.resolve("derived_text").getType());
-        assertEqualDerivedField(new DerivedField("derived_text", "keyword", null), resolver.resolve("derived_text").derivedField);
+        assertEqualDerivedField(new DerivedField("derived_text", "keyword", new Script("")), resolver.resolve("derived_text").derivedField);
     }
 
     public void testResolutionFromSearchRequest() throws IOException {
@@ -69,11 +69,17 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
             createDerivedFields()
         );
         assertEquals("text", resolver.resolve("derived_text").getType());
-        assertEqualDerivedField(new DerivedField("derived_text", "text", null), resolver.resolve("derived_text").derivedField);
+        assertEqualDerivedField(new DerivedField("derived_text", "text", new Script("")), resolver.resolve("derived_text").derivedField);
         assertEquals("object", resolver.resolve("derived_object").getType());
-        assertEqualDerivedField(new DerivedField("derived_object", "object", null), resolver.resolve("derived_object").derivedField);
+        assertEqualDerivedField(
+            new DerivedField("derived_object", "object", new Script("")),
+            resolver.resolve("derived_object").derivedField
+        );
         assertEquals("keyword", resolver.resolve("derived_keyword").getType());
-        assertEqualDerivedField(new DerivedField("derived_keyword", "keyword", null), resolver.resolve("derived_keyword").derivedField);
+        assertEqualDerivedField(
+            new DerivedField("derived_keyword", "keyword", new Script("")),
+            resolver.resolve("derived_keyword").derivedField
+        );
     }
 
     public void testEmpty() throws IOException {
@@ -124,10 +130,10 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
         // search definition uses type text, whereas index definition uses the type keyword
 
         assertEquals("text", resolver.resolve("derived_text").getType());
-        assertEqualDerivedField(new DerivedField("derived_text", "text", null), resolver.resolve("derived_text").derivedField);
+        assertEqualDerivedField(new DerivedField("derived_text", "text", new Script("")), resolver.resolve("derived_text").derivedField);
 
         assertEquals("keyword", resolver.resolve("derived_2").getType());
-        assertEqualDerivedField(new DerivedField("derived_2", "keyword", null), resolver.resolve("derived_2").derivedField);
+        assertEqualDerivedField(new DerivedField("derived_2", "keyword", new Script("")), resolver.resolve("derived_2").derivedField);
     }
 
     public void testNestedWithParentDefinedInIndexMapping() throws IOException {
@@ -149,6 +155,20 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
                     b.field("script", "");
                 }
                 b.endObject();
+                b.startObject("derived_obj_2");
+                {
+                    b.field("type", "object");
+                    b.field("script", "");
+                    b.field("format", "yyyy-MM-dd");
+
+                    b.startObject("properties");
+                    {
+                        b.field("sub_field1", "long");
+                        b.field("sub_field2", "date");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
             }
             b.endObject();
         }));
@@ -167,14 +187,23 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
                 TestDerivedFieldResolver resolver = new TestDerivedFieldResolver(queryShardContext, null, null, typeInference);
                 assertEquals("text", resolver.resolve("derived_obj.sub_field1").getType());
                 assertEqualDerivedField(
-                    new DerivedField("derived_obj.sub_field1", "text", null),
+                    new DerivedField("derived_obj.sub_field1", "text", new Script("")),
                     resolver.resolve("derived_obj.sub_field1").derivedField
                 );
                 assertEquals("text", resolver.resolve("derived_obj.sub_field1.sub_field2").getType());
                 assertEqualDerivedField(
-                    new DerivedField("derived_obj.sub_field1.sub_field2", "text", null),
+                    new DerivedField("derived_obj.sub_field1.sub_field2", "text", new Script("")),
                     resolver.resolve("derived_obj.sub_field1.sub_field2").derivedField
                 );
+                // when explicit type is set in properties
+                DerivedField expectedDerivedField1 = new DerivedField("derived_obj_2.sub_field1", "long", new Script(""));
+                expectedDerivedField1.setProperties(Map.of("sub_field1", "long", "sub_field2", "date"));
+                expectedDerivedField1.setFormat("yyyy-MM-dd");
+                assertEqualDerivedField(expectedDerivedField1, resolver.resolve("derived_obj_2.sub_field1").derivedField);
+                DerivedField expectedDerivedField2 = new DerivedField("derived_obj_2.sub_field2", "date", new Script(""));
+                expectedDerivedField2.setProperties(Map.of("sub_field1", "long", "sub_field2", "date"));
+                expectedDerivedField2.setFormat("yyyy-MM-dd");
+                assertEqualDerivedField(expectedDerivedField2, resolver.resolve("derived_obj_2.sub_field2").derivedField);
             }
         }
     }
@@ -200,12 +229,12 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
                 );
                 assertEquals("text", resolver.resolve("derived_object.sub_field1").getType());
                 assertEqualDerivedField(
-                    new DerivedField("derived_object.sub_field1", "text", null),
+                    new DerivedField("derived_object.sub_field1", "text", new Script("")),
                     resolver.resolve("derived_object.sub_field1").derivedField
                 );
                 assertEquals("text", resolver.resolve("derived_object.sub_field1.sub_field2").getType());
                 assertEqualDerivedField(
-                    new DerivedField("derived_object.sub_field1.sub_field2", "text", null),
+                    new DerivedField("derived_object.sub_field1.sub_field2", "text", new Script("")),
                     resolver.resolve("derived_object.sub_field1.sub_field2").derivedField
                 );
                 assertEquals(2, resolver.cnt);
@@ -340,8 +369,7 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
     }
 
     private void assertEqualDerivedField(DerivedField expected, DerivedField actual) {
-        assertEquals(expected.getName(), actual.getName());
-        assertEquals(expected.getType(), actual.getType());
+        assertEquals(expected, actual);
     }
 
     private Map<String, Object> createDerivedFieldsObject() {
@@ -400,7 +428,7 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
     }
 
     private List<DerivedField> createDerivedFields() {
-        DerivedField derivedField = new DerivedField("derived_keyword", "keyword", new Script(""), null);
+        DerivedField derivedField = new DerivedField("derived_keyword", "keyword", new Script(""));
         return Collections.singletonList(derivedField);
     }
 

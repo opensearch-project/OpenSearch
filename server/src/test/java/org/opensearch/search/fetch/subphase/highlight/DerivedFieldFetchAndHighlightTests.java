@@ -65,9 +65,11 @@ import static org.mockito.Mockito.when;
 public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTestCase {
     private static String DERIVED_FIELD_SCRIPT_1 = "derived_field_script_1";
     private static String DERIVED_FIELD_SCRIPT_2 = "derived_field_script_2";
+    private static String DERIVED_FIELD_SCRIPT_3 = "derived_field_script_3";
 
     private static String DERIVED_FIELD_1 = "derived_1";
     private static String DERIVED_FIELD_2 = "derived_2";
+    private static String DERIVED_FIELD_3 = "derived_3";
 
     public void testDerivedFieldFromIndexMapping() throws IOException {
         // Create index and mapper service
@@ -89,6 +91,14 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
             .field("lang", "mockscript")
             .endObject()
             .endObject()
+            .startObject(DERIVED_FIELD_3)
+            .field("type", "date")
+            .field("format", "yyyy-MM-dd")
+            .startObject("script")
+            .field("source", DERIVED_FIELD_SCRIPT_3)
+            .field("lang", "mockscript")
+            .endObject()
+            .endObject()
             .endObject()
             .endObject();
 
@@ -98,6 +108,7 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
             .startObject()
             .field("field1", "some_text_1")
             .field("field2", "some_text_2")
+            .field("field3", 1710923445000L)
             .endObject();
 
         int docId = 0;
@@ -125,11 +136,13 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
 
                 // Validate FetchPhase
                 {
-                    assertEquals(fields.size(), 2);
+                    assertEquals(fields.size(), 3);
                     assertEquals(1, fields.get(DERIVED_FIELD_1).getValues().size());
                     assertEquals(1, fields.get(DERIVED_FIELD_2).getValues().size());
+                    assertEquals(1, fields.get(DERIVED_FIELD_3).getValues().size());
                     assertEquals("some_text_1", fields.get(DERIVED_FIELD_1).getValue());
                     assertEquals("some_text_2", fields.get(DERIVED_FIELD_2).getValue());
+                    assertEquals("2024-03-20", fields.get(DERIVED_FIELD_3).getValue());
                 }
 
                 // Create a HighlightBuilder of type unified, set its fields as derived_1 and derived_2
@@ -194,6 +207,7 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
             .startObject()
             .field("field1", "some_text_1")
             .field("field2", "some_text_2")
+            .field("field3", 1710923445000L)
             .endObject();
 
         int docId = 0;
@@ -218,7 +232,12 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
                 QueryShardContext mockShardContext = createQueryShardContext(mapperService, searcher);
                 mockShardContext.lookup().source().setSegmentAndDocument(context, docId);
-
+                DerivedField derivedField3 = new DerivedField(
+                    DERIVED_FIELD_3,
+                    "date",
+                    new Script(ScriptType.INLINE, "mockscript", DERIVED_FIELD_SCRIPT_3, emptyMap())
+                );
+                derivedField3.setFormat("dd-MM-yyyy");
                 // This mock behavior is similar to adding derived fields in search request
                 mockShardContext.setDerivedFieldResolver(
                     new DefaultDerivedFieldResolver(
@@ -234,7 +253,8 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
                                 DERIVED_FIELD_2,
                                 "keyword",
                                 new Script(ScriptType.INLINE, "mockscript", DERIVED_FIELD_SCRIPT_2, emptyMap())
-                            )
+                            ),
+                            derivedField3
                         )
                     )
                 );
@@ -244,11 +264,13 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
 
                 // Validate FetchPhase
                 {
-                    assertEquals(fields.size(), 2);
+                    assertEquals(fields.size(), 3);
                     assertEquals(1, fields.get(DERIVED_FIELD_1).getValues().size());
                     assertEquals(1, fields.get(DERIVED_FIELD_2).getValues().size());
+                    assertEquals(1, fields.get(DERIVED_FIELD_3).getValues().size());
                     assertEquals("some_text_1", fields.get(DERIVED_FIELD_1).getValue());
                     assertEquals("some_text_2", fields.get(DERIVED_FIELD_2).getValue());
+                    assertEquals("20-03-2024", fields.get(DERIVED_FIELD_3).getValue());
                 }
 
                 // Create a HighlightBuilder of type unified, set its fields as derived_1 and derived_2
@@ -356,7 +378,9 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
                 DERIVED_FIELD_SCRIPT_1,
                 (script) -> ((String) ((Map<String, Object>) script.get("_source")).get("field1")).replace(" ", "_"),
                 DERIVED_FIELD_SCRIPT_2,
-                (script) -> ((String) ((Map<String, Object>) script.get("_source")).get("field2")).replace(" ", "_")
+                (script) -> ((String) ((Map<String, Object>) script.get("_source")).get("field2")).replace(" ", "_"),
+                DERIVED_FIELD_SCRIPT_3,
+                (script) -> ((Map<String, Object>) script.get("_source")).get("field3")
             ),
             Collections.emptyMap()
         );

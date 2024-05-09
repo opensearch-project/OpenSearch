@@ -8,8 +8,11 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -55,6 +58,7 @@ import java.util.function.Function;
  *
  */
 public class ObjectDerivedFieldType extends DerivedFieldType {
+    private static final Logger logger = LogManager.getLogger(ObjectDerivedFieldType.class);
 
     ObjectDerivedFieldType(
         DerivedField derivedField,
@@ -74,15 +78,24 @@ public class ObjectDerivedFieldType extends DerivedFieldType {
     }
 
     @Override
-    TextFieldMapper.TextFieldType getSourceIndexedFieldType(String sourceIndexedField, QueryShardContext context) {
-        if (sourceIndexedField == null || sourceIndexedField.isEmpty()) {
+    TextFieldMapper.TextFieldType getSourceIndexedFieldType(QueryShardContext context) {
+        if (derivedField.getSourceIndexedField() == null || derivedField.getSourceIndexedField().isEmpty()) {
             return null;
         }
-        // TODO error handling
-        MappedFieldType mappedFieldType = context.fieldMapper(sourceIndexedField);
+        MappedFieldType mappedFieldType = context.fieldMapper(derivedField.getSourceIndexedField());
+        if (mappedFieldType == null) {
+            throw new MapperException(
+                "source_index_field[" + derivedField.getSourceIndexedField() + "] is not defined in the index mappings"
+            );
+        }
         if (!(mappedFieldType instanceof TextFieldMapper.TextFieldType)) {
-            // TODO: throw validation error?
-            return null;
+            throw new MapperException(
+                "source_index_field["
+                    + derivedField.getSourceIndexedField()
+                    + "] should be of type text. Type found ["
+                    + mappedFieldType.typeName()
+                    + "]."
+            );
         }
         return (TextFieldMapper.TextFieldType) mappedFieldType;
     }
@@ -92,7 +105,10 @@ public class ObjectDerivedFieldType extends DerivedFieldType {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        Function<Object, Object> valueForDisplay = DerivedFieldSupportedTypes.getValueForDisplayGenerator(getType());
+        Function<Object, Object> valueForDisplay = DerivedFieldSupportedTypes.getValueForDisplayGenerator(
+            getType(),
+            derivedField.getFormat() != null ? DateFormatter.forPattern(derivedField.getFormat()) : null
+        );
         String subFieldName = name().substring(name().indexOf(".") + 1);
         return new ObjectDerivedFieldValueFetcher(
             subFieldName,
@@ -101,13 +117,13 @@ public class ObjectDerivedFieldType extends DerivedFieldType {
         );
     }
 
-    public static class ObjectDerivedFieldValueFetcher extends DerivedFieldValueFetcher {
+    static class ObjectDerivedFieldValueFetcher extends DerivedFieldValueFetcher {
         private final String subField;
 
         // TODO add it as part of index setting?
         private final boolean failOnInvalidJsonObjects;
 
-        public ObjectDerivedFieldValueFetcher(
+        ObjectDerivedFieldValueFetcher(
             String subField,
             DerivedFieldScript.LeafFactory derivedFieldScriptFactory,
             Function<Object, Object> valueForDisplay
@@ -130,6 +146,7 @@ public class ObjectDerivedFieldType extends DerivedFieldType {
                         throw e;
                     }
                     // TODO cannot log warnings as it can bloat up the logs. Add to some stats?
+                    // or ignore error if ignore_malformed is true and throw exception otherwise
                 }
             }
             return result;

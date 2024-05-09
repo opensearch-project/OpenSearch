@@ -43,6 +43,7 @@ public final class DerivedFieldQuery extends Query {
     private final DerivedFieldValueFetcher valueFetcher;
     private final SearchLookup searchLookup;
     private final Analyzer indexAnalyzer;
+    private final boolean ignoreMalformed;
 
     private final Function<Object, IndexableField> indexableFieldGenerator;
 
@@ -57,9 +58,10 @@ public final class DerivedFieldQuery extends Query {
         DerivedFieldValueFetcher valueFetcher,
         SearchLookup searchLookup,
         Analyzer indexAnalyzer,
-        Function<Object, IndexableField> indexableFieldGenerator
+        Function<Object, IndexableField> indexableFieldGenerator,
+        boolean ignoreMalformed
     ) {
-        this(query, null, valueFetcher, searchLookup, indexAnalyzer, indexableFieldGenerator);
+        this(query, null, valueFetcher, searchLookup, indexAnalyzer, indexableFieldGenerator, ignoreMalformed);
     }
 
     public DerivedFieldQuery(
@@ -68,7 +70,8 @@ public final class DerivedFieldQuery extends Query {
         DerivedFieldValueFetcher valueFetcher,
         SearchLookup searchLookup,
         Analyzer indexAnalyzer,
-        Function<Object, IndexableField> indexableFieldGenerator
+        Function<Object, IndexableField> indexableFieldGenerator,
+        boolean ignoreMalformed
     ) {
         this.query = query;
         this.filterQuery = filterQuery;
@@ -76,6 +79,7 @@ public final class DerivedFieldQuery extends Query {
         this.searchLookup = searchLookup;
         this.indexAnalyzer = indexAnalyzer;
         this.indexableFieldGenerator = indexableFieldGenerator;
+        this.ignoreMalformed = ignoreMalformed;
     }
 
     @Override
@@ -90,7 +94,15 @@ public final class DerivedFieldQuery extends Query {
             return this;
         }
         Query rewrittenFilterQuery = filterQuery == null ? filterQuery : indexSearcher.rewrite(filterQuery);
-        return new DerivedFieldQuery(rewritten, rewrittenFilterQuery, valueFetcher, searchLookup, indexAnalyzer, indexableFieldGenerator);
+        return new DerivedFieldQuery(
+            rewritten,
+            rewrittenFilterQuery,
+            valueFetcher,
+            searchLookup,
+            indexAnalyzer,
+            indexableFieldGenerator,
+            ignoreMalformed
+        );
     }
 
     @Override
@@ -119,10 +131,15 @@ public final class DerivedFieldQuery extends Query {
                     @Override
                     public boolean matches() {
                         leafSearchLookup.source().setSegmentAndDocument(context, approximation.docID());
-                        List<IndexableField> indexableFields = valueFetcher.getIndexableField(
-                            leafSearchLookup.source(),
-                            indexableFieldGenerator
-                        );
+                        List<IndexableField> indexableFields;
+                        try {
+                            indexableFields = valueFetcher.getIndexableField(leafSearchLookup.source(), indexableFieldGenerator);
+                        } catch (Exception e) {
+                            if (ignoreMalformed) {
+                                return false;
+                            }
+                            throw e;
+                        }
                         // TODO: in case of errors from script, should it be ignored and treated as missing field
                         // by using a configurable setting?
                         MemoryIndex memoryIndex = new MemoryIndex();

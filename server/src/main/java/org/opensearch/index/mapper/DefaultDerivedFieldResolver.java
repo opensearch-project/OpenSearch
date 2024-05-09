@@ -23,6 +23,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static org.opensearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
+
 /**
  * Accepts definition of DerivedField from search request in both forms: map parsed from SearchRequest and {@link DerivedField} defined using client.
  * The object is initialized per search request and is responsible to resolve {@link DerivedFieldType} given a field name.
@@ -106,18 +108,37 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
         if (parentDerivedField != null) {
             try {
                 Script script = parentDerivedField.derivedField.getScript();
-                Mapper inferredFieldMapper = typeInference.infer(getValueFetcher(fieldName, script));
-                if (inferredFieldMapper != null) {
-                    return getDerivedFieldType(
-                        new DerivedField(
-                            fieldName,
-                            inferredFieldMapper.typeName(),
-                            script,
-                            parentDerivedField.derivedField.getSourceIndexedField()
-                        )
-                    );
+                String nestedType = explicitTypeFromParent(
+                    parentDerivedField.derivedField,
+                    fieldName.substring(fieldName.indexOf(".") + 1)
+                );
+                if (nestedType == null) {
+                    Mapper inferredFieldMapper = typeInference.infer(getValueFetcher(fieldName, script));
+                    if (inferredFieldMapper != null) {
+                        nestedType = inferredFieldMapper.typeName();
+                    }
+                }
+                if (nestedType != null) {
+                    DerivedField derivedField = new DerivedField(fieldName, nestedType, script);
+                    if (parentDerivedField.derivedField.getProperties() != null) {
+                        derivedField.setProperties(parentDerivedField.derivedField.getProperties());
+                    }
+                    if (parentDerivedField.derivedField.getSourceIndexedField() != null) {
+                        derivedField.setSourceIndexedField(parentDerivedField.derivedField.getSourceIndexedField());
+                    }
+                    if (parentDerivedField.derivedField.getFormat() != null) {
+                        derivedField.setFormat(parentDerivedField.derivedField.getFormat());
+                    }
+                    if (parentDerivedField.derivedField.getIgnoreMalformed()) {
+                        derivedField.setIgnoreMalformed(parentDerivedField.derivedField.getIgnoreMalformed());
+                    }
+                    return getDerivedFieldType(derivedField);
                 } else {
-                    logger.warn("Field type cannot be inferred. Ensure the field {} is not rare across entire index", fieldName);
+                    logger.warn(
+                        "Field type cannot be inferred. Ensure the field {} is not rare across entire index or provide explicit mapping using [properties] under parent object [{}] ",
+                        fieldName,
+                        parentDerivedField.derivedField.getName()
+                    );
                 }
             } catch (IOException e) {
                 logger.warn(e);
@@ -131,6 +152,17 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
             return resolve(fieldName.split("\\.")[0]);
         }
         return null;
+    }
+
+    private static String explicitTypeFromParent(DerivedField parentDerivedField, String subField) {
+        if (parentDerivedField == null
+            || parentDerivedField.getProperties() == null
+            || parentDerivedField.getProperties().isEmpty()
+            || subField == null
+            || subField.isEmpty()) {
+            return null;
+        }
+        return parentDerivedField.getProperties().get(subField);
     }
 
     ValueFetcher getValueFetcher(String fieldName, Script script) {
@@ -178,7 +210,9 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
         );
         DerivedFieldMapper.Builder builder = new DerivedFieldMapper.Builder(
             derivedField,
-            queryShardContext.getMapperService().getIndexAnalyzers()
+            queryShardContext.getMapperService().getIndexAnalyzers(),
+            null,
+            IGNORE_MALFORMED_SETTING.getDefault(queryShardContext.getIndexSettings().getSettings())
         );
         return builder.build(builderContext).fieldType();
     }

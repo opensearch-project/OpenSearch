@@ -61,8 +61,6 @@ public class DerivedFieldValueFetcher implements ValueFetcher {
         for (Object v : values) {
             if (v != null) {
                 indexableFields.add(indexableFieldFunction.apply(v));
-            } else {
-                // TODO: should we throw exception for missing fields here?
             }
         }
         return indexableFields;
