@@ -178,7 +178,7 @@ public abstract class InboundDecoderTests extends OpenSearchTestCase {
             transportMessage = new TestResponse(randomAlphaOfLength(100));
         }
 
-        final BytesReference totalBytes = serialize(false, Version.CURRENT, false, true, action, requestId, transportMessage);
+        final BytesReference totalBytes = serialize(isRequest, Version.CURRENT, false, true, action, requestId, transportMessage);
         final BytesStreamOutput out = new BytesStreamOutput();
         transportMessage.writeTo(out);
         final BytesReference uncompressedBytes = out.bytes();
