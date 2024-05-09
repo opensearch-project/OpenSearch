@@ -33,24 +33,17 @@ package org.opensearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.stats.ClusterStatsAction;
-import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
-import org.opensearch.transport.nativeprotocol.NativeOutboundMessageTests;
 
 import java.io.IOException;
 
 import static org.mockito.Mockito.mock;
 
 @TestLogging(value = "org.opensearch.transport.TransportLogger:trace", reason = "to ensure we log network events on TRACE level")
-public class TransportLoggerTests extends OpenSearchTestCase {
+public abstract class TransportLoggerTests extends OpenSearchTestCase {
     public void testLoggingHandler() throws Exception {
         try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(TransportLogger.class))) {
             final String writePattern = ".*\\[length: \\d+"
@@ -91,17 +84,5 @@ public class TransportLoggerTests extends OpenSearchTestCase {
         }
     }
 
-    private BytesReference buildRequest() throws IOException {
-        boolean compress = randomBoolean();
-        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
-            return NativeOutboundMessageTests.serializeNativeOutboundRequest(
-                new ThreadContext(Settings.EMPTY),
-                new ClusterStatsRequest(),
-                Version.CURRENT,
-                ClusterStatsAction.NAME,
-                randomInt(30),
-                compress
-            );
-        }
-    }
+    public abstract BytesReference buildRequest() throws IOException;
 }
