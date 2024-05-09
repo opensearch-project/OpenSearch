@@ -9,6 +9,7 @@
 package org.opensearch.index.store;
 
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lucene.store.FilterIndexOutput;
 
 import java.io.IOException;
@@ -16,8 +17,9 @@ import java.io.IOException;
 /**
  * FilterIndexOutput which takes in an additional FunctionalInterface as a parameter to perform required operations once the IndexOutput is closed
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public class CloseableFilterIndexOutput extends FilterIndexOutput {
 
     /**
@@ -25,11 +27,11 @@ public class CloseableFilterIndexOutput extends FilterIndexOutput {
      */
     @FunctionalInterface
     public interface OnCloseListener {
-        void onClose(String name);
+        void onClose(String name) throws IOException;
     }
 
-    OnCloseListener onCloseListener;
-    String fileName;
+    private final OnCloseListener onCloseListener;
+    private final String fileName;
 
     public CloseableFilterIndexOutput(IndexOutput out, String fileName, OnCloseListener onCloseListener) {
         super("CloseableFilterIndexOutput for file " + fileName, out);

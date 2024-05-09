@@ -22,7 +22,7 @@ import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
-import org.opensearch.index.store.remote.filecache.NonBlockCachedIndexInput;
+import org.opensearch.index.store.remote.filecache.FullFileCachedIndexInput;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.utils.BlockIOContext;
 import org.opensearch.index.store.remote.utils.FileType;
@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
  * All such abstractions will be handled by the Composite directory itself
  * Implements all required methods by Directory abstraction
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
 @ExperimentalApi
 public class CompositeDirectory extends FilterDirectory {
@@ -143,9 +143,12 @@ public class CompositeDirectory extends FilterDirectory {
             long fileLength;
             Path key = localDirectory.getDirectory().resolve(name);
             if (isTempFile(name) || fileCache.get(key) != null) {
-                fileLength = localDirectory.fileLength(name);
-                fileCache.decRef(key);
-                logger.trace("fileLength from Local {}", fileLength);
+                try {
+                    fileLength = localDirectory.fileLength(name);
+                    logger.trace("fileLength from Local {}", fileLength);
+                } finally {
+                    fileCache.decRef(key);
+                }
             } else {
                 fileLength = remoteDirectory.fileLength(name);
                 logger.trace("fileLength from Remote {}", fileLength);
@@ -170,13 +173,7 @@ public class CompositeDirectory extends FilterDirectory {
             /*
              * The CloseableFilterIndexOutput will ensure that the file is added to FileCache once write is completed on this file
              */
-            return new CloseableFilterIndexOutput(localDirectory.createOutput(name, context), name, (fileName) -> {
-                try {
-                    cacheFile(fileName);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
+            return new CloseableFilterIndexOutput(localDirectory.createOutput(name, context), name, this::cacheFile);
         } finally {
             writeLock.unlock();
         }
@@ -393,7 +390,7 @@ public class CompositeDirectory extends FilterDirectory {
 
     private void cacheFile(String name) throws IOException {
         Path filePath = localDirectory.getDirectory().resolve(name);
-        fileCache.put(filePath, new NonBlockCachedIndexInput(localDirectory.openInput(name, IOContext.READ)));
+        fileCache.put(filePath, new FullFileCachedIndexInput(fileCache, filePath, localDirectory.openInput(name, IOContext.READ)));
         // Decrementing ref here as above put call increments the ref of the key
         fileCache.decRef(filePath);
         // TODO : Pin the above filePath in the file cache once pinning support is added so that it cannot be evicted unless it has been

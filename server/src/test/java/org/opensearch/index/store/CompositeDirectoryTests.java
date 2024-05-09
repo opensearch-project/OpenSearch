@@ -18,7 +18,7 @@ import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
-import org.opensearch.index.store.remote.filecache.NonBlockCachedIndexInput;
+import org.opensearch.index.store.remote.filecache.FullFileCachedIndexInput;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -133,7 +133,7 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
         compositeDirectory.rename("old_file_name", "new_file_name");
         verify(localDirectory).rename("old_file_name", "new_file_name");
         verify(fileCache).remove(resolvedPathOldFile);
-        verify(fileCache).put(eq(resolvedPathNewFile), any(NonBlockCachedIndexInput.class));
+        verify(fileCache).put(eq(resolvedPathNewFile), any(FullFileCachedIndexInput.class));
     }
 
     public void testOpenInput() throws IOException {
