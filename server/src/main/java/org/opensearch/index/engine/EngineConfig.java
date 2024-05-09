@@ -236,6 +236,12 @@ public final class EngineConfig {
         Property.Dynamic
     );
 
+    public static final Setting<Boolean> INDEX_USE_COMPOUND_FILE = Setting.boolSetting(
+        "index.use_compound_file",
+        true,
+        Property.IndexScope
+    );
+
     private final TranslogConfig translogConfig;
 
     private final TranslogFactory translogFactory;
@@ -492,6 +498,10 @@ public final class EngineConfig {
      */
     public boolean isReadOnlyReplica() {
         return indexSettings.isSegRepEnabledOrRemoteNode() && isReadOnlyReplica;
+    }
+
+    public boolean useCompoundFile() {
+        return indexSettings.getValue(INDEX_USE_COMPOUND_FILE);
     }
 
     /**

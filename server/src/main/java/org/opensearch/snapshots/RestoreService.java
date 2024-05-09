@@ -125,12 +125,12 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANS
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_UPGRADED;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
+import static org.opensearch.common.util.IndexUtils.filterIndices;
 import static org.opensearch.common.util.set.Sets.newHashSet;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 import static org.opensearch.index.store.remote.filecache.FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
 import static org.opensearch.node.Node.NODE_SEARCH_CACHE_SIZE_SETTING;
-import static org.opensearch.snapshots.SnapshotUtils.filterIndices;
 
 /**
  * Service responsible for restoring snapshots

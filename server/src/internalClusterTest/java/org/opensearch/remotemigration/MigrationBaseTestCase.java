@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
@@ -200,5 +201,26 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
         public void setRefreshFrequency(int refreshFrequency) {
             this.refreshFrequency = refreshFrequency;
         }
+    }
+
+    public void excludeNodeSet(String attr, String value) {
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.exclude._" + attr, value))
+                .get()
+        );
+    }
+
+    public void stopShardRebalancing() {
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none").build())
+                .get()
+        );
     }
 }
