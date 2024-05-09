@@ -141,7 +141,7 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
                     );
                 }
             } catch (IOException e) {
-                logger.warn(e);
+                logger.warn(e.getMessage());
             }
         }
         return null;
