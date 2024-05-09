@@ -35,6 +35,7 @@ package org.opensearch.cluster.block;
 import org.opensearch.common.annotation.PublicApi;
 
 import java.util.EnumSet;
+import java.util.Locale;
 
 /**
  * What level to block the cluster
@@ -51,4 +52,11 @@ public enum ClusterBlockLevel {
 
     public static final EnumSet<ClusterBlockLevel> ALL = EnumSet.allOf(ClusterBlockLevel.class);
     public static final EnumSet<ClusterBlockLevel> READ_WRITE = EnumSet.of(READ, WRITE);
+
+    /*
+    * This method is used to convert a string to a ClusterBlockLevel.
+    * */
+    public static ClusterBlockLevel fromString(String level, Locale locale) {
+        return ClusterBlockLevel.valueOf(level.toUpperCase(locale));
+    }
 }

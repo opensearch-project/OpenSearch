@@ -42,6 +42,11 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -62,7 +67,7 @@ import static java.util.stream.Collectors.toSet;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
+public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> implements ToXContentFragment {
     public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(emptySet(), Map.of());
 
     private final Set<ClusterBlock> global;
@@ -325,6 +330,16 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return AbstractDiffable.readDiffFrom(ClusterBlocks::readFrom, in);
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        Builder.toXContext(this, builder, params);
+        return builder;
+    }
+
+    public static ClusterBlocks fromXContent(XContentParser parser) throws IOException {
+        return Builder.fromXContent(parser);
+    }
+
     /**
      * An immutable level holder.
      *
@@ -426,10 +441,16 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         }
 
         public Builder addIndexBlock(String index, ClusterBlock block) {
+            prepareIndexForBlocks(index);
+            indices.get(index).add(block);
+            return this;
+        }
+
+        // initialize an index adding further blocks
+        private Builder prepareIndexForBlocks(String index) {
             if (!indices.containsKey(index)) {
                 indices.put(index, new HashSet<>());
             }
-            indices.get(index).add(block);
             return this;
         }
 
@@ -478,6 +499,83 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
                 indicesBuilder.put(entry.getKey(), unmodifiableSet(new HashSet<>(entry.getValue())));
             }
             return new ClusterBlocks(unmodifiableSet(new HashSet<>(global)), indicesBuilder);
+        }
+
+        public static void toXContext(ClusterBlocks blocks, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.startObject("blocks");
+            if (blocks.global().isEmpty() == false) {
+                builder.startObject("global");
+                for (ClusterBlock block : blocks.global()) {
+                    block.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+
+            if (blocks.indices().isEmpty() == false) {
+                builder.startObject("indices");
+                for (Map.Entry<String, Set<ClusterBlock>> entry : blocks.indices().entrySet()) {
+                    builder.startObject(entry.getKey());
+                    for (ClusterBlock block : entry.getValue()) {
+                        block.toXContent(builder, params);
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+
+        public static ClusterBlocks fromXContent(XContentParser parser) throws IOException {
+            Builder builder = new Builder();
+            String currentFieldName = skipBlocksField(parser);
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+                currentFieldName = parser.currentName();
+                parser.nextToken();
+                switch (currentFieldName) {
+                    case "global":
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            currentFieldName = parser.currentName();
+                            parser.nextToken();
+                            builder.addGlobalBlock(ClusterBlock.fromXContent(parser, Integer.parseInt(currentFieldName)));
+                        }
+                        break;
+                    case "indices":
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            String indexName = parser.currentName();
+                            parser.nextToken();
+                            // prepare for this index as we want to add this to ClusterBlocks even if there is no Block associated with it
+                            builder.prepareIndexForBlocks(indexName);
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                currentFieldName = parser.currentName();
+                                parser.nextToken();
+                                builder.addIndexBlock(indexName, ClusterBlock.fromXContent(parser, Integer.parseInt(currentFieldName)));
+                            }
+                        }
+                        break;
+                    default:
+                        throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");
+                }
+            }
+            return builder.build();
+        }
+
+        private static String skipBlocksField(XContentParser parser) throws IOException {
+            if (parser.currentToken() == null) {
+                parser.nextToken();
+            }
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                parser.nextToken();
+                if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                    if ("blocks".equals(parser.currentName())) {
+                        parser.nextToken();
+                    } else {
+                        return parser.currentName();
+                    }
+                }
+            }
+            return null;
         }
     }
 }
