@@ -271,7 +271,7 @@ public class TikaDocTests extends OpenSearchTestCase {
         DirectoryStream<Path> stream = Files.newDirectoryStream(tikaUnzip);
 
         for (Path doc : stream) {
-            if (!tika292Checksums.containsKey(doc.getFileName())) {
+            if (!tika292Checksums.containsKey(doc.getFileName().toString())) {
                 continue;
             }
 
