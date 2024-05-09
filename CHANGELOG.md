@@ -39,6 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Search Pipeline] Handle default pipeline for multiple indices ([#13276](https://github.com/opensearch-project/OpenSearch/pull/13276))
 - Add support for deep copying SearchRequest ([#12295](https://github.com/opensearch-project/OpenSearch/pull/12295))
 - Support multi ranges traversal when doing date histogram rewrite optimization. ([#13317](https://github.com/opensearch-project/OpenSearch/pull/13317))
+- [Offline Nodes] Adds offline-tasks library containing various interfaces required to execute tasks on Offline Nodes. ([#13575](https://github.com/opensearch-project/OpenSearch/issues/13575))
 
 ### Dependencies
 - Bump `org.apache.commons:commons-configuration2` from 2.10.0 to 2.10.1 ([#12896](https://github.com/opensearch-project/OpenSearch/pull/12896))
