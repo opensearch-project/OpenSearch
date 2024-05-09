@@ -9,41 +9,27 @@
 package org.opensearch.index.store.remote.utils;
 
 import org.apache.lucene.store.IOContext;
+import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
  * BlockIOContext is an extension of IOContext which can be used to pass block related information to the openInput() method of any directory
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public class BlockIOContext extends IOContext {
 
-    private final boolean isBlockRequest;
     private long blockStart;
     private long blockSize;
-
-    /**
-     * Default constructor
-     */
-    BlockIOContext(IOContext ctx) {
-        super(ctx.context);
-        this.isBlockRequest = false;
-        this.blockStart = -1;
-        this.blockSize = -1;
-    }
 
     /**
      * Constructor to initialise BlockIOContext with block related information
      */
     public BlockIOContext(IOContext ctx, long blockStart, long blockSize) {
         super(ctx.context);
-        this.isBlockRequest = true;
+        verifyBlockStartAndSize(blockStart, blockSize);
         this.blockStart = blockStart;
         this.blockSize = blockSize;
-    }
-
-    /**
-     * Function to check if the Context contains a block request or not
-     */
-    public boolean isBlockRequest() {
-        return isBlockRequest;
     }
 
     /**
@@ -58,5 +44,10 @@ public class BlockIOContext extends IOContext {
      */
     public long getBlockSize() {
         return blockSize;
+    }
+
+    private void verifyBlockStartAndSize(long blockStart, long blockSize) {
+        if (blockStart < 0) throw new IllegalArgumentException("blockStart must be greater than or equal to 0");
+        if (blockSize <= 0) throw new IllegalArgumentException(("blockSize must be greater than 0"));
     }
 }

@@ -8,24 +8,35 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.common.annotation.ExperimentalApi;
 
-import java.io.IOException;
+import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Implementation of the CachedIndexInput for NON_BLOCK files which takes in an IndexInput as parameter
+ *
+ * @opensearch.experimental
  */
-public class NonBlockCachedIndexInput implements CachedIndexInput {
+@ExperimentalApi
+public class FullFileCachedIndexInput implements CachedIndexInput {
 
     private final IndexInput indexInput;
+    private final FileCache fileCache;
+    private final Path path;
+    private final FileCachedIndexInput fileCachedIndexInput;
     private final AtomicBoolean isClosed;
 
     /**
      * Constructor - takes IndexInput as parameter
      */
-    public NonBlockCachedIndexInput(IndexInput indexInput) {
+    public FullFileCachedIndexInput(FileCache fileCache, Path path, IndexInput indexInput) {
+        this.fileCache = fileCache;
+        this.path = path;
         this.indexInput = indexInput;
+        fileCachedIndexInput = new FileCachedIndexInput(fileCache, path, indexInput);
         isClosed = new AtomicBoolean(false);
     }
 
@@ -33,8 +44,9 @@ public class NonBlockCachedIndexInput implements CachedIndexInput {
      * Returns the wrapped indexInput
      */
     @Override
-    public IndexInput getIndexInput() throws IOException {
-        return indexInput;
+    public IndexInput getIndexInput() {
+        if (isClosed.get()) throw new AlreadyClosedException("Index input is already closed");
+        return fileCachedIndexInput;
     }
 
     /**
@@ -60,7 +72,6 @@ public class NonBlockCachedIndexInput implements CachedIndexInput {
     public void close() throws Exception {
         if (!isClosed.getAndSet(true)) {
             indexInput.close();
-            isClosed.set(true);
         }
     }
 }

@@ -8,18 +8,29 @@
 
 package org.opensearch.index.store.remote.utils;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Enum to represent whether a file is block or not
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public enum FileType {
     /**
      * Block file
      */
-    BLOCK,
+    BLOCK(".*_block_.*"),
     /**
-     * Non block file
+     * Full file - Non-Block
      */
-    NON_BLOCK;
+    FULL(".*");
+
+    private final String pattern;
+
+    FileType(String pattern) {
+        this.pattern = pattern;
+    }
 
     /**
      * Returns if the fileType is a block file or not
@@ -32,7 +43,7 @@ public enum FileType {
      * Returns if the fileName is block file or not
      */
     public static boolean isBlockFile(String fileName) {
-        if (fileName.contains("_block_")) return true;
+        if (fileName.matches(FileType.BLOCK.pattern)) return true;
         return false;
     }
 }
