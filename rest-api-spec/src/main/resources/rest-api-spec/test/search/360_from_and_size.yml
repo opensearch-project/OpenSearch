@@ -1,0 +1,113 @@
+setup:
+  - do:
+      indices.create:
+          index:  test_1
+  - do:
+      index:
+          index:  test_1
+          id:     1
+          body:   { foo: bar }
+  - do:
+      index:
+          index:  test_1
+          id:     2
+          body:   { foo: bar }
+  - do:
+      index:
+          index:  test_1
+          id:     3
+          body:   { foo: bar }
+
+  - do:
+      index:
+          index:  test_1
+          id:     4
+          body:   { foo: bar }
+  - do:
+      indices.refresh:
+          index: [test_1]
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: test_1
+        ignore: 404
+
+---
+"Throws exception if from or size query parameter is negative":
+  - skip:
+      version: " - 2.13.99"
+      reason: "fixed in 2.14.0"
+  - do:
+      catch: '/\[from\] parameter cannot be negative, found \[-5\]/'
+      search:
+        index: test_1
+        from: -5
+        size: 10
+        body:
+          query:
+            match:
+              foo: bar
+
+  - do:
+      catch: '/\[size\] parameter cannot be negative, found \[-1\]/'
+      search:
+        index: test_1
+        from: 0
+        size: -1
+        body:
+          query:
+            match:
+              foo: bar
+
+  - do:
+      search:
+        index: test_1
+        from: 0
+        size: 10
+        body:
+          query:
+            match:
+              foo: bar
+
+  - match: {hits.total.value: 4}
+
+---
+"Throws exception if from or size request body parameter is negative":
+  - skip:
+      version: " - 2.13.99"
+      reason: "fixed in 2.14.0"
+  - do:
+      catch: '/\[from\] parameter cannot be negative, found \[-5\]/'
+      search:
+        index: test_1
+        body:
+          from: -5
+          size: 10
+          query:
+            match:
+              foo: bar
+
+  - do:
+      catch: '/\[size\] parameter cannot be negative, found \[-1\]/'
+      search:
+        index: test_1
+        body:
+          from: 0
+          size: -1
+          query:
+            match:
+              foo: bar
+
+  - do:
+      search:
+        index: test_1
+        body:
+          from: 0
+          size: 10
+          query:
+            match:
+              foo: bar
+
+  - match: {hits.total.value: 4}

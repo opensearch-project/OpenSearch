@@ -155,7 +155,7 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
                 shardStoreMetadataMap.put(shardId, new NodeStoreFilesMetadata(storeFilesMetadata, null));
             } catch (Exception e) {
                 // should return null in case of known exceptions being returned from listShardMetadataInternal method.
-                if (e.getMessage().contains(INDEX_NOT_FOUND)) {
+                if (e.getMessage().contains(INDEX_NOT_FOUND) || e instanceof IOException) {
                     shardStoreMetadataMap.put(shardId, null);
                 } else {
                     // return actual exception as it is for unknown exceptions
@@ -276,6 +276,11 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
             }
         }
 
+        public static boolean isEmpty(NodeStoreFilesMetadata response) {
+            return response.storeFilesMetadata() == null
+                || response.storeFilesMetadata().isEmpty() && response.getStoreFileFetchException() == null;
+        }
+
         public Exception getStoreFileFetchException() {
             return storeFileFetchException;
         }
@@ -324,7 +329,13 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
 
         protected NodeStoreFilesMetadataBatch(StreamInput in) throws IOException {
             super(in);
-            this.nodeStoreFilesMetadataBatch = in.readMap(ShardId::new, NodeStoreFilesMetadata::new);
+            this.nodeStoreFilesMetadataBatch = in.readMap(ShardId::new, i -> {
+                if (i.readBoolean()) {
+                    return new NodeStoreFilesMetadata(i);
+                } else {
+                    return null;
+                }
+            });
         }
 
         public NodeStoreFilesMetadataBatch(DiscoveryNode node, Map<ShardId, NodeStoreFilesMetadata> nodeStoreFilesMetadataBatch) {
@@ -339,7 +350,14 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(nodeStoreFilesMetadataBatch, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
+            out.writeMap(nodeStoreFilesMetadataBatch, (o, k) -> k.writeTo(o), (o, v) -> {
+                if (v != null) {
+                    o.writeBoolean(true);
+                    v.writeTo(o);
+                } else {
+                    o.writeBoolean(false);
+                }
+            });
         }
     }
 

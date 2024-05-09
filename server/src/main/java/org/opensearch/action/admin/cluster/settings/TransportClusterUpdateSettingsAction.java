@@ -42,9 +42,11 @@ import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
@@ -53,12 +55,22 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater.indexHasAllRemoteStoreRelatedMetadata;
 
 /**
  * Transport action for updating cluster settings
@@ -251,6 +263,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
 
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
+                    validateCompatibilityModeSettingRequest(request, state);
                     final ClusterState clusterState = updater.updateSettings(
                         currentState,
                         clusterSettings.upgradeSettings(request.transientSettings()),
@@ -264,4 +277,65 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
         );
     }
 
+    /**
+     * Runs various checks associated with changing cluster compatibility mode
+     * @param request cluster settings update request, for settings to be updated and new values
+     * @param clusterState current state of cluster, for information on nodes
+     */
+    public void validateCompatibilityModeSettingRequest(ClusterUpdateSettingsRequest request, ClusterState clusterState) {
+        Settings settings = Settings.builder().put(request.persistentSettings()).put(request.transientSettings()).build();
+        if (RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.exists(settings)) {
+            String value = settings.get(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey()).toLowerCase(Locale.ROOT);
+            validateAllNodesOfSameVersion(clusterState.nodes());
+            if (value.equals(RemoteStoreNodeService.CompatibilityMode.STRICT.mode)) {
+                validateAllNodesOfSameType(clusterState.nodes());
+                validateIndexSettings(clusterState);
+            }
+        }
+    }
+
+    /**
+     * Verifies that while trying to change the compatibility mode, all nodes must have the same version.
+     * If not, it throws SettingsException error
+     * @param discoveryNodes current discovery nodes in the cluster
+     */
+    private void validateAllNodesOfSameVersion(DiscoveryNodes discoveryNodes) {
+        if (discoveryNodes.getMaxNodeVersion().equals(discoveryNodes.getMinNodeVersion()) == false) {
+            throw new SettingsException("can not change the compatibility mode when all the nodes in cluster are not of the same version");
+        }
+    }
+
+    /**
+     * Verifies that while trying to switch to STRICT compatibility mode, all nodes must be of the
+     * same type (all remote or all non-remote). If not, it throws SettingsException error
+     * @param discoveryNodes current discovery nodes in the cluster
+     */
+    private void validateAllNodesOfSameType(DiscoveryNodes discoveryNodes) {
+        Set<Boolean> nodeTypes = discoveryNodes.getNodes()
+            .values()
+            .stream()
+            .map(DiscoveryNode::isRemoteStoreNode)
+            .collect(Collectors.toSet());
+        if (nodeTypes.size() != 1) {
+            throw new SettingsException(
+                "can not switch to STRICT compatibility mode when the cluster contains both remote and non-remote nodes"
+            );
+        }
+    }
+
+    /**
+     * Verifies that while trying to switch to STRICT compatibility mode,
+     * all indices in the cluster have {@link RemoteMigrationIndexMetadataUpdater#indexHasAllRemoteStoreRelatedMetadata(IndexMetadata)} as <code>true</code>.
+     * If not, throws {@link SettingsException}
+     * @param clusterState current cluster state
+     */
+    private void validateIndexSettings(ClusterState clusterState) {
+        Collection<IndexMetadata> allIndicesMetadata = clusterState.metadata().indices().values();
+        if (allIndicesMetadata.isEmpty() == false
+            && allIndicesMetadata.stream().anyMatch(indexMetadata -> indexHasAllRemoteStoreRelatedMetadata(indexMetadata) == false)) {
+            throw new SettingsException(
+                "can not switch to STRICT compatibility mode since all indices in the cluster does not have remote store based index settings"
+            );
+        }
+    }
 }

@@ -9,10 +9,10 @@
 package org.opensearch.index.remote;
 
 import org.opensearch.Version;
-import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
-import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RemoteStoreSettings;
 
 import java.util.function.Supplier;
 
@@ -21,29 +21,24 @@ import java.util.function.Supplier;
  *
  * @opensearch.internal
  */
+@ExperimentalApi
 public class RemoteStorePathStrategyResolver {
 
-    private volatile PathType type;
-
+    private final RemoteStoreSettings remoteStoreSettings;
     private final Supplier<Version> minNodeVersionSupplier;
 
-    public RemoteStorePathStrategyResolver(ClusterSettings clusterSettings, Supplier<Version> minNodeVersionSupplier) {
+    public RemoteStorePathStrategyResolver(RemoteStoreSettings remoteStoreSettings, Supplier<Version> minNodeVersionSupplier) {
+        this.remoteStoreSettings = remoteStoreSettings;
         this.minNodeVersionSupplier = minNodeVersionSupplier;
-        type = clusterSettings.get(IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING);
-        clusterSettings.addSettingsUpdateConsumer(IndicesService.CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING, this::setType);
     }
 
     public RemoteStorePathStrategy get() {
         PathType pathType;
         PathHashAlgorithm pathHashAlgorithm;
         // Min node version check ensures that we are enabling the new prefix type only when all the nodes understand it.
-        pathType = Version.CURRENT.compareTo(minNodeVersionSupplier.get()) <= 0 ? type : PathType.FIXED;
+        pathType = Version.V_2_14_0.compareTo(minNodeVersionSupplier.get()) <= 0 ? remoteStoreSettings.getPathType() : PathType.FIXED;
         // If the path type is fixed, hash algorithm is not applicable.
-        pathHashAlgorithm = pathType == PathType.FIXED ? null : PathHashAlgorithm.FNV_1A;
+        pathHashAlgorithm = pathType == PathType.FIXED ? null : remoteStoreSettings.getPathHashAlgorithm();
         return new RemoteStorePathStrategy(pathType, pathHashAlgorithm);
-    }
-
-    private void setType(PathType type) {
-        this.type = type;
     }
 }

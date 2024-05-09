@@ -9,6 +9,7 @@
 - [Changelog](#changelog)
 - [Review Process](#review-process)
     - [Tips for Success](#tips)
+- [Troubleshooting Failing Builds](#troubleshooting-failing-builds)
 
 # Contributing to OpenSearch
 
@@ -146,12 +147,12 @@ Adding in the change is two step process:
 2. Update the entry for your change in [`CHANGELOG.md`](CHANGELOG.md) and make sure that you reference the pull request there.
 
 ### Where should I put my CHANGELOG entry?
-Please review the [branching strategy](https://github.com/opensearch-project/.github/blob/main/RELEASING.md#opensearch-branching) document. The changelog on the `main` branch will contain sections for the _next major_ and _next minor_ releases. Your entry should go into the section it is intended to be released in. In practice, most changes to `main` will be backported to the next minor release so most entries will likely be in that section.
+Please review the [branching strategy](https://github.com/opensearch-project/.github/blob/main/RELEASING.md#opensearch-branching) document. The changelog on the `main` branch will contain **two files**: `CHANGELOG.md` which corresponds to unreleased changes intended for the _next minor_ release and `CHANGELOG-3.0.md` which correspond to unreleased changes intended for the _next major_ release. Your entry should go into file corresponding to the version it is intended to be released in. In practice, most changes to `main` will be backported to the next minor release so most entries will be in the `CHANGELOG.md` file.
 
 The following examples assume the _next major_ release on main is 3.0, then _next minor_ release is 2.5, and the _current_ release is 2.4.
 
-- **Add a new feature to release in next minor:** Add a changelog entry to `[Unreleased 2.x]` on main, then backport to 2.x (including the changelog entry).
-- **Introduce a breaking API change to release in next major:** Add a changelog entry to `[Unreleased 3.0]` on main, do not backport.
+- **Add a new feature to release in next minor:** Add a changelog entry to `[Unreleased 2.x]` in CHANGELOG.md on main, then backport to 2.x (including the changelog entry).
+- **Introduce a breaking API change to release in next major:** Add a changelog entry to `[Unreleased 3.0]` to CHANGELOG-3.0.md on main, do not backport.
 - **Upgrade a dependency to fix a CVE:** Add a changelog entry to `[Unreleased 2.x]` on main, then backport to 2.x (including the changelog entry), then backport to 2.4 and ensure the changelog entry is added to `[Unreleased 2.4.1]`.
 
 ## Review Process
@@ -180,3 +181,13 @@ We have a lot of mechanisms to help expedite towards an accepted PR. Here are so
 
 In general, adding more guardrails to your changes increases the likelihood of swift PR acceptance. We can always relax these guard rails in smaller followup PRs. Reverting a GA feature is much more difficult. Check out the [DEVELOPER_GUIDE](./DEVELOPER_GUIDE.md#submitting-changes) for more useful tips.
 
+## Troubleshooting Failing Builds
+
+The OpenSearch testing framework offers many capabilities but exhibits significant complexity (it does lot of randomization internally to cover as many edge cases and variations as possible). Unfortunately, this posses a challenge by making it harder to discover important issues/bugs in straightforward way and may lead to so called flaky tests - the tests which flip randomly from success to failure without any code changes.
+
+If your pull request reports a failing test(s) on one of the checks, please:
+- look if there is an existing [issue](https://github.com/opensearch-project/OpenSearch/issues) reported for the test in question
+- if not, please make sure this is not caused by your changes, run the failing test(s) locally for some time
+- if you are sure the failure is not related, please open a new [bug](https://github.com/opensearch-project/OpenSearch/issues/new?assignees=&labels=bug%2C+untriaged&projects=&template=bug_template.md&title=%5BBUG%5D) with `flaky-test` label
+- add a comment referencing the issue(s) or bug report(s) to your pull request explaining the failing build(s)
+- as a bonus point, try to contribute by fixing the flaky test(s)

@@ -11,6 +11,7 @@ package org.opensearch.remotestore;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -22,7 +23,10 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED;
+import static org.opensearch.test.OpenSearchTestCase.getShardLevelBlobPath;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreRefreshListenerIT extends AbstractRemoteStoreMockRepositoryIntegTestCase {
@@ -45,8 +49,10 @@ public class RemoteStoreRefreshListenerIT extends AbstractRemoteStoreMockReposit
         IndicesStatsResponse response = client().admin().indices().stats(new IndicesStatsRequest()).get();
         assertEquals(1, response.getShards().length);
 
+        String indexName = response.getShards()[0].getShardRouting().index().getName();
         String indexUuid = response.getShards()[0].getShardRouting().index().getUUID();
-        Path segmentDataRepoPath = location.resolve(String.format(Locale.ROOT, "%s/0/segments/data", indexUuid));
+        String shardPath = getShardLevelBlobPath(client(), indexName, new BlobPath(), "0", SEGMENTS, DATA).buildAsString();
+        Path segmentDataRepoPath = location.resolve(shardPath);
         String segmentDataLocalPath = String.format(Locale.ROOT, "%s/indices/%s/0/index", response.getShards()[0].getDataPath(), indexUuid);
 
         logger.info("--> Verify that the segment files are same on local and repository eventually");

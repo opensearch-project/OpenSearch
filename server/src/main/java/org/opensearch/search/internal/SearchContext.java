@@ -194,10 +194,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract void highlight(SearchHighlightContext highlight);
 
-    public boolean hasInnerHits() {
-        return innerHitsContext != null;
-    }
-
     public InnerHitsContext innerHits() {
         if (innerHitsContext == null) {
             innerHitsContext = new InnerHitsContext();
@@ -522,4 +518,8 @@ public abstract class SearchContext implements Releasable {
     public abstract int getTargetMaxSliceCount();
 
     public abstract boolean shouldUseTimeSeriesDescSortOptimization();
+
+    public int maxAggRewriteFilters() {
+        return 0;
+    }
 }

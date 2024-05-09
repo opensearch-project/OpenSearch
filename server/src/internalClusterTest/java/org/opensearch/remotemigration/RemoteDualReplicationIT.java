@@ -30,6 +30,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -41,6 +42,7 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
     private final String REMOTE_PRI_DOCREP_REP = "remote-primary-docrep-replica";
     private final String REMOTE_PRI_DOCREP_REMOTE_REP = "remote-primary-docrep-remote-replica";
     private final String FAILOVER_REMOTE_TO_DOCREP = "failover-remote-to-docrep";
+    private final String FAILOVER_REMOTE_TO_REMOTE = "failover-remote-to-remote";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -88,7 +90,7 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
         initDocRepToRemoteMigration();
 
         logger.info("---> Starting 1 remote enabled data node");
-        addRemote = true;
+        setAddRemote(true);
         String remoteNodeName = internalCluster().startDataOnlyNode();
         internalCluster().validateClusterFormed();
         assertEquals(
@@ -131,8 +133,8 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
 
     /*
     Scenario:
-    - Starts 1 docrep backed data node
-    - Creates an index with 0 replica
+    - Starts 2 docrep backed data node
+    - Creates an index with 1 replica
     - Starts 1 remote backed data node
     - Index some docs
     - Move primary copy from docrep to remote through _cluster/reroute
@@ -144,14 +146,14 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
     public void testRemotePrimaryDocRepAndRemoteReplica() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
 
-        logger.info("---> Starting 1 docrep data nodes");
-        String docrepNodeName = internalCluster().startDataOnlyNode();
+        logger.info("---> Starting 2 docrep data nodes");
+        internalCluster().startDataOnlyNodes(2);
         internalCluster().validateClusterFormed();
         assertEquals(internalCluster().client().admin().cluster().prepareGetRepositories().get().repositories().size(), 0);
 
-        logger.info("---> Creating index with 0 replica");
+        logger.info("---> Creating index with 1 replica");
         Settings zeroReplicas = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "1s")
             .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
             .build();
@@ -160,7 +162,7 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
         initDocRepToRemoteMigration();
 
         logger.info("---> Starting 1 remote enabled data node");
-        addRemote = true;
+        setAddRemote(true);
 
         String remoteNodeName = internalCluster().startDataOnlyNode();
         internalCluster().validateClusterFormed();
@@ -241,14 +243,75 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
         */
         extraSettings = Settings.builder().put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), "3s").build();
         testRemotePrimaryDocRepAndRemoteReplica();
-        DiscoveryNodes nodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
-        assertBusy(() -> {
-            for (ShardStats shardStats : internalCluster().client()
+        pollAndCheckRetentionLeases(REMOTE_PRI_DOCREP_REMOTE_REP);
+    }
+
+    /*
+    Scenario:
+    - Starts 2 docrep backed data node
+    - Creates an index with 1 replica
+    - Starts 1 remote backed data node
+    - Index some docs
+    - Move primary copy from docrep to remote through _cluster/reroute
+    - Starts another remote backed data node
+    - Expands index to 2 replicas. One replica copy lies in remote backed node and other in docrep backed node
+    - Index some more docs
+    - Assert retention lease consistency
+     */
+    public void testMissingRetentionLeaseCreatedOnFailedOverRemoteReplica() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+
+        logger.info("---> Starting 2 docrep data nodes");
+        internalCluster().startDataOnlyNodes(2);
+
+        Settings zeroReplicasAndOverridenSyncIntervals = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            .build();
+        createIndex(FAILOVER_REMOTE_TO_REMOTE, zeroReplicasAndOverridenSyncIntervals);
+        ensureGreen(FAILOVER_REMOTE_TO_REMOTE);
+
+        indexBulk(FAILOVER_REMOTE_TO_REMOTE, 100);
+
+        logger.info("---> Starting first remote node");
+        initDocRepToRemoteMigration();
+        addRemote = true;
+        String firstRemoteNode = internalCluster().startDataOnlyNode();
+        String primaryShardHostingNode = primaryNodeName(FAILOVER_REMOTE_TO_REMOTE);
+        logger.info("---> Moving primary copy from {} to remote enabled node {}", primaryShardHostingNode, firstRemoteNode);
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareReroute()
+                .add(new MoveAllocationCommand(FAILOVER_REMOTE_TO_REMOTE, 0, primaryShardHostingNode, firstRemoteNode))
+                .get()
+        );
+        ensureGreen(FAILOVER_REMOTE_TO_REMOTE);
+        assertReplicaAndPrimaryConsistency(FAILOVER_REMOTE_TO_REMOTE, 100, 0);
+
+        String secondRemoteNode = internalCluster().startDataOnlyNode();
+        Settings twoReplicas = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2).build();
+        assertAcked(
+            internalCluster().client()
                 .admin()
                 .indices()
-                .prepareStats(REMOTE_PRI_DOCREP_REMOTE_REP)
+                .prepareUpdateSettings()
+                .setIndices(FAILOVER_REMOTE_TO_REMOTE)
+                .setSettings(twoReplicas)
                 .get()
-                .getShards()) {
+        );
+        ensureGreen(FAILOVER_REMOTE_TO_REMOTE);
+
+        logger.info("---> Checking retention leases");
+        pollAndCheckRetentionLeases(FAILOVER_REMOTE_TO_REMOTE);
+    }
+
+    private void pollAndCheckRetentionLeases(String indexName) throws Exception {
+        DiscoveryNodes nodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
+        assertBusy(() -> {
+            for (ShardStats shardStats : internalCluster().client().admin().indices().prepareStats(indexName).get().getShards()) {
                 ShardRouting shardRouting = shardStats.getShardRouting();
                 DiscoveryNode discoveryNode = nodes.get(shardRouting.currentNodeId());
                 RetentionLeases retentionLeases = shardStats.getRetentionLeaseStats().retentionLeases();
@@ -273,11 +336,10 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
 
     /*
     Scenario:
-    - Starts 1 docrep backed data node
-    - Creates an index with 0 replica
+    - Starts 2 docrep backed data node
+    - Creates an index with 1 replica
     - Starts 1 remote backed data node
     - Move primary copy from docrep to remote through _cluster/reroute
-    - Expands index to 1 replica
     - Stops remote enabled node
     - Ensure doc count is same after failover
     - Index some more docs to ensure working of failed-over primary
@@ -285,18 +347,18 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
     public void testFailoverRemotePrimaryToDocrepReplica() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
 
-        logger.info("---> Starting 1 docrep data nodes");
-        String docrepNodeName = internalCluster().startDataOnlyNode();
+        logger.info("---> Starting 2 docrep data nodes");
+        internalCluster().startDataOnlyNodes(2);
         internalCluster().validateClusterFormed();
         assertEquals(internalCluster().client().admin().cluster().prepareGetRepositories().get().repositories().size(), 0);
 
         logger.info("---> Creating index with 0 replica");
-        Settings excludeRemoteNode = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
+        Settings excludeRemoteNode = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
         createIndex(FAILOVER_REMOTE_TO_DOCREP, excludeRemoteNode);
         ensureGreen(FAILOVER_REMOTE_TO_DOCREP);
         initDocRepToRemoteMigration();
         logger.info("---> Starting 1 remote enabled data node");
-        addRemote = true;
+        setAddRemote(true);
         String remoteNodeName = internalCluster().startDataOnlyNode();
         internalCluster().validateClusterFormed();
         assertEquals(
@@ -326,8 +388,8 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
         );
         ensureGreen(FAILOVER_REMOTE_TO_DOCREP);
 
-        logger.info("---> Expanding index to 1 replica copy");
-        Settings twoReplicas = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        logger.info("---> Expanding index to 2 replica copies");
+        Settings twoReplicas = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2).build();
         assertAcked(
             internalCluster().client()
                 .admin()
@@ -362,7 +424,7 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
 
         logger.info("---> Stop remote store enabled node");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(remoteNodeName));
-        ensureStableCluster(2);
+        ensureStableCluster(3);
         ensureYellow(FAILOVER_REMOTE_TO_DOCREP);
 
         shardStatsMap = internalCluster().client().admin().indices().prepareStats(FAILOVER_REMOTE_TO_DOCREP).setDocs(true).get().asMap();
@@ -383,7 +445,150 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
         refreshAndWaitForReplication(FAILOVER_REMOTE_TO_DOCREP);
 
         shardStatsMap = internalCluster().client().admin().indices().prepareStats(FAILOVER_REMOTE_TO_DOCREP).setDocs(true).get().asMap();
-        assertEquals(1, shardStatsMap.size());
+        assertEquals(2, shardStatsMap.size());
+        shardStatsMap.forEach(
+            (shardRouting, shardStats) -> { assertEquals(firstBatch + secondBatch, shardStats.getStats().getDocs().getCount()); }
+        );
+    }
+
+    /*
+    Scenario:
+    - Starts 2 docrep backed data nodes
+    - Creates an index with 1 replica
+    - Starts 1 remote backed data node
+    - Moves primary copy from docrep to remote through _cluster/reroute
+    - Starts 1 more remote backed data node
+    - Expands index to 2 replicas, one each on new remote node and docrep node
+    - Stops remote enabled node hosting the primary
+    - Ensures remote replica gets promoted to primary
+    - Ensures doc count is same after failover
+    - Indexes some more docs to ensure working of failed-over primary
+    */
+    public void testFailoverRemotePrimaryToRemoteReplica() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+
+        logger.info("---> Starting 2 docrep data nodes");
+        List<String> docrepNodeNames = internalCluster().startDataOnlyNodes(2);
+        internalCluster().validateClusterFormed();
+        assertEquals(internalCluster().client().admin().cluster().prepareGetRepositories().get().repositories().size(), 0);
+
+        logger.info("---> Creating index with 1 replica");
+        createIndex(FAILOVER_REMOTE_TO_REMOTE, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
+        ensureGreen(FAILOVER_REMOTE_TO_REMOTE);
+        initDocRepToRemoteMigration();
+
+        logger.info("---> Starting 1 remote enabled data node");
+        addRemote = true;
+        String remoteNodeName1 = internalCluster().startDataOnlyNode();
+        internalCluster().validateClusterFormed();
+        assertEquals(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareGetRepositories(REPOSITORY_NAME, REPOSITORY_2_NAME)
+                .get()
+                .repositories()
+                .size(),
+            2
+        );
+
+        logger.info("---> Starting doc ingestion in parallel thread");
+        AsyncIndexingService asyncIndexingService = new AsyncIndexingService(FAILOVER_REMOTE_TO_REMOTE);
+        asyncIndexingService.startIndexing();
+
+        String primaryNodeName = primaryNodeName(FAILOVER_REMOTE_TO_REMOTE);
+        logger.info("---> Moving primary copy from docrep node {} to remote enabled node {}", primaryNodeName, remoteNodeName1);
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareReroute()
+                .add(new MoveAllocationCommand(FAILOVER_REMOTE_TO_REMOTE, 0, primaryNodeName, remoteNodeName1))
+                .get()
+        );
+        waitForRelocation();
+        ensureGreen(FAILOVER_REMOTE_TO_REMOTE);
+        assertEquals(primaryNodeName(FAILOVER_REMOTE_TO_REMOTE), remoteNodeName1);
+
+        logger.info("---> Starting 1 more remote enabled data node");
+        String remoteNodeName2 = internalCluster().startDataOnlyNode();
+        internalCluster().validateClusterFormed();
+
+        logger.info("---> Expanding index to 2 replica copies, on docrepNode and remoteNode2");
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings()
+                .setIndices(FAILOVER_REMOTE_TO_REMOTE)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+                        // prevent replica copy from being allocated to the extra docrep node
+                        .put("index.routing.allocation.exclude._name", primaryNodeName)
+                        .build()
+                )
+                .get()
+        );
+        ensureGreen(FAILOVER_REMOTE_TO_REMOTE);
+
+        logger.info("---> Stopping indexing thread");
+        asyncIndexingService.stopIndexing();
+
+        refreshAndWaitForReplication(FAILOVER_REMOTE_TO_REMOTE);
+        Map<ShardRouting, ShardStats> shardStatsMap = internalCluster().client()
+            .admin()
+            .indices()
+            .prepareStats(FAILOVER_REMOTE_TO_REMOTE)
+            .setDocs(true)
+            .get()
+            .asMap();
+        DiscoveryNodes nodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
+        long initialPrimaryDocCount = 0;
+        for (ShardRouting shardRouting : shardStatsMap.keySet()) {
+            if (shardRouting.primary()) {
+                assertTrue(nodes.get(shardRouting.currentNodeId()).isRemoteStoreNode());
+                initialPrimaryDocCount = shardStatsMap.get(shardRouting).getStats().getDocs().getCount();
+            }
+        }
+        int firstBatch = (int) asyncIndexingService.getIndexedDocs();
+        assertReplicaAndPrimaryConsistency(FAILOVER_REMOTE_TO_REMOTE, firstBatch, 0);
+
+        logger.info("---> Stop remote store enabled node hosting the primary");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(remoteNodeName1));
+        ensureStableCluster(4);
+        ensureYellowAndNoInitializingShards(FAILOVER_REMOTE_TO_REMOTE);
+        DiscoveryNodes finalNodes = internalCluster().client().admin().cluster().prepareState().get().getState().getNodes();
+
+        waitUntil(() -> {
+            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            String nodeId = clusterState.getRoutingTable().index(FAILOVER_REMOTE_TO_REMOTE).shard(0).primaryShard().currentNodeId();
+            if (nodeId == null) {
+                return false;
+            } else {
+                assertEquals(finalNodes.get(nodeId).getName(), remoteNodeName2);
+                return finalNodes.get(nodeId).isRemoteStoreNode();
+            }
+        });
+
+        shardStatsMap = internalCluster().client().admin().indices().prepareStats(FAILOVER_REMOTE_TO_REMOTE).setDocs(true).get().asMap();
+        long primaryDocCountAfterFailover = 0;
+        for (ShardRouting shardRouting : shardStatsMap.keySet()) {
+            if (shardRouting.primary()) {
+                assertTrue(finalNodes.get(shardRouting.currentNodeId()).isRemoteStoreNode());
+                primaryDocCountAfterFailover = shardStatsMap.get(shardRouting).getStats().getDocs().getCount();
+            }
+        }
+        assertEquals(initialPrimaryDocCount, primaryDocCountAfterFailover);
+
+        logger.info("---> Index some more docs to ensure that the failed over primary is ingesting new docs");
+        int secondBatch = randomIntBetween(1, 10);
+        logger.info("---> Indexing {} more docs", secondBatch);
+        indexBulk(FAILOVER_REMOTE_TO_REMOTE, secondBatch);
+        refreshAndWaitForReplication(FAILOVER_REMOTE_TO_REMOTE);
+
+        shardStatsMap = internalCluster().client().admin().indices().prepareStats(FAILOVER_REMOTE_TO_REMOTE).setDocs(true).get().asMap();
+        assertEquals(2, shardStatsMap.size());
         shardStatsMap.forEach(
             (shardRouting, shardStats) -> { assertEquals(firstBatch + secondBatch, shardStats.getStats().getDocs().getCount()); }
         );
@@ -395,7 +600,6 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
     - Creates an index with 0 replica
     - Starts 1 remote backed data node
     - Move primary copy from docrep to remote through _cluster/reroute
-    - Expands index to 1 replica
     - Stops remote enabled node
     - Ensure doc count is same after failover
     - Index some more docs to ensure working of failed-over primary
@@ -418,7 +622,7 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
         ensureGreen(FAILOVER_REMOTE_TO_DOCREP);
 
         logger.info("---> Starting a new remote enabled node");
-        addRemote = true;
+        setAddRemote(true);
         String remoteNodeName = internalCluster().startDataOnlyNode();
         internalCluster().validateClusterFormed();
         assertEquals(
@@ -479,7 +683,8 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
                     RemoteSegmentStats remoteSegmentStats = shardStats.getSegments().getRemoteSegmentStats();
                     assertTrue(remoteSegmentStats.getUploadBytesSucceeded() > 0);
                     assertTrue(remoteSegmentStats.getTotalUploadTime() > 0);
-                } else {
+                }
+                if (shardRouting.unassigned() == false && shardRouting.primary() == false) {
                     boolean remoteNode = nodes.get(shardRouting.currentNodeId()).isRemoteStoreNode();
                     assertEquals(
                         "Mismatched doc count. Is this on remote node ? " + remoteNode,

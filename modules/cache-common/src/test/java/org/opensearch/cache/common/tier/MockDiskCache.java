@@ -10,42 +10,58 @@ package org.opensearch.cache.common.tier;
 
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
+import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.serializer.Serializer;
+import org.opensearch.common.cache.stats.CacheStatsHolder;
+import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
+import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
+import org.opensearch.common.cache.stats.NoopCacheStatsHolder;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class MockDiskCache<K, V> implements ICache<K, V> {
 
-    Map<K, V> cache;
+    Map<ICacheKey<K>, V> cache;
     int maxSize;
     long delay;
 
-    private final RemovalListener<K, V> removalListener;
+    private final RemovalListener<ICacheKey<K>, V> removalListener;
+    private final CacheStatsHolder statsHolder; // Only update for number of entries; this is only used to test statsTrackingEnabled logic
+                                                // in TSC
 
-    public MockDiskCache(int maxSize, long delay, RemovalListener<K, V> removalListener) {
+    public MockDiskCache(int maxSize, long delay, RemovalListener<ICacheKey<K>, V> removalListener, boolean statsTrackingEnabled) {
         this.maxSize = maxSize;
         this.delay = delay;
         this.removalListener = removalListener;
-        this.cache = new ConcurrentHashMap<K, V>();
+        this.cache = new ConcurrentHashMap<ICacheKey<K>, V>();
+        if (statsTrackingEnabled) {
+            this.statsHolder = new DefaultCacheStatsHolder(List.of(), "mock_disk_cache");
+        } else {
+            this.statsHolder = NoopCacheStatsHolder.getInstance();
+        }
     }
 
     @Override
-    public V get(K key) {
+    public V get(ICacheKey<K> key) {
         V value = cache.get(key);
         return value;
     }
 
     @Override
-    public void put(K key, V value) {
+    public void put(ICacheKey<K> key, V value) {
         if (this.cache.size() >= maxSize) { // For simplification
             this.removalListener.onRemoval(new RemovalNotification<>(key, value, RemovalReason.EVICTED));
+            this.statsHolder.decrementItems(List.of());
         }
         try {
             Thread.sleep(delay);
@@ -53,10 +69,11 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
             throw new RuntimeException(e);
         }
         this.cache.put(key, value);
+        this.statsHolder.incrementItems(List.of());
     }
 
     @Override
-    public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) {
+    public V computeIfAbsent(ICacheKey<K> key, LoadAwareCacheLoader<ICacheKey<K>, V> loader) {
         V value = cache.computeIfAbsent(key, key1 -> {
             try {
                 return loader.load(key);
@@ -68,7 +85,8 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
     }
 
     @Override
-    public void invalidate(K key) {
+    public void invalidate(ICacheKey<K> key) {
+        removalListener.onRemoval(new RemovalNotification<>(key, cache.get(key), RemovalReason.INVALIDATED));
         this.cache.remove(key);
     }
 
@@ -78,8 +96,8 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
     }
 
     @Override
-    public Iterable<K> keys() {
-        return this.cache.keySet();
+    public Iterable<ICacheKey<K>> keys() {
+        return () -> new CacheKeyIterator<>(cache, removalListener);
     }
 
     @Override
@@ -91,6 +109,18 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
     public void refresh() {}
 
     @Override
+    public ImmutableCacheStatsHolder stats() {
+        // To allow testing of statsTrackingEnabled logic in TSC, return a dummy ImmutableCacheStatsHolder with the
+        // right number of entries, unless statsTrackingEnabled is false
+        return statsHolder.getImmutableCacheStatsHolder(null);
+    }
+
+    @Override
+    public ImmutableCacheStatsHolder stats(String[] levels) {
+        return null;
+    }
+
+    @Override
     public void close() {
 
     }
@@ -100,10 +130,12 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
         public static final String NAME = "mockDiskCache";
         final long delay;
         final int maxSize;
+        final boolean statsTrackingEnabled;
 
-        public MockDiskCacheFactory(long delay, int maxSize) {
+        public MockDiskCacheFactory(long delay, int maxSize, boolean statsTrackingEnabled) {
             this.delay = delay;
             this.maxSize = maxSize;
+            this.statsTrackingEnabled = statsTrackingEnabled;
         }
 
         @Override
@@ -114,6 +146,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
                 .setMaxSize(maxSize)
                 .setDeliberateDelay(delay)
                 .setRemovalListener(config.getRemovalListener())
+                .setStatsTrackingEnabled(config.getStatsTrackingEnabled())
                 .build();
         }
 
@@ -132,7 +165,7 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
 
         @Override
         public ICache<K, V> build() {
-            return new MockDiskCache<K, V>(this.maxSize, this.delay, this.getRemovalListener());
+            return new MockDiskCache<K, V>(this.maxSize, this.delay, this.getRemovalListener(), getStatsTrackingEnabled());
         }
 
         public Builder<K, V> setMaxSize(int maxSize) {
@@ -155,5 +188,49 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
             return this;
         }
 
+    }
+
+    /**
+     * Provides a iterator over keys.
+     * @param <K> Type of key
+     * @param <V> Type of value
+     */
+    static class CacheKeyIterator<K, V> implements Iterator<K> {
+        private final Iterator<Map.Entry<K, V>> entryIterator;
+        private final Map<K, V> cache;
+        private final RemovalListener<K, V> removalListener;
+        private K currentKey;
+
+        public CacheKeyIterator(Map<K, V> cache, RemovalListener<K, V> removalListener) {
+            this.entryIterator = cache.entrySet().iterator();
+            this.removalListener = removalListener;
+            this.cache = cache;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return entryIterator.hasNext();
+        }
+
+        @Override
+        public K next() {
+            if (!hasNext()) {
+                throw new NoSuchElementException();
+            }
+            Map.Entry<K, V> entry = entryIterator.next();
+            currentKey = entry.getKey();
+            return currentKey;
+        }
+
+        @Override
+        public void remove() {
+            if (currentKey == null) {
+                throw new IllegalStateException("No element to remove");
+            }
+            V value = cache.get(currentKey);
+            cache.remove(currentKey);
+            this.removalListener.onRemoval(new RemovalNotification<>(currentKey, value, RemovalReason.INVALIDATED));
+            currentKey = null;
+        }
     }
 }

@@ -342,6 +342,58 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testSegmentsWithUseCompoundFileFlag_true() throws IOException {
+        try (Store store = createStore(); Engine engine = createEngine(defaultSettings, store, createTempDir(), new TieredMergePolicy())) {
+            ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
+            Engine.Index index = indexForDoc(doc);
+            engine.index(index);
+            engine.flush();
+            final List<Segment> segments = engine.segments(false);
+            assertThat(segments, hasSize(1));
+            assertTrue(segments.get(0).compound);
+            boolean cfeCompoundFileFound = false;
+            boolean cfsCompoundFileFound = false;
+            for (final String fileName : store.readLastCommittedSegmentsInfo().files(true)) {
+                if (fileName.endsWith(".cfe")) {
+                    cfeCompoundFileFound = true;
+                }
+                if (fileName.endsWith(".cfs")) {
+                    cfsCompoundFileFound = true;
+                }
+            }
+            Assert.assertTrue(cfeCompoundFileFound);
+            Assert.assertTrue(cfsCompoundFileFound);
+        }
+    }
+
+    public void testSegmentsWithUseCompoundFileFlag_false() throws IOException {
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder().put(defaultSettings.getSettings()).put(EngineConfig.INDEX_USE_COMPOUND_FILE.getKey(), false).build()
+        );
+        try (Store store = createStore(); Engine engine = createEngine(indexSettings, store, createTempDir(), new TieredMergePolicy())) {
+            ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
+            Engine.Index index = indexForDoc(doc);
+            engine.index(index);
+            engine.flush();
+            final List<Segment> segments = engine.segments(false);
+            assertThat(segments, hasSize(1));
+            assertFalse(segments.get(0).compound);
+            boolean cfeCompoundFileFound = false;
+            boolean cfsCompoundFileFound = false;
+            for (final String fileName : store.readLastCommittedSegmentsInfo().files(true)) {
+                if (fileName.endsWith(".cfe")) {
+                    cfeCompoundFileFound = true;
+                }
+                if (fileName.endsWith(".cfs")) {
+                    cfsCompoundFileFound = true;
+                }
+            }
+            Assert.assertFalse(cfeCompoundFileFound);
+            Assert.assertFalse(cfsCompoundFileFound);
+        }
+    }
+
     public void testSegmentsWithMergeFlag() throws Exception {
         try (Store store = createStore(); Engine engine = createEngine(defaultSettings, store, createTempDir(), new TieredMergePolicy())) {
             ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
@@ -4002,7 +4054,7 @@ public class InternalEngineTests extends EngineTestCase {
         final Path badTranslogLog = createTempDir();
         final String badUUID = Translog.createEmptyTranslog(badTranslogLog, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         Translog translog = new LocalTranslog(
-            new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
+            new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
             badUUID,
             createTranslogDeletionPolicy(INDEX_SETTINGS),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
@@ -4020,7 +4072,8 @@ public class InternalEngineTests extends EngineTestCase {
             translog.location(),
             config.getIndexSettings(),
             BigArrays.NON_RECYCLING_INSTANCE,
-            ""
+            "",
+            false
         );
 
         EngineConfig brokenConfig = new EngineConfig.Builder().shardId(shardId)
@@ -7714,7 +7767,8 @@ public class InternalEngineTests extends EngineTestCase {
                 createTempDir(),
                 config.getTranslogConfig().getIndexSettings(),
                 config.getTranslogConfig().getBigArrays(),
-                ""
+                "",
+                false
             );
             EngineConfig configWithWarmer = new EngineConfig.Builder().shardId(config.getShardId())
                 .threadPool(config.getThreadPool())

@@ -389,7 +389,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * creates a new initializing shard. The shard will will be put in its proper path under the
+     * creates a new initializing shard. The shard will be put in its proper path under the
      * supplied node id.
      *
      * @param shardId the shard id to use
@@ -407,7 +407,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * creates a new initializing shard. The shard will will be put in its proper path under the
+     * creates a new initializing shard. The shard will be put in its proper path under the
      * supplied node id.
      *
      * @param shardId the shard id to use
@@ -441,7 +441,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * creates a new initializing shard. The shard will will be put in its proper path under the
+     * creates a new initializing shard. The shard will be put in its proper path under the
      * current node id the shard is assigned to.
      *
      * @param routing       shard routing to use
@@ -459,7 +459,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * creates a new initializing shard. The shard will will be put in its proper path under the
+     * creates a new initializing shard. The shard will be put in its proper path under the
      * current node id the shard is assigned to.
      * @param routing                shard routing to use
      * @param indexMetadata          indexMetadata for the shard, including any mapping
@@ -498,7 +498,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * creates a new initializing shard. The shard will will be put in its proper path under the
+     * creates a new initializing shard. The shard will be put in its proper path under the
      * current node id the shard is assigned to.
      * @param routing                       shard routing to use
      * @param shardPath                     path to use for shard data
@@ -1638,12 +1638,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 ReplicationCheckpoint checkpoint,
                 ActionListener<CheckpointInfoResponse> listener
             ) {
-                try {
-                    final CopyState copyState = new CopyState(primaryShard.getLatestReplicationCheckpoint(), primaryShard);
+                try (final CopyState copyState = new CopyState(primaryShard)) {
                     listener.onResponse(
                         new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
                     );
-                    copyState.decRef();
                 } catch (IOException e) {
                     logger.error("Unexpected error computing CopyState", e);
                     Assert.fail("Failed to compute copyState");

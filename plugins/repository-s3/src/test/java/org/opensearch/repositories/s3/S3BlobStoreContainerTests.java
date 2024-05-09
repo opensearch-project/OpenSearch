@@ -90,6 +90,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -125,7 +126,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> blobContainer.executeSingleUpload(blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize)
+            () -> blobContainer.executeSingleUpload(blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize, null)
         );
         assertEquals("Upload request size [" + blobSize + "] can't be larger than 5gb", e.getMessage());
     }
@@ -139,7 +140,13 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> blobContainer.executeSingleUpload(blobStore, blobName, new ByteArrayInputStream(new byte[0]), ByteSizeUnit.MB.toBytes(2))
+            () -> blobContainer.executeSingleUpload(
+                blobStore,
+                blobName,
+                new ByteArrayInputStream(new byte[0]),
+                ByteSizeUnit.MB.toBytes(2),
+                null
+            )
         );
         assertEquals("Upload request size [2097152] can't be larger than buffer size", e.getMessage());
     }
@@ -430,6 +437,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
 
+        final Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+        metadata.put("key2", "value2");
+
         final BlobPath blobPath = new BlobPath();
         if (randomBoolean()) {
             IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
@@ -467,7 +478,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         );
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
-        blobContainer.executeSingleUpload(blobStore, blobName, inputStream, blobSize);
+        blobContainer.executeSingleUpload(blobStore, blobName, inputStream, blobSize, metadata);
 
         final PutObjectRequest request = putObjectRequestArgumentCaptor.getValue();
         final RequestBody requestBody = requestBodyArgumentCaptor.getValue();
@@ -480,6 +491,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(blobSize, request.contentLength().longValue());
         assertEquals(storageClass, request.storageClass());
         assertEquals(cannedAccessControlList, request.acl());
+        assertEquals(metadata, request.metadata());
         if (serverSideEncryption) {
             assertEquals(ServerSideEncryption.AES256, request.serverSideEncryption());
         }
@@ -492,7 +504,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> blobContainer.executeMultipartUpload(blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize)
+            () -> blobContainer.executeMultipartUpload(blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize, null)
         );
         assertEquals("Multipart upload request size [" + blobSize + "] can't be larger than 5tb", e.getMessage());
     }
@@ -504,7 +516,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> blobContainer.executeMultipartUpload(blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize)
+            () -> blobContainer.executeMultipartUpload(blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize, null)
         );
         assertEquals("Multipart upload request size [" + blobSize + "] can't be smaller than 5mb", e.getMessage());
     }
@@ -512,6 +524,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
     public void testExecuteMultipartUpload() throws IOException {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
+
+        final Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+        metadata.put("key2", "value2");
 
         final BlobPath blobPath = new BlobPath();
         if (randomBoolean()) {
@@ -577,13 +593,15 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[0]);
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
-        blobContainer.executeMultipartUpload(blobStore, blobName, inputStream, blobSize);
+        blobContainer.executeMultipartUpload(blobStore, blobName, inputStream, blobSize, metadata);
 
         final CreateMultipartUploadRequest initRequest = createMultipartUploadRequestArgumentCaptor.getValue();
         assertEquals(bucketName, initRequest.bucket());
         assertEquals(blobPath.buildAsString() + blobName, initRequest.key());
         assertEquals(storageClass, initRequest.storageClass());
         assertEquals(cannedAccessControlList, initRequest.acl());
+        assertEquals(metadata, initRequest.metadata());
+
         if (serverSideEncryption) {
             assertEquals(ServerSideEncryption.AES256, initRequest.serverSideEncryption());
         }
@@ -686,7 +704,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final IOException e = expectThrows(IOException.class, () -> {
             final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
-            blobContainer.executeMultipartUpload(blobStore, blobName, new ByteArrayInputStream(new byte[0]), blobSize);
+            blobContainer.executeMultipartUpload(blobStore, blobName, new ByteArrayInputStream(new byte[0]), blobSize, null);
         });
 
         assertEquals("Unable to upload object [" + blobName + "] using multipart upload", e.getMessage());
