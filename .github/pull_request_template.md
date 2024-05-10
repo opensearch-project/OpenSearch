@@ -17,6 +17,8 @@ Resolves #[Issue number to be closed when this PR is merged]
   - [ ] All tests pass
 - [ ] New functionality has been documented.
   - [ ] New functionality has javadoc added
+- [ ] Specifications for new APIs to support generated clients have been added (See: [Guide](https://github.com/opensearch-project/opensearch-api-specification/blob/main/DEVELOPER_GUIDE.md))
+  - [ ] A separate PR has been created and linked in the [OpenSearch API Specification](https://github.com/opensearch-project/opensearch-api-specification) repo
 - [ ] Failing checks are inspected and point to the corresponding known issue(s) (See: [Troubleshooting Failing Builds](../blob/main/CONTRIBUTING.md#troubleshooting-failing-builds))
 - [ ] Commits are signed per the DCO using --signoff
 - [ ] Commit changes are listed out in CHANGELOG.md file (See: [Changelog](../blob/main/CONTRIBUTING.md#changelog))
