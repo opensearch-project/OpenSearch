@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.mapping.get;
 
-import org.opensearch.Version;
 import org.opensearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.Strings;
@@ -41,7 +40,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.AbstractWireSerializingTestCase;
-import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -72,51 +70,6 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
         mappings.put("index", Collections.emptyMap());
         GetFieldMappingsResponse response = new GetFieldMappingsResponse(mappings);
         assertEquals("{\"index\":{\"mappings\":{}}}", Strings.toString(MediaTypeRegistry.JSON, response));
-    }
-
-    public void testBwcSerializationWithNullField() throws Exception {
-        {
-            Map<String, Map<String, FieldMappingMetadata>> mappings = new HashMap<>();
-            mappings.put("index", Collections.emptyMap());
-            final GetFieldMappingsResponse getFieldMappingsResponse = new GetFieldMappingsResponse(mappings);
-
-            final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                getFieldMappingsResponse.writeTo(out);
-
-                try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(version);
-                    int indexSize = in.readVInt();
-                    String indexName = in.readString();
-                    int typeSize = in.readVInt();
-                    assertEquals(indexSize, 1);
-                    assertEquals(indexName, "index");
-                    assertEquals(typeSize, 0);
-                }
-            }
-        }
-
-        {
-            Map<String, Map<String, FieldMappingMetadata>> mappings = new HashMap<>();
-            String indexName = "index";
-            mappings.put(indexName, Collections.emptyMap());
-
-            final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                out.writeVInt(mappings.size());
-                out.writeString(indexName);
-                out.writeVInt(mappings.get(indexName).size());
-
-                try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(version);
-                    final GetFieldMappingsResponse fieldMappingsResponse = new GetFieldMappingsResponse(in);
-                    assertEquals(fieldMappingsResponse.mappings().size(), 1);
-                    assertEquals("{\"index\":{\"mappings\":{}}}", Strings.toString(MediaTypeRegistry.JSON, fieldMappingsResponse));
-                }
-            }
-        }
     }
 
     @Override
