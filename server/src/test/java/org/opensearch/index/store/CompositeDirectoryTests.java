@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.mock;
@@ -60,8 +61,11 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
     public void testDeleteFile() throws IOException {
         Path basePath = mock(Path.class);
         Path resolvedPath = mock(Path.class);
-        when(basePath.resolve("_0.si")).thenReturn(resolvedPath);
+        when(basePath.resolve(anyString())).thenReturn(resolvedPath);
         when(localDirectory.getDirectory()).thenReturn(basePath);
+
+        compositeDirectory.deleteFile("_0.tmp");
+        verify(localDirectory).deleteFile("_0.tmp");
 
         compositeDirectory.deleteFile("_0.si");
         verify(fileCache).remove(resolvedPath);

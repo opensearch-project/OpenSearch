@@ -108,11 +108,15 @@ public class CompositeDirectory extends FilterDirectory {
     @Override
     public void deleteFile(String name) throws IOException {
         logger.trace("deleteFile() called {}", name);
-        /*
-        Not deleting from localDirectory directly since it causes a race condition when the localDirectory deletes a file, and it ends up in pendingDeletion state.
-        Meanwhile, fileCache on removal deletes the file directly via the Files class and later when the directory tries to delete the files pending for deletion (which happens before creating a new file), it causes NoSuchFileException and new file creation fails
-         */
-        fileCache.remove(localDirectory.getDirectory().resolve(name));
+        if (isTempFile(name)) {
+            localDirectory.deleteFile(name);
+        } else {
+            /*
+            Not deleting from localDirectory directly since it causes a race condition when the localDirectory deletes a file, and it ends up in pendingDeletion state.
+            Meanwhile, fileCache on removal deletes the file directly via the Files class and later when the directory tries to delete the files pending for deletion (which happens before creating a new file), it causes NoSuchFileException and new file creation fails
+            */
+            fileCache.remove(localDirectory.getDirectory().resolve(name));
+        }
     }
 
     /**
