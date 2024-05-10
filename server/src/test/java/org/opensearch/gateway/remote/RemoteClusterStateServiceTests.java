@@ -803,6 +803,55 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         });
     }
 
+    public void testIndexMetadataDeletedUpdatedAndAdded() throws IOException {
+        // setup
+        mockBlobStoreObjects();
+
+        // Initial cluster state with index.
+        final ClusterState initialClusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+        remoteClusterStateService.start();
+        final ClusterMetadataManifest initialManifest = remoteClusterStateService.writeFullMetadata(initialClusterState, "_na_");
+        String initialIndex = "test-index";
+        Index index1 = new Index("test-index-1", "index-uuid-1");
+        Index index2 = new Index("test-index-2", "index-uuid-2");
+        final Settings idxSettings1 = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
+            .build();
+        final IndexMetadata indexMetadata1 = new IndexMetadata.Builder(index1.getName()).settings(idxSettings1)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        final Settings idxSettings2 = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, index2.getUUID())
+            .build();
+        final IndexMetadata indexMetadata2 = new IndexMetadata.Builder(index2.getName()).settings(idxSettings2)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ClusterState clusterState1 = ClusterState.builder(initialClusterState)
+            .metadata(
+                Metadata.builder(initialClusterState.getMetadata())
+                    .put(indexMetadata1, false)
+                    .put(indexMetadata2, false)
+                    .remove(initialIndex)
+                    .build()
+            )
+            .build();
+        ClusterMetadataManifest manifest1 = remoteClusterStateService.writeIncrementalMetadata(
+            initialClusterState,
+            clusterState1,
+            initialManifest
+        );
+        // verify that initial index is removed, and new index are added
+        assertTrue(initialManifest.getIndices().stream().anyMatch(indexMetadata -> indexMetadata.getIndexName().equals(initialIndex)));
+        assertFalse(manifest1.getIndices().stream().anyMatch(indexMetadata -> indexMetadata.getIndexName().equals(initialIndex)));
+        assertTrue(manifest1.getIndices().stream().anyMatch(indexMetadata -> indexMetadata.getIndexName().equals(index1.getName())));
+        assertTrue(manifest1.getIndices().stream().anyMatch(indexMetadata -> indexMetadata.getIndexName().equals(index2.getName())));
+
+    }
+
     private void verifyMetadataAttributeOnlyUpdated(
         Function<ClusterState, ClusterState> clusterStateUpdater,
         BiConsumer<ClusterMetadataManifest, ClusterMetadataManifest> assertions

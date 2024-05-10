@@ -735,6 +735,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), UPLOADED_FILENAME_FIELD);
         }
 
+        static final String COMPONENT_PREFIX = "index--";
         private final String indexName;
         private final String indexUUID;
         private final String uploadedFilename;
@@ -757,7 +758,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
         @Override
         public String getComponent() {
-            return getIndexName();
+            return COMPONENT_PREFIX + getIndexName();
         }
 
         public String getUploadedFilename() {

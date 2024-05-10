@@ -753,7 +753,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return index.getUUID();
     }
 
-
     /**
      * Test whether the current index UUID is the same as the given one. Returns true if either are _na_
      */
