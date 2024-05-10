@@ -52,8 +52,14 @@ import java.util.Objects;
 public class ScriptScoreFunction extends ScoreFunction {
 
     static final class CannedScorer extends Scorable {
-        protected int docid;
-        protected float score;
+        private int docid;
+        private float score;
+
+        public void score(float subScore) {
+            // We check to make sure the script score function never makes a score negative, but we need to make
+            // sure the script score function does not receive negative input.
+            this.score = Math.max(0.0f, subScore);
+        }
 
         @Override
         public int docID() {
@@ -105,7 +111,7 @@ public class ScriptScoreFunction extends ScoreFunction {
             public double score(int docId, float subQueryScore) throws IOException {
                 leafScript.setDocument(docId);
                 scorer.docid = docId;
-                scorer.score = subQueryScore;
+                scorer.score(subQueryScore);
                 double result = leafScript.execute(null);
                 if (result < 0f) {
                     throw new IllegalArgumentException("script score function must not produce negative scores, but got: [" + result + "]");
@@ -119,7 +125,7 @@ public class ScriptScoreFunction extends ScoreFunction {
                 if (leafScript instanceof ExplainableScoreScript) {
                     leafScript.setDocument(docId);
                     scorer.docid = docId;
-                    scorer.score = subQueryScore.getValue().floatValue();
+                    scorer.score(subQueryScore.getValue().floatValue());
                     exp = ((ExplainableScoreScript) leafScript).explain(subQueryScore, functionName);
                 } else {
                     double score = score(docId, subQueryScore.getValue().floatValue());

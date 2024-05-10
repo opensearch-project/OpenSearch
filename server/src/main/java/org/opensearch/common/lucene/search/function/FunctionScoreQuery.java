@@ -533,8 +533,10 @@ public class FunctionScoreQuery extends Query {
             int docId = docID();
             // Even if the weight is created with needsScores=false, it might
             // be costly to call score(), so we explicitly check if scores
-            // are needed
-            float subQueryScore = needsScores ? super.score() : 0f;
+            // are needed.
+            // While the function scorer should never turn a score negative, we
+            // must guard against the input score being negative.
+            float subQueryScore = needsScores ? Math.max(0f, super.score()) : 0f;
             if (leafFunctions.length == 0) {
                 return subQueryScore;
             }

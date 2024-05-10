@@ -165,7 +165,9 @@ public abstract class ScoreScript {
     public void setScorer(Scorable scorer) {
         this.scoreSupplier = () -> {
             try {
-                return scorer.score();
+                // The ScoreScript is forbidden from returning a negative value.
+                // We should guard against receiving negative input.
+                return Math.max(0f, scorer.score());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

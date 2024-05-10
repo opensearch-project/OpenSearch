@@ -482,3 +482,79 @@
                         }]
     - match: { error.root_cause.0.type: "illegal_argument_exception" }
     - match: { error.root_cause.0.reason: "script score function must not produce negative scores, but got: [-9.0]"}
+
+---
+"Do not throw exception if input score is negative":
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "color" : "orange red yellow" }
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "color": "orange red purple", "shape": "red square" }
+  - do:
+      index:
+        index: test
+        id: 3
+        body: { "color" : "orange red yellow purple" }
+  - do:
+      indices.refresh: { }
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            function_score:
+              query:
+                multi_match:
+                  query: "red"
+                  type: "cross_fields"
+                  fields: [ "color", "shape^100"]
+                  tie_breaker: 0.1
+              functions: [{
+                "script_score": {
+                  "script": {
+                    "lang": "painless",
+                    "source": "_score"
+                  }
+                }
+              }]
+          explain: true
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.2._score: 0.0 }
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            function_score:
+              query:
+                multi_match:
+                  query: "red"
+                  type: "cross_fields"
+                  fields: [ "color", "shape^100"]
+                  tie_breaker: 0.1
+              weight: 1
+          explain: true
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.2._score: 0.0 }
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            script_score:
+              query:
+                multi_match:
+                  query: "red"
+                  type: "cross_fields"
+                  fields: [ "color", "shape^100"]
+                  tie_breaker: 0.1
+              script:
+                source: "_score"
+          explain: true
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.2._score: 0.0 }

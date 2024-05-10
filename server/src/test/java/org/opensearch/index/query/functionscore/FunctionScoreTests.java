@@ -74,6 +74,7 @@ import org.opensearch.index.fielddata.LeafNumericFieldData;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.query.NegativeBoostQuery;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
@@ -1093,6 +1094,24 @@ public class FunctionScoreTests extends OpenSearchTestCase {
         assertThat(exc.getMessage(), containsString("field value function must not produce negative scores"));
         assertThat(exc.getMessage(), not(containsString("consider using ln1p or ln2p instead of ln to avoid negative scores")));
         assertThat(exc.getMessage(), not(containsString("consider using log1p or log2p instead of log to avoid negative scores")));
+    }
+
+    public void testNoExceptionOnNegativeScoreInput() throws IOException {
+        IndexSearcher localSearcher = new IndexSearcher(reader);
+        TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
+
+        // test that field_value_factor function throws an exception on negative scores
+        FieldValueFactorFunction.Modifier modifier = FieldValueFactorFunction.Modifier.NONE;
+
+        final ScoreFunction fvfFunction = new FieldValueFactorFunction(FIELD, 1, modifier, 1.0, new IndexNumericFieldDataStub());
+        FunctionScoreQuery fsQuery1 = new FunctionScoreQuery(
+            new NegativeBoostQuery(termQuery, -10f),
+            fvfFunction,
+            CombineFunction.MULTIPLY,
+            null,
+            Float.POSITIVE_INFINITY
+        );
+        localSearcher.search(fsQuery1, 1);
     }
 
     public void testExceptionOnLnNegativeScores() {

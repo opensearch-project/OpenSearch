@@ -39,6 +39,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -46,12 +47,15 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.lucene.search.function.ScriptScoreQuery;
+import org.opensearch.index.query.NegativeBoostQuery;
 import org.opensearch.script.ScoreScript;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
@@ -64,6 +68,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -185,6 +190,15 @@ public class ScriptScoreQueryTests extends OpenSearchTestCase {
         assertTrue(e.getMessage().contains("Must be a non-negative score!"));
     }
 
+    public void testNoExceptionOnNegativeInputScore() throws IOException {
+        Script script = new Script("script that returns _score");
+        ScoreScript.LeafFactory factory = newFactory(script, true, (s, e) -> s.get_score());
+        NegativeBoostQuery negativeBoostQuery = new NegativeBoostQuery(new TermQuery(new Term("field", "text")), -10.0f);
+        ScriptScoreQuery query = new ScriptScoreQuery(negativeBoostQuery, script, factory, -1f, "index", 0, Version.CURRENT);
+        TopDocs topDocs = searcher.search(query, 1);
+        assertEquals(0.0f, topDocs.scoreDocs[0].score, 0.0001);
+    }
+
     public void testTwoPhaseIteratorDelegation() throws IOException {
         Map<String, Object> params = new HashMap<>();
         String scriptSource = "doc['field'].value != null ? 2.0 : 0.0"; // Adjust based on actual field and logic
@@ -221,6 +235,14 @@ public class ScriptScoreQueryTests extends OpenSearchTestCase {
         boolean needsScore,
         Function<ScoreScript.ExplanationHolder, Double> function
     ) {
+        return newFactory(script, needsScore, (s, e) -> function.apply(e));
+    }
+
+    private ScoreScript.LeafFactory newFactory(
+        Script script,
+        boolean needsScore,
+        BiFunction<ScoreScript, ScoreScript.ExplanationHolder, Double> function
+    ) {
         SearchLookup lookup = mock(SearchLookup.class);
         LeafSearchLookup leafLookup = mock(LeafSearchLookup.class);
         IndexSearcher indexSearcher = mock(IndexSearcher.class);
@@ -236,7 +258,7 @@ public class ScriptScoreQueryTests extends OpenSearchTestCase {
                 return new ScoreScript(script.getParams(), lookup, indexSearcher, leafReaderContext) {
                     @Override
                     public double execute(ExplanationHolder explanation) {
-                        return function.apply(explanation);
+                        return function.apply(this, explanation);
                     }
                 };
             }
