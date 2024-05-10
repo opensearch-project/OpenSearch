@@ -23,12 +23,9 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -101,24 +98,12 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
         verify(localDirectory).createOutput("_0.si", IOContext.DEFAULT);
     }
 
-    public void testCreateTempOutput() throws IOException {
-        IndexOutput indexOutput = mock(IndexOutput.class);
-        when(localDirectory.createTempOutput("prefix", "suffix", IOContext.DEFAULT)).thenReturn(indexOutput);
-        compositeDirectory.createTempOutput("prefix", "suffix", IOContext.DEFAULT);
-        verify(localDirectory).createTempOutput("prefix", "suffix", IOContext.DEFAULT);
-    }
-
     public void testSync() throws IOException {
         populateMetadata();
         remoteSegmentStoreDirectory.init();
         Collection<String> names = List.of("_0.cfe", "_0.cfs", "_1.cfe", "_1.cfs", "_2.nvm", "segments_1");
         compositeDirectory.sync(names);
         verify(localDirectory).sync(List.of("_1.cfe", "_1.cfs", "_2.nvm"));
-    }
-
-    public void testSyncMetaData() throws IOException {
-        compositeDirectory.syncMetaData();
-        verify(localDirectory).syncMetaData();
     }
 
     public void testRename() throws IOException {
@@ -179,11 +164,5 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
         verify(localDirectory).close();
         verify(fileCache).remove(resolvedPath1);
         verify(fileCache).remove(resolvedPath2);
-    }
-
-    public void testGetPendingDeletions() throws IOException {
-        Set<String> pendingDeletions = new HashSet<>(Arrays.asList("_0.si", "_0.cfs", "_0.cfe"));
-        when(localDirectory.getPendingDeletions()).thenReturn(pendingDeletions);
-        assertEquals(pendingDeletions, compositeDirectory.getPendingDeletions());
     }
 }
