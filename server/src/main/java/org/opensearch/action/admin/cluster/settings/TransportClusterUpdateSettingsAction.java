@@ -70,9 +70,8 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater.indexHasAllRemoteStoreRelatedMetadata;
-
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater.indexHasAllRemoteStoreRelatedMetadata;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 
 /**
@@ -342,6 +341,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
             );
         }
     }
+
     /**
      * Verifies that remote cluster state is enabled if the compatibility mode is set to MIXED
      * and migration direction is getting updated to remote store
